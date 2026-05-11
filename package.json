@@ -1,0 +1,12 @@
+{
+  "name": "portal-ceal-ceic-ucn-final",
+  "version": "1.0.0",
+  "description": "Demo frontend avanzada del Portal CEIC / CEAL UCN Ingeniería Civil UCN",
+  "private": true,
+  "scripts": {
+    "serve": "python -m http.server 8080",
+    "check": "node --check src/app.js && node --check src/mock-data.js && node --check data/curricula.js && node --check scripts/qa-portal.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

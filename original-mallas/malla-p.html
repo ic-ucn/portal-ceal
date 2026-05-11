@@ -1,0 +1,2796 @@
+<!--
+  ============================================================
+  Malla Curricular Informativa — Ingeniería Civil UCN Plan P
+  ============================================================
+  Version:     2.0.0
+  Fecha:       2026-03-21
+  Descripción: Archivo HTML autocontenido (sin dependencias externas)
+               que muestra la malla curricular de Ingeniería Civil
+               de la Universidad Católica del Norte, Plan P.
+               64 asignaturas en 11 semestres. Herramienta de
+               consulta read-only con modal informativo,
+               highlight de cadenas de prerequisitos,
+               tema claro/oscuro, zoom y búsqueda.
+  Licencia:    Uso educativo
+  ============================================================
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Malla interactiva de Ing. Civil UCN — Plan P. Toca cualquier ramo para ver info, prerequisitos y qué abre.">
+  <meta name="theme-color" content="#0F172A">
+  <meta property="og:title" content="Malla Ing. Civil UCN">
+  <meta property="og:description" content="Toca cualquier ramo para ver info, prerequisitos y qué abre.">
+  <meta property="og:type" content="website">
+  <title>Malla Ing. Civil UCN — Plan P</title>
+  <style>
+    /* ============ RESET & BASE ============ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { height: 100%; }
+    body {
+      margin: 0; padding: 0; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      background: var(--mc-bg-base); color: var(--mc-text-primary);
+    }
+    img, picture, video, canvas, svg { display: block; max-width: 100%; }
+    input, button, textarea, select { font: inherit; }
+    p, h1, h2, h3, h4, h5, h6 { overflow-wrap: break-word; }
+    ul, ol { list-style: none; margin: 0; padding: 0; }
+    a { text-decoration: none; color: inherit; }
+    [hidden] { display: none !important; }
+
+    /* ============ CSS CUSTOM PROPERTIES ============ */
+    :root {
+      --mc-bg-base:#0F172A; --mc-bg-surface:#1E293B; --mc-bg-elevated:#334155; --mc-bg-hover:#475569;
+      --mc-text-primary:#F8FAFC; --mc-text-secondary:#CBD5E1; --mc-text-muted:#64748B;
+      --mc-area-basica:#3B82F6; --mc-area-basica-bg:rgba(59,130,246,0.15);
+      --mc-area-ingenieria:#8B5CF6; --mc-area-ingenieria-bg:rgba(139,92,246,0.15);
+      --mc-area-aplicada:#F59E0B; --mc-area-aplicada-bg:rgba(245,158,11,0.15);
+      --mc-area-general:#10B981; --mc-area-general-bg:rgba(16,185,129,0.15);
+      --mc-area-proyecto:#EC4899; --mc-area-proyecto-bg:rgba(236,72,153,0.15);
+      --mc-area-electivo:#6366F1; --mc-area-electivo-bg:rgba(99,102,241,0.15);
+      --mc-highlight-prereq:#EF4444; --mc-highlight-successor:#06B6D4;
+      --mc-dim-opacity:0.15; --mc-dim-filter:grayscale(0.8);
+      --mc-card-w:140px; --mc-card-h:90px; --mc-card-radius:10px; --mc-card-padding:10px;
+      --mc-grid-gap-x:12px; --mc-grid-gap-y:8px; --mc-header-h:56px;
+      --mc-tooltip-max-w:280px;
+      --mc-transition-fast:0.15s ease; --mc-transition-normal:0.3s ease;
+      --mc-transition-slide:0.35s cubic-bezier(0.4,0,0.2,1);
+      --mc-font-card-name:0.7rem; --mc-font-card-code:0.6rem; --mc-font-card-sct:0.65rem;
+      --mc-font-header:1.1rem; --mc-font-semester-label:0.75rem;
+    }
+
+    /* ============ TYPOGRAPHY ============ */
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+    /* ============ UTILITY CLASSES ============ */
+    .mc-sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
+    }
+    .mc-sr-only--focusable:focus {
+      position: fixed; top: 8px; left: 8px; z-index: 9999;
+      width: auto; height: auto; padding: 8px 16px; margin: 0;
+      overflow: visible; clip: auto; white-space: normal;
+      background: var(--mc-bg-surface); color: var(--mc-text-primary);
+      border: 2px solid #60A5FA; border-radius: 8px;
+      font-size: 0.85rem; font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+
+    /* ============ LAYOUT: HEADER ============ */
+    .mc-header {
+      display: flex; justify-content: space-between; align-items: center;
+      height: var(--mc-header-h); padding: 0 20px;
+      background: rgba(15,23,42,0.8); border-bottom: 1px solid rgba(255,255,255,0.06);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    }
+    .mc-header__title { display: flex; align-items: center; gap: 10px; }
+    .mc-header__title h1 { font-size: 0.95rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+    .mc-header__subtitle {
+      font-size: 0.72rem; color: var(--mc-text-muted);
+      padding-left: 10px; border-left: 1px solid rgba(255,255,255,0.1);
+    }
+    .mc-header__actions { display: flex; gap: 10px; align-items: center; }
+    .mc-header__hint {
+      font-size: 0.62rem; color: var(--mc-text-muted); opacity: 0.5;
+      padding: 3px 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    }
+
+    /* ============ LAYOUT: GRID CONTAINER + SEMESTER COLUMNS ============ */
+    .mc-grid { position: relative; padding: 24px 16px; overflow-x: auto; }
+    .mc-grid-inner {
+      display: grid; grid-template-columns: repeat(11, var(--mc-card-w));
+      gap: var(--mc-grid-gap-x); margin: 0 auto; width: fit-content;
+    }
+    /* Desktop: each group is a column in the grid */
+    .mc-semester-group {
+      display: flex; flex-direction: column; gap: var(--mc-grid-gap-y);
+    }
+    .mc-semester-header {
+      text-align: center; height: 32px; display: flex;
+      flex-direction: column; align-items: center; justify-content: flex-end;
+      padding-bottom: 6px; flex-shrink: 0;
+    }
+    .mc-semester-header__label {
+      font-size: 0.68rem; font-weight: 700;
+      color: var(--mc-text-muted); letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .mc-semester-col {
+      display: flex; flex-direction: column;
+      gap: var(--mc-grid-gap-y); flex: 1;
+    }
+
+    /* ============ CARDS: BASE ============ */
+    .mc-card {
+      width: var(--mc-card-w); height: var(--mc-card-h);
+      border-radius: var(--mc-card-radius); padding: var(--mc-card-padding);
+      position: relative; cursor: pointer;
+      display: flex; flex-direction: column; justify-content: space-between;
+      transition: transform 0.15s ease-in, box-shadow 0.15s ease-in, opacity 0.2s ease, filter 0.2s ease;
+      backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      overflow: hidden; color: var(--mc-text-primary);
+    }
+    .mc-card__code {
+      font-size: var(--mc-font-card-code); opacity: 0.7;
+      line-height: 1; white-space: nowrap;
+    }
+    .mc-card__name {
+      font-size: var(--mc-font-card-name); font-weight: 500;
+      line-height: 1.2; flex: 1; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; text-overflow: ellipsis;
+      margin: 4px 0;
+    }
+    .mc-card__sct {
+      font-size: var(--mc-font-card-sct); position: absolute;
+      bottom: 6px; right: 6px; padding: 1px 6px;
+      border-radius: 8px; background: rgba(255,255,255,0.1);
+      line-height: 1.3;
+    }
+
+    /* ============ CARDS: AREA COLORS ============ */
+    .mc-card--basica{background:var(--mc-area-basica-bg);border-left:3px solid var(--mc-area-basica)}
+    .mc-card--basica .mc-card__sct{background:rgba(59,130,246,0.25)}
+    .mc-card--ingenieria{background:var(--mc-area-ingenieria-bg);border-left:3px solid var(--mc-area-ingenieria)}
+    .mc-card--ingenieria .mc-card__sct{background:rgba(139,92,246,0.25)}
+    .mc-card--aplicada{background:var(--mc-area-aplicada-bg);border-left:3px solid var(--mc-area-aplicada)}
+    .mc-card--aplicada .mc-card__sct{background:rgba(245,158,11,0.25)}
+    .mc-card--general{background:var(--mc-area-general-bg);border-left:3px solid var(--mc-area-general)}
+    .mc-card--general .mc-card__sct{background:rgba(16,185,129,0.25)}
+    .mc-card--proyecto{background:var(--mc-area-proyecto-bg);border-left:3px solid var(--mc-area-proyecto)}
+    .mc-card--proyecto .mc-card__sct{background:rgba(236,72,153,0.25)}
+    .mc-card--electivo{background:var(--mc-area-electivo-bg);border-left:3px solid var(--mc-area-electivo)}
+    .mc-card--electivo .mc-card__sct{background:rgba(99,102,241,0.25)}
+
+    /* ============ CAPSTONE SPECIAL ============ */
+    .mc-card--capstone {
+      height: auto; flex: 1;
+      justify-content: center; align-items: center; text-align: center;
+      border-left-width: 4px;
+      min-height: 300px;
+    }
+    .mc-card--capstone .mc-card__code {
+      font-size: 0.7rem; margin-bottom: 8px;
+    }
+    .mc-card--capstone .mc-card__name {
+      font-size: 0.95rem; font-weight: 700;
+      -webkit-line-clamp: unset;
+      margin: 0 0 12px;
+    }
+    .mc-card--capstone .mc-card__sct {
+      position: static; font-size: 0.8rem; font-weight: 700;
+      padding: 4px 14px; border-radius: 999px;
+      margin-top: 8px;
+    }
+
+    /* ============ CARDS: HOVER ============ */
+    .mc-card:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      z-index: 10;
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, opacity 0.2s ease, filter 0.2s ease;
+    }
+
+    /* ============ CARDS: FOCUS ============ */
+    .mc-card:focus-visible {
+      outline: 2px solid #60A5FA; outline-offset: 2px;
+      border-radius: var(--mc-card-radius); z-index: 15;
+    }
+    .mc-card:focus:not(:focus-visible) { outline: none; }
+    .mc-theme-toggle:focus-visible,
+    .mc-zoom-btn:focus-visible,
+    .mc-search__close:focus-visible {
+      outline: 2px solid #60A5FA; outline-offset: 2px;
+    }
+    .mc-light .mc-theme-toggle:focus-visible,
+    .mc-light .mc-zoom-btn:focus-visible {
+      outline-color: #2563EB;
+    }
+
+    /* ============ CARDS: HIGHLIGHT & DIM ============ */
+    .mc-card--highlight-prereq{box-shadow:0 0 0 2px var(--mc-highlight-prereq),0 0 15px rgba(239,68,68,0.4);opacity:1!important;filter:none!important}
+    .mc-card--highlight-successor{box-shadow:0 0 0 2px var(--mc-highlight-successor),0 0 15px rgba(6,182,212,0.4);opacity:1!important;filter:none!important}
+    .mc-card--dimmed{opacity:var(--mc-dim-opacity);filter:var(--mc-dim-filter);pointer-events:none;transform:scale(0.98)}
+    .mc-card--highlight-self{box-shadow:0 0 0 2px var(--mc-highlight-prereq),0 0 0 5px var(--mc-highlight-successor),0 0 20px rgba(239,68,68,0.4),0 0 20px rgba(6,182,212,0.4);opacity:1!important;filter:none!important;transform:scale(1.08);z-index:20}
+
+    /* ============ SEPARATOR ============ */
+    .mc-separator { display: none; }
+    .mc-cycle-labels {
+      display: grid; grid-template-columns: repeat(11, var(--mc-card-w));
+      gap: var(--mc-grid-gap-x); margin: 0 auto; width: fit-content;
+      padding: 0 0 2px;
+    }
+    .mc-cycle-label {
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--mc-text-muted); text-align: center; font-weight: 600;
+      padding: 6px 0 4px; white-space: nowrap; opacity: 0.6;
+    }
+    .mc-cycle-label--basico {
+      grid-column: 1 / 5; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .mc-cycle-label--profesional {
+      grid-column: 5 / 12; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ============ FOOTER & LEGEND ============ */
+    .mc-footer {
+      display: flex; justify-content: center; align-items: center;
+      flex-wrap: wrap; gap: 24px; padding: 14px 24px;
+      background: var(--mc-bg-surface); border-top: 1px solid rgba(255,255,255,0.04);
+    }
+    .mc-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .mc-legend__item { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: var(--mc-text-muted); }
+    .mc-legend__dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .mc-legend__dot--basica { background: var(--mc-area-basica); }
+    .mc-legend__dot--ingenieria { background: var(--mc-area-ingenieria); }
+    .mc-legend__dot--aplicada { background: var(--mc-area-aplicada); }
+    .mc-legend__dot--general { background: var(--mc-area-general); }
+    .mc-legend__dot--proyecto { background: var(--mc-area-proyecto); }
+    .mc-legend__dot--electivo { background: var(--mc-area-electivo); }
+    .mc-footer__credit {
+      font-size: 0.65rem; color: var(--mc-text-muted); opacity: 0.6;
+      letter-spacing: 0.3px;
+    }
+
+    /* ============ TOOLTIP ============ */
+    .mc-tooltip {
+      position: absolute; z-index: 200; max-width: var(--mc-tooltip-max-w);
+      pointer-events: none; display: none;
+      background: rgba(30,41,59,0.92); backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 12px 14px; color: var(--mc-text-primary);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      opacity: 0; transform: translateY(5px);
+      transition: opacity 0.1s ease, transform 0.1s ease;
+      font-size: 0.75rem; line-height: 1.4;
+    }
+    .mc-tooltip--visible { display: block; opacity: 1; transform: translateY(0); transition: opacity 0.15s ease, transform 0.15s ease; }
+    .mc-tooltip::after {
+      content: ''; position: absolute; width: 8px; height: 8px;
+      background: rgba(30,41,59,0.92); border: 1px solid rgba(255,255,255,0.12);
+      transform: rotate(45deg);
+    }
+    .mc-tooltip--above::after { bottom: -5px; left: 50%; margin-left: -4px; border-top: none; border-left: none; }
+    .mc-tooltip--below::after { top: -5px; left: 50%; margin-left: -4px; border-bottom: none; border-right: none; }
+    .mc-tooltip--left::after { right: -5px; top: 50%; margin-top: -4px; border-bottom: none; border-left: none; }
+    .mc-tooltip--right::after { left: -5px; top: 50%; margin-top: -4px; border-top: none; border-right: none; }
+    .mc-tooltip__header { margin-bottom: 6px; }
+    .mc-tooltip__name { font-weight: 600; font-size: 0.8rem; display: block; }
+    .mc-tooltip__code { font-size: 0.65rem; color: var(--mc-text-muted); }
+    .mc-tooltip__body { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .mc-tooltip__sct { font-weight: 500; }
+    .mc-tooltip__area { display: flex; align-items: center; gap: 4px; }
+    .mc-tooltip__area-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+    /* ============ MODAL ============ */
+    .mc-modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); z-index: 500;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .mc-modal-overlay--visible { opacity: 1; pointer-events: auto; }
+    .mc-modal {
+      background: rgba(30,41,59,0.92); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px; max-width: 460px; width: 92%;
+      max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+      transform: scale(0.92); opacity: 0;
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease;
+      color: var(--mc-text-primary);
+      scrollbar-width: thin; scrollbar-color: var(--mc-bg-elevated) transparent;
+    }
+    .mc-modal-overlay--visible .mc-modal { transform: scale(1); opacity: 1; }
+    .mc-modal::-webkit-scrollbar { width: 6px; }
+    .mc-modal::-webkit-scrollbar-track { background: transparent; }
+    .mc-modal::-webkit-scrollbar-thumb { background: var(--mc-bg-elevated); border-radius: 3px; }
+    .mc-modal__accent {
+      height: 3px; border-radius: 16px 16px 0 0;
+      background: linear-gradient(90deg, var(--accent-color), transparent);
+    }
+    .mc-modal__content { padding: 24px 28px 28px; }
+    .mc-modal__top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    .mc-modal__code {
+      font-size: 0.75rem; color: var(--mc-text-muted); font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+    .mc-modal__sct {
+      font-size: 0.8rem; font-weight: 700; padding: 3px 12px;
+      border-radius: 8px; background: rgba(255,255,255,0.08);
+      white-space: nowrap;
+    }
+    .mc-modal__name {
+      font-size: 1.25rem; font-weight: 700; line-height: 1.3;
+      margin: 6px 0 12px;
+    }
+    .mc-modal__badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .mc-modal__badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.7rem; font-weight: 500; padding: 3px 10px;
+      border-radius: 6px; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .mc-modal__badge-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .mc-modal__divider {
+      border: none; border-top: 1px solid rgba(255,255,255,0.08);
+      margin: 16px 0;
+    }
+    .mc-modal__section-title {
+      font-size: 0.75rem; font-weight: 600; color: var(--mc-text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin: 0 0 10px;
+    }
+    .mc-modal__description {
+      font-size: 0.85rem; line-height: 1.6; color: var(--mc-text-secondary);
+      margin: 0;
+    }
+    .mc-modal__links {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;
+    }
+    .mc-modal__link-card {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer; font-size: 0.72rem; font-weight: 500;
+      color: var(--mc-text-secondary);
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .mc-modal__link-card:hover {
+      background: rgba(255,255,255,0.12); color: var(--mc-text-primary);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .mc-modal__link-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .mc-modal__empty {
+      font-size: 0.8rem; color: var(--mc-text-muted); font-style: italic;
+    }
+    .mc-modal__info-list {
+      list-style: none; margin: 0; padding: 0;
+    }
+    .mc-modal__info-list li {
+      font-size: 0.8rem; color: var(--mc-text-secondary);
+      padding: 3px 0; display: flex; align-items: baseline; gap: 6px;
+    }
+    .mc-modal__info-list li::before {
+      content: '\2022'; color: var(--mc-text-muted); font-size: 0.9rem; flex-shrink: 0;
+    }
+    .mc-modal__close {
+      position: absolute; top: 16px; right: 16px;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--mc-text-secondary); font-size: 1.2rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
+      z-index: 10;
+    }
+    .mc-modal__close:hover { background: rgba(255,255,255,0.18); color: var(--mc-text-primary); }
+
+    /* ============ ZOOM CONTROLS ============ */
+    .mc-zoom-controls {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 6px; border-radius: 999px;
+      background: rgba(15,23,42,0.65);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      user-select: none;
+      transition: opacity var(--mc-transition-fast), transform var(--mc-transition-fast);
+    }
+    .mc-zoom-controls:hover { background: rgba(15,23,42,0.8); }
+    .mc-zoom-btn {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: none; background: rgba(255,255,255,0.08);
+      color: var(--mc-text-secondary); font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background var(--mc-transition-fast), color var(--mc-transition-fast);
+      line-height: 1;
+    }
+    .mc-zoom-btn:hover { background: rgba(255,255,255,0.18); color: var(--mc-text-primary); }
+    .mc-zoom-btn:active { transform: scale(0.92); }
+    .mc-zoom-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .mc-zoom-btn:disabled:hover { background: rgba(255,255,255,0.08); color: var(--mc-text-secondary); }
+    .mc-zoom-label {
+      min-width: 42px; text-align: center;
+      font-size: 0.7rem; font-weight: 600; font-variant-numeric: tabular-nums;
+      color: var(--mc-text-secondary); letter-spacing: 0.3px;
+    }
+    .mc-zoom-btn--reset {
+      font-size: 0.65rem; width: auto; padding: 0 10px; border-radius: 999px;
+      margin-left: 2px;
+    }
+
+    /* ============ SEARCH OVERLAY ============ */
+    .mc-search {
+      position: fixed; top: var(--mc-header-h); left: 50%; transform: translateX(-50%) translateY(-100%);
+      z-index: 150; width: 340px; padding: 12px 16px;
+      background: rgba(30,41,59,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1); border-top: none;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transition: transform var(--mc-transition-slide), opacity var(--mc-transition-slide);
+      opacity: 0; pointer-events: none;
+    }
+    .mc-search--open {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1; pointer-events: auto;
+    }
+    .mc-search__inner {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.06); border-radius: 8px;
+      padding: 6px 10px; border: 1px solid rgba(255,255,255,0.08);
+      transition: border-color var(--mc-transition-fast);
+    }
+    .mc-search__inner:focus-within {
+      border-color: rgba(99,102,241,0.5);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .mc-search__icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--mc-text-muted); }
+    .mc-search__input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--mc-text-primary); font-size: 0.85rem; padding: 2px 0;
+    }
+    .mc-search__input::placeholder { color: var(--mc-text-muted); }
+    .mc-search__close {
+      width: 20px; height: 20px; flex-shrink: 0;
+      background: none; border: none; color: var(--mc-text-muted);
+      cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;
+      border-radius: 4px; transition: color var(--mc-transition-fast), background var(--mc-transition-fast);
+    }
+    .mc-search__close:hover { color: var(--mc-text-primary); background: rgba(255,255,255,0.1); }
+    .mc-search__info {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 6px; font-size: 0.7rem; color: var(--mc-text-muted); min-height: 18px;
+    }
+    .mc-search__count { color: var(--mc-text-secondary); }
+    .mc-search__no-results { color: #F87171; }
+    .mc-card--search-match {
+      box-shadow: 0 0 0 2px #6366F1, 0 0 18px rgba(99,102,241,0.5);
+      opacity: 1 !important; filter: none !important; z-index: 15;
+    }
+
+    /* ============ THEME TOGGLE ============ */
+    .mc-theme-toggle {
+      background: var(--mc-bg-elevated); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px; color: var(--mc-text-secondary);
+      padding: 6px 14px 6px 10px; gap: 6px;
+      min-height: 36px;
+      cursor: pointer; display: inline-flex; align-items: center;
+      transition: background var(--mc-transition-fast), color var(--mc-transition-fast), border-color var(--mc-transition-fast);
+      font-size: 0.72rem; font-weight: 500; letter-spacing: 0.2px;
+      white-space: nowrap; user-select: none;
+    }
+    .mc-theme-toggle:hover { background: var(--mc-bg-hover); color: var(--mc-text-primary); }
+    .mc-light .mc-theme-toggle { border-color: rgba(0,0,0,0.12); }
+    .mc-theme-toggle__icon { width: 15px; height: 15px; display: block; flex-shrink: 0; transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+    .mc-theme-toggle__icon--rotate { transform: rotate(360deg); }
+    html.mc-theme-transitioning,
+    html.mc-theme-transitioning *,
+    html.mc-theme-transitioning *::before,
+    html.mc-theme-transitioning *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    /* ============ LIGHT MODE OVERRIDES ============ */
+    html.mc-light {
+      --mc-bg-base: #F8FAFC; --mc-bg-surface: #FFFFFF;
+      --mc-bg-elevated: #F1F5F9; --mc-bg-hover: #E2E8F0;
+      --mc-text-primary: #0F172A; --mc-text-secondary: #475569; --mc-text-muted: #94A3B8;
+      --mc-area-basica: #1D4ED8; --mc-area-basica-bg: rgba(29,78,216,0.09);
+      --mc-area-ingenieria: #5B21B6; --mc-area-ingenieria-bg: rgba(91,33,182,0.08);
+      --mc-area-aplicada: #B45309; --mc-area-aplicada-bg: rgba(180,83,9,0.09);
+      --mc-area-general: #047857; --mc-area-general-bg: rgba(4,120,87,0.08);
+      --mc-area-proyecto: #9D174D; --mc-area-proyecto-bg: rgba(157,23,77,0.08);
+      --mc-area-electivo: #3730A3; --mc-area-electivo-bg: rgba(55,48,163,0.09);
+      --mc-highlight-prereq: #DC2626; --mc-highlight-successor: #0891B2;
+      --mc-dim-opacity: 0.2; --mc-dim-filter: grayscale(0.7);
+    }
+    .mc-light .mc-header { background: rgba(255,255,255,0.85); border-bottom-color: rgba(0,0,0,0.06); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .mc-light .mc-header__subtitle { border-left-color: rgba(0,0,0,0.1); }
+    .mc-light .mc-card { border-color: rgba(0,0,0,0.08); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .mc-light .mc-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+    .mc-light .mc-card__sct { background: rgba(0,0,0,0.06); }
+    .mc-light .mc-card--basica .mc-card__sct { background: rgba(29,78,216,0.12); }
+    .mc-light .mc-card--ingenieria .mc-card__sct { background: rgba(91,33,182,0.12); }
+    .mc-light .mc-card--aplicada .mc-card__sct { background: rgba(180,83,9,0.12); }
+    .mc-light .mc-card--general .mc-card__sct { background: rgba(4,120,87,0.12); }
+    .mc-light .mc-card--proyecto .mc-card__sct { background: rgba(157,23,77,0.12); }
+    .mc-light .mc-card--electivo .mc-card__sct { background: rgba(55,48,163,0.12); }
+    .mc-light .mc-card:focus-visible { outline-color: #2563EB; }
+    .mc-light .mc-sr-only--focusable:focus { border-color: #2563EB; background: #fff; color: #0F172A; }
+    .mc-light .mc-cycle-label { color: var(--mc-text-muted); border-bottom-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-semester-header { border-bottom-color: rgba(0,0,0,0.06); }
+    .mc-light .mc-footer { background: var(--mc-bg-surface); border-top-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-tooltip {
+      background: rgba(255,255,255,0.95); border-color: rgba(0,0,0,0.1);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    }
+    .mc-light .mc-tooltip::after { background: rgba(255,255,255,0.95); border-color: rgba(0,0,0,0.1); }
+    .mc-light .mc-modal-overlay { background: rgba(0,0,0,0.35); }
+    .mc-light .mc-modal {
+      background: rgba(255,255,255,0.95); border-color: rgba(0,0,0,0.1);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05);
+    }
+    .mc-light .mc-modal__close { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-modal__close:hover { background: rgba(0,0,0,0.1); }
+    .mc-light .mc-modal__sct { background: rgba(0,0,0,0.05); }
+    .mc-light .mc-modal__badge { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-modal__divider { border-top-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-modal__link-card {
+      background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08);
+    }
+    .mc-light .mc-modal__link-card:hover {
+      background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.15);
+    }
+    .mc-light .mc-zoom-controls {
+      background: rgba(248,250,252,0.75); border-color: rgba(0,0,0,0.08);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    }
+    .mc-light .mc-zoom-controls:hover { background: rgba(248,250,252,0.9); }
+    .mc-light .mc-zoom-btn { background: rgba(0,0,0,0.06); }
+    .mc-light .mc-zoom-btn:hover { background: rgba(0,0,0,0.12); }
+    .mc-light .mc-search {
+      background: rgba(248,250,252,0.85); border-color: rgba(0,0,0,0.08);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .mc-light .mc-search__inner { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    .mc-light .mc-search__input { color: #1E293B; }
+    .mc-light .mc-header__hint { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.06); }
+
+    /* ============ SCROLLBAR ============ */
+    .mc-grid::-webkit-scrollbar { height: 8px; }
+    .mc-grid::-webkit-scrollbar-track { background: transparent; }
+    .mc-grid::-webkit-scrollbar-thumb { background: var(--mc-bg-elevated); border-radius: 4px; }
+    .mc-grid::-webkit-scrollbar-thumb:hover { background: var(--mc-bg-hover); }
+
+    /* ============ REDUCED MOTION ============ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01s !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01s !important;
+      }
+      .mc-card:hover { transition-duration: 0.01s !important; }
+      .mc-tooltip { transition-duration: 0.01s !important; }
+      .mc-modal { transition-duration: 0.01s !important; }
+      .mc-modal-overlay { transition-duration: 0.01s !important; }
+    }
+
+    /* ============ ACCESSIBILITY: FORCED COLORS ============ */
+    @media (forced-colors: active) {
+      .mc-card { border: 2px solid ButtonText; forced-color-adjust: none; }
+      .mc-card:focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+      .mc-card__sct { border: 1px solid ButtonText; }
+      .mc-legend__dot { border: 2px solid ButtonText; }
+      .mc-theme-toggle, .mc-zoom-btn { border: 1px solid ButtonText; }
+    }
+
+    /* ============ MOBILE PEEK PILL ============ */
+    .mc-peek {
+      display: none; /* hidden on desktop, shown via JS on touch */
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%) translateY(80px);
+      z-index: 250; max-width: calc(100vw - 32px); width: auto;
+      padding: 10px 14px; border-radius: 999px;
+      background: rgba(15,23,42,0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+      align-items: center; gap: 10px;
+      opacity: 0; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease;
+      pointer-events: none;
+    }
+    .mc-peek--visible {
+      display: flex; opacity: 1; transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+    .mc-peek__dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .mc-peek__text {
+      font-size: 0.78rem; font-weight: 600; color: var(--mc-text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+    }
+    .mc-peek__sct {
+      font-size: 0.65rem; color: var(--mc-text-muted); white-space: nowrap; flex-shrink: 0;
+    }
+    .mc-peek__btn {
+      background: rgba(99,102,241,0.9); color: #fff; border: none; border-radius: 999px;
+      padding: 5px 14px; font-size: 0.68rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      transition: background 0.15s ease;
+    }
+    .mc-peek__btn:active { background: rgba(99,102,241,1); transform: scale(0.95); }
+    .mc-light .mc-peek {
+      background: rgba(255,255,255,0.92); border-color: rgba(0,0,0,0.1);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+
+    /* ============ RESPONSIVE ============ */
+
+    /* --- Laptop / small desktop (≤1280px) --- */
+    @media (max-width: 1280px) {
+      :root { --mc-card-w: 128px; --mc-card-h: 84px; --mc-grid-gap-x: 10px; --mc-grid-gap-y: 7px; }
+      .mc-card__name { font-size: 0.65rem; }
+      .mc-card__code { font-size: 0.55rem; }
+      .mc-card__sct { font-size: 0.6rem; padding: 1px 5px; }
+      .mc-card--capstone { min-height: 260px; }
+      .mc-card--capstone .mc-card__name { font-size: 0.85rem; }
+    }
+
+    /* --- Tablet landscape (≤1024px) --- */
+    @media (max-width: 1024px) {
+      :root { --mc-card-w: 112px; --mc-card-h: 76px; --mc-grid-gap-x: 8px; --mc-grid-gap-y: 6px; --mc-card-padding: 8px; }
+      .mc-header { padding: 0 16px; }
+      .mc-header__title h1 { font-size: 0.85rem; }
+      .mc-header__subtitle { font-size: 0.65rem; }
+      .mc-header__hint { display: none; }
+      .mc-grid { padding: 16px 10px; }
+      .mc-semester-header__label { font-size: 0.62rem; }
+      .mc-cycle-label { font-size: 0.45rem; letter-spacing: 1.5px; }
+      .mc-card__name { font-size: 0.58rem; }
+      .mc-card__code { font-size: 0.48rem; }
+      .mc-card__sct { font-size: 0.52rem; bottom: 4px; right: 4px; }
+      .mc-card--capstone { min-height: 220px; }
+      .mc-card--capstone .mc-card__name { font-size: 0.78rem; }
+      .mc-footer { gap: 16px; padding: 10px 16px; }
+      .mc-legend__item { font-size: 0.6rem; }
+      .mc-legend__dot { width: 7px; height: 7px; }
+      .mc-zoom-controls { bottom: 16px; right: 16px; }
+    }
+
+    /* ===== MOBILE: ≤768px — vertical stacked layout ===== */
+    @media (max-width: 768px) {
+      .mc-header { --mc-header-h: 48px; padding: 0 14px; }
+      .mc-header__title h1 { font-size: 0.82rem; }
+      .mc-header__subtitle { display: none; }
+      .mc-header__hint { display: none; }
+      .mc-theme-toggle { padding: 5px 12px 5px 8px; min-height: 34px; font-size: 0.68rem; }
+      .mc-theme-toggle__icon { width: 14px; height: 14px; }
+
+      /* Vertical flow */
+      .mc-cycle-labels { display: none; }
+      .mc-grid { padding: 8px 14px; overflow-x: visible; }
+      .mc-grid-inner {
+        display: flex !important; flex-direction: column; gap: 0;
+        width: 100%;
+      }
+
+      /* Wrapper becomes a visible block grouping header + cards */
+      .mc-semester-group {
+        display: block; width: 100%;
+      }
+
+      /* Semester header becomes a section title */
+      .mc-semester-header {
+        height: auto; padding: 14px 0 6px; align-items: flex-start;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        margin-bottom: 8px;
+      }
+      .mc-semester-header__label {
+        font-size: 0.75rem; letter-spacing: 1.5px;
+      }
+
+      /* Cards in a 2-column grid per semester */
+      .mc-semester-col {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px; min-height: auto;
+        margin-bottom: 4px; width: 100%;
+      }
+
+      /* Cards fill their grid cell */
+      .mc-card {
+        width: 100%; height: auto; min-height: 72px;
+        --mc-card-radius: 10px; --mc-card-padding: 10px;
+      }
+      .mc-card__code { font-size: 0.6rem; }
+      .mc-card__name { font-size: 0.75rem; -webkit-line-clamp: 2; margin: 3px 0; }
+      .mc-card__sct { font-size: 0.62rem; bottom: 6px; right: 8px; padding: 1px 6px; }
+
+      /* Capstone spans full width */
+      .mc-card--capstone {
+        grid-column: 1 / -1; min-height: 80px; flex: none;
+        text-align: center; align-items: center; justify-content: center;
+      }
+      .mc-card--capstone .mc-card__name { font-size: 0.88rem; }
+      .mc-card--capstone .mc-card__code { font-size: 0.6rem; }
+      .mc-card--capstone .mc-card__sct { position: static; margin-top: 6px; font-size: 0.7rem; }
+
+      /* Footer */
+      .mc-footer { flex-direction: column; align-items: center; gap: 10px; padding: 12px 16px; }
+      .mc-legend { justify-content: center; gap: 10px; }
+      .mc-legend__item { font-size: 0.62rem; }
+      .mc-footer__credit { text-align: center; }
+
+      /* Controls */
+      .mc-zoom-controls { display: none; }
+      .mc-search { width: calc(100vw - 28px); }
+
+      /* Modal */
+      .mc-modal { width: 96%; max-height: 90vh; border-radius: 14px; }
+      .mc-modal__content { padding: 20px 20px 24px; }
+      .mc-modal__name { font-size: 1.1rem; }
+      .mc-modal__link-card { font-size: 0.68rem; }
+
+      /* Tooltip hidden on mobile — tap opens modal */
+      .mc-tooltip { display: none !important; }
+    }
+
+    /* --- Phone portrait (≤480px) --- */
+    @media (max-width: 480px) {
+      .mc-header { padding: 0 10px; }
+      .mc-header__title h1 { font-size: 0.75rem; }
+      .mc-theme-toggle__label { display: none; }
+      .mc-theme-toggle { padding: 7px; border-radius: 8px; min-height: 32px; min-width: 32px; }
+      .mc-grid { padding: 6px 10px; }
+      .mc-semester-header { padding: 12px 0 5px; }
+      .mc-semester-header__label { font-size: 0.7rem; }
+      .mc-semester-col { gap: 6px; margin-bottom: 2px; }
+      .mc-card { min-height: 64px; --mc-card-padding: 8px; }
+      .mc-card__name { font-size: 0.68rem; }
+      .mc-card__code { font-size: 0.52rem; }
+      .mc-card__sct { font-size: 0.55rem; }
+      .mc-card--capstone { min-height: 72px; }
+      .mc-card--capstone .mc-card__name { font-size: 0.8rem; }
+      .mc-footer { padding: 10px; gap: 8px; }
+      .mc-legend { gap: 8px; }
+      .mc-legend__item { font-size: 0.58rem; }
+      .mc-legend__dot { width: 6px; height: 6px; }
+      .mc-footer__credit { font-size: 0.55rem; }
+      .mc-modal { width: 97%; max-height: 93vh; border-radius: 12px; }
+      .mc-modal__content { padding: 16px 16px 20px; }
+      .mc-modal__name { font-size: 1rem; }
+      .mc-modal__badge { font-size: 0.6rem; padding: 2px 8px; }
+      .mc-modal__section-title { font-size: 0.65rem; }
+      .mc-modal__description { font-size: 0.78rem; }
+      .mc-modal__link-card { font-size: 0.62rem; padding: 5px 9px; }
+      .mc-modal__info-list li { font-size: 0.72rem; }
+      .mc-modal__close { width: 30px; height: 30px; top: 12px; right: 12px; font-size: 1rem; }
+    }
+
+    /* --- Very small phone (≤360px) --- */
+    @media (max-width: 360px) {
+      .mc-header__title h1 { font-size: 0.68rem; }
+      .mc-semester-col { grid-template-columns: 1fr; }
+      .mc-card { min-height: 56px; }
+      .mc-card__name { font-size: 0.72rem; -webkit-line-clamp: 1; }
+      .mc-card__code { font-size: 0.55rem; }
+      .mc-card__sct { font-size: 0.58rem; }
+      .mc-card--capstone .mc-card__name { font-size: 0.78rem; }
+    }
+
+    /* --- Ultrawide (≥2560px) --- */
+    @media (min-width: 2560px) {
+      .mc-grid-inner { margin: 0 auto; max-width: 1800px; }
+    }
+
+    /* --- Touch devices --- */
+    @media (hover: none) {
+      .mc-card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+      .mc-card:active { transform: scale(0.97); transition: transform 0.1s ease; }
+    }
+
+    /* ============ PRINT ============ */
+    @media print {
+      body { background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .mc-header { position: static; background: #fff !important; backdrop-filter: none !important; border-bottom: 2px solid #ccc; }
+      .mc-header__actions { display: none !important; }
+      .mc-grid { overflow: visible !important; padding: 12px 0; }
+      .mc-grid-inner { transform: none !important; }
+      .mc-card { backdrop-filter: none !important; border: 1px solid #ccc !important; color: #000 !important; }
+      .mc-card:hover { transform: none !important; box-shadow: none !important; }
+      .mc-card--basica { border-left-color: #3B82F6 !important; }
+      .mc-card--ingenieria { border-left-color: #8B5CF6 !important; }
+      .mc-card--aplicada { border-left-color: #F59E0B !important; }
+      .mc-card--general { border-left-color: #10B981 !important; }
+      .mc-card--proyecto { border-left-color: #EC4899 !important; }
+      .mc-card--electivo { border-left-color: #6366F1 !important; }
+      .mc-cycle-label { color: #333 !important; border-bottom-color: #ccc !important; }
+      .mc-tooltip, .mc-search, .mc-zoom-controls, .mc-modal-overlay { display: none !important; }
+      .mc-footer { background: #fff !important; border-top: 1px solid #ccc; }
+    }
+
+    /* ============ BACKDROP-FILTER FALLBACK ============ */
+    @supports not (backdrop-filter: blur(1px)) {
+      .mc-header { background: var(--mc-bg-surface); }
+      .mc-card { backdrop-filter: none; }
+      .mc-tooltip { backdrop-filter: none; background: var(--mc-bg-surface); }
+      .mc-modal { backdrop-filter: none; background: var(--mc-bg-surface); }
+      .mc-search { backdrop-filter: none; background: var(--mc-bg-surface); }
+      .mc-zoom-controls { backdrop-filter: none; background: var(--mc-bg-surface); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ======== SKIP LINK ======== -->
+  <a href="#mc-grid" class="mc-sr-only mc-sr-only--focusable">Saltar al contenido</a>
+
+  <!-- ======== ARIA LIVE REGION ======== -->
+  <div aria-live="polite" aria-atomic="true" id="mc-status" class="mc-sr-only"></div>
+
+  <!-- ======== HEADER ======== -->
+  <header id="mc-header" class="mc-header">
+    <div class="mc-header__title">
+      <h1>Universidad Católica del Norte</h1>
+      <span class="mc-header__subtitle">Ingeniería Civil — Plan P</span>
+    </div>
+    <div class="mc-header__actions">
+      <span class="mc-header__hint">Ctrl+F buscar</span>
+      <button class="mc-theme-toggle" id="mc-btn-theme" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">
+        <svg class="mc-theme-toggle__icon" id="mc-theme-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path id="mc-icon-moon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          <g id="mc-icon-sun" style="display:none">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </g>
+        </svg>
+        <span class="mc-theme-toggle__label" id="mc-theme-label">Oscuro</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ======== MAIN GRID ======== -->
+  <main id="mc-grid" class="mc-grid">
+    <div class="mc-cycle-labels">
+      <span class="mc-cycle-label mc-cycle-label--basico">Ciclo Básico</span>
+      <span class="mc-cycle-label mc-cycle-label--profesional">Ciclo Profesional</span>
+    </div>
+    <div class="mc-grid-inner" id="mc-grid-inner"></div>
+  </main>
+
+  <!-- ======== FOOTER ======== -->
+  <footer id="mc-footer" class="mc-footer">
+    <div class="mc-legend">
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--basica"></span>Ciencias Básicas</span>
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--ingenieria"></span>Cs. Ingeniería</span>
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--aplicada"></span>Ing. Aplicada</span>
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--general"></span>Formación General</span>
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--proyecto"></span>Proyectos</span>
+      <span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--electivo"></span>Electivos</span>
+    </div>
+    <span class="mc-footer__credit">Plan P — Catálogo 2025</span>
+  </footer>
+
+  <!-- ======== TOOLTIP ======== -->
+  <div id="mc-tooltip" class="mc-tooltip" role="tooltip" aria-hidden="true">
+    <div class="mc-tooltip__header">
+      <span class="mc-tooltip__name"></span>
+      <span class="mc-tooltip__code"></span>
+    </div>
+    <div class="mc-tooltip__body">
+      <span class="mc-tooltip__sct"></span>
+      <span class="mc-tooltip__area"></span>
+    </div>
+  </div>
+
+  <!-- ======== MODAL OVERLAY ======== -->
+  <div id="mc-modal-overlay" class="mc-modal-overlay" aria-hidden="true">
+    <div class="mc-modal" id="mc-modal" role="dialog" aria-modal="true" aria-label="Información de asignatura">
+      <button class="mc-modal__close" id="mc-modal-close" aria-label="Cerrar">&times;</button>
+      <div class="mc-modal__accent" id="mc-modal-accent"></div>
+      <div class="mc-modal__content" id="mc-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ======== ZOOM CONTROLS ======== -->
+  <div class="mc-zoom-controls" id="mc-zoom-controls" aria-label="Controles de zoom">
+    <button class="mc-zoom-btn" id="mc-zoom-out" aria-label="Alejar" title="Alejar (Ctrl+-)">-</button>
+    <span class="mc-zoom-label" id="mc-zoom-label">100%</span>
+    <button class="mc-zoom-btn" id="mc-zoom-in" aria-label="Acercar" title="Acercar (Ctrl++)">+</button>
+    <button class="mc-zoom-btn mc-zoom-btn--reset" id="mc-zoom-reset" aria-label="Restablecer zoom" title="Restablecer (Ctrl+0)">Reset</button>
+  </div>
+
+  <!-- ======== SEARCH OVERLAY ======== -->
+  <div id="mc-search" class="mc-search" role="search" aria-label="Buscar asignaturas">
+    <div class="mc-search__inner">
+      <svg class="mc-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" id="mc-search-input" class="mc-search__input" placeholder="Buscar asignatura..." autocomplete="off" spellcheck="false">
+      <button class="mc-search__close" id="mc-search-close" aria-label="Cerrar búsqueda" title="Cerrar (Esc)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="mc-search__info">
+      <span id="mc-search-status"></span>
+      <span style="font-size:0.6rem;opacity:0.5">Ctrl+F</span>
+    </div>
+  </div>
+
+  <!-- ======== MOBILE PEEK PILL ======== -->
+  <div id="mc-peek" class="mc-peek" aria-hidden="true">
+    <span class="mc-peek__dot" id="mc-peek-dot"></span>
+    <span class="mc-peek__text" id="mc-peek-text"></span>
+    <span class="mc-peek__sct" id="mc-peek-sct"></span>
+    <button class="mc-peek__btn" id="mc-peek-btn">Ver info</button>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+      var MC = {};
+
+      // ============ CONSTANTS ============
+      var TOTAL_SEMESTERS = 11;
+      var EXPECTED_SUBJECTS = 64;
+
+      // ============ DATA: SUBJECTS ============
+      var SUBJECTS = [
+        {
+                "code": "P-0101",
+                "visibleCode": "P-0101",
+                "name": "INTRODUCCIÓN AL CÁLCULO",
+                "semester": 1,
+                "row": 1,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0102",
+                "visibleCode": "P-0102",
+                "name": "GEOMETRÍA EUCLIDIANA",
+                "semester": 1,
+                "row": 2,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0103",
+                "visibleCode": "P-0103",
+                "name": "INTRODUCCIÓN A LA FÍSICA",
+                "semester": 1,
+                "row": 3,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0104",
+                "visibleCode": "P-0104",
+                "name": "INTRODUCCIÓN A LA INGENIERÍA",
+                "semester": 1,
+                "row": 4,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DDOC-01184",
+                "visibleCode": "DDOC-01184",
+                "name": "INGLÉS 1",
+                "semester": 1,
+                "row": 5,
+                "sct": 4,
+                "area": "general",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DATE-00015",
+                "visibleCode": "DATE-00015",
+                "name": "IDENTIDAD, UNIVERSIDAD Y EQUIDAD DE GÉNERO",
+                "semester": 1,
+                "row": 6,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DDOC-00102",
+                "visibleCode": "DDOC-00102",
+                "name": "COMUNICACIÓN EFECTIVA I",
+                "semester": 1,
+                "row": 7,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0201",
+                "visibleCode": "P-0201",
+                "name": "CÁLCULO 1",
+                "semester": 2,
+                "row": 1,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0101"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0202",
+                "visibleCode": "P-0202",
+                "name": "ÁLGEBRA 1",
+                "semester": 2,
+                "row": 2,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0102"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0203",
+                "visibleCode": "P-0203",
+                "name": "FÍSICA 1",
+                "semester": 2,
+                "row": 3,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0102",
+                        "P-0103"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0204",
+                "visibleCode": "P-0204",
+                "name": "QUÍMICA GENERAL",
+                "semester": 2,
+                "row": 4,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DDOC-02184",
+                "visibleCode": "DDOC-02184",
+                "name": "INGLÉS 2",
+                "semester": 2,
+                "row": 5,
+                "sct": 4,
+                "area": "general",
+                "prereqs": [
+                        "DDOC-01184"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0206",
+                "visibleCode": "P-0206",
+                "name": "DIBUJO PLANIMÉTRICO DE INGENIERÍA",
+                "semester": 2,
+                "row": 6,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0104"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DDOC-02020",
+                "visibleCode": "DDOC-02020",
+                "name": "COMUNICACIÓN EFECTIVA II",
+                "semester": 2,
+                "row": 7,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [
+                        "DDOC-00102"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0301",
+                "visibleCode": "P-0301",
+                "name": "CÁLCULO 2",
+                "semester": 3,
+                "row": 1,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0201"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0302",
+                "visibleCode": "P-0302",
+                "name": "ÁLGEBRA 2",
+                "semester": 3,
+                "row": 2,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0202"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0303",
+                "visibleCode": "P-0303",
+                "name": "FÍSICA 2",
+                "semester": 3,
+                "row": 3,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0203"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0304",
+                "visibleCode": "P-0304",
+                "name": "INTRODUCCIÓN A LA PROGRAMACIÓN",
+                "semester": 3,
+                "row": 4,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0104",
+                        "P-0202"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0305",
+                "visibleCode": "P-0305",
+                "name": "MECÁNICA RACIONAL",
+                "semester": 3,
+                "row": 5,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0201",
+                        "P-0203"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0306",
+                "visibleCode": "P-0306",
+                "name": "GEOMESURA",
+                "semester": 3,
+                "row": 6,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0202",
+                        "P-0206"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DAMA-00312",
+                "visibleCode": "DAMA-00312",
+                "name": "PROBABILIDAD Y ESTADÍSTICA",
+                "semester": 4,
+                "row": 1,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0201"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0402",
+                "visibleCode": "P-0402",
+                "name": "ECUACIONES DIFERENCIALES",
+                "semester": 4,
+                "row": 2,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "P-0301",
+                        "P-0302"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "DAIQ-00600",
+                "visibleCode": "DAIQ-00600",
+                "name": "TERMODINÁMICA",
+                "semester": 4,
+                "row": 3,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0201",
+                        "P-0204"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0404",
+                "visibleCode": "P-0404",
+                "name": "GEOLOGÍA PARA INGENIERÍA",
+                "semester": 4,
+                "row": 4,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0204"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0405",
+                "visibleCode": "P-0405",
+                "name": "ESTÁTICA APLICADA",
+                "semester": 4,
+                "row": 5,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0305"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "UNFV-00002",
+                "visibleCode": "UNFV-00002",
+                "name": "DIÁLOGO CRISTIANISMO Y CULTURAS",
+                "semester": 4,
+                "row": 6,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [
+                        "DATE-00015"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0407",
+                "visibleCode": "DDOC",
+                "name": "FORMACIÓN GENERAL ELECTIVA",
+                "semester": 4,
+                "row": 7,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0501",
+                "visibleCode": "P-0501",
+                "name": "CÁLCULO NUMÉRICO",
+                "semester": 5,
+                "row": 1,
+                "sct": 5,
+                "area": "basica",
+                "prereqs": [
+                        "DAMA-00312",
+                        "P-0402",
+                        "P-0201"
+                ],
+                "requirements": [
+                        "Nota 1: requiere Cálculo 1 aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "DAII-00600",
+                "visibleCode": "DAII-00600",
+                "name": "INGENIERÍA ECONÓMICA",
+                "semester": 5,
+                "row": 2,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0402",
+                        "P-0201"
+                ],
+                "requirements": [
+                        "Nota 1: requiere Cálculo 1 aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0503",
+                "visibleCode": "P-0503",
+                "name": "MECÁNICA DE FLUIDOS",
+                "semester": 5,
+                "row": 3,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0402",
+                        "DAIQ-00600",
+                        "P-0405"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0504",
+                "visibleCode": "P-0504",
+                "name": "MECÁNICA DE SÓLIDOS",
+                "semester": 5,
+                "row": 4,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0404",
+                        "P-0405"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0505",
+                "visibleCode": "P-0505",
+                "name": "ANÁLISIS ESTRUCTURAL",
+                "semester": 5,
+                "row": 5,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0405"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0506",
+                "visibleCode": "P-0506",
+                "name": "MÁQUINAS Y EQUIPOS",
+                "semester": 5,
+                "row": 6,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [],
+                "requirements": [
+                        "Nota 3: requiere hasta IV semestre aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0601",
+                "visibleCode": "P-0601",
+                "name": "DISEÑO EN HORMIGÓN ARMADO",
+                "semester": 6,
+                "row": 1,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0504",
+                        "P-0505"
+                ],
+                "requirements": [
+                        "Nota 4: requiere 120 SCT aprobados."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0602",
+                "visibleCode": "P-0602",
+                "name": "MATERIALES DE INGENIERÍA",
+                "semester": 6,
+                "row": 2,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0404",
+                        "P-0504"
+                ],
+                "requirements": [
+                        "Nota 4: requiere 120 SCT aprobados."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0603",
+                "visibleCode": "P-0603",
+                "name": "HIDRÁULICA GENERAL",
+                "semester": 6,
+                "row": 3,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0503"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0604",
+                "visibleCode": "P-0604",
+                "name": "MECÁNICA DE SUELOS 1",
+                "semester": 6,
+                "row": 4,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0404",
+                        "P-0504"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0605",
+                "visibleCode": "P-0605",
+                "name": "INGENIERÍA EN TRÁNSITO",
+                "semester": 6,
+                "row": 5,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0306",
+                        "P-0505"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0606",
+                "visibleCode": "P-0606",
+                "name": "HIDROLOGÍA",
+                "semester": 6,
+                "row": 6,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "DAMA-00312",
+                        "P-0306"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0701",
+                "visibleCode": "P-0701",
+                "name": "PROCESOS CONSTRUCTIVOS",
+                "semester": 7,
+                "row": 1,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0602",
+                        "P-0506"
+                ],
+                "requirements": [
+                        "Nota 5: requiere Máquinas y Equipos aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0702",
+                "visibleCode": "P-0702",
+                "name": "DISEÑO EN ACERO",
+                "semester": 7,
+                "row": 2,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0504",
+                        "P-0505",
+                        "P-0602"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0703",
+                "visibleCode": "P-0703",
+                "name": "INGENIERÍA SANITARIA Y AMBIENTAL",
+                "semester": 7,
+                "row": 3,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0603"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0704",
+                "visibleCode": "P-0704",
+                "name": "MECÁNICA DE SUELOS 2",
+                "semester": 7,
+                "row": 4,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0604"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0705",
+                "visibleCode": "P-0705",
+                "name": "ELECTIVO PROFESIONAL 1",
+                "semester": 7,
+                "row": 5,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0706",
+                "visibleCode": "P-0706",
+                "name": "BIM APLICADO A LA INGENIERÍA CIVIL",
+                "semester": 7,
+                "row": 6,
+                "sct": 5,
+                "area": "ingenieria",
+                "prereqs": [
+                        "P-0304",
+                        "P-0606"
+                ],
+                "requirements": [
+                        "Nota 2: requiere Introducción a la Programación aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "UNFV-00003",
+                "visibleCode": "UNFV-00003",
+                "name": "DIÁLOGO FE Y CIENCIA",
+                "semester": 7,
+                "row": 7,
+                "sct": 2,
+                "area": "general",
+                "prereqs": [
+                        "UNFV-00002"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0801",
+                "visibleCode": "P-0801",
+                "name": "DINÁMICA DE ESTRUCTURAS",
+                "semester": 8,
+                "row": 1,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0505"
+                ],
+                "requirements": [
+                        "Nota 7: requiere Análisis Estructural aprobado."
+                ],
+                "large": false
+        },
+        {
+                "code": "P-0802",
+                "visibleCode": "P-0802",
+                "name": "FUNDACIONES",
+                "semester": 8,
+                "row": 2,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0601",
+                        "P-0702",
+                        "P-0704"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0803",
+                "visibleCode": "P-0803",
+                "name": "PROGRAMACIÓN DE OBRAS",
+                "semester": 8,
+                "row": 3,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0701"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0804",
+                "visibleCode": "P-0804",
+                "name": "INGENIERÍA PARA EL DESARROLLO SUSTENTABLE",
+                "semester": 8,
+                "row": 4,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0703",
+                        "P-0704"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0805",
+                "visibleCode": "P-0805",
+                "name": "ELECTIVO PROFESIONAL 2",
+                "semester": 8,
+                "row": 5,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0806",
+                "visibleCode": "P-0806",
+                "name": "PROYECTO DE INFRAESTRUCTURA VIAL",
+                "semester": 8,
+                "row": 6,
+                "sct": 5,
+                "area": "proyecto",
+                "prereqs": [
+                        "P-0605",
+                        "P-0706"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0901",
+                "visibleCode": "P-0901",
+                "name": "DISEÑO SÍSMICO DE EDIFICIOS",
+                "semester": 9,
+                "row": 1,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0801",
+                        "P-0802",
+                        "P-0702"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0902",
+                "visibleCode": "P-0902",
+                "name": "GESTIÓN Y ADMINISTRACIÓN DE OBRAS",
+                "semester": 9,
+                "row": 2,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0803"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0903",
+                "visibleCode": "P-0903",
+                "name": "CONSTRUCCIÓN Y MONTAJE DE OBRAS INDUSTRIALES",
+                "semester": 9,
+                "row": 3,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0803"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0904",
+                "visibleCode": "P-0904",
+                "name": "ELECTIVO PROFESIONAL 3",
+                "semester": 9,
+                "row": 4,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0905",
+                "visibleCode": "P-0905",
+                "name": "PROYECTO DE ESTRUCTURAS INDUSTRIALES",
+                "semester": 9,
+                "row": 5,
+                "sct": 5,
+                "area": "proyecto",
+                "prereqs": [
+                        "P-0702",
+                        "P-0802",
+                        "P-0706"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-0906",
+                "visibleCode": "P-0906",
+                "name": "PROYECTO DE OBRAS HIDRÁULICAS",
+                "semester": 9,
+                "row": 6,
+                "sct": 5,
+                "area": "proyecto",
+                "prereqs": [
+                        "P-0603",
+                        "P-0606",
+                        "P-0806"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-1001",
+                "visibleCode": "P-1001",
+                "name": "PROYECTO INTEGRADOR 1",
+                "semester": 10,
+                "row": 1,
+                "sct": 15,
+                "area": "proyecto",
+                "prereqs": [
+                        "P-0901",
+                        "P-0902",
+                        "P-0903",
+                        "P-0904",
+                        "P-0905",
+                        "P-0906"
+                ],
+                "requirements": [
+                        "Nota 9: requiere hasta IX semestre aprobado."
+                ],
+                "large": true
+        },
+        {
+                "code": "P-1002",
+                "visibleCode": "P-1002",
+                "name": "ELECTIVO PROFESIONAL 4",
+                "semester": 10,
+                "row": 2,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-1003",
+                "visibleCode": "P-1003",
+                "name": "ELECTIVO PROFESIONAL 5",
+                "semester": 10,
+                "row": 3,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-1004",
+                "visibleCode": "P-1004",
+                "name": "ASPECTOS LEGALES EN INGENIERÍA CIVIL",
+                "semester": 10,
+                "row": 4,
+                "sct": 5,
+                "area": "aplicada",
+                "prereqs": [
+                        "P-0905",
+                        "P-0906"
+                ],
+                "requirements": [],
+                "large": false
+        },
+        {
+                "code": "P-1101",
+                "visibleCode": "P-1101",
+                "name": "PROYECTO INTEGRADOR 2",
+                "semester": 11,
+                "row": 1,
+                "sct": 25,
+                "area": "proyecto",
+                "prereqs": [
+                        "P-1001",
+                        "P-1002",
+                        "P-1003",
+                        "P-1004"
+                ],
+                "requirements": [
+                        "Nota 10: requiere hasta X semestre aprobado."
+                ],
+                "large": true
+        },
+        {
+                "code": "P-1102",
+                "visibleCode": "P-1102",
+                "name": "ELECTIVO PROFESIONAL 6",
+                "semester": 11,
+                "row": 2,
+                "sct": 5,
+                "area": "electivo",
+                "prereqs": [],
+                "requirements": [],
+                "large": false
+        }
+];
+
+      // ============ DATA: AREAS ============
+      var AREAS = {
+        basica:     {name:'Ciencias Básicas',          color:'--mc-area-basica'},
+        ingenieria: {name:'Ciencias de la Ingeniería', color:'--mc-area-ingenieria'},
+        aplicada:   {name:'Ingeniería Aplicada',       color:'--mc-area-aplicada'},
+        general:    {name:'Formación General',         color:'--mc-area-general'},
+        proyecto:   {name:'Proyectos',                 color:'--mc-area-proyecto'},
+        electivo:   {name:'Electivos Profesionales',   color:'--mc-area-electivo'}
+      };
+
+      var AREA_COLORS_HEX = {
+        basica:'#3B82F6', ingenieria:'#8B5CF6', aplicada:'#F59E0B',
+        general:'#10B981', proyecto:'#EC4899', electivo:'#6366F1'
+      };
+
+      // ============ DATA: COURSE DESCRIPTIONS ============
+      var COURSE_DESCRIPTIONS = {
+        "P-0101": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0102": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0103": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0104": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DDOC-01184": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DATE-00015": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DDOC-00102": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0201": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0202": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0203": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0204": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DDOC-02184": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0206": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DDOC-02020": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0301": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0302": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0303": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0304": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0305": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0306": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DAMA-00312": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0402": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DAIQ-00600": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0404": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0405": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "UNFV-00002": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0407": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0501": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "DAII-00600": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0503": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0504": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0505": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0506": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0601": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0602": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0603": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0604": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0605": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0606": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0701": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0702": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0703": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0704": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0705": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil.",
+        "P-0706": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "UNFV-00003": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0801": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0802": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0803": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0804": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0805": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil.",
+        "P-0806": "Proyecto aplicado del Plan P 2025. Integra cursos previos del área y habilita ramos/proyectos posteriores según la malla.",
+        "P-0901": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0902": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0903": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-0904": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil.",
+        "P-0905": "Proyecto aplicado del Plan P 2025. Integra cursos previos del área y habilita ramos/proyectos posteriores según la malla.",
+        "P-0906": "Proyecto aplicado del Plan P 2025. Integra cursos previos del área y habilita ramos/proyectos posteriores según la malla.",
+        "P-1001": "Proyecto integrador del Plan P 2025. Concentra requisitos de avance por semestre completo y articula competencias de la carrera.",
+        "P-1002": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil.",
+        "P-1003": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil.",
+        "P-1004": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre.",
+        "P-1101": "Proyecto integrador del Plan P 2025. Concentra requisitos de avance por semestre completo y articula competencias de la carrera.",
+        "P-1102": "Electivo profesional del Plan P 2025. Permite profundizar en un área de especialización de Ingeniería Civil."
+};
+
+      // ============ LOOKUP MAPS ============
+      var SUBJECT_MAP = new Map(SUBJECTS.map(function(s) { return [s.code, s]; }));
+      var SEMESTER_MAP = new Map();
+      SUBJECTS.forEach(function(s) {
+        if (!SEMESTER_MAP.has(s.semester)) SEMESTER_MAP.set(s.semester, []);
+        SEMESTER_MAP.get(s.semester).push(s);
+      });
+
+      MC.SUBJECTS = SUBJECTS;
+      MC.AREAS = AREAS;
+      MC.SUBJECT_MAP = SUBJECT_MAP;
+      MC.SEMESTER_MAP = SEMESTER_MAP;
+
+      MC.getSubjectByCode = function(code) { return SUBJECT_MAP.get(code) || null; };
+      MC.getSubjectsBySemester = function(sem) { return SEMESTER_MAP.get(sem) || []; };
+
+      // ============ GRAPH ENGINE ============
+      var adjForward = new Map();
+      var adjBackward = new Map();
+
+      MC.buildAdjacency = function() {
+        adjForward.clear(); adjBackward.clear();
+        SUBJECTS.forEach(function(s) {
+          if (!adjForward.has(s.code)) adjForward.set(s.code, []);
+          if (!adjBackward.has(s.code)) adjBackward.set(s.code, []);
+        });
+        SUBJECTS.forEach(function(s) {
+          s.prereqs.forEach(function(p) {
+            adjBackward.get(s.code).push(p);
+            if (adjForward.has(p)) adjForward.get(p).push(s.code);
+          });
+        });
+      };
+
+      MC.getDirectPrereqs = function(code) { return adjBackward.get(code) || []; };
+      MC.getDirectDependents = function(code) { return adjForward.get(code) || []; };
+
+      MC.getDependentsRecursive = function(code) {
+        var result = new Set();
+        var queue = [code];
+        var visited = new Set([code]);
+        while (queue.length > 0) {
+          var current = queue.shift();
+          var succs = adjForward.get(current) || [];
+          for (var i = 0; i < succs.length; i++) {
+            if (!visited.has(succs[i])) {
+              visited.add(succs[i]);
+              result.add(succs[i]);
+              queue.push(succs[i]);
+            }
+          }
+        }
+        return result;
+      };
+
+      MC.getChainDepth = function(code) {
+        var memo = {};
+        function dfs(c) {
+          if (memo[c] !== undefined) return memo[c];
+          var preds = adjBackward.get(c) || [];
+          if (preds.length === 0) { memo[c] = 0; return 0; }
+          var maxD = 0;
+          memo[c] = -1;
+          for (var i = 0; i < preds.length; i++) {
+            if (memo[preds[i]] === -1) continue;
+            var d = dfs(preds[i]) + 1;
+            if (d > maxD) maxD = d;
+          }
+          memo[c] = maxD;
+          return maxD;
+        }
+        return dfs(code);
+      };
+
+      MC.getLongestChainThrough = function(code) {
+        // Longest chain from any root passing through this node to any leaf
+        // = depth(code) + 1 + max forward depth
+        var backDepth = MC.getChainDepth(code);
+        var fwdMemo = {};
+        function fwdDfs(c) {
+          if (fwdMemo[c] !== undefined) return fwdMemo[c];
+          var succs = adjForward.get(c) || [];
+          if (succs.length === 0) { fwdMemo[c] = 0; return 0; }
+          var maxD = 0;
+          fwdMemo[c] = -1;
+          for (var i = 0; i < succs.length; i++) {
+            if (fwdMemo[succs[i]] === -1) continue;
+            var d = fwdDfs(succs[i]) + 1;
+            if (d > maxD) maxD = d;
+          }
+          fwdMemo[c] = maxD;
+          return maxD;
+        }
+        var fwdDepth = fwdDfs(code);
+        return backDepth + 1 + fwdDepth;
+      };
+
+      MC.buildAdjacency();
+
+      // ============ CHAIN CACHE (for highlight) ============
+      var chainCache = new Map();
+      SUBJECTS.forEach(function(s) {
+        chainCache.set(s.code, {
+          prereqs: new Set(MC.getDirectPrereqs(s.code)),
+          successors: new Set(MC.getDirectDependents(s.code))
+        });
+      });
+
+      // ============ CARD ELEMENTS MAP ============
+      MC.cardElements = new Map();
+
+      // ============ RENDER GRID ============
+      var ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+      var grid = document.getElementById('mc-grid-inner');
+      grid.setAttribute('role', 'grid');
+      grid.setAttribute('aria-label', 'Malla curricular — 11 semestres, 64 asignaturas');
+
+      ROMAN.forEach(function(r, i) {
+        // Wrapper groups header + cards per semester (needed for mobile vertical layout)
+        var wrapper = document.createElement('div');
+        wrapper.className = 'mc-semester-group';
+        wrapper.dataset.mcSemester = i + 1;
+
+        var h = document.createElement('div');
+        h.className = 'mc-semester-header';
+        h.dataset.mcSemester = i + 1;
+        h.setAttribute('role', 'columnheader');
+        h.setAttribute('aria-label', 'Semestre ' + r);
+        h.innerHTML = '<span class="mc-semester-header__label">' + r + '</span>';
+        wrapper.appendChild(h);
+
+        var c = document.createElement('div');
+        c.className = 'mc-semester-col';
+        c.id = 'mc-col-' + (i + 1);
+        c.dataset.mcSemester = i + 1;
+        c.setAttribute('role', 'row');
+        c.setAttribute('aria-label', 'Semestre ' + ROMAN[i]);
+        wrapper.appendChild(c);
+
+        grid.appendChild(wrapper);
+      });
+
+      SUBJECTS.forEach(function(subject) {
+        var el = document.createElement('div');
+        var isCapstone = subject.large === true;
+        el.className = 'mc-card mc-card--' + subject.area + (isCapstone ? ' mc-card--capstone' : '');
+        el.dataset.mcCode = subject.code;
+        el.dataset.mcSemester = subject.semester;
+        el.setAttribute('role', 'gridcell');
+        el.setAttribute('tabindex', '-1');
+        el.setAttribute('aria-label', subject.name + ', ' + subject.sct + ' créditos, Semestre ' + subject.semester);
+
+        var codeSpan = document.createElement('span');
+        codeSpan.className = 'mc-card__code';
+        codeSpan.textContent = subject.visibleCode || subject.code;
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'mc-card__name';
+        nameSpan.textContent = subject.name;
+
+        var sctSpan = document.createElement('span');
+        sctSpan.className = 'mc-card__sct';
+        sctSpan.textContent = subject.sct + ' SCT';
+
+        el.appendChild(codeSpan);
+        el.appendChild(nameSpan);
+        el.appendChild(sctSpan);
+
+        var col = document.getElementById('mc-col-' + subject.semester);
+        if (col) col.appendChild(el);
+        MC.cardElements.set(subject.code, el);
+      });
+
+      // Set first card tabbable
+      var firstCard = document.querySelector('.mc-card[data-mc-code]');
+      if (firstCard) firstCard.setAttribute('tabindex', '0');
+
+      // Separator removed — cycle labels are pure CSS grid now
+
+      // ============ HIGHLIGHT / DIM SYSTEM ============
+      MC.highlightChain = function(code) {
+        var chain = chainCache.get(code);
+        if (!chain) return;
+        MC.cardElements.forEach(function(el, c) {
+          if (c === code) {
+            el.classList.add('mc-card--highlight-self');
+          } else if (chain.prereqs.has(c)) {
+            el.classList.add('mc-card--highlight-prereq');
+          } else if (chain.successors.has(c)) {
+            el.classList.add('mc-card--highlight-successor');
+          } else {
+            el.classList.add('mc-card--dimmed');
+          }
+        });
+      };
+
+      MC.clearHighlight = function() {
+        MC.cardElements.forEach(function(el) {
+          el.classList.remove('mc-card--highlight-self', 'mc-card--highlight-prereq', 'mc-card--highlight-successor', 'mc-card--dimmed');
+        });
+      };
+
+      // ============ TOOLTIP ============
+      var tooltipEl = document.getElementById('mc-tooltip');
+      var tooltipTimer = null;
+      var TOOLTIP_DELAY = 350;
+
+      MC.populateTooltip = function(code) {
+        var subject = MC.getSubjectByCode(code);
+        if (!subject) return false;
+        tooltipEl.querySelector('.mc-tooltip__name').textContent = subject.name;
+        tooltipEl.querySelector('.mc-tooltip__code').textContent = subject.visibleCode || subject.code;
+        tooltipEl.querySelector('.mc-tooltip__sct').textContent = subject.sct + ' SCT';
+        var areaInfo = AREAS[subject.area];
+        var areaColor = getComputedStyle(document.documentElement).getPropertyValue(areaInfo.color).trim();
+        tooltipEl.querySelector('.mc-tooltip__area').innerHTML =
+          '<span class="mc-tooltip__area-dot" style="background:' + areaColor + '"></span>' + areaInfo.name;
+        tooltipEl.style.borderLeftColor = areaColor;
+        tooltipEl.style.borderLeftWidth = '3px';
+        return true;
+      };
+
+      MC.calculateTooltipPosition = function(cardRect, tooltipRect, vw, vh) {
+        var off = 8;
+        var above = { dir:'above', top: cardRect.top - tooltipRect.height - off, left: cardRect.left + (cardRect.width - tooltipRect.width) / 2 };
+        var right = { dir:'right', top: cardRect.top + (cardRect.height - tooltipRect.height) / 2, left: cardRect.right + off };
+        var below = { dir:'below', top: cardRect.bottom + off, left: cardRect.left + (cardRect.width - tooltipRect.width) / 2 };
+        var left =  { dir:'left',  top: cardRect.top + (cardRect.height - tooltipRect.height) / 2, left: cardRect.left - tooltipRect.width - off };
+        var positions = [above, right, below, left];
+        for (var i = 0; i < positions.length; i++) {
+          var p = positions[i];
+          if (p.top >= 0 && p.left >= 0 && p.top + tooltipRect.height <= vh && p.left + tooltipRect.width <= vw) return p;
+        }
+        return { dir:'above', top: Math.max(4, above.top), left: Math.max(4, Math.min(above.left, vw - tooltipRect.width - 4)) };
+      };
+
+      MC.showTooltip = function(code, cardEl) {
+        if (!MC.populateTooltip(code)) return;
+        tooltipEl.classList.remove('mc-tooltip--above','mc-tooltip--below','mc-tooltip--left','mc-tooltip--right');
+        tooltipEl.style.display = 'block'; tooltipEl.style.opacity = '0';
+        tooltipEl.style.left = '-9999px'; tooltipEl.style.top = '-9999px';
+        var tr = tooltipEl.getBoundingClientRect();
+        var cr = cardEl.getBoundingClientRect();
+        var pos = MC.calculateTooltipPosition(cr, tr, window.innerWidth, window.innerHeight);
+        pos.left = Math.max(4, Math.min(pos.left, window.innerWidth - tr.width - 4));
+        pos.top = Math.max(4, Math.min(pos.top, window.innerHeight - tr.height - 4));
+        tooltipEl.style.left = (pos.left + window.scrollX) + 'px';
+        tooltipEl.style.top = (pos.top + window.scrollY) + 'px';
+        tooltipEl.classList.add('mc-tooltip--' + pos.dir);
+        void tooltipEl.offsetWidth;
+        tooltipEl.classList.add('mc-tooltip--visible');
+        tooltipEl.setAttribute('aria-hidden', 'false');
+      };
+
+      MC.hideTooltip = function() {
+        if (tooltipTimer) { clearTimeout(tooltipTimer); tooltipTimer = null; }
+        tooltipEl.classList.remove('mc-tooltip--visible');
+        tooltipEl.setAttribute('aria-hidden', 'true');
+        setTimeout(function() {
+          if (!tooltipEl.classList.contains('mc-tooltip--visible')) tooltipEl.style.display = 'none';
+        }, 150);
+      };
+
+      // ============ MODAL CONTROLLER ============
+      var modalOverlay = document.getElementById('mc-modal-overlay');
+      var modalEl = document.getElementById('mc-modal');
+      var modalContent = document.getElementById('mc-modal-content');
+      var modalAccent = document.getElementById('mc-modal-accent');
+      var modalCloseBtn = document.getElementById('mc-modal-close');
+      var _modalOpen = false;
+      var _modalPrevFocus = null;
+
+      MC.openModal = function(code) {
+        var subject = MC.getSubjectByCode(code);
+        if (!subject) return;
+
+        _modalPrevFocus = document.activeElement;
+        _modalOpen = true;
+
+        var areaInfo = AREAS[subject.area];
+        var areaColor = AREA_COLORS_HEX[subject.area] || '#666';
+        var desc = COURSE_DESCRIPTIONS[subject.code] || 'Información no disponible.';
+
+        // Accent bar
+        modalAccent.style.setProperty('--accent-color', areaColor);
+        modalAccent.style.background = 'linear-gradient(90deg, ' + areaColor + ', transparent)';
+
+        // Direct prereqs and dependents
+        var prereqs = MC.getDirectPrereqs(code);
+        var dependents = MC.getDirectDependents(code);
+
+        // Chain info
+        var longestChain = MC.getLongestChainThrough(code);
+        var totalIndirectDeps = MC.getDependentsRecursive(code).size;
+
+        // Build prereqs mini-cards
+        var prereqsHTML = '';
+        if (prereqs.length > 0) {
+          prereqsHTML = '<div class="mc-modal__links">';
+          for (var i = 0; i < prereqs.length; i++) {
+            var ps = MC.getSubjectByCode(prereqs[i]);
+            if (ps) {
+              var pc = AREA_COLORS_HEX[ps.area] || '#666';
+              prereqsHTML += '<div class="mc-modal__link-card" data-mc-nav="' + ps.code + '">' +
+                '<span class="mc-modal__link-dot" style="background:' + pc + '"></span>' +
+                '<span>' + (ps.visibleCode || ps.code) + ' ' + ps.name + '</span></div>'; 
+            }
+          }
+          prereqsHTML += '</div>';
+        } else {
+          prereqsHTML = '<p class="mc-modal__empty">Sin prerequisitos</p>';
+        }
+
+        var requirements = subject.requirements || [];
+        var requirementsHTML = '';
+        if (requirements.length > 0) {
+          requirementsHTML = '<ul class="mc-modal__info-list">';
+          for (var ri = 0; ri < requirements.length; ri++) {
+            requirementsHTML += '<li>' + requirements[ri] + '</li>';
+          }
+          requirementsHTML += '</ul>';
+        }
+
+        // Build dependents mini-cards
+        var depsHTML = '';
+        if (dependents.length > 0) {
+          depsHTML = '<div class="mc-modal__links">';
+          for (var j = 0; j < dependents.length; j++) {
+            var ds = MC.getSubjectByCode(dependents[j]);
+            if (ds) {
+              var dc = AREA_COLORS_HEX[ds.area] || '#666';
+              depsHTML += '<div class="mc-modal__link-card" data-mc-nav="' + ds.code + '">' +
+                '<span class="mc-modal__link-dot" style="background:' + dc + '"></span>' +
+                '<span>' + (ds.visibleCode || ds.code) + ' ' + ds.name + '</span></div>'; 
+            }
+          }
+          depsHTML += '</div>';
+        } else {
+          depsHTML = '<p class="mc-modal__empty">No abre ramos</p>';
+        }
+
+        modalContent.innerHTML =
+          '<div class="mc-modal__top">' +
+            '<span class="mc-modal__code">' + (subject.visibleCode || subject.code) + '</span>' +
+            '<span class="mc-modal__sct">' + subject.sct + ' SCT</span>' +
+          '</div>' +
+          '<h2 class="mc-modal__name">' + subject.name + '</h2>' +
+          '<div class="mc-modal__badges">' +
+            '<span class="mc-modal__badge"><span class="mc-modal__badge-dot" style="background:' + areaColor + '"></span>' + areaInfo.name + '</span>' +
+            '<span class="mc-modal__badge">Semestre ' + ROMAN[subject.semester - 1] + '</span>' +
+          '</div>' +
+          '<hr class="mc-modal__divider">' +
+          '<h3 class="mc-modal__section-title">Descripción</h3>' +
+          '<p class="mc-modal__description">' + desc + '</p>' +
+          '<hr class="mc-modal__divider">' +
+          '<h3 class="mc-modal__section-title">Prerequisitos (' + prereqs.length + ')</h3>' +
+          prereqsHTML +
+          '<hr class="mc-modal__divider">' +
+          '<h3 class="mc-modal__section-title">Abre (' + dependents.length + ')</h3>' +
+          depsHTML +
+          (requirements.length ? '<hr class="mc-modal__divider"><h3 class="mc-modal__section-title">Requisitos adicionales</h3>' + requirementsHTML : '') +
+          '<hr class="mc-modal__divider">' +
+          '<h3 class="mc-modal__section-title">Info</h3>' +
+          '<ul class="mc-modal__info-list">' +
+            '<li>Cadena más larga pasando por aquí: ' + longestChain + ' ramos</li>' +
+            '<li>' + totalIndirectDeps + ' ramos dependen de este (directos e indirectos)</li>' +
+          '</ul>';
+
+        modalOverlay.classList.add('mc-modal-overlay--visible');
+        modalOverlay.setAttribute('aria-hidden', 'false');
+        modalEl.setAttribute('aria-label', subject.name);
+
+        // Focus close button
+        setTimeout(function() { modalCloseBtn.focus(); }, 100);
+
+        // Wire up navigation clicks
+        var navCards = modalContent.querySelectorAll('[data-mc-nav]');
+        navCards.forEach(function(nc) {
+          nc.addEventListener('click', function() {
+            var navCode = nc.dataset.mcNav;
+            MC.openModal(navCode);
+          });
+        });
+      };
+
+      MC.closeModal = function() {
+        if (!_modalOpen) return;
+        _modalOpen = false;
+        modalOverlay.classList.remove('mc-modal-overlay--visible');
+        modalOverlay.setAttribute('aria-hidden', 'true');
+        MC.clearHighlight();
+        if (_modalPrevFocus && _modalPrevFocus.focus) _modalPrevFocus.focus();
+        _modalPrevFocus = null;
+      };
+
+      modalCloseBtn.addEventListener('click', MC.closeModal);
+      modalOverlay.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) MC.closeModal();
+      });
+
+      // ============ EVENT HANDLERS ============
+      var gridEl = document.getElementById('mc-grid');
+      var currentHoverCard = null;
+
+      // ---- Touch detection ----
+      var _isTouch = false;
+      window.addEventListener('touchstart', function() { _isTouch = true; }, { once: true, passive: true });
+
+      // ---- Peek pill (mobile) ----
+      var peekEl = document.getElementById('mc-peek');
+      var peekDot = document.getElementById('mc-peek-dot');
+      var peekText = document.getElementById('mc-peek-text');
+      var peekSct = document.getElementById('mc-peek-sct');
+      var peekBtn = document.getElementById('mc-peek-btn');
+      var _peekCode = null;
+
+      function showPeek(code) {
+        var subject = MC.getSubjectByCode(code);
+        if (!subject) return;
+        _peekCode = code;
+        var color = AREA_COLORS_HEX[subject.area] || '#666';
+        peekDot.style.background = color;
+        peekText.textContent = subject.name;
+        peekSct.textContent = subject.sct + ' SCT';
+        // Force reflow for animation
+        peekEl.classList.remove('mc-peek--visible');
+        void peekEl.offsetWidth;
+        peekEl.classList.add('mc-peek--visible');
+        peekEl.setAttribute('aria-hidden', 'false');
+      }
+
+      function hidePeek() {
+        _peekCode = null;
+        peekEl.classList.remove('mc-peek--visible');
+        peekEl.setAttribute('aria-hidden', 'true');
+      }
+
+      peekBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (_peekCode) {
+          MC.openModal(_peekCode);
+          hidePeek();
+          MC.clearHighlight();
+        }
+      });
+
+      // ---- Click handler: touch = highlight + peek, desktop = modal ----
+      var _selectedCard = null;
+
+      gridEl.addEventListener('click', function(e) {
+        var card = e.target.closest('.mc-card');
+
+        if (_isTouch) {
+          // TOUCH: tap = highlight + peek pill
+          if (!card) {
+            // Tap on empty area: clear everything
+            MC.clearHighlight();
+            hidePeek();
+            _selectedCard = null;
+            return;
+          }
+          var code = card.dataset.mcCode;
+          if (!code) return;
+
+          if (_selectedCard === card) {
+            // Second tap on same card: open modal
+            MC.openModal(code);
+            hidePeek();
+            MC.clearHighlight();
+            _selectedCard = null;
+            return;
+          }
+
+          // First tap: highlight + show peek
+          MC.clearHighlight();
+          MC.highlightChain(code);
+          showPeek(code);
+          _selectedCard = card;
+        } else {
+          // DESKTOP: click = open modal directly
+          if (!card) return;
+          var code2 = card.dataset.mcCode;
+          if (code2) MC.openModal(code2);
+        }
+      });
+
+      // Touch: tap outside grid clears too
+      document.addEventListener('click', function(e) {
+        if (!_isTouch || !_selectedCard) return;
+        if (!e.target.closest('.mc-grid') && !e.target.closest('.mc-peek')) {
+          MC.clearHighlight();
+          hidePeek();
+          _selectedCard = null;
+        }
+      });
+
+      // ---- Hover: highlight + tooltip (desktop only, ignored on touch) ----
+      gridEl.addEventListener('mouseover', function(e) {
+        if (_isTouch) return;
+        var card = e.target.closest('.mc-card');
+        if (!card || card === currentHoverCard) return;
+        if (currentHoverCard) { MC.hideTooltip(); MC.clearHighlight(); }
+        currentHoverCard = card;
+        var code = card.dataset.mcCode;
+        if (!code) return;
+        MC.highlightChain(code);
+        card.setAttribute('aria-describedby', 'mc-tooltip');
+        tooltipTimer = setTimeout(function() { MC.showTooltip(code, card); }, TOOLTIP_DELAY);
+      });
+
+      gridEl.addEventListener('mouseout', function(e) {
+        if (_isTouch) return;
+        var card = e.target.closest('.mc-card');
+        if (!card) return;
+        var related = e.relatedTarget;
+        if (related && card.contains(related)) return;
+        if (card === currentHoverCard) {
+          card.removeAttribute('aria-describedby');
+          MC.hideTooltip(); MC.clearHighlight();
+          currentHoverCard = null;
+        }
+      });
+
+      // Focus: highlight + tooltip for keyboard
+      gridEl.addEventListener('focusin', function(e) {
+        var card = e.target.closest('.mc-card');
+        if (!card) return;
+        var code = card.dataset.mcCode;
+        if (!code) return;
+        MC.highlightChain(code);
+        card.setAttribute('aria-describedby', 'mc-tooltip');
+        if (tooltipTimer) clearTimeout(tooltipTimer);
+        tooltipTimer = setTimeout(function() { MC.showTooltip(code, card); }, TOOLTIP_DELAY);
+      });
+
+      gridEl.addEventListener('focusout', function(e) {
+        var card = e.target.closest('.mc-card');
+        if (!card) return;
+        card.removeAttribute('aria-describedby');
+        MC.hideTooltip(); MC.clearHighlight();
+        currentHoverCard = null;
+      });
+
+      // Keyboard: Enter/Space opens modal
+      gridEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          var card = e.target.closest('.mc-card');
+          if (!card) return;
+          e.preventDefault();
+          var code = card.dataset.mcCode;
+          if (code) MC.openModal(code);
+        }
+      });
+
+      // ============ ARROW KEY NAVIGATION ============
+      MC.getGridNavMap = function() {
+        var cards = [];
+        for (var s = 1; s <= TOTAL_SEMESTERS; s++) {
+          var col = document.getElementById('mc-col-' + s);
+          if (!col) continue;
+          var colCards = col.querySelectorAll('.mc-card');
+          for (var r = 0; r < colCards.length; r++) {
+            if (!cards[r]) cards[r] = [];
+            cards[r][s - 1] = colCards[r];
+          }
+        }
+        return cards;
+      };
+
+      gridEl.addEventListener('keydown', function(e) {
+        var card = e.target.closest('.mc-card');
+        if (!card) return;
+        var arrow = null;
+        if (e.key === 'ArrowRight') arrow = 'right';
+        else if (e.key === 'ArrowLeft') arrow = 'left';
+        else if (e.key === 'ArrowDown') arrow = 'down';
+        else if (e.key === 'ArrowUp') arrow = 'up';
+        if (!arrow) return;
+        e.preventDefault();
+
+        var navMap = MC.getGridNavMap();
+        // Find position
+        var pos = null;
+        for (var r = 0; r < navMap.length; r++) {
+          if (!navMap[r]) continue;
+          for (var c = 0; c < navMap[r].length; c++) {
+            if (navMap[r][c] === card) { pos = { row: r, col: c }; break; }
+          }
+          if (pos) break;
+        }
+        if (!pos) return;
+
+        var nr = pos.row, nc = pos.col;
+        if (arrow === 'right') nc++;
+        else if (arrow === 'left') nc--;
+        else if (arrow === 'down') nr++;
+        else if (arrow === 'up') nr--;
+        if (nc < 0) nc = 0;
+        if (nc >= TOTAL_SEMESTERS) nc = TOTAL_SEMESTERS - 1;
+        if (nr < 0) nr = 0;
+        if (nr >= navMap.length) nr = navMap.length - 1;
+
+        // Find valid target
+        for (var att = 0; att < TOTAL_SEMESTERS; att++) {
+          var tc = nc + att;
+          if (tc < TOTAL_SEMESTERS && navMap[nr] && navMap[nr][tc]) { navMap[nr][tc].focus(); return; }
+          tc = nc - att;
+          if (tc >= 0 && navMap[nr] && navMap[nr][tc]) { navMap[nr][tc].focus(); return; }
+        }
+      });
+
+      // Update roving tabindex on focus
+      gridEl.addEventListener('focusin', function(e) {
+        var card = e.target.closest('.mc-card');
+        if (!card) return;
+        document.querySelectorAll('.mc-card[data-mc-code]').forEach(function(c) { c.setAttribute('tabindex', '-1'); });
+        card.setAttribute('tabindex', '0');
+      });
+
+      // ============ KEYBOARD: Escape closes modal, global shortcuts ============
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && _modalOpen) { MC.closeModal(); return; }
+        if (e.ctrlKey && e.key === 'f') { e.preventDefault(); MC.searchOpen(); }
+        if (e.key === 'Escape' && MC._searchOpen) { e.preventDefault(); MC.searchClose(); }
+        if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+        if (e.key === '=' || e.key === '+') { e.preventDefault(); MC.zoomIn(); }
+        else if (e.key === '-') { e.preventDefault(); MC.zoomOut(); }
+        else if (e.key === '0') { e.preventDefault(); MC.zoomReset(); }
+      });
+
+      // ============ THEME TOGGLE ============
+      var THEME_KEY = 'mc-theme';
+
+      MC.getSystemTheme = function() {
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      };
+
+      MC.updateThemeIcon = function(theme) {
+        var moon = document.getElementById('mc-icon-moon');
+        var sun = document.getElementById('mc-icon-sun');
+        if (!moon || !sun) return;
+        moon.style.display = theme === 'light' ? 'none' : '';
+        sun.style.display = theme === 'light' ? '' : 'none';
+        var themeLabel = document.getElementById('mc-theme-label');
+        if (themeLabel) themeLabel.textContent = (theme === 'light') ? 'Claro' : 'Oscuro';
+      };
+
+      MC.applyTheme = function(theme, animate) {
+        var html = document.documentElement;
+        if (animate) {
+          html.classList.add('mc-theme-transitioning');
+          setTimeout(function() { html.classList.remove('mc-theme-transitioning'); }, 350);
+        }
+        if (theme === 'light') html.classList.add('mc-light');
+        else html.classList.remove('mc-light');
+        MC.updateThemeIcon(theme);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#F8FAFC' : '#0F172A');
+        if (animate) {
+          var icon = document.getElementById('mc-theme-icon');
+          if (icon) { icon.classList.remove('mc-theme-toggle__icon--rotate'); void icon.offsetWidth; icon.classList.add('mc-theme-toggle__icon--rotate'); }
+        }
+      };
+
+      var _themeToggling = false;
+      MC.toggleTheme = function() {
+        if (_themeToggling) return;
+        _themeToggling = true;
+        setTimeout(function() { _themeToggling = false; }, 400);
+        var current = document.documentElement.classList.contains('mc-light') ? 'light' : 'dark';
+        var next = current === 'light' ? 'dark' : 'light';
+        MC.applyTheme(next, true);
+        try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      };
+
+      document.getElementById('mc-btn-theme').addEventListener('click', MC.toggleTheme);
+
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
+          try { if (localStorage.getItem(THEME_KEY)) return; } catch (ex) {}
+          MC.applyTheme(e.matches ? 'light' : 'dark', true);
+        });
+      }
+
+      // ============ ZOOM CONTROLLER ============
+      var MIN_ZOOM = 0.6, MAX_ZOOM = 1.4, ZOOM_STEP = 0.1, DEFAULT_ZOOM = 1.0;
+      var ZOOM_KEY = 'mc-zoom';
+      MC._currentZoom = DEFAULT_ZOOM;
+
+      var zoomLabelEl = document.getElementById('mc-zoom-label');
+      var zoomInBtn = document.getElementById('mc-zoom-in');
+      var zoomOutBtn = document.getElementById('mc-zoom-out');
+      var zoomResetBtn = document.getElementById('mc-zoom-reset');
+      var gridInnerEl = document.getElementById('mc-grid-inner');
+
+      MC.setZoom = function(level) {
+        level = Math.round(level * 10) / 10;
+        if (level < MIN_ZOOM) level = MIN_ZOOM;
+        if (level > MAX_ZOOM) level = MAX_ZOOM;
+        MC._currentZoom = level;
+        if (gridInnerEl) {
+          gridInnerEl.style.transformOrigin = 'center top';
+          gridInnerEl.style.transform = 'scale(' + level + ')';
+        }
+        if (zoomLabelEl) zoomLabelEl.textContent = Math.round(level * 100) + '%';
+        if (zoomInBtn) zoomInBtn.disabled = (level >= MAX_ZOOM);
+        if (zoomOutBtn) zoomOutBtn.disabled = (level <= MIN_ZOOM);
+        try { localStorage.setItem(ZOOM_KEY, String(level)); } catch (e) {}
+      };
+
+      MC.zoomIn = function() { MC.setZoom(MC._currentZoom + ZOOM_STEP); };
+      MC.zoomOut = function() { MC.setZoom(MC._currentZoom - ZOOM_STEP); };
+      MC.zoomReset = function() { MC.setZoom(DEFAULT_ZOOM); };
+
+      if (zoomInBtn) zoomInBtn.addEventListener('click', MC.zoomIn);
+      if (zoomOutBtn) zoomOutBtn.addEventListener('click', MC.zoomOut);
+      if (zoomResetBtn) zoomResetBtn.addEventListener('click', MC.zoomReset);
+
+      var _zoomWheelTimer = null;
+      document.addEventListener('wheel', function(e) {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        if (_zoomWheelTimer) return;
+        _zoomWheelTimer = setTimeout(function() { _zoomWheelTimer = null; }, 50);
+        if (e.deltaY < 0) MC.zoomIn(); else if (e.deltaY > 0) MC.zoomOut();
+      }, { passive: false });
+
+      // ============ SEARCH CONTROLLER ============
+      (function() {
+        var searchEl = document.getElementById('mc-search');
+        var inputEl = document.getElementById('mc-search-input');
+        var closeBtn = document.getElementById('mc-search-close');
+        var statusEl = document.getElementById('mc-search-status');
+        MC._searchOpen = false;
+        var _debounceTimer = null;
+
+        MC.searchOpen = function() {
+          if (MC._searchOpen) return;
+          MC._searchOpen = true;
+          searchEl.classList.add('mc-search--open');
+          inputEl.value = ''; statusEl.textContent = '';
+          inputEl.focus();
+        };
+
+        MC.searchClose = function() {
+          if (!MC._searchOpen) return;
+          MC._searchOpen = false;
+          searchEl.classList.remove('mc-search--open');
+          inputEl.value = ''; statusEl.textContent = ''; statusEl.className = '';
+          MC.cardElements.forEach(function(el) { el.classList.remove('mc-card--search-match', 'mc-card--dimmed'); });
+        };
+
+        function handleInput() {
+          var val = inputEl.value.trim().toLowerCase();
+          if (!val) {
+            MC.cardElements.forEach(function(el) { el.classList.remove('mc-card--search-match', 'mc-card--dimmed'); });
+            statusEl.textContent = ''; statusEl.className = '';
+            return;
+          }
+          var matches = [];
+          SUBJECTS.forEach(function(s) {
+            if (s.name.toLowerCase().indexOf(val) !== -1 || s.code.toLowerCase().indexOf(val) !== -1) matches.push(s.code);
+          });
+          var matchSet = new Set(matches);
+          MC.cardElements.forEach(function(el, code) {
+            if (matchSet.has(code)) { el.classList.add('mc-card--search-match'); el.classList.remove('mc-card--dimmed'); }
+            else { el.classList.remove('mc-card--search-match'); el.classList.add('mc-card--dimmed'); }
+          });
+          if (matches.length === 0) {
+            statusEl.textContent = 'Sin resultados'; statusEl.className = 'mc-search__no-results';
+          } else {
+            statusEl.textContent = matches.length + ' resultado' + (matches.length !== 1 ? 's' : '');
+            statusEl.className = 'mc-search__count';
+            var firstEl = MC.cardElements.get(matches[0]);
+            if (firstEl) firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+
+        inputEl.addEventListener('input', function() {
+          if (_debounceTimer) clearTimeout(_debounceTimer);
+          _debounceTimer = setTimeout(handleInput, 100);
+        });
+
+        closeBtn.addEventListener('click', MC.searchClose);
+      })();
+
+      // ============ ACCESSIBILITY: LIVE ANNOUNCEMENTS ============
+      MC.announce = function(message) {
+        var statusEl = document.getElementById('mc-status');
+        if (!statusEl) return;
+        statusEl.textContent = '';
+        setTimeout(function() { statusEl.textContent = message; }, 50);
+      };
+
+      // ============ RESIZE HANDLER ============
+      var _resizeTimer = null;
+      window.addEventListener('resize', function() {
+        if (_resizeTimer) clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(function() { /* resize handled by CSS grid */ }, 150);
+      });
+
+      // ============ INIT ============
+      // Apply saved theme
+      (function() {
+        var savedTheme = null;
+        try { savedTheme = localStorage.getItem(THEME_KEY); } catch (e) {}
+        MC.applyTheme(savedTheme || MC.getSystemTheme(), false);
+      })();
+
+      // Apply saved zoom
+      (function() {
+        try {
+          var savedZoom = localStorage.getItem(ZOOM_KEY);
+          if (savedZoom) {
+            var level = parseFloat(savedZoom);
+            if (!isNaN(level) && level >= MIN_ZOOM && level <= MAX_ZOOM) MC.setZoom(level);
+          }
+        } catch (e) {}
+      })();
+
+      // Expose MC for debugging
+      window.__MC = MC;
+    })();
+  </script>
+</body>
+</html>
