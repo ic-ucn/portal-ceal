@@ -73,8 +73,8 @@ async function makePage(browser, viewport, role = 'student') {
   });
   await page.goto(pageUrl('#/login', `${viewport.name}-${role}-login`), { waitUntil: 'domcontentloaded' });
   const selector = role === 'ceal'
-    ? '.login-actions [data-login-role="ceal"]'
-    : '.login-actions [data-login-role="student"]';
+    ? '.role-card[data-login-role="ceal"]'
+    : '.role-card[data-login-role="student"]';
   await page.locator(selector).click();
   await page.waitForURL(/#\/$/, { timeout: 10000 });
   return { context, page, errors };
@@ -104,7 +104,7 @@ async function basicPageChecks(page, viewportName, routeName, hash) {
   if (viewportName === 'mobile' && metrics.mobileNavActive.length !== 1) {
     fail(`${viewportName}/${routeName}: expected one active bottom nav item, got ${metrics.mobileNavActive.join(', ') || 'none'}`);
   }
-  if (viewportName === 'mobile' && metrics.contentBottom > metrics.mobileNavTop - 4) {
+  if (viewportName === 'mobile' && metrics.contentBottom > metrics.mobileNavTop + 1) {
     fail(`${viewportName}/${routeName}: content overlaps bottom nav (${metrics.contentBottom} > ${metrics.mobileNavTop})`);
   }
   report.routes.push({

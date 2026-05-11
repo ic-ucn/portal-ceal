@@ -193,7 +193,6 @@
               <h1>Portal CEIC / CEAL UCN</h1>
               <p>Herramienta de consulta y seguimiento para estudiantes de Ingeniería Civil UCN: mallas, material, casos, calendario, acuerdos y apoyo académico.</p>
             </div>
-            <div class="login-note">${icon('shield')} <span>Vista demo. La sesión y los cambios se guardan en este navegador.</span></div>
           </div>
           <div class="login-form">
             <span class="eyebrow">Acceso</span>

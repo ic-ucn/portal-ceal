@@ -118,15 +118,6 @@ img { max-width: 100%; display: block; }
 .login-brand img { width: 275px; max-width: 100%; }
 .login-brand h1 { margin: 22px 0 8px; font-size: 2.3rem; letter-spacing: 0; color: var(--navy-950); }
 .login-brand p { margin: 0; color: var(--slate-600); line-height: 1.7; max-width: 28rem; }
-.login-note {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  color: var(--slate-600);
-  background: #fff;
-  font-size: .88rem;
-}
 .login-form { padding: 48px; }
 .login-form h2 { margin: 0 0 8px; font-size: 2rem; letter-spacing: 0; color: var(--navy-950); }
 .login-form > p { margin: 0 0 26px; color: var(--slate-600); }
@@ -719,7 +710,7 @@ img { max-width: 100%; display: block; }
   .login-card { border-radius: 20px; }
   .login-brand, .login-form { padding: 22px; }
   .role-card { grid-template-columns: 38px 1fr; }
-  .role-card .icon:last-child { display: none; }
+  .role-card > .icon:last-child { display: none; }
   .stat-card { grid-template-columns: 42px 1fr; align-items: center; }
   .stat-grid, .stat-grid.compact { grid-template-columns: 1fr 1fr; }
   .management-modules, .role-strip { grid-template-columns: 1fr; }
@@ -1189,11 +1180,11 @@ body::before {
   }
 
   .content {
-    height: calc(100dvh - 68px - 94px);
+    height: calc(100dvh - 68px - 76px);
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 20px 14px 28px;
+    padding: 20px 14px 14px;
     scrollbar-width: none;
   }
 
@@ -1267,10 +1258,10 @@ body::before {
   .bottom-nav {
     left: 10px;
     right: 10px;
-    bottom: 10px;
+    bottom: 8px;
     border-radius: 18px;
-    height: 70px;
-    padding: 7px;
+    height: 68px;
+    padding: 6px;
     background: rgba(6, 38, 77, .96);
     border: 1px solid rgba(255,255,255,.12);
     box-shadow: 0 18px 44px rgba(4,31,61,.28);
