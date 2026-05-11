@@ -193,27 +193,23 @@
               <h1>Portal CEIC / CEAL UCN</h1>
               <p>Herramienta de consulta y seguimiento para estudiantes de Ingeniería Civil UCN: mallas, material, casos, calendario, acuerdos y apoyo académico.</p>
             </div>
-            <div class="login-note">${icon('shield')} <span>Demo frontend local. Roles, datos y sesión se guardan en el navegador.</span></div>
+            <div class="login-note">${icon('shield')} <span>Vista demo. La sesión y los cambios se guardan en este navegador.</span></div>
           </div>
           <div class="login-form">
             <span class="eyebrow">Acceso</span>
-            <h2>Ingresar al portal</h2>
-            <p>Elige un rol para entrar como estudiante o como miembro CEAL.</p>
+            <h2>Entrar al portal</h2>
+            <p>Selecciona una opción para continuar.</p>
             <div class="role-grid">
               <button class="role-card" data-login-role="student">
                 <span class="role-icon">${icon('user')}</span>
-                <span><strong>Estudiante</strong><span>Revisar material, malla, casos, fechas, comunicados y trámites.</span></span>
+                <span><strong>Estudiante</strong><span>Consulta material, mallas, casos, fechas y comunicados.</span></span>
                 ${icon('arrow')}
               </button>
               <button class="role-card" data-login-role="ceal">
                 <span class="role-icon">${icon('settings')}</span>
-                <span><strong>Miembro CEAL</strong><span>Gestionar comunicados, casos, acuerdos, calendario y validación de material.</span></span>
+                <span><strong>Miembro CEAL</strong><span>Actualiza contenidos, casos, acuerdos y material validado.</span></span>
                 ${icon('arrow')}
               </button>
-            </div>
-            <div class="login-actions">
-              <button class="btn primary" data-login-role="student">Continuar como estudiante</button>
-              <button class="btn secondary" data-login-role="ceal">Ingresar como miembro CEAL</button>
             </div>
           </div>
         </section>

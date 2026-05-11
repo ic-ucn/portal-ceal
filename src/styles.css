@@ -130,7 +130,7 @@ img { max-width: 100%; display: block; }
 .login-form { padding: 48px; }
 .login-form h2 { margin: 0 0 8px; font-size: 2rem; letter-spacing: 0; color: var(--navy-950); }
 .login-form > p { margin: 0 0 26px; color: var(--slate-600); }
-.role-grid { display: grid; gap: 14px; margin-bottom: 22px; }
+.role-grid { display: grid; gap: 14px; margin-bottom: 0; }
 .role-card {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -147,8 +147,6 @@ img { max-width: 100%; display: block; }
 .role-icon { width: 44px; height: 44px; border-radius: 14px; background: var(--steel-100); color: var(--blue-700); display: grid; place-items: center; }
 .role-card strong { display: block; color: var(--navy-950); margin-bottom: 4px; }
 .role-card span { color: var(--slate-600); font-size: .9rem; line-height: 1.45; }
-.login-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-
 /* APP SHELL */
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
 .sidebar {
