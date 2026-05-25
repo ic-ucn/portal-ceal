@@ -94,9 +94,16 @@ function ensureDbShape(db, seed) {
   db.data ||= {};
   seed.data ||= {};
   db.data.cealMembers ||= [];
+  const memberSeedKeys = ['username', 'name', 'initials', 'role', 'roleName', 'label', 'plan', 'yearLabel', 'email', 'permissions'];
   for (const member of seed.data.cealMembers || []) {
-    if (!db.data.cealMembers.some(existing => existing.id === member.id)) {
+    const existing = db.data.cealMembers.find(current => current.id === member.id);
+    if (!existing) {
       db.data.cealMembers.push({ ...member });
+    } else {
+      for (const key of memberSeedKeys) {
+        if (key in member) existing[key] = Array.isArray(member[key]) ? [...member[key]] : member[key];
+      }
+      existing.passwordSet = Boolean(existing.passwordHash || member.passwordSet);
     }
   }
   db.data.users ||= seed.data.users || {};

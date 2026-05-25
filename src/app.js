@@ -267,11 +267,14 @@
         <div class="role-grid login-access-grid">
           <button class="role-card" data-login-role="student"><span class="role-icon">${icon('user')}</span><span><strong>Estudiante</strong><span>Consulta material, mallas, casos, fechas y comunicados.</span></span>${icon('arrow')}</button>
           <form class="ceal-login-card" data-form="ceal-login">
-            <div class="role-card static-card"><span class="role-icon">${icon('settings')}</span><span><strong>Miembro CEAL</strong><span>Gestiona contenidos, casos, acuerdos y material.</span></span></div>
-            <div class="form-field compact"><label>Integrante</label><select class="select" name="memberId" data-login-member required>${members.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)} - ${esc(m.roleName || m.label)}</option>`).join('')}</select></div>
-            <div class="form-grid tight"><div class="form-field compact"><label>${needsSetup ? 'Nueva contrasena' : 'Contrasena'}</label><input class="input" type="password" name="password" minlength="8" required /></div>${needsSetup ? '<div class="form-field compact"><label>Repetir contrasena</label><input class="input" type="password" name="confirm" minlength="8" required /></div>' : ''}</div>
-            <p class="small muted">${needsSetup ? 'Primer ingreso: crea tu contrasena personal.' : 'Usa tu contrasena del portal.'}</p>${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
-            <button class="btn primary full" type="submit">${needsSetup ? 'Crear contrasena e ingresar' : 'Ingresar como miembro CEAL'}</button>
+            <span class="role-icon">${icon('settings')}</span>
+            <div class="ceal-login-body">
+              <div class="ceal-login-heading"><strong>Miembro CEAL</strong><span>Gestiona contenidos, casos, acuerdos y material.</span></div>
+              <div class="form-field compact"><label>Integrante</label><select class="select" name="memberId" data-login-member required>${members.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)} - ${esc(m.roleName || m.label)}</option>`).join('')}</select></div>
+              <div class="form-grid tight"><div class="form-field compact"><label>${needsSetup ? 'Nueva contrasena' : 'Contrasena'}</label><input class="input" type="password" name="password" minlength="8" required /></div>${needsSetup ? '<div class="form-field compact"><label>Repetir contrasena</label><input class="input" type="password" name="confirm" minlength="8" required /></div>' : ''}</div>
+              <p class="small muted">${needsSetup ? 'Primer ingreso: crea tu contrasena personal.' : 'Usa tu contrasena del portal.'}</p>${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
+              <button class="btn primary full" type="submit">${needsSetup ? 'Crear contrasena e ingresar' : 'Ingresar como miembro CEAL'}</button>
+            </div>
           </form>
         </div>
       </div></section></main>`;
