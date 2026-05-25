@@ -5,6 +5,7 @@
   const LOCAL_DATA_KEY = 'portal.data.v4';
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
   let dataMode = API_BASE ? 'backend' : 'static';
+  let hasRendered = false;
 
   const state = {
     user: loadSession(),
@@ -115,6 +116,7 @@
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
   function routeTo(path) { window.location.hash = path; }
+  function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
   function getRoute() {
     const raw = window.location.hash.replace(/^#/, '') || '/';
     const [path, queryString = ''] = raw.split('?');
@@ -250,11 +252,20 @@
   function stat(ico, num, label, sub = '') {
     return `<div class="stat-card"><span class="icon-box">${icon(ico)}</span><span class="stat-copy"><strong>${esc(num)}</strong><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
   }
-  function render() {
+  function paint() {
     const { path, query } = getRoute();
     if (!state.user && path !== '/login') return routeTo('/login');
     if (state.user && path === '/login') return routeTo('/');
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
+  }
+  function render(options = {}) {
+    const opts = options instanceof Event ? { transition: true, scope: 'route' } : options;
+    const scope = opts.scope || 'state';
+    const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
+    if (shouldAnimate) app.dataset.motionScope = scope;
+    paint();
+    hasRendered = true;
+    if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
   }
   function renderLogin() {
     const members = cealMembers();
@@ -331,7 +342,7 @@
     const unread = Data.communications.filter(c => c.unread).length;
     const openCases = Data.cases.filter(c => !['resuelto', 'cerrado'].includes(c.status)).length;
     const newMaterials = Data.resources.filter(r => r.status !== 'observado').length;
-    return `${pageHead('Inicio', 'Resumen actualizado del portal academico')}
+    return `${pageHead('Inicio', 'Resumen actualizado del portal académico')}
       <section class="home-hero"><div class="card pad"><div class="row-between"><h2 class="card-title">Estado general</h2><span class="pill green">${dataMode === 'backend' ? 'Datos guardados' : 'Guardado en este equipo'}</span></div><p class="muted">Revisa comunicados, fechas, casos, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Proximas')}${stat('folder', openCases, 'Casos', 'Abiertos')}${stat('book', newMaterials, 'Recursos', 'Visibles')}</div></div>
       <div class="card pad"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid">${access('book','Buscar material','Guia, prueba, apunte o PPT.','Abrir','/material')}${access('grid','Revisar malla','Plan O y Plan P integrados.','Ver malla','/mallas','blue')}${access('folder','Reportar un caso','Solicitudes y seguimiento.','Nuevo caso','/casos/nuevo','orange')}${access('calendar','Ver calendario','Fechas y acuerdos.','Abrir','/calendario')}</div></div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Proximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
@@ -356,7 +367,7 @@
     if (!c) return renderNotFound('No encontramos el comunicado.');
     return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p style="font-size:1.05rem;line-height:1.75;color:var(--slate-700)">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack"><button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leido</button><button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#/calendario"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vinculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
-  function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span>${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
+  function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
   function renderCalendar() {
     const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
@@ -543,9 +554,9 @@
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
     if (role === 'student') { saveSession(Data.users.student); routeTo('/'); return; }
     if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
-    if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render(); return; }
-    if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render(); return; }
-    if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; state.selectedCaseId = null; render(); return; }
+    if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
+    if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
+    if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; state.selectedCaseId = null; render({ transition: true, scope: 'panel' }); return; }
     const saveCourse = e.target.closest('[data-save-course]');
     if (saveCourse) { const key = saveCourse.dataset.saveCourse; if (!Data.saved.courses.includes(key)) Data.saved.courses.push(key); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'courses', id:key }) }).catch(() => {}); showToast('Ramo agregado a seguimiento'); return; }
     const saveResource = e.target.closest('[data-save-resource]');
@@ -567,23 +578,23 @@
     const closeCase = e.target.closest('[data-close-case]');
     if (closeCase) { const c = Data.cases.find(x => x.id === closeCase.dataset.closeCase); if (c) { c.status = 'cerrado'; c.history ||= []; c.history.unshift({ at:new Date().toISOString(), title:'Cierre solicitado', detail:'Solicitud registrada por el usuario.' }); persistSnapshot(); apiRequest(`/cases/${encodeURIComponent(c.id)}`, { method:'PATCH', body:JSON.stringify({ status:'cerrado', note:'Solicitud de cierre registrada.' }) }).catch(() => {}); } showToast('Solicitud de cierre registrada'); return; }
     const planBtn = e.target.closest('[data-plan]');
-    if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render(); return; }
+    if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
     const semBtn = e.target.closest('[data-mobile-sem]');
-    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); localStorage.setItem('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render(); return; }
+    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); localStorage.setItem('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render({ transition: true, scope: 'panel' }); return; }
     const course = e.target.closest('[data-course]');
-    if (course) { state.selectedCourse = { plan: course.dataset.coursePlan, code: course.dataset.course }; const c = findCourse(course.dataset.coursePlan, course.dataset.course); if (c) state.mobileSemester = c.semester; render(); return; }
+    if (course) { state.selectedCourse = { plan: course.dataset.coursePlan, code: course.dataset.course }; const c = findCourse(course.dataset.coursePlan, course.dataset.course); if (c) state.mobileSemester = c.semester; render({ transition: true, scope: 'panel' }); return; }
     const typeBtn = e.target.closest('[data-material-type]');
-    if (typeBtn) { state.materialType = typeBtn.dataset.materialType; render(); return; }
+    if (typeBtn) { state.materialType = typeBtn.dataset.materialType; render({ transition: true, scope: 'panel' }); return; }
     const courseFilter = e.target.closest('[data-material-course]');
-    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; render(); return; }
+    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     const resourceRow = e.target.closest('[data-resource-row]');
-    if (resourceRow) { state.selectedResourceId = resourceRow.dataset.resourceRow; render(); return; }
+    if (resourceRow) { state.selectedResourceId = resourceRow.dataset.resourceRow; render({ transition: true, scope: 'panel' }); return; }
     const tab = e.target.closest('[data-case-tab]');
-    if (tab) { state.caseTab = tab.dataset.caseTab; state.selectedCaseId = null; render(); return; }
+    if (tab) { state.caseTab = tab.dataset.caseTab; state.selectedCaseId = null; render({ transition: true, scope: 'panel' }); return; }
     const cat = e.target.closest('[data-com-category]');
-    if (cat) { state.communicationCategory = cat.dataset.comCategory; render(); return; }
+    if (cat) { state.communicationCategory = cat.dataset.comCategory; render({ transition: true, scope: 'panel' }); return; }
     const faq = e.target.closest('[data-faq]');
-    if (faq) { const idx = Number(faq.dataset.faq); state.openFAQ = state.openFAQ === idx ? null : idx; render(); return; }
+    if (faq) { const idx = Number(faq.dataset.faq); state.openFAQ = state.openFAQ === idx ? null : idx; render({ transition: true, scope: 'panel' }); return; }
     const segment = e.target.closest('[data-select-segment]');
     if (segment) { const wrap = segment.parentElement; wrap.querySelectorAll('button').forEach(b => b.classList.remove('active')); segment.classList.add('active'); const hidden = wrap.parentElement.querySelector(`input[name="${segment.dataset.selectSegment}"]`); if (hidden) hidden.value = segment.textContent.trim(); return; }
     const calendarExport = e.target.closest('[data-download-calendar]');
@@ -598,7 +609,7 @@
   }
   function onChange(e) {
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
-    if (e.target.matches('[data-login-member]')) { state.loginMemberId = e.target.value; state.authMessage = ''; render(); }
+    if (e.target.matches('[data-login-member]')) { state.loginMemberId = e.target.value; state.authMessage = ''; render({ transition: true, scope: 'panel' }); }
   }
   async function onSubmit(e) {
     const global = e.target.closest('[data-global-search-form]');
@@ -622,7 +633,7 @@
         routeTo('/gestion');
       } catch (err) {
         state.authMessage = err.message || 'No se pudo iniciar sesion.';
-        render();
+        render({ transition: true, scope: 'panel' });
       }
       return;
     }
@@ -673,7 +684,7 @@
     }
   }
 
-  window.addEventListener('hashchange', render);
+  window.addEventListener('hashchange', () => render({ transition: true, scope: 'route' }));
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);

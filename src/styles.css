@@ -52,6 +52,12 @@
   --mobile-header-h: 64px;
   --bottom-nav-h: 78px;
   --course-col-w: 142px;
+  --motion-fast: 140ms;
+  --motion-base: 190ms;
+  --motion-panel: 220ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
 /* Operational finish pass */
@@ -242,6 +248,29 @@ img { max-width: 100%; display: block; }
 }
 
 #app { min-height: 100vh; }
+
+#app[data-motion-scope="route"] .content > *,
+#app[data-motion-scope="panel"] .content > * {
+  animation: portal-panel-in var(--motion-base) var(--ease-out) both;
+}
+
+@keyframes portal-panel-in {
+  from { opacity: 0; transform: translateY(6px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  #app[data-motion-scope] .content > * {
+    animation: none !important;
+  }
+}
 
 /* LOGIN */
 .login-shell {
@@ -883,6 +912,52 @@ img { max-width: 100%; display: block; }
 .quick-access h3, .sub-card h3 { margin: 12px 0 6px; font-size: .98rem; letter-spacing: 0; }
 .quick-access p, .sub-card p { margin: 0 0 12px; color: var(--steel-650); font-size: .84rem; line-height: 1.5; }
 .selected-inline { border-color: rgba(11,99,206,.55); box-shadow: 0 0 0 2px rgba(11,99,206,.18), var(--shadow-card); }
+.card,
+.link-card-row,
+.item-card,
+.result-row,
+.management-card,
+.role-pill,
+.stat-card,
+.course-detail-panel,
+.malla-mobile-detail,
+.notification-popover,
+.segmented button,
+.chip-btn,
+.icon-btn {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+.link-card-row:hover,
+.item-card:hover,
+.result-row:hover,
+.management-card:not(.disabled):hover,
+.stat-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(18,111,227,.28);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .075);
+}
+
+.course-detail-panel,
+.malla-mobile-detail,
+.notification-popover {
+  animation: portal-panel-in var(--motion-panel) var(--ease-out) both;
+}
+
+.faq-answer {
+  overflow: hidden;
+  animation: portal-answer-in var(--motion-base) var(--ease-out) both;
+}
+
+@keyframes portal-answer-in {
+  from { opacity: 0; transform: translateY(-4px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 120px; }
+}
 .case-steps { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin: 16px 0; }
 .case-steps span { position: relative; border:1px solid var(--steel-200); background: var(--steel-50); color: var(--steel-650); border-radius: 999px; padding: 7px 9px; text-align:center; font-size:.72rem; font-weight:850; }
 .case-steps span.done { background: var(--blue-100); color: var(--blue-700); border-color: rgba(11,99,206,.22); }
