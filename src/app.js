@@ -412,7 +412,43 @@
     const q = plain(state.mallaQuery);
     const filtered = courses.filter(c => (!q || plain([c.name, c.code, c.visibleCode, c.semester].join(' ')).includes(q)) && (state.mallaArea === 'all' || c.area === state.mallaArea));
     const bySemester = Array.from({ length: getPlanData(plan).totalSemesters }, (_, i) => filtered.filter(c => c.semester === i + 1));
-    return `${pageHead('Mallas interactivas', 'Consulta ramos, prerrequisitos y avance por plan')}<div class="malla-shell ${selected ? 'has-selection' : 'no-selection'}"><aside class="card pad malla-toolbar"><div class="segmented"><button class="${plan === 'planO' ? 'active' : ''}" data-plan="planO">Plan O</button><button class="${plan === 'planP' ? 'active' : ''}" data-plan="planP">Plan P</button></div><div class="form-field"><label>Area</label><select class="select" data-malla-area><option value="all">Todas</option>${Object.entries(AreaStyle).map(([k,v]) => `<option value="${k}" ${state.mallaArea === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div><div class="malla-summary"><div><strong>${courses.length}</strong><span>Ramos</span></div><div><strong>${getPlanData(plan).totalSemesters}</strong><span>Semestres</span></div></div><p class="small muted">Selecciona un ramo para ver requisitos, ramos que abre y material asociado.</p></aside><main class="malla-stage"><div class="malla-stage-head"><input class="input" data-malla-search value="${esc(state.mallaQuery)}" placeholder="Buscar ramo, codigo o semestre" /><span class="pill blue">${planLabel(plan)}</span></div><div class="mobile-semesters">${bySemester.map((_, i) => `<button class="${state.mobileSemester === i + 1 ? 'active' : ''}" data-mobile-sem="${i + 1}">${i + 1} Sem</button>`).join('')}</div><div class="malla-scroll"><div class="malla-grid" style="grid-template-columns:repeat(${bySemester.length},minmax(var(--course-col-w),1fr))">${bySemester.map((semesterCourses, i) => `<section class="semester-col ${state.mobileSemester === i + 1 ? 'mobile-active' : ''}"><h3>${i + 1} Sem <small>${semesterCourses.length} ramos</small></h3>${semesterCourses.map(c => courseCard(plan, c, selected, selectedCodes)).join('') || '<p class="small muted">Sin ramos visibles.</p>'}</section>`).join('')}</div></div>${selected ? `<section class="card pad malla-mobile-detail">${renderCourseDetail(selected, plan, true)}</section>` : ''}</main>${selected ? `<aside class="card pad course-detail-panel">${renderCourseDetail(selected, plan, true)}</aside>` : ''}</div>`;
+    return `${pageHead('Mallas interactivas', 'Consulta ramos, prerrequisitos y avance por plan')}
+      <div class="malla-shell ${selected ? 'has-selection' : 'no-selection'}">
+        <aside class="card pad malla-toolbar">
+          <div class="segmented">
+            <button class="${plan === 'planO' ? 'active' : ''}" data-plan="planO">Plan O</button>
+            <button class="${plan === 'planP' ? 'active' : ''}" data-plan="planP">Plan P</button>
+          </div>
+          <div class="form-field">
+            <label>Area</label>
+            <select class="select" data-malla-area>
+              <option value="all">Todas</option>
+              ${Object.entries(AreaStyle).map(([k,v]) => `<option value="${k}" ${state.mallaArea === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="malla-summary">
+            <div><strong>${courses.length}</strong><span>Ramos</span></div>
+            <div><strong>${getPlanData(plan).totalSemesters}</strong><span>Semestres</span></div>
+          </div>
+          <p class="small muted">Selecciona un ramo para ver requisitos, ramos que abre y material asociado.</p>
+        </aside>
+        <div class="malla-stage">
+          <div class="malla-stage-head">
+            <input class="input" data-malla-search value="${esc(state.mallaQuery)}" placeholder="Buscar ramo, codigo o semestre" />
+            <span class="pill blue">${planLabel(plan)}</span>
+          </div>
+          <div class="mobile-semesters">
+            ${bySemester.map((_, i) => `<button class="${state.mobileSemester === i + 1 ? 'active' : ''}" data-mobile-sem="${i + 1}">${i + 1} Sem</button>`).join('')}
+          </div>
+          <div class="malla-scroll">
+            <div class="malla-grid" style="grid-template-columns:repeat(${bySemester.length},minmax(var(--course-col-w),1fr))">
+              ${bySemester.map((semesterCourses, i) => `<section class="semester-col ${state.mobileSemester === i + 1 ? 'mobile-active' : ''}"><h3>${i + 1} Sem <small>${semesterCourses.length} ramos</small></h3>${semesterCourses.map(c => courseCard(plan, c, selected, selectedCodes)).join('') || '<p class="small muted">Sin ramos visibles.</p>'}</section>`).join('')}
+            </div>
+          </div>
+          ${selected ? `<section class="card pad malla-mobile-detail">${renderCourseDetail(selected, plan, true)}</section>` : ''}
+        </div>
+        ${selected ? `<aside class="card pad course-detail-panel">${renderCourseDetail(selected, plan, true)}</aside>` : ''}
+      </div>`;
   }
   function courseCard(plan, c, selected = null, selectedCodes = new Set()) {
     const isSelected = selected?.code === c.code;
