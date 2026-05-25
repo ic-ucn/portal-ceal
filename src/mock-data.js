@@ -1,36 +1,31 @@
 window.PortalMock = (() => {
   const today = '2026-05-16';
 
+  const cealMembers = [
+    { id: 'ceal-martina-briceno', username: 'martina.briceno', name: 'Martina Briceno', initials: 'MB', role: 'ceal', roleName: 'Presidencia', label: 'Presidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'martina.briceno@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'manage:roles', 'review:casos', 'publish:comunicados', 'upload:acuerdos'] },
+    { id: 'ceal-camila-villegas', username: 'camila.villegas', name: 'Camila Villegas', initials: 'CV', role: 'ceal', roleName: 'Vicepresidencia', label: 'Vicepresidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'camila.villegas@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'review:casos', 'edit:calendario', 'upload:acuerdos'] },
+    { id: 'ceal-matias-gonzalez', username: 'matias.gonzalez', name: 'Matias Gonzalez', initials: 'MG', role: 'ceal', roleName: 'Secretaria', label: 'Secretaria', plan: 'planP', yearLabel: 'CEAL 2026', email: 'matias.gonzalez@alumnos.ucn.cl', passwordSet: false, permissions: ['publish:comunicados', 'edit:calendario', 'upload:acuerdos', 'review:casos', 'manage:forms'] },
+    { id: 'ceal-belen-astudillo', username: 'belen.astudillo', name: 'Belen Astudillo', initials: 'BA', role: 'ceal', roleName: 'Tesoreria', label: 'Tesoreria', plan: 'planP', yearLabel: 'CEAL 2026', email: 'belen.astudillo@alumnos.ucn.cl', passwordSet: false, permissions: ['review:casos', 'edit:calendario', 'manage:forms'] },
+    { id: 'ceal-gabriel-sanchez', username: 'gabriel.sanchez', name: 'Gabriel Sanchez', initials: 'GS', role: 'ceal', roleName: 'Comunicaciones', label: 'Comunicaciones', plan: 'planP', yearLabel: 'CEAL 2026', email: 'gabriel.sanchez@alumnos.ucn.cl', passwordSet: false, permissions: ['publish:comunicados', 'edit:calendario', 'upload:acuerdos'] },
+    { id: 'ceal-bruno-castillo', username: 'bruno.castillo', name: 'Bruno Castillo', initials: 'BC', role: 'ceal', roleName: 'Docencia', label: 'Docencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'bruno.castillo@alumnos.ucn.cl', passwordSet: false, permissions: ['validate:material', 'review:casos', 'edit:mallas', 'manage:tutoring'] },
+    { id: 'ceal-paolo-cardaniz', username: 'paolo.cardaniz', name: 'Paolo Cardaniz', initials: 'PC', role: 'ceal', roleName: 'Deportes', label: 'Deportes', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.cardaniz@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'publish:comunicados', 'review:casos'] },
+    { id: 'ceal-paolo-ferruzola', username: 'paolo.ferruzola', name: 'Paolo Ferruzola', initials: 'PF', role: 'ceal', roleName: 'Extracurricular', label: 'Extracurricular', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.ferruzola@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'publish:comunicados', 'manage:forms'] },
+    { id: 'ceal-kevin-cortes', username: 'kevin.cortes', name: 'Kevin Cortes', initials: 'KC', role: 'ceal', roleName: 'Accion Social', label: 'Accion Social', plan: 'planP', yearLabel: 'CEAL 2026', email: 'kevin.cortes@alumnos.ucn.cl', passwordSet: false, permissions: ['review:casos', 'publish:comunicados', 'manage:forms'] }
+  ];
+
   const users = {
     student: {
       id: 'u-student-001',
-      name: 'Andrés Morales',
+      name: 'Andres Morales',
       initials: 'AM',
       role: 'student',
       label: 'Estudiante',
       plan: 'planP',
-      yearLabel: '4° año',
+      yearLabel: '4to ano',
       email: 'andres.morales@alumnos.ucn.cl',
       permissions: []
     },
-    ceal: {
-      id: 'u-ceal-001',
-      name: 'Andrés Morales',
-      initials: 'AM',
-      role: 'ceal',
-      label: 'Secretaría',
-      plan: 'planP',
-      yearLabel: '4° año',
-      email: 'andres.morales@alumnos.ucn.cl',
-      permissions: [
-        'publish:comunicados',
-        'edit:calendario',
-        'upload:acuerdos',
-        'review:casos',
-        'validate:material',
-        'manage:roles'
-      ]
-    }
+    ceal: { ...cealMembers[2] }
   };
 
   const courseProgress = {
@@ -309,5 +304,5 @@ window.PortalMock = (() => {
     ]
   };
 
-  return { today, users, courseProgress, communications, resources, cases, events, agreements, tutoring, procedures, faqs, notifications, saved, gestion };
+  return { today, users, cealMembers, courseProgress, communications, resources, cases, events, agreements, tutoring, procedures, faqs, notifications, saved, gestion };
 })();

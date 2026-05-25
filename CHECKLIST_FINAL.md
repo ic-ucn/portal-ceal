@@ -1,14 +1,14 @@
-# Checklist final de aceptación
+# Checklist final de aceptacion
 
 ## Desktop
 
 - [x] Sidebar consistente.
-- [x] Topbar con búsqueda global.
+- [x] Topbar con busqueda global.
 - [x] Notificaciones.
-- [x] Panels laterales para detalles.
-- [x] Tablas en Material.
-- [x] Malla real Plan O y Plan P.
-- [x] Gestión CEAL visible solo con rol interno.
+- [x] Paneles laterales para detalles.
+- [x] Biblioteca academica con filtros y detalle.
+- [x] Malla Plan O y Plan P integrada.
+- [x] Gestion CEAL visible solo con rol interno.
 
 ## Mobile
 
@@ -17,31 +17,38 @@
 - [x] Cards en vez de tablas.
 - [x] Malla por semestre.
 - [x] Formularios apilados.
-- [x] Acciones táctiles.
+- [x] Acciones tactiles.
+- [x] Sin overflow horizontal detectado por QA.
 
 ## Flujos
 
-- [x] Login demo.
+- [x] Acceso estudiante.
+- [x] Acceso CEAL con primer password.
 - [x] Inicio.
-- [x] Búsqueda global.
+- [x] Busqueda global.
 - [x] Ver mallas.
 - [x] Seleccionar ramo.
-- [x] Ver detalle de ramo.
-- [x] Ver material.
-- [x] Subir material.
+- [x] Cerrar detalle de ramo.
+- [x] Ver material asociado.
+- [x] Subir material con archivo real local.
+- [x] Descargar material.
 - [x] Crear caso.
 - [x] Seguir caso.
+- [x] Gestionar caso como CEAL.
 - [x] Ver calendario.
+- [x] Crear acuerdo.
 - [x] Abrir acuerdo.
 - [x] Ver comunicado.
-- [x] Ver ayudantía/trámite.
+- [x] Editar y publicar comunicado.
+- [x] Validar material.
+- [x] Ver ayudantia/tramite.
 - [x] Gestionar contenido CEAL.
 
 ## Copy y estilo
 
-- [x] Español directo.
+- [x] Espanol directo.
 - [x] Sin marketing.
-- [x] Sin métricas gigantes inventadas.
+- [x] Sin metricas gigantes inventadas.
 - [x] Colores institucionales sobrios.
-- [x] Acento naranja usado con moderación.
-- [x] No hay estética startup morada ni neon.
+- [x] Acento naranja usado con moderacion.
+- [x] Sin estetica startup morada ni neon.

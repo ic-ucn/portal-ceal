@@ -1,29 +1,26 @@
-# Auditoría funcional del Portal CEIC / CEAL UCN
+# Auditoria funcional del Portal CEIC / CEAL UCN
 
-Fecha de verificación: 10 de mayo de 2026
+Fecha de verificacion: 24 de mayo de 2026
 
 ## Resultado
 
-Estado: aprobado para demo frontend avanzada.
+Estado: aprobado para publicacion del frontend y uso local con backend Node.
 
-La auditoría automatizada recorrió desktop y mobile, probó flujos principales, verificó permisos CEAL, revisó errores de consola y generó capturas.
+La auditoria automatizada recorrio desktop, mobile y Gestion CEAL; probo flujos principales, permisos, acciones internas, carga/descarga local de material, mallas y rutas.
 
-## Verificación ejecutada
-
-Comando:
+## Verificacion ejecutada
 
 ```powershell
-$env:NODE_PATH='C:\Users\kevin\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-& 'C:\Users\kevin\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' scripts\qa-portal.mjs
+npm run check
+npm run quality
+node scripts\qa-portal.mjs
 ```
 
-Resultado:
+Resultados actuales:
 
-- 36 rutas verificadas: desktop y mobile.
-- 13 flujos interactivos verificados.
-- 14 capturas generadas.
-- 0 errores de consola.
-- 0 overflow horizontal móvil detectado.
+- `npm run check`: OK.
+- `npm run quality`: 2429 assertions, 0 failures.
+- `node scripts\qa-portal.mjs`: 43 rutas, 9 flujos, 0 failures.
 
 ## Rutas cubiertas
 
@@ -35,44 +32,40 @@ Resultado:
 - Casos y seguimiento.
 - Nuevo caso.
 - Detalle de caso.
-- Biblioteca académica / Material.
+- Biblioteca academica / Material.
 - Subir material.
 - Detalle de recurso.
 - Mallas interactivas.
 - Detalle de ramo.
-- Ayudantías y trámites.
-- Detalle de ayudantía.
-- Detalle de trámite.
+- Ayudantias y tramites.
+- Detalle de ayudantia.
+- Detalle de tramite.
 - Perfil.
-- Más.
-- Gestión CEAL.
+- Mas.
+- Gestion CEAL.
+- Nuevo acuerdo.
+- Gestion de caso.
+- Validacion de material.
+- Editor de comunicado.
 
 ## Flujos cubiertos
 
 - Login como estudiante.
-- Login como miembro CEAL.
-- Búsqueda global.
-- Filtro y búsqueda de comunicados.
-- Filtro, selección, guardado y descarga demo de material.
-- Guardado de ramo en seguimiento.
-- Cambio de plan y semestre en malla móvil.
-- Filtros y pestañas de casos.
-- Creación de caso con validación.
-- Subida de material con validación.
-- Restricción de Gestión CEAL para estudiante.
-- Editor interno CEAL.
-- Validación interna de material CEAL.
+- Login CEAL con creacion de contrasena en primer ingreso.
+- Busqueda y filtro de material.
+- Seleccion y cierre de detalle en mallas.
+- Creacion de caso por estudiante.
+- Subida de material con archivo real local.
+- Descarga de material.
+- Detalle de ramo hacia material filtrado.
+- Respuesta CEAL a caso.
+- Creacion de acuerdo.
+- Validacion de material CEAL.
+- Edicion y publicacion de comunicado.
 
 ## Evidencia
 
-Reporte JSON:
-
-`qa-report.json`
-
-Capturas:
-
-`qa-screenshots/`
-
-Script de auditoría:
-
-`scripts/qa-portal.mjs`
+- `scripts/qa-portal.mjs`
+- `scripts/quality-suite.mjs`
+- `qa-report.json` generado localmente e ignorado por git.
+- `qa-screenshots/` generado localmente e ignorado por git.

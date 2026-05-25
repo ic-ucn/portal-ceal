@@ -1,53 +1,58 @@
-# Especificación de implementación — Portal CEAL / CEIC UCN
+# Especificacion de implementacion - Portal CEIC / CEAL UCN
 
 ## Objetivo
 
-Entregar una demo frontend avanzada, funcional y navegable del Portal CEAL / CEIC UCN, preparada para una futura integración con backend, pero sin implementar servicios reales todavía.
+Entregar un portal academico operativo para estudiantes e integrantes CEAL de Ingenieria Civil UCN, con frontend responsive, backend local, datos curriculares reales y flujos internos de gestion.
 
-## Principios usados
+## Principios
 
-- Producto académico de uso semanal, no landing institucional.
+- Producto academico de uso semanal, no landing institucional.
 - Identidad sobria: navy, blanco, gris suave, azul institucional y acento naranja CEIC/UCN.
 - Mobile-first real: bottom nav, cards, formularios apilados y malla por semestre.
-- Desktop con densidad útil: sidebar, topbar, paneles laterales y tablas solo donde aportan.
-- El logo se usa en header, sidebar y login, no como decoración repetida en cada card.
-- Cada módulo mantiene propósito propio; no se fuerza todo como dashboard.
+- Desktop con densidad util: sidebar, topbar, paneles laterales y tablas solo donde aportan.
+- El logo se usa en header, sidebar y login, no como decoracion repetida en cards.
+- Cada modulo mantiene proposito propio.
+- Sin RUT, PPA ni datos sensibles de integrantes.
 
-## Módulos implementados
+## Modulos implementados
 
-1. Login / selección de rol.
-2. Inicio.
-3. Comunicados + FAQ.
-4. Calendario y acuerdos.
-5. Casos y seguimiento.
-6. Nuevo caso.
-7. Biblioteca académica / Material.
-8. Subir material.
-9. Mallas interactivas.
-10. Detalle de ramo.
-11. Ayudantías y trámites.
-12. Mi cuenta / perfil.
-13. Búsqueda global.
-14. Notificaciones.
-15. Gestión CEAL.
-16. Editor interno de comunicado.
-17. Validación de material.
+1. Acceso estudiante.
+2. Acceso CEAL con primer password.
+3. Inicio.
+4. Comunicados + FAQ.
+5. Calendario y acuerdos.
+6. Casos y seguimiento.
+7. Nuevo caso.
+8. Biblioteca academica / Material.
+9. Subir material.
+10. Mallas interactivas.
+11. Detalle de ramo.
+12. Ayudantias y tramites.
+13. Mi cuenta / perfil.
+14. Busqueda global.
+15. Notificaciones.
+16. Gestion CEAL.
+17. Editor interno de comunicado.
+18. Validacion de material.
+19. Nuevo acuerdo.
+20. Gestion de caso.
 
 ## Mallas curriculares
 
-Los archivos originales están en:
+Archivos originales:
 
 - `original-mallas/malla-o.html`
 - `original-mallas/malla-p.html`
 
-La app usa `data/curricula.js` con datos normalizados:
+Datos normalizados:
 
+- `data/curricula.js`
 - `planO.totalSemesters = 10`
 - `planO.expectedSubjects = 61`
 - `planP.totalSemesters = 11`
 - `planP.expectedSubjects = 64`
 
-La lógica principal en `src/app.js` usa estas funciones:
+Funciones principales:
 
 - `getPlanData(plan)`
 - `getCourses(plan)`
@@ -55,44 +60,50 @@ La lógica principal en `src/app.js` usa estas funciones:
 - `findCoursePlanForCode(code)`
 - `getProgress(plan, code)`
 - `getSuccessors(plan, code)`
-- `getDirectPrereqs(plan, course)`
-- `getCourseResources(plan, code)`
-- `getCourseTutoring(code)`
+- `getPrereqs(plan, course)`
+- `getResourcesForCourse(plan, code)`
 - `renderMallas()`
-- `renderCourseDetail(course, plan, compact)`
+- `renderCourseDetail(course, plan, inline)`
 - `renderCourseDetailPage(plan, code)`
 
-## Backend futuro
+## Backend local
 
-Cuando se agregue backend, reemplazar `src/mock-data.js` por repositorios o servicios:
+`server.mjs` expone una API local sobre archivos JSON:
 
-- `usersRepository`
-- `casesRepository`
-- `materialsRepository`
-- `calendarRepository`
-- `agreementsRepository`
-- `communicationsRepository`
-- `curriculaRepository`
+- `GET /api/bootstrap`
+- `GET /api/auth/members`
+- `POST /api/auth/setup`
+- `POST /api/auth/login`
+- `GET/POST/PATCH /api/communications`
+- `GET/POST/PATCH /api/cases`
+- `GET/POST/PATCH /api/materials`
+- `GET/POST/PATCH /api/agreements`
+- `GET/POST/PATCH /api/events`
+- `POST /api/saved`
 
-Mantener estos conceptos:
+Persistencia:
 
-- IDs únicos por entidad.
-- `createdAt`, `updatedAt`, `createdBy`, `updatedBy`.
-- Estados normalizados.
-- Permisos por rol.
-- Auditoría para Gestión CEAL.
-- Separar datos curriculares de progreso personal.
+- `.data/portal-db.json`
+- `.data/` queda fuera de git.
 
-## Validaciones frontend incluidas
+GitHub Pages sirve el frontend estatico. Para persistencia multiusuario real, desplegar `server.mjs` o una API equivalente en un runtime con storage remoto.
 
-- Nuevo caso: tipo, título, descripción y privacidad obligatorios.
-- Subir material: tipo, título, ramo, descripción, origen y autorización obligatorios.
-- Editar contenido: título y cuerpo obligatorios.
+## Validaciones incluidas
 
-## Pendiente si se continúa
+- Nuevo caso: tipo, titulo, descripcion y privacidad obligatorios.
+- Subir material: ramo, tipo, origen, archivo/enlace, descripcion y declaracion obligatoria.
+- Login CEAL: password requerido y confirmacion en primer ingreso.
+- Editar contenido: titulo, resumen y cuerpo obligatorios.
+- Nuevo acuerdo: titulo, origen, area, fecha, responsable y proximo paso.
 
-- Persistir formularios en backend.
-- Agregar preview real de archivos.
-- Agregar autenticación UCN real.
-- Agregar sincronización de calendario real.
-- Agregar permisos granulares por acción en cada botón interno CEAL.
+## Verificacion
+
+- `npm run check`
+- `npm run quality`
+- `node scripts\qa-portal.mjs`
+
+Cobertura actual:
+
+- 2429 assertions estructurales.
+- 43 rutas desktop/mobile/CEAL.
+- 9 flujos E2E principales.

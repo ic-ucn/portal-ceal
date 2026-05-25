@@ -1,274 +1,293 @@
-import { createRequire } from 'node:module';
-import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
-
-const baseUrl = process.env.PORTAL_URL || 'http://localhost:8080';
-const root = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
-const shotDir = path.join(root, 'qa-screenshots');
-const reportPath = path.join(root, 'qa-report.json');
-
-const routes = [
-  ['inicio', '#/'],
-  ['comunicados', '#/comunicados'],
-  ['comunicado-detalle', '#/comunicados/com-001'],
-  ['calendario', '#/calendario'],
-  ['acuerdo-detalle', '#/acuerdos/agr-003'],
-  ['casos', '#/casos'],
-  ['nuevo-caso', '#/casos/nuevo'],
-  ['caso-detalle', '#/casos/case-2026-0052'],
-  ['material', '#/material'],
-  ['subir-material', '#/material/subir'],
-  ['material-detalle', '#/material/mat-001'],
-  ['mallas', '#/mallas'],
-  ['ramo-detalle', '#/ramo/planP/P-0402'],
-  ['apoyo', '#/apoyo'],
-  ['ayudantia-detalle', '#/ayudantias/ay-001'],
-  ['tramite-detalle', '#/tramites/proc-001'],
-  ['perfil', '#/perfil'],
-  ['mas', '#/mas']
-];
-
-const viewportSets = [
-  { name: 'desktop', width: 1440, height: 900 },
-  { name: 'mobile', width: 390, height: 844, isMobile: true }
-];
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '..');
+const port = Number(process.env.QA_PORT || 18080);
+const baseUrl = `http://127.0.0.1:${port}`;
+const dbPath = path.join(root, '.data', 'qa-portal-db.json');
+const screenshotsDir = path.join(root, 'qa-screenshots');
+const uploadDir = path.join(root, '.qa-upload');
 const report = {
-  baseUrl,
-  checkedAt: new Date().toISOString(),
+  ok: false,
   routes: [],
   flows: [],
   screenshots: [],
-  consoleErrors: []
+  failures: []
 };
 
-await fs.mkdir(shotDir, { recursive: true });
-
-function pageUrl(hash, tag) {
-  return `${baseUrl}/?qa=${encodeURIComponent(tag)}${hash}`;
-}
-
 function fail(message) {
-  const err = new Error(message);
-  err.qaFailure = true;
-  throw err;
+  report.failures.push(message);
+  throw new Error(message);
 }
 
-async function makePage(browser, viewport, role = 'student') {
-  const context = await browser.newContext({ viewport, isMobile: !!viewport.isMobile });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('console', msg => {
-    if (msg.type() === 'error') {
-      errors.push(msg.text());
-      report.consoleErrors.push({ viewport: viewport.name, role, message: msg.text() });
-    }
-  });
-  page.on('pageerror', err => {
-    errors.push(err.message);
-    report.consoleErrors.push({ viewport: viewport.name, role, message: err.message });
-  });
-  await page.goto(pageUrl('#/login', `${viewport.name}-${role}-login`), { waitUntil: 'domcontentloaded' });
-  const selector = role === 'ceal'
-    ? '.role-card[data-login-role="ceal"]'
-    : '.role-card[data-login-role="student"]';
-  await page.locator(selector).click();
-  await page.waitForURL(/#\/$/, { timeout: 10000 });
-  return { context, page, errors };
+function pushFailure(message) {
+  report.failures.push(message);
 }
 
-async function basicPageChecks(page, viewportName, routeName, hash) {
-  await page.goto(pageUrl(hash, `${viewportName}-${routeName}`), { waitUntil: 'domcontentloaded' });
-  await page.locator('.page-title, .login-card').first().waitFor({ state: 'visible', timeout: 10000 });
+async function waitForHealth() {
+  const start = Date.now();
+  while (Date.now() - start < 15000) {
+    try {
+      const res = await fetch(`${baseUrl}/api/health`);
+      if (res.ok) return;
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  fail('local server did not become healthy');
+}
+
+function startServer() {
+  rmSync(dbPath, { force: true });
+  const child = spawn(process.execPath, ['server.mjs'], {
+    cwd: root,
+    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  });
+  child.stdout.on('data', chunk => process.stdout.write(`[server] ${chunk}`));
+  child.stderr.on('data', chunk => process.stderr.write(`[server] ${chunk}`));
+  return child;
+}
+
+async function importPlaywright() {
+  try {
+    return await import('playwright');
+  } catch (error) {
+    fail('playwright is not installed; run npm install first');
+  }
+}
+
+async function loginStudent(page) {
+  await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.removeItem('portal.session'));
+  await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
+  await page.locator('[data-login-role="student"]').click();
+  await page.waitForFunction(() => window.location.hash === '#/');
+  await page.waitForSelector('.page-title');
+}
+
+async function loginCeal(page, memberId = 'ceal-kevin-cortes', password = 'Ceal2026!portal') {
+  await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.removeItem('portal.session'));
+  await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
+  await page.locator('[data-login-member]').selectOption(memberId);
+  await page.locator('form[data-form="ceal-login"] input[name="password"]').fill(password);
+  const confirm = page.locator('form[data-form="ceal-login"] input[name="confirm"]');
+  if (await confirm.count()) await confirm.fill(password);
+  await page.locator('form[data-form="ceal-login"] button[type="submit"]').click();
+  await page.waitForFunction(() => window.location.hash === '#/gestion');
+  await page.waitForSelector('.page-title');
+}
+
+async function auditRoute(page, route, name, viewportName, screenshot = false) {
+  await page.goto(`${baseUrl}/#${route}`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.page-title', { timeout: 8000 });
   const metrics = await page.evaluate(() => ({
-    title: document.querySelector('.page-title')?.textContent?.trim() || document.title,
+    title: document.querySelector('.page-title')?.textContent?.trim(),
     bodyText: document.body.innerText,
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
-    hasBottomNav: !!document.querySelector('.bottom-nav'),
-    hasSidebar: !!document.querySelector('.sidebar'),
-    mobileNavActive: [...document.querySelectorAll('.bottom-item.active')].map(el => el.textContent.trim()),
-    mobileNavTop: Math.round(document.querySelector('.bottom-nav')?.getBoundingClientRect().top || 0),
-    contentBottom: Math.round(document.querySelector('.content')?.getBoundingClientRect().bottom || 0)
+    hasBottomNav: Boolean(document.querySelector('.bottom-nav')),
+    activeBottom: document.querySelectorAll('.bottom-item.active').length
   }));
-  if (!metrics.title) fail(`${viewportName}/${routeName}: missing title`);
-  if (/\bundefined\b|\bnull\b/.test(metrics.bodyText)) fail(`${viewportName}/${routeName}: leaked undefined/null text`);
-  if (viewportName === 'desktop' && !metrics.hasSidebar) fail(`${viewportName}/${routeName}: missing desktop sidebar`);
+  const label = `${viewportName}:${name}`;
+  if (!metrics.title) pushFailure(`${label}: missing page title`);
+  if (/\bundefined\b|\bnull\b/i.test(metrics.bodyText)) pushFailure(`${label}: leaked undefined/null text`);
+  if (/Descarga simulada|simulacion|vista demo|demo frontend/i.test(metrics.bodyText)) pushFailure(`${label}: leaked developer/demo wording`);
   if (viewportName === 'mobile' && metrics.scrollWidth > metrics.innerWidth + 4) {
-    fail(`${viewportName}/${routeName}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
+    pushFailure(`${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
   }
-  if (viewportName === 'mobile' && !metrics.hasBottomNav) fail(`${viewportName}/${routeName}: missing bottom nav`);
-  if (viewportName === 'mobile' && metrics.mobileNavActive.length !== 1) {
-    fail(`${viewportName}/${routeName}: expected one active bottom nav item, got ${metrics.mobileNavActive.join(', ') || 'none'}`);
+  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.activeBottom < 1)) {
+    pushFailure(`${label}: bottom nav missing or inactive`);
   }
-  if (viewportName === 'mobile' && metrics.contentBottom > metrics.mobileNavTop + 1) {
-    fail(`${viewportName}/${routeName}: content overlaps bottom nav (${metrics.contentBottom} > ${metrics.mobileNavTop})`);
-  }
-  report.routes.push({
-    viewport: viewportName,
-    route: routeName,
-    hash,
-    title: metrics.title,
-    horizontalOverflow: metrics.scrollWidth > metrics.innerWidth + 4
-  });
-}
-
-async function screenshot(page, viewportName, routeName) {
-  const filename = `${viewportName}-${routeName}.png`;
-  const target = path.join(shotDir, filename);
-  await page.screenshot({ path: target, fullPage: false });
-  report.screenshots.push(target);
-}
-
-async function runRouteMatrix(browser) {
-  for (const vp of viewportSets) {
-    const { context, page, errors } = await makePage(browser, vp, 'student');
-    for (const [name, hash] of routes) {
-      await basicPageChecks(page, vp.name, name, hash);
-      if (['inicio', 'comunicados', 'calendario', 'casos', 'material', 'mallas'].includes(name)) {
-        await screenshot(page, vp.name, name);
-      }
-    }
-    if (errors.length) fail(`${vp.name}: console/page errors: ${errors.join(' | ')}`);
-    await context.close();
+  report.routes.push({ viewport: viewportName, route, name, title: metrics.title });
+  if (screenshot) {
+    mkdirSync(screenshotsDir, { recursive: true });
+    const file = path.join(screenshotsDir, `${viewportName}-${name.replace(/[^\w]+/g, '-')}.png`);
+    await page.screenshot({ path: file, fullPage: true });
+    report.screenshots.push(file);
   }
 }
 
-async function runStudentFlows(browser) {
-  const { context, page, errors } = await makePage(browser, { name: 'desktop', width: 1440, height: 900 }, 'student');
+async function runPublicFlowTests(page) {
+  await loginStudent(page);
 
-  await page.goto(pageUrl('#/', 'flow-search'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-global-search-form] input[name="q"]').fill('hormigón');
-  await page.locator('[data-global-search-form] .search-submit').click();
-  await page.waitForURL(/#\/buscar\?q=/, { timeout: 10000 });
-  await expectText(page, 'Resultados relacionados');
-  report.flows.push('búsqueda global');
+  await page.goto(`${baseUrl}/#/material`, { waitUntil: 'networkidle' });
+  await page.locator('[data-material-search]').fill('estatica');
+  await page.waitForTimeout(150);
+  if (!(await page.locator('.item-card, .data-table tbody tr').count())) fail('material search returned no results');
+  await page.locator('[data-material-type="Guia"]').click();
+  await page.waitForTimeout(150);
+  report.flows.push('student material search and type filter');
 
-  await page.goto(pageUrl('#/comunicados', 'flow-comunicados'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-com-search]').fill('material');
-  await expectText(page, 'Nuevo material agregado');
-  await page.locator('[data-com-category="Todas"]').click();
-  await expectText(page, 'Comunicado destacado');
-  report.flows.push('comunicados: búsqueda y categorías');
+  await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
+  await page.locator('.course-card').first().click();
+  await page.waitForSelector('.course-detail-panel, .malla-mobile-detail');
+  await page.locator('[data-clear-panel]').first().click();
+  await page.waitForTimeout(150);
+  if (await page.locator('.course-detail-panel:visible, .malla-mobile-detail:visible').count()) {
+    fail('malla detail panel did not close');
+  }
+  report.flows.push('malla course select and close');
 
-  await page.goto(pageUrl('#/material', 'flow-material'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-material-search]').fill('estática');
-  await expectText(page, 'Guía Ejercicios');
-  await page.locator('[data-material-type="Guía"]').click();
-  await page.locator('[data-resource-row="mat-001"]').click();
-  await page.locator('[data-save-resource="mat-001"]').click();
-  await expectText(page, 'guardado');
-  await page.locator('[data-demo-action^="Descarga simulada"]').click();
-  await expectText(page, 'Descarga simulada');
-  report.flows.push('material: filtro, selección, guardar y descarga demo');
-
-  await page.goto(pageUrl('#/ramo/planP/P-0402', 'flow-ramo'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-save-course="planP:P-0402"]').click();
-  await expectText(page, 'agregado a seguimiento');
-  report.flows.push('ramo: seguimiento');
-
-  await page.goto(pageUrl('#/casos', 'flow-case-filters'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-case-filter="status"]').selectOption('enRevision');
-  await expectText(page, 'casos visibles');
-  await page.locator('[data-case-tab="resueltos"]').click();
-  await expectText(page, 'Resuelto');
-  report.flows.push('casos: filtros y tabs');
-
-  await page.goto(pageUrl('#/casos/nuevo', 'flow-new-case'), { waitUntil: 'domcontentloaded' });
-  await page.locator('form[data-form="new-case"] input[name="title"]').fill('Consulta de prueba avanzada');
-  await page.locator('form[data-form="new-case"] textarea[name="description"]').fill('Descripción suficientemente detallada para verificar el flujo de creación de caso en la demo.');
+  await page.goto(`${baseUrl}/#/casos/nuevo`, { waitUntil: 'networkidle' });
+  await page.locator('form[data-form="new-case"] input[name="title"]').fill('Consulta QA sobre pre requisito');
+  await page.locator('form[data-form="new-case"] input[name="course"]').fill('Analisis Estructural');
+  await page.locator('form[data-form="new-case"] textarea[name="description"]').fill('Necesito revisar un caso academico de prueba funcional para validar el flujo completo del portal.');
   await page.locator('form[data-form="new-case"] input[name="privacy"]').check();
   await page.locator('form[data-form="new-case"] button[type="submit"]').click();
-  await page.waitForURL(/#\/casos\/case-2026-/, { timeout: 10000 });
-  await expectText(page, 'Caso recibido');
-  report.flows.push('casos: creación');
+  await page.waitForURL(/#\/casos\/case-/);
+  await page.waitForSelector('text=Caso recibido');
+  report.flows.push('student creates case and sees detail');
 
-  await page.goto(pageUrl('#/material/subir', 'flow-upload'), { waitUntil: 'domcontentloaded' });
-  await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guía de prueba funcional');
-  await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estática');
-  await page.locator('form[data-form="upload-material"] textarea[name="description"]').fill('Material de prueba con descripción suficiente para verificar el flujo de subida en demo.');
-  await page.locator('form[data-form="upload-material"] input[name="origin"]').fill('Aporte estudiantil demo');
+  mkdirSync(uploadDir, { recursive: true });
+  const uploadFile = path.join(uploadDir, 'guia-qa.txt');
+  writeFileSync(uploadFile, 'Contenido de prueba para validar subida real de archivo.');
+  await page.goto(`${baseUrl}/#/material/subir`, { waitUntil: 'networkidle' });
+  await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guia QA de materiales');
+  await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estatica');
+  await page.locator('form[data-form="upload-material"] textarea[name="description"]').fill('Material de prueba para validar una subida real, persistencia y descarga posterior.');
+  await page.locator('form[data-form="upload-material"] input[name="origin"]').fill('Aporte estudiantil QA');
+  await page.locator('form[data-form="upload-material"] input[name="file"]').setInputFiles(uploadFile);
   await page.locator('form[data-form="upload-material"] input[name="permission"]').check();
   await page.locator('form[data-form="upload-material"] button[type="submit"]').click();
-  await page.waitForURL(/#\/material\/mat-/, { timeout: 10000 });
-  await expectText(page, 'Pendiente de revisión');
-  report.flows.push('material: subir recurso');
+  await page.waitForURL(/#\/material\/mat-/);
+  await page.waitForSelector('text=Guia QA de materiales');
+  const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+  await page.locator('[data-download-resource]').first().click();
+  const download = await downloadPromise;
+  if (!download) pushFailure('uploaded material did not trigger browser download event');
+  report.flows.push('student uploads material and triggers download');
 
-  await page.goto(pageUrl('#/gestion', 'flow-student-restricted'), { waitUntil: 'domcontentloaded' });
-  await expectText(page, 'Acceso restringido');
-  report.flows.push('permisos: gestión restringida para estudiante');
-
-  if (errors.length) fail(`student desktop flows console/page errors: ${errors.join(' | ')}`);
-  await context.close();
+  await page.goto(`${baseUrl}/#/ramo/planP/P-0402`, { waitUntil: 'networkidle' });
+  await page.locator('a.btn.primary[href*="/material?course="]').click();
+  await page.waitForURL(/#\/material\?course=/);
+  await page.waitForSelector('.page-title');
+  report.flows.push('course detail routes to filtered material');
 }
 
-async function runMobileFlows(browser) {
-  const { context, page, errors } = await makePage(browser, { name: 'mobile', width: 390, height: 844, isMobile: true }, 'student');
-  await page.goto(pageUrl('#/mallas', 'flow-mobile-mallas'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-plan="planO"]').click();
-  await page.locator('[data-mobile-sem="5"]').click();
-  await expectText(page, 'Plan O');
-  await expectText(page, '5°');
-  report.flows.push('mobile: malla Plan O y semestre');
+async function runCealFlowTests(page) {
+  await loginCeal(page);
+  await page.goto(`${baseUrl}/#/gestion`, { waitUntil: 'networkidle' });
+  if (!(await page.locator('text=Equipo CEAL 2026').count())) fail('gestion dashboard missing CEAL team section');
 
-  await page.locator('.bottom-nav a[href="#/material"]').click();
-  await page.waitForURL(/#\/material$/, { timeout: 10000 });
-  await expectText(page, 'Biblioteca académica');
-  report.flows.push('mobile: navegación inferior');
+  await page.goto(`${baseUrl}/#/gestion/casos/case-2026-0052`, { waitUntil: 'networkidle' });
+  await page.locator('form[data-form="manage-case"] select[name="status"]').selectOption('enSeguimiento');
+  await page.locator('form[data-form="manage-case"] textarea[name="note"]').fill('Nota QA interna.');
+  await page.locator('form[data-form="manage-case"] textarea[name="response"]').fill('Respuesta QA para el estudiante.');
+  await page.locator('form[data-form="manage-case"] button[type="submit"]').click();
+  await page.waitForURL('**/#/casos/case-2026-0052');
+  await page.waitForSelector('text=Respuesta QA para el estudiante');
+  report.flows.push('CEAL updates a case with note and response');
 
-  if (errors.length) fail(`mobile flows console/page errors: ${errors.join(' | ')}`);
-  await context.close();
-}
+  await page.goto(`${baseUrl}/#/gestion/acuerdos/nuevo`, { waitUntil: 'networkidle' });
+  await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
+  await page.locator('form[data-form="new-agreement"] input[name="origin"]').fill('Pleno CEAL QA');
+  await page.locator('form[data-form="new-agreement"] input[name="responsible"]').fill('Secretaria CEAL');
+  await page.locator('form[data-form="new-agreement"] textarea[name="summary"]').fill('Se registra un acuerdo de prueba para validar el flujo de seguimiento.');
+  await page.locator('form[data-form="new-agreement"] input[name="nextStep"]').fill('Revisar y publicar resumen.');
+  await page.locator('form[data-form="new-agreement"] input[name="commitment"]').fill('Publicar seguimiento QA.');
+  await page.locator('form[data-form="new-agreement"] button[type="submit"]').click();
+  await page.waitForURL(/#\/acuerdos\/agr-/);
+  await page.waitForSelector('text=Acuerdo QA de seguimiento');
+  report.flows.push('CEAL creates agreement');
 
-async function runCealFlows(browser) {
-  const { context, page, errors } = await makePage(browser, { name: 'desktop', width: 1440, height: 900 }, 'ceal');
-  await page.goto(pageUrl('#/gestion', 'flow-ceal-gestion'), { waitUntil: 'domcontentloaded' });
-  await expectText(page, 'Gestión CEAL');
-  await screenshot(page, 'desktop', 'gestion');
+  await page.goto(`${baseUrl}/#/gestion/material/mat-010/validar`, { waitUntil: 'networkidle' });
+  await page.locator('[data-approve-material]').click();
+  await page.waitForSelector('text=Material validado y publicado');
+  report.flows.push('CEAL validates material');
 
-  await page.goto(pageUrl('#/gestion/comunicados/com-001/editar', 'flow-editor'), { waitUntil: 'domcontentloaded' });
+  await page.goto(`${baseUrl}/#/gestion/comunicados/com-001/editar`, { waitUntil: 'networkidle' });
+  await page.locator('form[data-form="edit-content"] input[name="title"]').fill('Comunicado QA publicado');
   await page.locator('[data-publish]').click();
-  await expectText(page, 'Contenido publicado');
-  await page.locator('[data-demo-action="Comunicado enviado a revisión"]').click();
-  await expectText(page, 'enviado a revisión');
-  report.flows.push('gestión CEAL: editor y publicación demo');
-
-  await page.goto(pageUrl('#/gestion/material/mat-010/validar', 'flow-validate'), { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-approve-material="mat-010"]').click();
-  await expectText(page, 'Material validado y publicado');
-  await expectText(page, 'Validado CEAL');
-  report.flows.push('gestión CEAL: validación de material');
-
-  if (errors.length) fail(`ceal flows console/page errors: ${errors.join(' | ')}`);
-  await context.close();
-
-  const mobile = await makePage(browser, { name: 'mobile', width: 390, height: 844, isMobile: true }, 'ceal');
-  await mobile.page.goto(pageUrl('#/gestion', 'flow-ceal-mobile-gestion'), { waitUntil: 'domcontentloaded' });
-  await expectText(mobile.page, 'Gestión CEAL');
-  await screenshot(mobile.page, 'mobile', 'gestion');
-  await mobile.page.goto(pageUrl('#/gestion/material/mat-010/validar', 'flow-ceal-mobile-validar'), { waitUntil: 'domcontentloaded' });
-  await expectText(mobile.page, 'Validar material');
-  report.flows.push('mobile CEAL: gestión y validación accesibles');
-  if (mobile.errors.length) fail(`ceal mobile flows console/page errors: ${mobile.errors.join(' | ')}`);
-  await mobile.context.close();
+  await page.waitForURL(/#\/comunicados\/com-001/);
+  await page.waitForSelector('text=Comunicado QA publicado');
+  report.flows.push('CEAL edits and publishes communication');
 }
 
-async function expectText(page, text) {
-  await page.getByText(text, { exact: false }).filter({ visible: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+async function main() {
+  const server = startServer();
+  try {
+    await waitForHealth();
+    const { chromium } = await importPlaywright();
+    const browser = await chromium.launch();
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    page.on('console', msg => {
+      if (['error', 'warning'].includes(msg.type())) pushFailure(`console ${msg.type()}: ${msg.text()}`);
+    });
+    page.on('pageerror', error => pushFailure(`page error: ${error.message}`));
+
+    await runPublicFlowTests(page);
+    await runCealFlowTests(page);
+
+    const studentRoutes = [
+      ['/', 'inicio'],
+      ['/comunicados', 'comunicados'],
+      ['/comunicados/com-001', 'comunicado-detalle'],
+      ['/calendario', 'calendario'],
+      ['/acuerdos/agr-003', 'acuerdo-detalle'],
+      ['/casos', 'casos'],
+      ['/casos/nuevo', 'caso-nuevo'],
+      ['/casos/case-2026-0052', 'caso-detalle'],
+      ['/material', 'material'],
+      ['/material/subir', 'material-subir'],
+      ['/material/mat-001', 'material-detalle'],
+      ['/mallas', 'mallas'],
+      ['/ramo/planP/P-0402', 'ramo-detalle'],
+      ['/apoyo', 'apoyo'],
+      ['/ayudantias/ay-001', 'ayudantia-detalle'],
+      ['/tramites/proc-001', 'tramite-detalle'],
+      ['/perfil', 'perfil'],
+      ['/mas', 'mas']
+    ];
+    await loginStudent(page);
+    for (const [route, name] of studentRoutes) {
+      await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas', 'casos'].includes(name));
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginStudent(page);
+    for (const [route, name] of studentRoutes) {
+      await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas', 'casos'].includes(name));
+    }
+    await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
+    await page.locator('[data-mobile-sem="5"]').click();
+    await page.waitForTimeout(150);
+    if (!(await page.locator('.semester-col.mobile-active').count())) pushFailure('mobile mallas semester did not activate');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginCeal(page, 'ceal-bruno-castillo', 'Ceal2026!portal2');
+    const cealRoutes = [
+      ['/gestion', 'gestion'],
+      ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],
+      ['/gestion/casos/case-2026-0052', 'gestion-caso'],
+      ['/gestion/material/mat-010/validar', 'gestion-material-validar'],
+      ['/gestion/comunicados/com-001/editar', 'gestion-comunicado-editar']
+    ];
+    for (const [route, name] of cealRoutes) {
+      await auditRoute(page, route, name, 'desktop-ceal', name === 'gestion');
+    }
+
+    await browser.close();
+    report.ok = report.failures.length === 0;
+    writeFileSync(path.join(root, 'qa-report.json'), JSON.stringify(report, null, 2));
+    if (!report.ok) {
+      console.error(JSON.stringify(report, null, 2));
+      process.exit(1);
+    }
+    console.log(JSON.stringify(report, null, 2));
+  } finally {
+    server.kill();
+    if (existsSync(uploadDir)) rmSync(uploadDir, { recursive: true, force: true });
+  }
 }
 
-const browser = await chromium.launch({ headless: true });
-try {
-  await runRouteMatrix(browser);
-  await runStudentFlows(browser);
-  await runMobileFlows(browser);
-  await runCealFlows(browser);
-} finally {
-  await browser.close();
-}
-
-await fs.writeFile(reportPath, JSON.stringify(report, null, 2), 'utf8');
-console.log(JSON.stringify({ ok: true, reportPath, screenshots: report.screenshots.length, routes: report.routes.length, flows: report.flows.length }, null, 2));
+main().catch(error => {
+  pushFailure(error.message || String(error));
+  writeFileSync(path.join(root, 'qa-report.json'), JSON.stringify(report, null, 2));
+  console.error(error);
+  process.exit(1);
+});

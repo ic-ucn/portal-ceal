@@ -1,7 +1,9 @@
 server.log
 server.err.log
-*.log
 node_modules/
+.data/
+*.local
+*.log
 qa-report.json
 qa-screenshots/
 .DS_Store

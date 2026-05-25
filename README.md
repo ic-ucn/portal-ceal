@@ -1,110 +1,86 @@
-# Portal CEIC / CEAL UCN — Ingeniería Civil UCN
+# Portal CEIC / CEAL UCN
 
-Demo frontend avanzada, estática y autocontenida del portal para estudiantes y gestión interna CEAL.
+Portal academico para estudiantes e integrantes CEAL de Ingenieria Civil UCN.
 
-## Cómo abrir
+## Ejecutar
 
-Opción rápida:
-
-1. Abrir `index.html` directamente en el navegador.
-2. Elegir rol: `Estudiante` o `Miembro CEAL`.
-
-Opción recomendada para desarrollo:
-
-```bash
-cd portal-ceic-ucn-final
-python serve.py
-# o también: python -m http.server 8080
+```powershell
+npm install
+npm run serve
 ```
 
-Luego abrir `http://localhost:8080`.
+Abrir:
 
-## Qué incluye
+```txt
+http://localhost:8080
+```
 
-- Login demo con selección de rol.
-- AppShell desktop: sidebar, topbar, búsqueda global y notificaciones.
-- AppShell mobile: header compacto y bottom nav.
-- Inicio.
-- Comunicados + FAQ.
-- Calendario y acuerdos.
-- Casos y seguimiento.
-- Nuevo caso con validación frontend.
-- Biblioteca académica / Material.
-- Subir material con validación frontend.
-- Mallas interactivas integradas al portal.
-- Detalle de ramo.
-- Ayudantías y trámites.
-- Mi cuenta / perfil estudiante.
-- Búsqueda global.
-- Gestión CEAL protegida por rol demo.
-- Editor interno de comunicado.
-- Validación de material.
-- Estados vacíos, badges, chips, timeline, tablas desktop y cards mobile.
+GitHub Pages puede servir el frontend estatico. Para persistencia compartida entre usuarios se debe desplegar el backend `server.mjs` en un runtime con almacenamiento remoto.
 
-## Mallas reales integradas
+## Incluye
 
-Se integraron los datos curriculares existentes:
+- Acceso como estudiante.
+- Acceso CEAL por integrante, con creacion de contrasena en el primer ingreso.
+- Inicio con resumen operativo.
+- Comunicados, detalle y publicacion desde Gestion CEAL.
+- Calendario, acuerdos y nuevo acuerdo interno.
+- Casos y seguimiento para estudiantes.
+- Gestion de casos para integrantes CEAL.
+- Biblioteca academica con busqueda, filtros, subida y descarga local de archivos.
+- Mallas interactivas Plan O Catalogo 2016 y Plan P Catalogo 2025.
+- Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
+- Ayudantias, tramites y perfil.
+- Dashboard Gestion CEAL con permisos por rol.
 
-- Plan O — Catálogo 2016: 61 asignaturas, 10 semestres.
-- Plan P — Catálogo 2025: 64 asignaturas, 11 semestres.
+## Integrantes CEAL
 
-Los HTML originales quedan respaldados en:
+Las cuentas iniciales se generan desde la lista de postulantes CEAL 2026 usando solo nombre, cargo, iniciales, usuario y permisos. No se incluyen RUT, PPA ni datos sensibles.
+
+## Mallas
+
+- Plan O Catalogo 2016: 61 asignaturas, 10 semestres.
+- Plan P Catalogo 2025: 64 asignaturas, 11 semestres.
+
+Fuentes originales:
 
 ```txt
 original-mallas/malla-o.html
 original-mallas/malla-p.html
 ```
 
-Los datos normalizados para el portal quedan en:
+Datos normalizados:
 
 ```txt
 data/curricula.js
 ```
 
-## Estructura
+## Datos y backend
 
-```txt
-portal-ceic-ucn-final/
-  index.html
-  README.md
-  assets/
-    logo-horizontal.png
-    logo-mark.png
-    logo-stacked.png
-  data/
-    curricula.js
-  original-mallas/
-    malla-o.html
-    malla-p.html
-  src/
-    app.js
-    mock-data.js
-    styles.css
+- `src/mock-data.js`: semilla estatica para GitHub Pages y fallback sin servidor.
+- `server.mjs`: API local con persistencia en `.data/portal-db.json`.
+- `.data/`: estado runtime local, ignorado por git.
+
+Endpoints principales:
+
+- `/api/bootstrap`
+- `/api/auth/members`
+- `/api/auth/setup`
+- `/api/auth/login`
+- `/api/communications`
+- `/api/cases`
+- `/api/materials`
+- `/api/agreements`
+- `/api/events`
+- `/api/saved`
+
+Las contrasenas CEAL se guardan hasheadas con sal y no se exponen por API.
+
+## Verificacion
+
+```powershell
+npm run check
+npm run quality
+node scripts\qa-portal.mjs
 ```
 
-## Decisiones de producto
-
-- El logo se usa en header, login, sidebar y marca de cuenta. No se repite como decoración en cards.
-- Gestión CEAL solo aparece si se ingresa con rol `Miembro CEAL`.
-- Mallas conecta con detalle de ramo, material y ayudantías solo cuando hay relación útil.
-- Material conecta con ramo y malla.
-- Calendario conecta con acuerdos y trámites.
-- Casos mantiene historial, responsable, adjuntos y estados.
-- La demo usa datos mock realistas y localStorage para sesión, plan activo y avance de malla.
-- La malla usa highlight de cadena de prerrequisitos y cadena de ramos sucesores, no solo relaciones directas.
-
-## Preparado para backend futuro
-
-El frontend está hecho sin dependencias para facilitar revisión rápida. Para producción, el siguiente paso sería separar los repositorios mock en servicios:
-
-- `casesRepository`
-- `materialsRepository`
-- `calendarRepository`
-- `agreementsRepository`
-- `communicationsRepository`
-- `curriculumRepository`
-- `auth/sessionRepository`
-
-## Notas
-
-Esta carpeta es una demo frontend funcional. No implementa autenticación real, persistencia remota ni carga real de archivos. Las acciones simulan cambios en memoria y sesión local.
+La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, casos, acuerdos, comunicados y Gestion CEAL.
