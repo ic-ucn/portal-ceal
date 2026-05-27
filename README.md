@@ -72,7 +72,7 @@ Endpoints principales:
 
 El backend verifica Google ID tokens con la librería oficial `google-auth-library`, revisando audiencia, firma, expiración, correo verificado y `hd=alumnos.ucn.cl`. El login visible del portal usa Google para estudiantes y CEAL, más un modo invitado de solo lectura.
 
-El acceso CEAL es por lista permitida: solo los correos presentes en `cealMembers` pueden obtener rol CEAL. Si una persona CEAL entra con el botón de estudiante, el portal igualmente reconoce su correo y conserva permisos CEAL; si entra con el botón CEAL, abre directo Gestión. El primer y último ingreso CEAL se registran en la base de datos cuando se usa `server.mjs`; en GitHub Pages estático solo queda como estado local del navegador.
+El acceso CEAL es por lista permitida: solo los correos presentes en `cealMembers` pueden entrar por el botón CEAL y obtener permisos internos. Si una persona CEAL usa el botón de estudiante, ve la experiencia normal de estudiante sin acciones de gestión. El primer y último ingreso CEAL se registran en la base de datos cuando se usa `server.mjs`; en GitHub Pages estático solo queda como estado local del navegador.
 
 ## Google UCN
 

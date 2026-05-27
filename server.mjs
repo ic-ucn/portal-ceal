@@ -182,7 +182,7 @@ function requireFields(input, fields) {
 
 function publicMember(member = {}) {
   const { passwordHash, passwordSalt, rut, ppa, ...safe } = member;
-  return { ...safe, passwordSet: Boolean(member.passwordHash || member.passwordSet) };
+  return { ...safe, accessMode: 'ceal', passwordSet: Boolean(member.passwordHash || member.passwordSet) };
 }
 
 function hashPassword(password, salt) {
@@ -231,6 +231,7 @@ function studentFromGoogle(payload) {
     name,
     initials: initialsFromName(name, 'EU'),
     role: 'student',
+    accessMode: 'student',
     label: 'Estudiante',
     plan: 'planP',
     yearLabel: 'Cuenta UCN',
@@ -378,13 +379,13 @@ async function handleApi(req, res, url) {
       if (!credential) return sendError(res, 422, 'google credential is required');
       try {
         const payload = await verifyGoogleCredential(credential);
-        const member = findMemberByEmail(db, payload.email);
-        if (member) {
+        if (role === 'ceal') {
+          const member = findMemberByEmail(db, payload.email);
+          if (!member) return sendError(res, 403, 'google account is not registered as CEAL');
           markMemberGoogleLogin(member, payload);
           await writeDb(db);
           return sendJson(res, 200, { ok: true, user: memberGoogleUser(member, payload), cealRegistered: true });
         }
-        if (role === 'ceal') return sendError(res, 403, 'google account is not registered as CEAL');
         return sendJson(res, 200, { ok: true, user: studentFromGoogle(payload), cealRegistered: false });
       } catch (error) {
         return sendError(res, error.statusCode || 401, error.message || 'invalid google credential');
