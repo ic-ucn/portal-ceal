@@ -378,7 +378,7 @@ img { max-width: 100%; display: block; }
   justify-content: space-between;
   gap: 34px;
 }
-.login-brand img { width: 275px; max-width: 100%; }
+.login-brand img { width: 275px; max-width: 100%; display: block; margin-inline: auto; }
 .login-brand h1 { margin: 22px 0 8px; font-size: 2.3rem; letter-spacing: 0; color: var(--navy-950); }
 .login-brand p { margin: 0; color: var(--slate-600); line-height: 1.7; max-width: 28rem; }
 .login-form { padding: 48px; }
