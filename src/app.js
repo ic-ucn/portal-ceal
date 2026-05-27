@@ -311,6 +311,37 @@
     }
     downloadTextFile(`${slug(resource.title)}.txt`, [`${resource.title}`, `Ramo: ${resource.courseName}`, `Tipo: ${resource.type}`, `Origen: ${resource.origin}`, '', resource.description || 'Ficha del recurso.'].join('\n'));
   }
+  function calendarDownloadText() {
+    return ['Calendario CEIC / CEAL UCN', ''].concat(Data.events.map(e => `${fmtDate(e.date)} ${e.time || ''} - ${e.title}\n${e.description || 'Actividad del calendario.'}`)).join('\n\n');
+  }
+  function agreementDownloadText(a) {
+    const commitments = (a.commitments || []).map(c => `- ${c.title} · ${c.responsible} · vence ${fmtDate(c.due)}`).join('\n') || 'Sin compromisos registrados.';
+    const docs = (a.documents || []).map(d => `- ${d.name}`).join('\n') || 'Sin documentos asociados.';
+    return [
+      a.number || a.title,
+      a.number && a.title ? a.title : '',
+      '',
+      `Fecha: ${fmtDate(a.date)}`,
+      `Origen: ${a.origin}`,
+      `Responsable: ${a.responsible}`,
+      `Estado: ${(Status[a.status]?.[0] || a.status)}`,
+      '',
+      'Qué se acordó',
+      a.summary || 'Sin resumen disponible.',
+      '',
+      'Estado actual',
+      a.currentState || 'En seguimiento.',
+      '',
+      'Próximo paso',
+      a.nextStep || 'Por definir.',
+      '',
+      'Compromisos',
+      commitments,
+      '',
+      'Documentos asociados',
+      docs
+    ].filter(line => line !== '').join('\n');
+  }
   function slug(value) { return String(value || 'recurso').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'recurso'; }
   function copyText(text) { return navigator.clipboard?.writeText(text) || Promise.resolve(); }
 
@@ -801,7 +832,7 @@
     const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
     return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y acuerdos', `<span class="pill blue">Acceso CEAL</span>`)}
       <div class="vstack">
-        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">${dataMode === 'backend' ? 'Datos actualizados' : 'Vista de edición local'}</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
         <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
         <div class="management-content-grid">
           <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-001/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
@@ -910,9 +941,9 @@
     const segment = e.target.closest('[data-select-segment]');
     if (segment) { const wrap = segment.parentElement; wrap.querySelectorAll('button').forEach(b => b.classList.remove('active')); segment.classList.add('active'); const hidden = wrap.parentElement.querySelector(`input[name="${segment.dataset.selectSegment}"]`); if (hidden) hidden.value = segment.textContent.trim(); return; }
     const calendarExport = e.target.closest('[data-download-calendar]');
-    if (calendarExport) { downloadTextFile('calendario-ceic.ics', Data.events.map(e => `${e.date} ${e.time || ''} - ${e.title}: ${e.description || ''}`).join('\n')); showToast('Agenda exportada', 'blue'); return; }
+    if (calendarExport) { downloadTextFile('calendario-ceic.txt', calendarDownloadText()); showToast('Agenda exportada', 'blue'); return; }
     const agreementExport = e.target.closest('[data-download-agreement]');
-    if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, JSON.stringify(a, null, 2), 'application/json;charset=utf-8'); showToast('Ficha descargada', 'blue'); return; }
+    if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
   }
   function onInput(e) {
     if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; render(); }
