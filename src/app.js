@@ -14,6 +14,11 @@
   let hasRendered = false;
   let lastRenderedRouteKey = '';
   let pendingScrollReset = false;
+  let scrollResetToken = 0;
+
+  try {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  } catch {}
 
   const state = {
     user: loadSession(),
@@ -128,7 +133,16 @@
   function plain(v) { return tx(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
-  function routeTo(path) { pendingScrollReset = true; window.location.hash = path; }
+  function routeTo(path) {
+    pendingScrollReset = true;
+    resetPageScroll();
+    const nextHash = `#${path}`;
+    if (window.location.hash === nextHash) {
+      render({ transition: true, scope: 'route' });
+      return;
+    }
+    window.location.hash = path;
+  }
   function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
   function getRoute() {
     const raw = window.location.hash.replace(/^#/, '') || '/';
@@ -456,13 +470,28 @@
     if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
   }
   function resetPageScroll() {
+    const token = ++scrollResetToken;
     const apply = () => {
-      const scrollers = [document.scrollingElement, document.documentElement, document.body, app.querySelector('.app-main'), app.querySelector('.content')].filter(Boolean);
-      scrollers.forEach(el => { el.scrollTop = 0; el.scrollLeft = 0; });
-      window.scrollTo(0, 0);
+      if (token !== scrollResetToken) return;
+      const scrollers = [
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+        app,
+        app.querySelector('.app-shell'),
+        app.querySelector('.app-main'),
+        app.querySelector('.content')
+      ].filter(Boolean);
+      scrollers.forEach(el => {
+        el.scrollTop = 0;
+        el.scrollLeft = 0;
+        try { el.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }); } catch {}
+      });
+      try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
     };
     apply();
     requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
+    [60, 140, 320, 700].forEach(ms => setTimeout(apply, ms));
   }
   function afterRender() {
     hydrateMallaEmbed();
