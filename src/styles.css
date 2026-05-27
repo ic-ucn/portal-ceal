@@ -2389,3 +2389,322 @@ body::before {
     max-width: none;
   }
 }
+
+/* Mallas immersive workspace */
+.app-shell.malla-route {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell.malla-route .topbar,
+.app-shell.malla-route .mobile-header,
+.app-shell.malla-route .bottom-nav {
+  display: none !important;
+}
+
+.app-shell.malla-route .app-main {
+  min-height: 100dvh;
+  min-width: 0;
+}
+
+.app-shell.malla-route .content.content-mallas {
+  width: 100%;
+  max-width: none;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 10px 14px !important;
+  overflow: hidden !important;
+}
+
+.app-shell.malla-focus-mode {
+  grid-template-columns: 1fr;
+}
+
+.app-shell.malla-focus-mode .sidebar {
+  display: none !important;
+}
+
+.app-shell.malla-focus-mode .app-main {
+  grid-column: 1;
+}
+
+.app-shell.malla-focus-mode .content.content-mallas {
+  padding: 8px !important;
+}
+
+.malla-workspace {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.malla-commandbar {
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(191,208,227,.84);
+  border-radius: 8px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 1px 2px rgba(15,23,42,.035), 0 12px 28px rgba(15,23,42,.055);
+  backdrop-filter: blur(14px);
+}
+
+.malla-workspace.is-dark .malla-commandbar {
+  background: rgba(6,27,52,.94);
+  border-color: rgba(215,226,238,.16);
+  box-shadow: 0 18px 38px rgba(4,31,61,.22);
+}
+
+.malla-commandbar-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--navy-950);
+}
+
+.malla-workspace.is-dark .malla-commandbar-title {
+  color: #f8fafc;
+}
+
+.malla-mini-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #e9f3ff;
+  color: #075ecb;
+  border: 1px solid #c5daf2;
+}
+
+.malla-workspace.is-dark .malla-mini-mark {
+  color: #d7e2ee;
+  background: rgba(18,58,100,.78);
+  border-color: rgba(215,226,238,.16);
+}
+
+.malla-commandbar-title strong,
+.malla-commandbar-title small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.malla-commandbar-title strong {
+  font-size: 1rem;
+  line-height: 1.05;
+  font-weight: 900;
+}
+
+.malla-commandbar-title small {
+  margin-top: 3px;
+  color: #516a87;
+  font-size: .76rem;
+  font-weight: 720;
+}
+
+.malla-workspace.is-dark .malla-commandbar-title small {
+  color: #9fb5cd;
+}
+
+.malla-commandbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.malla-plan-tabs {
+  height: 38px;
+  margin: 0;
+  padding: 3px;
+  border-radius: 8px;
+  background: #edf5ff;
+  border: 1px solid #cfe0f3;
+}
+
+.malla-workspace.is-dark .malla-plan-tabs {
+  background: rgba(18,58,100,.64);
+  border-color: rgba(215,226,238,.16);
+}
+
+.malla-plan-tabs button {
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 6px !important;
+  font-size: .8rem;
+}
+
+.malla-tool-btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #c5daf2;
+  border-radius: 8px;
+  background: #fff;
+  color: #075ecb;
+  font-weight: 850;
+  font-size: .84rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.malla-tool-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(7,94,203,.36);
+  box-shadow: 0 10px 22px rgba(7,94,203,.12);
+}
+
+.malla-tool-btn.active {
+  background: #092747;
+  border-color: #092747;
+  color: #f8fafc;
+}
+
+.malla-tool-btn.subtle {
+  color: #17365f;
+}
+
+.malla-workspace.is-dark .malla-tool-btn {
+  background: rgba(8,33,63,.92);
+  border-color: rgba(215,226,238,.16);
+  color: #d7e2ee;
+}
+
+.malla-workspace.is-dark .malla-tool-btn.active {
+  background: #f8fafc;
+  border-color: #f8fafc;
+  color: #061b34;
+}
+
+.malla-workspace .malla-embed-frame-wrap {
+  height: 100%;
+  min-height: 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 18px 48px rgba(15,23,42,.095);
+}
+
+.malla-workspace.is-focus .malla-commandbar {
+  min-height: 52px;
+}
+
+.malla-workspace.is-focus .malla-embed-frame-wrap {
+  box-shadow: none;
+}
+
+@media (max-width: 1160px) {
+  .malla-commandbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .malla-commandbar-actions {
+    justify-content: stretch;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .malla-commandbar-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .malla-plan-tabs,
+  .malla-tool-btn {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 920px) {
+  .app-shell.malla-route {
+    display: block;
+  }
+
+  .app-shell.malla-route .content.content-mallas {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    padding: 8px !important;
+  }
+
+  .malla-workspace {
+    gap: 8px;
+  }
+
+  .malla-commandbar {
+    min-height: 0;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .malla-mini-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .malla-commandbar-title strong {
+    font-size: .95rem;
+  }
+
+  .malla-commandbar-title small {
+    font-size: .72rem;
+  }
+
+  .malla-commandbar-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+    gap: 6px;
+  }
+
+  .malla-plan-tabs {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .malla-plan-tabs button {
+    width: 100%;
+  }
+
+  .malla-tool-btn {
+    min-width: 0;
+    width: 100%;
+    padding: 0 8px;
+    font-size: .78rem;
+  }
+
+  .malla-tool-btn.subtle {
+    display: none;
+  }
+
+  .malla-workspace .malla-embed-frame-wrap {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .malla-commandbar-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .malla-tool-btn span {
+    font-size: .76rem;
+  }
+}

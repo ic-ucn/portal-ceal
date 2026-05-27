@@ -113,13 +113,13 @@ async function waitForEmbeddedMalla(page, expectedPlan = 'p', expectedTheme = 'l
 
 async function auditRoute(page, route, name, viewportName, screenshot = false) {
   await page.goto(`${baseUrl}/#${route}`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.page-title', { timeout: 8000 });
+  await page.waitForSelector(name === 'mallas' ? '.malla-commandbar-title' : '.page-title', { timeout: 8000 });
   if (name === 'mallas') {
     await waitForEmbeddedMalla(page, 'p', 'light');
     await page.waitForTimeout(350);
   }
   const metrics = await page.evaluate(() => ({
-    title: document.querySelector('.page-title')?.textContent?.trim(),
+    title: document.querySelector('.page-title')?.textContent?.trim() || document.querySelector('.malla-commandbar-title strong')?.textContent?.trim(),
     bodyText: document.body.innerText,
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
@@ -133,7 +133,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   if (viewportName === 'mobile' && metrics.scrollWidth > metrics.innerWidth + 4) {
     pushFailure(`${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
   }
-  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.activeBottom < 1)) {
+  if (viewportName === 'mobile' && name !== 'mallas' && (!metrics.hasBottomNav || metrics.activeBottom < 1)) {
     pushFailure(`${label}: bottom nav missing or inactive`);
   }
   report.routes.push({ viewport: viewportName, route, name, title: metrics.title });

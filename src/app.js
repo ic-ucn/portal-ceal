@@ -29,6 +29,7 @@
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
     mallaEmbedDark: localStorage.getItem('portal.malla.embedDark') === '1',
+    mallaFocus: localStorage.getItem('portal.malla.focus') === '1',
     loginMemberId: null,
     authMessage: '',
     toast: null
@@ -84,6 +85,10 @@
     check: '<svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg>',
     x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+    maximize: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M21 16v5h-5"/><path d="M3 16v5h5"/></svg>',
+    minimize: '<svg viewBox="0 0 24 24"><path d="M8 3v5H3"/><path d="M16 3v5h5"/><path d="M21 16h-5v5"/><path d="M3 16h5v5"/></svg>',
+    moon: '<svg viewBox="0 0 24 24"><path d="M21 13.1A8.5 8.5 0 0 1 10.9 3 7 7 0 1 0 21 13.1Z"/></svg>',
+    sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
     clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
     filter: '<svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/></svg>',
     bookmark: '<svg viewBox="0 0 24 24"><path d="M19 21 12 16 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>',
@@ -300,13 +305,15 @@
   }
   function renderShell(content, path) {
     const user = state.user;
+    const isMallaRoute = path === '/mallas';
+    const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/casos', 'folder', 'Casos'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Mas']]
       .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/mallas','/ramo','/apoyo','/ayudantias','/tramites','/perfil','/gestion','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
-    return `<div class="app-shell"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERIA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav><div class="sidebar-user"><div class="user-mini"><span class="avatar">${esc(user.initials)}</span><span><strong>${esc(user.name)}</strong><span>${esc(user.label)} - ${planShort(user.plan)} - ${esc(user.yearLabel)}</span></span></div><a class="profile-link" href="#/perfil">Ver perfil ${icon('arrow')}</a></div></aside>
+    return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERIA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav><div class="sidebar-user"><div class="user-mini"><span class="avatar">${esc(user.initials)}</span><span><strong>${esc(user.name)}</strong><span>${esc(user.label)} - ${planShort(user.plan)} - ${esc(user.yearLabel)}</span></span></div><a class="profile-link" href="#/perfil">Ver perfil ${icon('arrow')}</a></div></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>Mi cuenta</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
-      <section class="content">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
+      <section class="content ${isMallaRoute ? 'content-mallas' : ''}">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
   }
   function renderPage(path, query) {
     if (path === '/') return renderHome();
@@ -431,21 +438,26 @@
     const dark = state.mallaEmbedDark;
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
-    return `${pageHead('Mallas', `${planLabelText} integrado al portal CEAL`, `<a class="btn secondary" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')} Abrir original</a>`)}
-      <section class="malla-embed-shell ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
-        <div class="malla-embed-toolbar">
-          <div class="malla-embed-copy">
-            <span class="eyebrow">Ingenieria Civil UCN</span>
-            <h2>Consulta curricular oficial</h2>
-          </div>
-          <div class="malla-embed-actions">
-            <div class="segmented malla-embed-tabs" aria-label="Seleccionar plan">
+    return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaFocus ? 'is-focus' : ''}" aria-label="Malla curricular embebida">
+        <header class="malla-commandbar">
+          <a class="malla-commandbar-title" href="#/" aria-label="Volver al inicio del portal">
+            <span class="malla-mini-mark">${icon('grid')}</span>
+            <span>
+              <strong>Mallas</strong>
+              <small>${esc(planLabelText)}</small>
+            </span>
+          </a>
+          <div class="malla-commandbar-actions">
+            <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
               <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
               <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
-            <button class="btn secondary malla-theme-toggle ${dark ? 'active' : ''}" type="button" data-malla-embed-theme aria-pressed="${dark ? 'true' : 'false'}">${icon('eye')} Modo oscuro</button>
+            <button class="malla-tool-btn ${dark ? 'active' : ''}" type="button" data-malla-embed-theme aria-pressed="${dark ? 'true' : 'false'}">${icon('moon')}<span>Oscuro</span></button>
+            <button class="malla-tool-btn ${state.mallaFocus ? 'active' : ''}" type="button" data-malla-focus aria-pressed="${state.mallaFocus ? 'true' : 'false'}">${icon(state.mallaFocus ? 'minimize' : 'maximize')}<span>${state.mallaFocus ? 'Salir' : 'Foco'}</span></button>
+            <a class="malla-tool-btn" href="#/perfil">${icon('user')}<span>Mi cuenta</span></a>
+            <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
-        </div>
+        </header>
         <div class="malla-embed-frame-wrap" data-malla-frame-wrap>
           <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
           <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}"></iframe>
@@ -694,6 +706,12 @@
       render({ transition: true, scope: 'panel' });
       return;
     }
+    if (e.target.closest('[data-malla-focus]')) {
+      state.mallaFocus = !state.mallaFocus;
+      localStorage.setItem('portal.malla.focus', state.mallaFocus ? '1' : '0');
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
     const planBtn = e.target.closest('[data-plan]');
     if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
     const semBtn = e.target.closest('[data-mobile-sem]');
@@ -727,6 +745,13 @@
   function onChange(e) {
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
     if (e.target.matches('[data-login-member]')) { state.loginMemberId = e.target.value; state.authMessage = ''; render({ transition: true, scope: 'panel' }); }
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape' && state.mallaFocus && getRoute().path === '/mallas') {
+      state.mallaFocus = false;
+      localStorage.setItem('portal.malla.focus', '0');
+      render({ transition: true, scope: 'panel' });
+    }
   }
   async function onSubmit(e) {
     const global = e.target.closest('[data-global-search-form]');
@@ -803,6 +828,7 @@
 
   window.addEventListener('hashchange', () => render({ transition: true, scope: 'route' }));
   document.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKeydown);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('submit', onSubmit);
