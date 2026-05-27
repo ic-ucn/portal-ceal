@@ -6,6 +6,7 @@
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
+  const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
   const QA_MODE = new URLSearchParams(location.search).has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
@@ -13,8 +14,6 @@
   let hasRendered = false;
   let lastRenderedRouteKey = '';
   let pendingScrollReset = false;
-  let googleInitialized = false;
-  let googleRenderTimer = null;
 
   const state = {
     user: loadSession(),
@@ -37,7 +36,6 @@
     mallaFocus: localStorage.getItem('portal.malla.focus') === '1',
     loginMemberId: null,
     authMessage: '',
-    googleRole: 'student',
     toast: null
   };
 
@@ -270,16 +268,65 @@
     }
     return studentFromGoogle(payload);
   }
-  async function handleGoogleCredential(response) {
-    const role = state.googleRole || 'student';
+  function googleRedirectUri() {
+    const url = new URL(location.href);
+    url.hash = '';
+    url.search = '';
+    return url.href;
+  }
+  function randomToken() {
+    const c = window.crypto;
+    if (c?.randomUUID) return c.randomUUID();
+    if (c?.getRandomValues) {
+      const bytes = new Uint8Array(16);
+      c.getRandomValues(bytes);
+      return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  function startGoogleRedirect(role) {
+    if (!GOOGLE_CLIENT_ID) {
+      state.authMessage = 'Google UCN todavía no está configurado.';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const mode = role === 'ceal' ? 'ceal' : 'student';
+    const stateId = randomToken();
+    const nonce = randomToken();
+    localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, createdAt: Date.now() }));
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: googleRedirectUri(),
+      response_type: 'id_token',
+      scope: 'openid email profile',
+      nonce,
+      state: stateId,
+      hd: GOOGLE_DOMAIN,
+      prompt: 'select_account'
+    });
+    location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  }
+  async function handleGoogleRedirectCallback() {
+    const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+    if (!params.has('id_token') && !params.has('error')) return false;
+    const stored = (() => { try { return JSON.parse(localStorage.getItem(GOOGLE_OAUTH_STATE_KEY) || '{}'); } catch { return {}; } })();
+    localStorage.removeItem(GOOGLE_OAUTH_STATE_KEY);
     try {
-      const user = await loginGoogle(role, response?.credential);
+      if (params.has('error')) throw new Error(params.get('error_description') || 'Google no permitió iniciar sesión.');
+      if (!stored.stateId || params.get('state') !== stored.stateId) throw new Error('No se pudo validar la respuesta de Google. Intenta nuevamente.');
+      const credential = params.get('id_token') || '';
+      const decoded = decodeJwtPayload(credential);
+      if (stored.nonce && decoded.nonce !== stored.nonce) throw new Error('La respuesta de Google no coincide con esta sesión.');
+      const user = await loginGoogle(stored.role || 'student', credential);
       state.authMessage = '';
       saveSession(user);
-      routeTo(role === 'ceal' ? '/gestion' : '/');
+      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.role === 'ceal' ? '/gestion' : '/'}`);
+      pendingScrollReset = true;
+      return true;
     } catch (err) {
       state.authMessage = err.message || 'No se pudo iniciar con Google.';
-      render({ transition: true, scope: 'panel' });
+      history.replaceState(null, '', `${location.pathname}${location.search}#/login`);
+      return true;
     }
   }
   function readFileDataUrl(file) {
@@ -348,6 +395,7 @@
   async function boot() {
     loadLocalSnapshot();
     ensureShape();
+    await handleGoogleRedirectCallback();
     render();
     if (!API_BASE) return;
     try {
@@ -418,71 +466,11 @@
   }
   function afterRender() {
     hydrateMallaEmbed();
-    if (getRoute().path === '/login') scheduleGoogleButtons();
-  }
-  function scheduleGoogleButtons(retry = 0) {
-    clearTimeout(googleRenderTimer);
-    if (!GOOGLE_CLIENT_ID || QA_MODE) return;
-    googleRenderTimer = setTimeout(() => {
-      if (!window.google?.accounts?.id) {
-        if (retry < 20) scheduleGoogleButtons(retry + 1);
-        return;
-      }
-      if (!googleInitialized) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleGoogleCredential,
-          hd: GOOGLE_DOMAIN,
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
-        googleInitialized = true;
-      }
-      document.querySelectorAll('[data-google-button]').forEach(el => {
-        if (el.dataset.googleRendered === '1') return;
-        el.classList.remove('is-ready');
-        el.classList.add('is-rendering');
-        el.dataset.googleRendered = '1';
-        window.google.accounts.id.renderButton(el, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'rectangular',
-          logo_alignment: 'left',
-          locale: 'es_419',
-          width: Math.min(360, Math.max(220, Math.round(el.getBoundingClientRect().width || 320))),
-          click_listener: () => { state.googleRole = el.dataset.googleButton || 'student'; state.authMessage = ''; }
-        });
-        settleGoogleButton(el);
-      });
-    }, retry ? 180 : 0);
-  }
-  function settleGoogleButton(el) {
-    let done = false;
-    const markReady = () => {
-      if (done || !document.body.contains(el)) return;
-      done = true;
-      el.classList.remove('is-rendering');
-      el.classList.add('is-ready');
-    };
-    const watchIframe = () => {
-      const iframe = el.querySelector('iframe');
-      if (!iframe) return false;
-      iframe.addEventListener('load', () => setTimeout(markReady, 120), { once: true });
-      setTimeout(markReady, 420);
-      return true;
-    };
-    if (watchIframe()) return;
-    const observer = new MutationObserver(() => {
-      if (watchIframe()) observer.disconnect();
-    });
-    observer.observe(el, { childList: true, subtree: true });
-    setTimeout(() => { observer.disconnect(); markReady(); }, 1400);
   }
   function renderLogin() {
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
-    const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar los botones oficiales.</span></div>`;
+    const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar el acceso con Google.</span></div>`;
+    const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingeniería Civil UCN.</p></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h2>Entrar al portal</h2><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
@@ -492,14 +480,14 @@
             <span class="role-icon">${icon('user')}</span>
             <div class="google-login-body">
               <div><strong>Estudiante</strong><span>Material, mallas, calendario y comunicados.</span></div>
-              <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="student">${googleConfigured ? '' : '<span>Google UCN</span>'}</div>
+              ${googleButton('student')}
             </div>
           </section>
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
               <div><strong>Miembro CEAL</strong><span>Acceso interno CEAL</span></div>
-              <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="ceal">${googleConfigured ? '' : '<span>Google CEAL</span>'}</div>
+              ${googleButton('ceal')}
             </div>
           </section>
         </div>
@@ -877,9 +865,11 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const googleRedirect = e.target.closest('[data-google-redirect]');
+    if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
     if (role === 'guest') { startGuestSession(); routeTo('/'); return; }
-    if (e.target.closest('[data-logout]')) { window.google?.accounts?.id?.disableAutoSelect?.(); localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
+    if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }

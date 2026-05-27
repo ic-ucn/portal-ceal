@@ -57,7 +57,7 @@ data/curricula.js
 - `src/mock-data.js`: semilla estática para GitHub Pages y fallback sin servidor.
 - `server.mjs`: API local con persistencia en `.data/portal-db.json`.
 - `.data/`: estado runtime local, ignorado por git.
-- `src/config.js`: Client ID público de Google Identity Services para GitHub Pages.
+- `src/config.js`: Client ID público del OAuth web de Google para GitHub Pages.
 
 Endpoints principales:
 
@@ -86,13 +86,23 @@ http://localhost:8080
 http://localhost:18080
 ```
 
-3. Configurar `src/config.js`:
+3. Agregar como Authorized redirect URIs:
+
+```txt
+https://ceicucn.cl/
+http://localhost:8080/
+http://localhost:18080/
+```
+
+El portal usa redirección OAuth directa para evitar bloqueos de telemetría del widget Google Identity Services en navegadores con extensiones.
+
+4. Configurar `src/config.js`:
 
 ```js
 window.PORTAL_GOOGLE_CLIENT_ID = 'CLIENT_ID.apps.googleusercontent.com';
 ```
 
-4. Si se usa `server.mjs`, arrancar con la misma variable:
+5. Si se usa `server.mjs`, arrancar con la misma variable:
 
 ```powershell
 $env:PORTAL_GOOGLE_CLIENT_ID='CLIENT_ID.apps.googleusercontent.com'
