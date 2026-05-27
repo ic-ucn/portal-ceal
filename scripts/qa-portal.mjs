@@ -62,7 +62,11 @@ async function importPlaywright() {
 
 async function loginStudent(page) {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
-  await page.evaluate(() => localStorage.removeItem('portal.session'));
+  await page.evaluate(() => {
+    localStorage.removeItem('portal.session');
+    localStorage.removeItem('portal.malla.embedPlan');
+    localStorage.removeItem('portal.malla.embedDark');
+  });
   await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
   await page.locator('[data-login-role="student"]').click();
   await page.waitForFunction(() => window.location.hash === '#/');
@@ -71,7 +75,11 @@ async function loginStudent(page) {
 
 async function loginCeal(page, memberId = 'ceal-kevin-cortes', password = 'Ceal2026!portal') {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
-  await page.evaluate(() => localStorage.removeItem('portal.session'));
+  await page.evaluate(() => {
+    localStorage.removeItem('portal.session');
+    localStorage.removeItem('portal.malla.embedPlan');
+    localStorage.removeItem('portal.malla.embedDark');
+  });
   await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
   await page.locator('[data-login-member]').selectOption(memberId);
   await page.locator('form[data-form="ceal-login"] input[name="password"]').fill(password);
@@ -82,9 +90,34 @@ async function loginCeal(page, memberId = 'ceal-kevin-cortes', password = 'Ceal2
   await page.waitForSelector('.page-title');
 }
 
+async function waitForEmbeddedMalla(page, expectedPlan = 'p', expectedTheme = 'light') {
+  await page.waitForSelector('.malla-embed-frame-wrap.is-loaded .malla-embed-frame', { timeout: 15000 });
+  await page.waitForFunction(
+    ({ plan, theme }) => {
+      const frame = document.querySelector('.malla-embed-frame');
+      return frame?.dataset.plan === plan && frame?.dataset.theme === theme;
+    },
+    { plan: expectedPlan, theme: expectedTheme },
+    { timeout: 8000 }
+  );
+  const frameHandle = await page.locator('.malla-embed-frame').elementHandle();
+  const frame = await frameHandle?.contentFrame();
+  if (!frame) fail('malla embedded frame unavailable');
+  await frame.waitForSelector('.mc-card', { timeout: 15000 });
+  return frame.evaluate(() => ({
+    cardCount: document.querySelectorAll('.mc-card').length,
+    title: document.querySelector('.mc-header__subtitle')?.textContent?.trim() || document.title,
+    lightTheme: document.documentElement.classList.contains('mc-light')
+  }));
+}
+
 async function auditRoute(page, route, name, viewportName, screenshot = false) {
   await page.goto(`${baseUrl}/#${route}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title', { timeout: 8000 });
+  if (name === 'mallas') {
+    await waitForEmbeddedMalla(page, 'p', 'light');
+    await page.waitForTimeout(350);
+  }
   const metrics = await page.evaluate(() => ({
     title: document.querySelector('.page-title')?.textContent?.trim(),
     bodyText: document.body.innerText,
@@ -124,14 +157,15 @@ async function runPublicFlowTests(page) {
   report.flows.push('student material search and type filter');
 
   await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
-  await page.locator('.course-card').first().click();
-  await page.waitForSelector('.course-detail-panel, .malla-mobile-detail');
-  await page.locator('[data-clear-panel]').first().click();
-  await page.waitForTimeout(150);
-  if (await page.locator('.course-detail-panel:visible, .malla-mobile-detail:visible').count()) {
-    fail('malla detail panel did not close');
-  }
-  report.flows.push('malla course select and close');
+  const planP = await waitForEmbeddedMalla(page, 'p', 'light');
+  if (planP.cardCount < 60 || !planP.lightTheme) fail('embedded Plan P malla did not load in light mode');
+  await page.locator('[data-malla-embed-theme]').click();
+  const darkPlanP = await waitForEmbeddedMalla(page, 'p', 'dark');
+  if (darkPlanP.lightTheme) fail('embedded malla dark mode did not apply');
+  await page.locator('[data-malla-embed-plan="o"]').click();
+  const planO = await waitForEmbeddedMalla(page, 'o', 'dark');
+  if (planO.cardCount < 55 || !/Plan O/.test(planO.title || '')) fail('embedded Plan O malla did not load');
+  report.flows.push('embedded malla loads plans and theme');
 
   await page.goto(`${baseUrl}/#/casos/nuevo`, { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-case"] input[name="title"]').fill('Consulta QA sobre pre requisito');
@@ -254,9 +288,9 @@ async function main() {
       await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas', 'casos'].includes(name));
     }
     await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
-    await page.locator('[data-mobile-sem="5"]').click();
-    await page.waitForTimeout(150);
-    if (!(await page.locator('.semester-col.mobile-active').count())) pushFailure('mobile mallas semester did not activate');
+    await page.locator('[data-malla-embed-plan="o"]').click();
+    const mobilePlanO = await waitForEmbeddedMalla(page, 'o', 'light');
+    if (mobilePlanO.cardCount < 55) pushFailure('mobile embedded malla did not load Plan O');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginCeal(page, 'ceal-bruno-castillo', 'Ceal2026!portal2');

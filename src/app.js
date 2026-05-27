@@ -4,6 +4,8 @@
   const Curricula = window.CURRICULA;
   const LOCAL_DATA_KEY = 'portal.data.v4';
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
+  const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
+  const mallaEmbedCache = {};
   let dataMode = API_BASE ? 'backend' : 'static';
   let hasRendered = false;
 
@@ -25,6 +27,8 @@
     communicationQuery: '',
     openFAQ: null,
     notificationsOpen: false,
+    mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
+    mallaEmbedDark: localStorage.getItem('portal.malla.embedDark') === '1',
     loginMemberId: null,
     authMessage: '',
     toast: null
@@ -132,7 +136,7 @@
   function badge(key, label) { const [text, color] = Status[key] || [label || key, 'gray']; return `<span class="status-chip ${color}">${esc(label || text)}</span>`; }
   function showToast(message, type = 'green') { state.toast = { message, type }; render(); setTimeout(() => { state.toast = null; render(); }, 2200); }
   function getUnreadCount() { return Data.notifications.filter(n => n.unread).length; }
-  function planLabel(plan) { return plan === 'planO' ? 'Plan O - Catalogo 2016' : 'Plan P - Catalogo 2025'; }
+  function planLabel(plan) { return plan === 'planO' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025'; }
   function planShort(plan) { return plan === 'planO' ? 'Plan O' : 'Plan P'; }
   function getCourses(plan = state.activePlan) { return Curricula[plan]?.subjects || []; }
   function getPlanData(plan = state.activePlan) { return Curricula[plan] || Curricula.planP; }
@@ -264,8 +268,12 @@
     const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
     if (shouldAnimate) app.dataset.motionScope = scope;
     paint();
+    afterRender();
     hasRendered = true;
     if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
+  }
+  function afterRender() {
+    hydrateMallaEmbed();
   }
   function renderLogin() {
     const members = cealMembers();
@@ -419,50 +427,144 @@
   function renderNewCase() { return `${pageHead('Nuevo caso', 'Envia una consulta o solicitud y revisa su seguimiento', `<a class="btn secondary" href="#/casos">Volver</a>`)}<div class="split"><form class="card pad form" data-form="new-case"><div class="form-field"><label>Tipo de caso</label><div class="segmented">${['Academico','Material','Infraestructura','Inscripcion','Orientacion','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Academico" /></div><div class="form-grid"><div class="form-field"><label>Titulo</label><input class="input" name="title" required minlength="8" maxlength="120" /></div><div class="form-field"><label>Ramo relacionado</label><input class="input" name="course" /></div></div><div class="form-grid"><div class="form-field"><label>Prioridad</label><select class="select" name="priority"><option>Normal</option><option>Media</option><option>Alta</option></select></div><div class="form-field"><label>Fecha</label><input class="input" type="date" name="date" /></div></div><div class="form-field"><label>Descripcion</label><textarea class="textarea" name="description" required minlength="20" maxlength="1000"></textarea></div><label class="checkbox-row"><input type="checkbox" name="privacy" required /> Entiendo que mi caso sera visible para mi y el equipo CEAL asignado.</label><div class="hstack"><button class="btn primary" type="submit">Enviar caso</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form><aside class="card pad"><h2 class="card-title">Seguimiento</h2>${timeline([{ title:'Caso recibido', detail:'Se registra en tu lista de casos.', at:new Date() }, { title:'Asignacion', detail:'Un integrante CEAL toma el caso.', at:new Date() }, { title:'Respuesta', detail:'Recibes la respuesta en el portal.', at:new Date() }])}</aside></div>`; }
 
   function renderMallas() {
-    const plan = state.activePlan;
-    const courses = getCourses(plan);
-    const selected = state.selectedCourse?.plan === plan ? findCourse(plan, state.selectedCourse.code) : null;
-    const selectedCodes = selected ? new Set([selected.code, ...getPrereqs(plan, selected).map(c => c.code), ...getSuccessors(plan, selected.code).map(c => c.code)]) : new Set();
-    const q = plain(state.mallaQuery);
-    const filtered = courses.filter(c => (!q || plain([c.name, c.code, c.visibleCode, c.semester].join(' ')).includes(q)) && (state.mallaArea === 'all' || c.area === state.mallaArea));
-    const bySemester = Array.from({ length: getPlanData(plan).totalSemesters }, (_, i) => filtered.filter(c => c.semester === i + 1));
-    return `${pageHead('Mallas interactivas', 'Consulta ramos, prerrequisitos y avance por plan')}
-      <div class="malla-shell ${selected ? 'has-selection' : 'no-selection'}">
-        <aside class="card pad malla-toolbar">
-          <div class="segmented">
-            <button class="${plan === 'planO' ? 'active' : ''}" data-plan="planO">Plan O</button>
-            <button class="${plan === 'planP' ? 'active' : ''}" data-plan="planP">Plan P</button>
+    const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
+    const dark = state.mallaEmbedDark;
+    const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
+    const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
+    return `${pageHead('Mallas', `${planLabelText} integrado al portal CEAL`, `<a class="btn secondary" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')} Abrir original</a>`)}
+      <section class="malla-embed-shell ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
+        <div class="malla-embed-toolbar">
+          <div class="malla-embed-copy">
+            <span class="eyebrow">Ingenieria Civil UCN</span>
+            <h2>Consulta curricular oficial</h2>
           </div>
-          <div class="form-field">
-            <label>Area</label>
-            <select class="select" data-malla-area>
-              <option value="all">Todas</option>
-              ${Object.entries(AreaStyle).map(([k,v]) => `<option value="${k}" ${state.mallaArea === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="malla-summary">
-            <div><strong>${courses.length}</strong><span>Ramos</span></div>
-            <div><strong>${getPlanData(plan).totalSemesters}</strong><span>Semestres</span></div>
-          </div>
-          <p class="small muted">Selecciona un ramo para ver requisitos, ramos que abre y material asociado.</p>
-        </aside>
-        <div class="malla-stage">
-          <div class="malla-stage-head">
-            <input class="input" data-malla-search value="${esc(state.mallaQuery)}" placeholder="Buscar ramo, codigo o semestre" />
-            <span class="pill blue">${planLabel(plan)}</span>
-          </div>
-          <div class="mobile-semesters">
-            ${bySemester.map((_, i) => `<button class="${state.mobileSemester === i + 1 ? 'active' : ''}" data-mobile-sem="${i + 1}">${i + 1} Sem</button>`).join('')}
-          </div>
-          <div class="malla-scroll">
-            <div class="malla-grid" style="grid-template-columns:repeat(${bySemester.length},minmax(var(--course-col-w),1fr))">
-              ${bySemester.map((semesterCourses, i) => `<section class="semester-col ${state.mobileSemester === i + 1 ? 'mobile-active' : ''}"><h3>${i + 1} Sem <small>${semesterCourses.length} ramos</small></h3>${semesterCourses.map(c => courseCard(plan, c, selected, selectedCodes)).join('') || '<p class="small muted">Sin ramos visibles.</p>'}</section>`).join('')}
+          <div class="malla-embed-actions">
+            <div class="segmented malla-embed-tabs" aria-label="Seleccionar plan">
+              <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
+              <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
+            <button class="btn secondary malla-theme-toggle ${dark ? 'active' : ''}" type="button" data-malla-embed-theme aria-pressed="${dark ? 'true' : 'false'}">${icon('eye')} Modo oscuro</button>
           </div>
-          ${selected ? `<section class="card pad malla-mobile-detail">${renderCourseDetail(selected, plan, true)}</section>` : ''}
         </div>
-        ${selected ? `<aside class="card pad course-detail-panel">${renderCourseDetail(selected, plan, true)}</aside>` : ''}
-      </div>`;
+        <div class="malla-embed-frame-wrap" data-malla-frame-wrap>
+          <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
+          <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}"></iframe>
+        </div>
+      </section>`;
+  }
+  function mallaEmbedUrl(plan) { return `${MALLA_BASE_URL}malla-${plan === 'o' ? 'o' : 'p'}.html`; }
+  async function getMallaEmbedHtml(plan) {
+    const key = plan === 'o' ? 'o' : 'p';
+    if (!mallaEmbedCache[key]) {
+      mallaEmbedCache[key] = fetch(mallaEmbedUrl(key)).then(res => {
+        if (!res.ok) throw new Error(`malla ${res.status}`);
+        return res.text();
+      });
+    }
+    return mallaEmbedCache[key];
+  }
+  async function hydrateMallaEmbed() {
+    const frame = app.querySelector('[data-malla-frame]');
+    if (!frame) return;
+    const wrap = frame.closest('[data-malla-frame-wrap]');
+    const plan = frame.dataset.plan === 'o' ? 'o' : 'p';
+    const theme = frame.dataset.theme === 'dark' ? 'dark' : 'light';
+    const loadKey = `${plan}:${theme}`;
+    frame.dataset.loadKey = loadKey;
+    wrap?.classList.remove('is-loaded', 'is-fallback');
+    const markLoaded = () => wrap?.classList.add('is-loaded');
+    frame.addEventListener('load', markLoaded, { once: true });
+    try {
+      const html = await getMallaEmbedHtml(plan);
+      if (!app.contains(frame) || frame.dataset.loadKey !== loadKey) return;
+      frame.srcdoc = buildMallaSrcdoc(html, plan, theme);
+    } catch {
+      if (!app.contains(frame) || frame.dataset.loadKey !== loadKey) return;
+      wrap?.classList.add('is-fallback');
+      frame.src = mallaEmbedUrl(plan);
+    }
+  }
+  function buildMallaSrcdoc(html, plan, theme) {
+    const bootstrap = `<base href="${MALLA_BASE_URL}"><script>try{localStorage.setItem('mc-theme','${theme}');}catch(e){}document.documentElement.classList.toggle('mc-light','${theme}'==='light');<\/script>`;
+    const styles = `<style>${mallaEmbedThemeStyles(theme, plan)}</style>`;
+    return html
+      .replace(/<head>/i, `<head>${bootstrap}`)
+      .replace(/<\/head>/i, `${styles}</head>`);
+  }
+  function mallaEmbedThemeStyles(theme, plan) {
+    const isDark = theme === 'dark';
+    const planAccent = plan === 'o' ? '#126fe3' : '#0891b2';
+    return `
+      :root {
+        --mc-card-radius: 8px;
+        --mc-transition-fast: 140ms cubic-bezier(0.4,0,0.2,1);
+        --mc-transition-normal: 190ms cubic-bezier(0.4,0,0.2,1);
+        --mc-transition-slide: 220ms cubic-bezier(0,0,0.2,1);
+        --mc-font-card-name: .72rem;
+      }
+      ${isDark ? `
+      html:not(.mc-light), :root {
+        color-scheme: dark;
+        --mc-bg-base:#061b34; --mc-bg-surface:#092747; --mc-bg-elevated:#123a64; --mc-bg-hover:#174b7d;
+        --mc-text-primary:#f8fafc; --mc-text-secondary:#d7e2ee; --mc-text-muted:#8fa6c1;
+        --mc-area-basica:#60a5fa; --mc-area-basica-bg:rgba(96,165,250,.16);
+        --mc-area-ingenieria:#a78bfa; --mc-area-ingenieria-bg:rgba(167,139,250,.16);
+        --mc-area-aplicada:#fb923c; --mc-area-aplicada-bg:rgba(251,146,60,.16);
+        --mc-area-general:#22c55e; --mc-area-general-bg:rgba(34,197,94,.15);
+        --mc-area-proyecto:#22d3ee; --mc-area-proyecto-bg:rgba(34,211,238,.14);
+        --mc-area-electivo:#cbd5e1; --mc-area-electivo-bg:rgba(203,213,225,.14);
+      }` : `
+      html.mc-light, :root {
+        color-scheme: light;
+        --mc-bg-base:#f5f8fc; --mc-bg-surface:#ffffff; --mc-bg-elevated:#edf4fb; --mc-bg-hover:#e8f2ff;
+        --mc-text-primary:#041f3d; --mc-text-secondary:#334155; --mc-text-muted:#64748b;
+        --mc-area-basica:#126fe3; --mc-area-basica-bg:rgba(18,111,227,.10);
+        --mc-area-ingenieria:#7c3aed; --mc-area-ingenieria-bg:rgba(124,58,237,.10);
+        --mc-area-aplicada:#f97316; --mc-area-aplicada-bg:rgba(249,115,22,.12);
+        --mc-area-general:#16a34a; --mc-area-general-bg:rgba(22,163,74,.10);
+        --mc-area-proyecto:#0891b2; --mc-area-proyecto-bg:rgba(8,145,178,.11);
+        --mc-area-electivo:#475569; --mc-area-electivo-bg:rgba(71,85,105,.10);
+      }`}
+      body {
+        background: ${isDark ? 'linear-gradient(180deg,#061b34 0%,#08213f 100%)' : 'linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%)'} !important;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      }
+      .mc-header {
+        background: ${isDark ? 'rgba(9,39,71,.92)' : 'rgba(255,255,255,.92)'} !important;
+        border-bottom-color: ${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.82)'} !important;
+        box-shadow: 0 10px 30px ${isDark ? 'rgba(0,0,0,.18)' : 'rgba(15,23,42,.06)'} !important;
+      }
+      .mc-header__title h1 { color: var(--mc-text-primary); letter-spacing:0 !important; }
+      .mc-header__subtitle { color: var(--mc-text-secondary); }
+      .mc-header__hint { color: var(--mc-text-muted); border-color:${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.7)'}; }
+      .mc-theme-toggle { display:none !important; }
+      .mc-card {
+        border-radius: 8px !important;
+        border-color: ${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.82)'} !important;
+        box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px ${isDark ? 'rgba(0,0,0,.12)' : 'rgba(15,23,42,.05)'} !important;
+      }
+      .mc-card:hover { transform: translateY(-1px); }
+      .mc-card--highlight-self { box-shadow:0 0 0 2px ${planAccent},0 0 0 5px rgba(249,115,22,.28),0 16px 38px rgba(15,23,42,.18) !important; }
+      .mc-footer,
+      .mc-zoom-controls,
+      .mc-search__inner,
+      .mc-tooltip,
+      .mc-modal {
+        background: ${isDark ? 'rgba(9,39,71,.94)' : 'rgba(255,255,255,.96)'} !important;
+        border-color: ${isDark ? 'rgba(215,226,238,.14)' : 'rgba(191,208,227,.82)'} !important;
+      }
+      .mc-zoom-btn,
+      .mc-search__close,
+      .mc-modal__close {
+        border-radius: 8px !important;
+      }
+      .mc-grid::-webkit-scrollbar-thumb { background:${isDark ? '#28547f' : '#bfd0e3'}; }
+      @media (max-width: 640px) {
+        .mc-header { height: 52px; padding: 0 10px; }
+        .mc-grid { padding: 8px 8px 14px !important; }
+        .mc-footer { padding-bottom: 12px; }
+      }
+    `;
   }
   function courseCard(plan, c, selected = null, selectedCodes = new Set()) {
     const isSelected = selected?.code === c.code;
@@ -577,6 +679,21 @@
     if (publish) { const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
     const closeCase = e.target.closest('[data-close-case]');
     if (closeCase) { const c = Data.cases.find(x => x.id === closeCase.dataset.closeCase); if (c) { c.status = 'cerrado'; c.history ||= []; c.history.unshift({ at:new Date().toISOString(), title:'Cierre solicitado', detail:'Solicitud registrada por el usuario.' }); persistSnapshot(); apiRequest(`/cases/${encodeURIComponent(c.id)}`, { method:'PATCH', body:JSON.stringify({ status:'cerrado', note:'Solicitud de cierre registrada.' }) }).catch(() => {}); } showToast('Solicitud de cierre registrada'); return; }
+    const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
+    if (mallaEmbedPlan) {
+      state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
+      localStorage.setItem('portal.malla.embedPlan', state.mallaEmbedPlan);
+      state.activePlan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
+      localStorage.setItem('portal.activePlan', state.activePlan);
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
+    if (e.target.closest('[data-malla-embed-theme]')) {
+      state.mallaEmbedDark = !state.mallaEmbedDark;
+      localStorage.setItem('portal.malla.embedDark', state.mallaEmbedDark ? '1' : '0');
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
     const planBtn = e.target.closest('[data-plan]');
     if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
     const semBtn = e.target.closest('[data-mobile-sem]');
