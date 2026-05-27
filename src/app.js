@@ -392,6 +392,8 @@
       }
       document.querySelectorAll('[data-google-button]').forEach(el => {
         if (el.dataset.googleRendered === '1') return;
+        el.classList.remove('is-ready');
+        el.classList.add('is-rendering');
         el.dataset.googleRendered = '1';
         window.google.accounts.id.renderButton(el, {
           type: 'standard',
@@ -404,8 +406,31 @@
           width: Math.min(360, Math.max(220, Math.round(el.getBoundingClientRect().width || 320))),
           click_listener: () => { state.googleRole = el.dataset.googleButton || 'student'; state.authMessage = ''; }
         });
+        settleGoogleButton(el);
       });
     }, retry ? 180 : 0);
+  }
+  function settleGoogleButton(el) {
+    let done = false;
+    const markReady = () => {
+      if (done || !document.body.contains(el)) return;
+      done = true;
+      el.classList.remove('is-rendering');
+      el.classList.add('is-ready');
+    };
+    const watchIframe = () => {
+      const iframe = el.querySelector('iframe');
+      if (!iframe) return false;
+      iframe.addEventListener('load', () => setTimeout(markReady, 120), { once: true });
+      setTimeout(markReady, 420);
+      return true;
+    };
+    if (watchIframe()) return;
+    const observer = new MutationObserver(() => {
+      if (watchIframe()) observer.disconnect();
+    });
+    observer.observe(el, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); markReady(); }, 1400);
   }
   function renderLogin() {
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
