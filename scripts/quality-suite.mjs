@@ -193,10 +193,8 @@ const appRequirements = [
   'renderManagement',
   'renderMallas',
   'renderMaterial',
-  'renderNewCase',
   'renderUploadMaterial',
   'renderAgreementForm',
-  'renderManageCase',
   'renderValidateMaterial',
   'setupMemberPassword',
   'loginMember',
@@ -235,7 +233,6 @@ assert(!/rut|ppa/i.test(JSON.stringify(data.cealMembers)), 'seed members should 
 const routeNeedles = [
   "#/gestion",
   "#/material/subir",
-  "#/casos/nuevo",
   "#/mallas",
   "#/calendario",
   "#/comunicados",

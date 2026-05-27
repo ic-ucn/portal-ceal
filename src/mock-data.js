@@ -16,13 +16,13 @@ window.PortalMock = (() => {
   const users = {
     student: {
       id: 'u-student-001',
-      name: 'Andres Morales',
-      initials: 'AM',
+      name: 'Estudiante CEIC UCN',
+      initials: 'EC',
       role: 'student',
       label: 'Estudiante',
       plan: 'planP',
       yearLabel: '4to ano',
-      email: 'andres.morales@alumnos.ucn.cl',
+      email: 'estudiante@alumnos.ucn.cl',
       permissions: []
     },
     ceal: { ...cealMembers[2] }
@@ -258,19 +258,19 @@ window.PortalMock = (() => {
   const procedures = [
     { id: 'proc-001', title: 'Formulario solicitud de apoyo', due: '2026-05-30', status: 'abierto', required: ['Cédula de identidad', 'Certificado', 'Boleta de notas'], responsible: 'Unidad de Apoyo Estudiantil', description: 'Solicitud de apoyo para situaciones académicas o personales que requieren derivación.' },
     { id: 'proc-002', title: 'Inscripción ayudantías', due: '2026-05-28', status: 'abierto', required: ['Historial académico'], responsible: 'Coordinación Académica', description: 'Inscripción a ayudantías disponibles para el semestre.' },
-    { id: 'proc-003', title: 'Consulta académica', due: '2026-06-15', status: 'enRevision', required: ['Descripción de caso'], responsible: 'Dirección de Docencia', description: 'Formulario para consultas académicas formales.' }
+    { id: 'proc-003', title: 'Consulta académica', due: '2026-06-15', status: 'enRevision', required: ['Descripción de consulta'], responsible: 'Dirección de Docencia', description: 'Formulario para consultas académicas formales.' }
   ];
 
   const faqs = [
     { q: '¿Dónde reviso material por ramo?', a: 'En Material puedes buscar por ramo, código, tipo de recurso o semestre. Desde la malla también puedes abrir el material del ramo seleccionado.' },
-    { q: '¿Cómo reporto un caso?', a: 'En Casos usa “Nuevo caso”, selecciona el tipo, describe el contexto y adjunta archivos si corresponde.' },
+    { q: '¿Dónde reviso mi malla?', a: 'En Mallas puedes alternar Plan O y Plan P, usar modo oscuro y abrir la vista foco para estudiar con más espacio.' },
     { q: '¿Dónde veo acuerdos?', a: 'En Calendario y acuerdos puedes revisar acuerdos recientes, documentos y compromisos asociados.' },
     { q: '¿Cómo encuentro mi malla?', a: 'En Mallas selecciona Plan O o Plan P. Puedes buscar ramos y revisar prerrequisitos.' },
-    { q: '¿Cómo contacto al CEAL?', a: 'Puedes enviar un caso o revisar Comunicados para información oficial de contacto.' }
+    { q: '¿Cómo contacto al CEAL?', a: 'Revisa Comunicados para información oficial de contacto y canales activos del CEAL.' }
   ];
 
   const notifications = [
-    { id: 'not-001', title: 'Caso actualizado', detail: 'Consulta por evaluación pasó a En revisión.', date: 'Hoy, 10:15', unread: true, route: '/casos/case-2026-0052' },
+    { id: 'not-001', title: 'Mallas disponibles', detail: 'Plan O y Plan P están integrados en la vista inmersiva.', date: 'Hoy, 10:15', unread: true, route: '/mallas' },
     { id: 'not-002', title: 'Fecha próxima', detail: 'Pleno CEAL · 19 may, 15:30.', date: 'Hoy, 09:30', unread: true, route: '/calendario' },
     { id: 'not-003', title: 'Material nuevo', detail: 'Guía de Programación enviada a revisión.', date: 'Ayer, 18:40', unread: true, route: '/material/mat-010' }
   ];
@@ -283,7 +283,7 @@ window.PortalMock = (() => {
 
   const gestion = {
     pending: [
-      { id: 'pend-001', type: 'casos', title: 'Casos pendientes', count: 3, detail: 'Asignados a mi rol' },
+      { id: 'pend-001', type: 'mallas', title: 'Mallas pendientes', count: 2, detail: 'Planes y enlaces por revisar' },
       { id: 'pend-002', type: 'material', title: 'Materiales por validar', count: 2, detail: 'Esperando revisión' },
       { id: 'pend-003', type: 'acuerdos', title: 'Acuerdo en borrador', count: 1, detail: 'Pendiente de publicación' },
       { id: 'pend-004', type: 'calendario', title: 'Eventos por revisar', count: 2, detail: 'En el calendario' }
@@ -296,7 +296,7 @@ window.PortalMock = (() => {
     ],
     roles: [
       { name: 'Presidencia', detail: 'Lidera y valida decisiones clave.', members: 2 },
-      { name: 'Secretaría', detail: 'Gestiona acuerdos, casos y documentos.', members: 3 },
+      { name: 'Secretaría', detail: 'Gestiona acuerdos, documentos y coordinación interna.', members: 3 },
       { name: 'Comunicaciones', detail: 'Publica y difunde información.', members: 2 },
       { name: 'Docencia', detail: 'Gestiona material y mallas.', members: 2 },
       { name: 'Bienestar', detail: 'Coordina apoyos y actividades.', members: 2 },

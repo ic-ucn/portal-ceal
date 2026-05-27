@@ -2390,6 +2390,142 @@ body::before {
   }
 }
 
+/* Home cleanup and primary navigation polish */
+.sidebar .nav {
+  padding-bottom: 18px;
+}
+
+.home-summary .stat-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.home-summary .stat-grid.compact .stat-card {
+  min-height: 86px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  padding: 14px;
+}
+
+.home-summary .stat-copy {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 2px;
+}
+
+.home-summary .stat-copy strong,
+.home-summary .stat-copy > span,
+.home-summary .stat-copy small {
+  grid-column: 1;
+}
+
+.home-summary .stat-copy > span {
+  font-size: .82rem;
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+}
+
+.home-summary .stat-copy small {
+  color: #075ecb;
+  font-size: .74rem;
+}
+
+.home-actions-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.access-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 104px;
+  padding: 14px;
+}
+
+.access-card > .icon-box {
+  width: 44px;
+  height: 44px;
+  align-self: start;
+}
+
+.access-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.access-copy strong {
+  color: var(--navy-950);
+  font-size: .96rem;
+  line-height: 1.22;
+}
+
+.access-copy > span {
+  color: var(--slate-600);
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.access-copy em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #075ecb;
+  font-size: .8rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+@media (max-width: 1180px) {
+  .home-summary .stat-grid.compact,
+  .home-actions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .home-actions-grid,
+  .access-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-summary .stat-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .home-summary .stat-grid.compact .stat-card {
+    min-height: 78px;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .home-summary .stat-grid.compact .stat-card .icon-box {
+    width: 32px;
+    height: 32px;
+  }
+
+  .home-summary .stat-copy strong {
+    font-size: 1.15rem;
+  }
+
+  .home-summary .stat-copy > span {
+    font-size: .72rem;
+    line-height: 1.1;
+    overflow-wrap: normal;
+  }
+
+  .home-summary .stat-copy small {
+    font-size: .66rem;
+  }
+
+  .access-card {
+    min-height: 86px;
+  }
+}
+
 /* Mallas immersive workspace */
 .app-shell.malla-route {
   height: 100dvh;

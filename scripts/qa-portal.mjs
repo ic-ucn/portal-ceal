@@ -167,16 +167,6 @@ async function runPublicFlowTests(page) {
   if (planO.cardCount < 55 || !/Plan O/.test(planO.title || '')) fail('embedded Plan O malla did not load');
   report.flows.push('embedded malla loads plans and theme');
 
-  await page.goto(`${baseUrl}/#/casos/nuevo`, { waitUntil: 'networkidle' });
-  await page.locator('form[data-form="new-case"] input[name="title"]').fill('Consulta QA sobre pre requisito');
-  await page.locator('form[data-form="new-case"] input[name="course"]').fill('Analisis Estructural');
-  await page.locator('form[data-form="new-case"] textarea[name="description"]').fill('Necesito revisar un caso academico de prueba funcional para validar el flujo completo del portal.');
-  await page.locator('form[data-form="new-case"] input[name="privacy"]').check();
-  await page.locator('form[data-form="new-case"] button[type="submit"]').click();
-  await page.waitForURL(/#\/casos\/case-/);
-  await page.waitForSelector('text=Caso recibido');
-  report.flows.push('student creates case and sees detail');
-
   mkdirSync(uploadDir, { recursive: true });
   const uploadFile = path.join(uploadDir, 'guia-qa.txt');
   writeFileSync(uploadFile, 'Contenido de prueba para validar subida real de archivo.');
@@ -207,15 +197,6 @@ async function runCealFlowTests(page) {
   await loginCeal(page);
   await page.goto(`${baseUrl}/#/gestion`, { waitUntil: 'networkidle' });
   if (!(await page.locator('text=Equipo CEAL 2026').count())) fail('gestion dashboard missing CEAL team section');
-
-  await page.goto(`${baseUrl}/#/gestion/casos/case-2026-0052`, { waitUntil: 'networkidle' });
-  await page.locator('form[data-form="manage-case"] select[name="status"]').selectOption('enSeguimiento');
-  await page.locator('form[data-form="manage-case"] textarea[name="note"]').fill('Nota QA interna.');
-  await page.locator('form[data-form="manage-case"] textarea[name="response"]').fill('Respuesta QA para el estudiante.');
-  await page.locator('form[data-form="manage-case"] button[type="submit"]').click();
-  await page.waitForURL('**/#/casos/case-2026-0052');
-  await page.waitForSelector('text=Respuesta QA para el estudiante');
-  report.flows.push('CEAL updates a case with note and response');
 
   await page.goto(`${baseUrl}/#/gestion/acuerdos/nuevo`, { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
@@ -263,9 +244,6 @@ async function main() {
       ['/comunicados/com-001', 'comunicado-detalle'],
       ['/calendario', 'calendario'],
       ['/acuerdos/agr-003', 'acuerdo-detalle'],
-      ['/casos', 'casos'],
-      ['/casos/nuevo', 'caso-nuevo'],
-      ['/casos/case-2026-0052', 'caso-detalle'],
       ['/material', 'material'],
       ['/material/subir', 'material-subir'],
       ['/material/mat-001', 'material-detalle'],
@@ -279,13 +257,13 @@ async function main() {
     ];
     await loginStudent(page);
     for (const [route, name] of studentRoutes) {
-      await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas', 'casos'].includes(name));
+      await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas'].includes(name));
     }
 
     await page.setViewportSize({ width: 390, height: 844 });
     await loginStudent(page);
     for (const [route, name] of studentRoutes) {
-      await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas', 'casos'].includes(name));
+      await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas'].includes(name));
     }
     await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
     await page.locator('[data-malla-embed-plan="o"]').click();
@@ -297,7 +275,6 @@ async function main() {
     const cealRoutes = [
       ['/gestion', 'gestion'],
       ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],
-      ['/gestion/casos/case-2026-0052', 'gestion-caso'],
       ['/gestion/material/mat-010/validar', 'gestion-material-validar'],
       ['/gestion/comunicados/com-001/editar', 'gestion-comunicado-editar']
     ];
