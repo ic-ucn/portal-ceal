@@ -138,6 +138,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
     hasBottomNav: Boolean(document.querySelector('.bottom-nav')),
+    bottomNavDisplay: document.querySelector('.bottom-nav') ? getComputedStyle(document.querySelector('.bottom-nav')).display : 'none',
     activeBottom: document.querySelectorAll('.bottom-item.active').length
   }));
   const label = `${viewportName}:${name}`;
@@ -147,7 +148,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   if (viewportName === 'mobile' && metrics.scrollWidth > metrics.innerWidth + 4) {
     pushFailure(`${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
   }
-  if (viewportName === 'mobile' && name !== 'mallas' && (!metrics.hasBottomNav || metrics.activeBottom < 1)) {
+  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none' || metrics.activeBottom < 1)) {
     pushFailure(`${label}: bottom nav missing or inactive`);
   }
   report.routes.push({ viewport: viewportName, route, name, title: metrics.title });

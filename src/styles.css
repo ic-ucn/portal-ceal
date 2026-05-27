@@ -2850,10 +2850,16 @@ body::before {
 @media (max-width: 920px) {
   .app-shell.malla-route {
     display: block;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .app-shell.malla-route .bottom-nav {
+    display: grid !important;
   }
 
   .app-shell.malla-route .content.content-mallas {
-    height: 100dvh !important;
+    height: calc(100dvh - var(--bottom-nav-h) - env(safe-area-inset-bottom)) !important;
     min-height: 0 !important;
     padding: 8px !important;
   }
