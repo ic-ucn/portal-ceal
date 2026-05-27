@@ -333,7 +333,11 @@
 }
 
 * { box-sizing: border-box; }
-html { height: 100%; scroll-behavior: smooth; }
+html {
+  height: 100%;
+  scroll-behavior: auto;
+  overflow-anchor: none;
+}
 body {
   margin: 0;
   min-height: 100%;
@@ -341,6 +345,7 @@ body {
   color: var(--text);
   background: #f5f8fc;
   overflow-x: hidden;
+  overflow-anchor: none;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -361,7 +366,10 @@ img { max-width: 100%; display: block; }
   border: 0;
 }
 
-#app { min-height: 100vh; }
+#app {
+  min-height: 100vh;
+  overflow-anchor: none;
+}
 
 #app[data-motion-scope="route"] .content > *,
 #app[data-motion-scope="panel"] .content > * {
@@ -440,7 +448,7 @@ img { max-width: 100%; display: block; }
 .role-card strong { display: block; color: var(--navy-950); margin-bottom: 4px; }
 .role-card span { color: var(--slate-600); font-size: .9rem; line-height: 1.45; }
 /* APP SHELL */
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) 1fr; overflow-anchor: none; }
 .sidebar {
   position: fixed;
   top: 0; left: 0; bottom: 0;
@@ -552,7 +560,7 @@ img { max-width: 100%; display: block; }
 .account-trigger { display: flex; align-items: center; gap: 10px; font-weight: 750; }
 .account-trigger span { font-size: .9rem; }
 .mobile-header, .bottom-nav { display: none; }
-.content { padding: 28px 34px 42px; max-width: 1460px; margin: 0 auto; }
+.content { padding: 28px 34px 42px; max-width: 1460px; margin: 0 auto; overflow-anchor: none; }
 
 /* COMMON */
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 20px; }

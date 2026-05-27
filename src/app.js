@@ -15,6 +15,7 @@
   let lastRenderedRouteKey = '';
   let pendingScrollReset = false;
   let scrollResetToken = 0;
+  let pageTopHoldTimer = null;
 
   try {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -133,9 +134,10 @@
   function plain(v) { return tx(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
-  function routeTo(path) {
+  function routeTo(path, holdTop = false) {
     pendingScrollReset = true;
     resetPageScroll();
+    if (holdTop) holdPageTop(1400);
     const nextHash = `#${path}`;
     if (window.location.hash === nextHash) {
       render({ transition: true, scope: 'route' });
@@ -336,6 +338,7 @@
       saveSession(user);
       history.replaceState(null, '', `${location.pathname}${location.search}#${stored.role === 'ceal' ? '/gestion' : '/'}`);
       pendingScrollReset = true;
+      holdPageTop(1600);
       return true;
     } catch (err) {
       state.authMessage = err.message || 'No se pudo iniciar con Google.';
@@ -410,7 +413,9 @@
     loadLocalSnapshot();
     ensureShape();
     await handleGoogleRedirectCallback();
+    const shouldHoldInitialTop = state.user && getRoute().path === '/';
     render();
+    if (shouldHoldInitialTop) holdPageTop(1400);
     if (!API_BASE) return;
     try {
       const payload = await apiRequest('/bootstrap');
@@ -473,25 +478,38 @@
     const token = ++scrollResetToken;
     const apply = () => {
       if (token !== scrollResetToken) return;
-      const scrollers = [
-        document.scrollingElement,
-        document.documentElement,
-        document.body,
-        app,
-        app.querySelector('.app-shell'),
-        app.querySelector('.app-main'),
-        app.querySelector('.content')
-      ].filter(Boolean);
-      scrollers.forEach(el => {
-        el.scrollTop = 0;
-        el.scrollLeft = 0;
-        try { el.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }); } catch {}
-      });
-      try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
+      applyPageTop();
     };
     apply();
     requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
     [60, 140, 320, 700].forEach(ms => setTimeout(apply, ms));
+  }
+  function applyPageTop() {
+    try { document.activeElement?.blur?.(); } catch {}
+    const scrollers = [
+      document.scrollingElement,
+      document.documentElement,
+      document.body,
+      app,
+      app.querySelector('.app-shell'),
+      app.querySelector('.app-main'),
+      app.querySelector('.content')
+    ].filter(Boolean);
+    scrollers.forEach(el => {
+      el.scrollTop = 0;
+      el.scrollLeft = 0;
+      try { el.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }); } catch {}
+    });
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
+  }
+  function holdPageTop(ms = 1200) {
+    const until = Date.now() + ms;
+    clearTimeout(pageTopHoldTimer);
+    const tick = () => {
+      applyPageTop();
+      if (Date.now() < until) pageTopHoldTimer = setTimeout(tick, 50);
+    };
+    tick();
   }
   function afterRender() {
     hydrateMallaEmbed();
@@ -897,7 +915,7 @@
     const googleRedirect = e.target.closest('[data-google-redirect]');
     if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
-    if (role === 'guest') { startGuestSession(); routeTo('/'); return; }
+    if (role === 'guest') { startGuestSession(); routeTo('/', true); return; }
     if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
