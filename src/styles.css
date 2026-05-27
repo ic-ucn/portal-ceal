@@ -2859,9 +2859,11 @@ body::before {
   }
 
   .app-shell.malla-route .content.content-mallas {
-    height: calc(100dvh - var(--bottom-nav-h) - env(safe-area-inset-bottom)) !important;
+    position: fixed;
+    inset: 0 0 calc(var(--bottom-nav-h) + env(safe-area-inset-bottom)) 0;
+    height: auto !important;
     min-height: 0 !important;
-    padding: 8px !important;
+    padding: 8px 8px 0 !important;
   }
 
   .malla-workspace {

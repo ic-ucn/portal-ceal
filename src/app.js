@@ -658,6 +658,7 @@
         --mc-area-electivo:#475569; --mc-area-electivo-bg:rgba(71,85,105,.10);
       }`}
       body {
+        min-height: 100vh;
         background: ${isDark ? 'linear-gradient(180deg,#061b34 0%,#08213f 100%)' : 'linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%)'} !important;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
       }
@@ -693,7 +694,7 @@
       .mc-grid::-webkit-scrollbar-thumb { background:${isDark ? '#28547f' : '#bfd0e3'}; }
       @media (max-width: 640px) {
         .mc-header { height: 52px; padding: 0 10px; }
-        .mc-grid { padding: 8px 8px 14px !important; }
+        .mc-grid { min-height: calc(100vh - 52px); padding: 8px 8px 14px !important; }
         .mc-footer { padding-bottom: 12px; }
       }
     `;
