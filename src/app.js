@@ -905,6 +905,17 @@
             el.setAttribute('aria-hidden', 'true');
           });
         }
+        function selectedCode() {
+          return activeCode || document.querySelector('.mc-card--highlight-self[data-mc-code]')?.dataset.mcCode || null;
+        }
+        function applyActiveHighlight() {
+          var code = selectedCode();
+          var MC = window.__MC;
+          if (!code || !MC?.highlightChain) return;
+          activeCode = code;
+          MC.clearHighlight?.();
+          MC.highlightChain(code);
+        }
         function labelFor(flags, direction) {
           if (flags.prereq && flags.successor) return 'Relaciones ' + (direction === 'top' ? 'arriba' : 'abajo');
           if (flags.prereq) return 'Requisitos ' + (direction === 'top' ? 'arriba' : 'abajo');
@@ -952,11 +963,12 @@
             hideHints();
             return;
           }
-          var selected = activeCode || document.querySelector('.mc-card--highlight-self[data-mc-code]')?.dataset.mcCode;
+          var selected = selectedCode();
           if (!selected) {
             hideHints();
             return;
           }
+          activeCode = selected;
           var topLimit = 56;
           var bottomLimit = window.innerHeight - 76;
           var topFlags = { prereq: false, successor: false };
@@ -973,6 +985,7 @@
           hideTimer = setTimeout(updateHints, 450);
         }
         function scrollToRelated(direction) {
+          applyActiveHighlight();
           var topLimit = 56;
           var bottomLimit = window.innerHeight - 76;
           var candidates = relatedCards().filter(function(item) {
@@ -986,15 +999,38 @@
             return direction === 'top' ? br.bottom - ar.bottom : ar.top - br.top;
           });
           candidates[0].el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          applyActiveHighlight();
+          setTimeout(applyActiveHighlight, 80);
+          setTimeout(applyActiveHighlight, 240);
           setTimeout(updateHints, 360);
         }
         document.addEventListener('click', function(e) {
+          var hint = e.target.closest?.('.mc-portal-scroll-hint');
+          if (hint) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            scrollToRelated(hint.classList.contains('mc-portal-scroll-hint--top') ? 'top' : 'bottom');
+            return;
+          }
           var card = e.target.closest?.('.mc-card[data-mc-code]');
           if (card) activeCode = card.dataset.mcCode;
           else if (!e.target.closest?.('.mc-portal-scroll-hint') && !e.target.closest?.('.mc-peek')) activeCode = null;
           setTimeout(updateHints, 90);
         }, true);
-        document.addEventListener('touchend', function() { setTimeout(updateHints, 120); }, { passive: true });
+        ['pointerdown', 'touchstart', 'touchend', 'mousedown'].forEach(function(type) {
+          document.addEventListener(type, function(e) {
+            if (!e.target.closest?.('.mc-portal-scroll-hint')) return;
+            e.stopImmediatePropagation();
+          }, true);
+        });
+        document.addEventListener('touchend', function(e) {
+          if (e.target.closest?.('.mc-portal-scroll-hint')) {
+            setTimeout(applyActiveHighlight, 0);
+            setTimeout(updateHints, 120);
+            return;
+          }
+          setTimeout(updateHints, 120);
+        }, { passive: true });
         window.addEventListener('scroll', updateHints, { passive: true });
         var grid = document.getElementById('mc-grid');
         if (grid) grid.addEventListener('scroll', updateHints, { passive: true });
