@@ -413,7 +413,7 @@
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Miembro CEAL</strong><span>Acceso interno según correo registrado.</span></div>
+              <div><strong>Miembro CEAL</strong><span>Acceso interno CEAL</span></div>
               <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="ceal">${googleConfigured ? '' : '<span>Google CEAL</span>'}</div>
             </div>
           </section>
