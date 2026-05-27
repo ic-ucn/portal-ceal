@@ -66,36 +66,6 @@
   gap: 14px;
 }
 
-.ceal-login-card {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  align-items: start;
-}
-
-.ceal-login-body {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
-
-.ceal-login-heading strong {
-  display: block;
-  color: var(--navy-950);
-  margin-bottom: 4px;
-}
-
-.ceal-login-heading span {
-  display: block;
-  color: var(--slate-600);
-  font-size: .9rem;
-  line-height: 1.45;
-}
-
 .google-auth-note {
   display: grid;
   gap: 3px;
@@ -171,15 +141,39 @@
   font-weight: 850;
 }
 
-.local-auth-btn,
-.local-ceal-form {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+.guest-login-card {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #cfe0f3;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #f6faff);
+  color: var(--navy-950);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 22px;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .05);
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
 
-.local-ceal-form {
-  display: grid;
-  gap: 10px;
+.guest-login-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(18,111,227,.45);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, .08);
+}
+
+.guest-login-card strong,
+.guest-login-card small {
+  display: block;
+}
+
+.guest-login-card small {
+  margin-top: 3px;
+  color: var(--slate-600);
+  font-size: .84rem;
+  line-height: 1.4;
 }
 
 .form-field.compact {
@@ -247,10 +241,6 @@
 
   .form-grid.tight {
     grid-template-columns: 1fr;
-  }
-
-  .ceal-login-card {
-    grid-template-columns: 38px minmax(0, 1fr);
   }
 
   .malla-scroll {
@@ -833,6 +823,9 @@ img { max-width: 100%; display: block; }
 .management-card { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 16px; min-height: 136px; display: grid; align-content: start; gap: 10px; }
 .management-card strong { color: var(--navy-950); }
 .management-card span { color: var(--slate-600); font-size: .84rem; line-height: 1.45; }
+.management-content-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.management-content-grid .link-card-row { min-height: 66px; }
+.management-content-grid .link-card-row > .hstack { justify-content: flex-end; flex-wrap: wrap; }
 .role-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .role-pill { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 14px; }
 .role-pill.active { border-color: var(--blue-600); box-shadow: 0 0 0 3px rgba(18,111,227,.10); }
@@ -876,6 +869,7 @@ img { max-width: 100%; display: block; }
 
 @media (max-width: 1180px) {
   .split, .split.wide, .editor-layout, .calendar-layout, .case-layout, .home-hero, .comms-layout { grid-template-columns: 1fr; }
+  .management-content-grid { grid-template-columns: 1fr; }
   .management-modules { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .role-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .access-grid, .material-strip { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -963,6 +957,7 @@ img { max-width: 100%; display: block; }
   .calendar-layout { display: block; }
   .month-grid { display: none; }
   .role-strip, .management-modules { grid-template-columns: 1fr 1fr; }
+  .management-content-grid { grid-template-columns: 1fr; }
   .profile-hero { grid-template-columns: 66px 1fr; }
   .profile-hero .btn { grid-column: 1 / -1; }
   .avatar.big { width: 66px; height: 66px; font-size: 1.25rem; }
@@ -987,7 +982,7 @@ img { max-width: 100%; display: block; }
   .role-card > .icon:last-child { display: none; }
   .stat-card { grid-template-columns: 42px 1fr; align-items: center; }
   .stat-grid, .stat-grid.compact { grid-template-columns: 1fr 1fr; }
-  .management-modules, .role-strip { grid-template-columns: 1fr; }
+  .management-modules, .role-strip, .management-content-grid { grid-template-columns: 1fr; }
   .btn { width: 100%; }
   .hstack .btn { width: auto; }
   .segmented { overflow: auto; flex-wrap: nowrap; padding-bottom: 4px; }

@@ -406,7 +406,7 @@ async function handleApi(req, res, url) {
       created = {
         ...next,
         title: asText(body.title),
-        type: asText(body.type, 'Academico'),
+        type: asText(body.type, 'Académico'),
         status: 'recibido',
         priority: asText(body.priority, 'Normal'),
         createdAt: new Date().toISOString(),
@@ -415,8 +415,8 @@ async function handleApi(req, res, url) {
         responsible: 'Por asignar',
         responsibleRole: 'CEAL',
         summary: asText(body.summary),
-        nextStep: 'El equipo CEAL revisara el caso y asignara responsable.',
-        visibility: 'Solo tu y el equipo asignado pueden ver este caso.',
+        nextStep: 'El equipo CEAL revisará el caso y asignará responsable.',
+        visibility: 'Solo tú y el equipo asignado pueden ver este caso.',
         attachments: Array.isArray(body.attachments) ? body.attachments : [],
         history: [{ at: new Date().toISOString(), title: 'Caso recibido', detail: 'Hemos recibido tu caso correctamente.' }]
       };
@@ -448,9 +448,9 @@ async function handleApi(req, res, url) {
       created = {
         id: nextNumericId(collection, 'com-'),
         title: asText(body.title),
-        category: asText(body.category, 'Academico'),
+        category: asText(body.category, 'Académico'),
         date: body.date || new Date().toISOString(),
-        source: asText(body.source, 'CEIC Ingenieria Civil UCN'),
+        source: asText(body.source, 'CEIC Ingeniería Civil UCN'),
         pinned: Boolean(body.pinned),
         unread: true,
         summary: asText(body.summary),
@@ -464,15 +464,15 @@ async function handleApi(req, res, url) {
         number: asText(body.number, `Acuerdo CEAL N ${String(collection.length + 1).padStart(2, '0')}/2026`),
         status: asText(body.status, 'enSeguimiento'),
         date: body.date || new Date().toISOString(),
-        origin: asText(body.origin, 'Gestion CEAL'),
-        responsible: asText(body.responsible, 'Secretaria CEAL'),
+        origin: asText(body.origin, 'Gestión CEAL'),
+        responsible: asText(body.responsible, 'Secretaría CEAL'),
         title: asText(body.title),
         summary: asText(body.summary),
         currentState: asText(body.currentState, 'En seguimiento.'),
-        nextStep: asText(body.nextStep, 'Definir proximo paso.'),
+        nextStep: asText(body.nextStep, 'Definir próximo paso.'),
         documents: Array.isArray(body.documents) ? body.documents : [],
         commitments: Array.isArray(body.commitments) ? body.commitments : [],
-        history: [{ at: new Date().toISOString(), title: 'Acuerdo creado', detail: 'Registro creado desde Gestion CEAL.' }]
+        history: [{ at: new Date().toISOString(), title: 'Acuerdo creado', detail: 'Registro creado desde Gestión CEAL.' }]
       };
     } else {
       created = { id: nextNumericId(collection, `${resource.slice(0, 3)}-`), ...body, createdAt: new Date().toISOString() };

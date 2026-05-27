@@ -1,6 +1,6 @@
 # Portal CEIC / CEAL UCN
 
-Portal academico para estudiantes e integrantes CEAL de Ingenieria Civil UCN.
+Portal académico para estudiantes e integrantes CEAL de Ingeniería Civil UCN.
 
 ## Ejecutar
 
@@ -15,20 +15,20 @@ Abrir:
 http://localhost:8080
 ```
 
-GitHub Pages puede servir el frontend estatico. Para persistencia compartida entre usuarios se debe desplegar el backend `server.mjs` en un runtime con almacenamiento remoto.
+GitHub Pages puede servir el frontend estático. Para persistencia compartida entre usuarios se debe desplegar el backend `server.mjs` en un runtime con almacenamiento remoto.
 
 ## Incluye
 
 - Acceso con Google para cuentas `@alumnos.ucn.cl`.
 - Entrada separada para estudiante y CEAL; CEAL valida el correo contra integrantes registrados.
 - Inicio con resumen operativo.
-- Comunicados, detalle y publicacion desde Gestion CEAL.
+- Comunicados, detalle y publicación desde Gestión CEAL.
 - Calendario, acuerdos y nuevo acuerdo interno.
-- Biblioteca academica con busqueda, filtros, subida y descarga local de archivos.
-- Mallas interactivas Plan O Catalogo 2016 y Plan P Catalogo 2025.
+- Biblioteca académica con búsqueda, filtros, subida y descarga local de archivos.
+- Mallas interactivas Plan O Catálogo 2016 y Plan P Catálogo 2025.
 - Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
-- Ayudantias, tramites y perfil.
-- Dashboard Gestion CEAL con permisos por rol.
+- Ayudantías, trámites y perfil.
+- Dashboard Gestión CEAL común para integrantes, con edición de contenido existente.
 
 ## Integrantes CEAL
 
@@ -36,8 +36,8 @@ Las cuentas iniciales se generan desde la lista de postulantes CEAL 2026 usando 
 
 ## Mallas
 
-- Plan O Catalogo 2016: 61 asignaturas, 10 semestres.
-- Plan P Catalogo 2025: 64 asignaturas, 11 semestres.
+- Plan O Catálogo 2016: 61 asignaturas, 10 semestres.
+- Plan P Catálogo 2025: 64 asignaturas, 11 semestres.
 
 Fuentes originales:
 
@@ -54,17 +54,14 @@ data/curricula.js
 
 ## Datos y backend
 
-- `src/mock-data.js`: semilla estatica para GitHub Pages y fallback sin servidor.
+- `src/mock-data.js`: semilla estática para GitHub Pages y fallback sin servidor.
 - `server.mjs`: API local con persistencia en `.data/portal-db.json`.
 - `.data/`: estado runtime local, ignorado por git.
-- `src/config.js`: Client ID publico de Google Identity Services para GitHub Pages.
+- `src/config.js`: Client ID público de Google Identity Services para GitHub Pages.
 
 Endpoints principales:
 
 - `/api/bootstrap`
-- `/api/auth/members`
-- `/api/auth/setup`
-- `/api/auth/login`
 - `/api/auth/google`
 - `/api/communications`
 - `/api/cases`
@@ -73,7 +70,7 @@ Endpoints principales:
 - `/api/events`
 - `/api/saved`
 
-El backend verifica Google ID tokens con la libreria oficial `google-auth-library`, revisando audiencia, firma, expiracion, correo verificado y `hd=alumnos.ucn.cl`. Las contrasenas locales CEAL quedan solo como contingencia local/QA y se guardan hasheadas con sal.
+El backend verifica Google ID tokens con la librería oficial `google-auth-library`, revisando audiencia, firma, expiración, correo verificado y `hd=alumnos.ucn.cl`. El login visible del portal usa Google para estudiantes y CEAL, más un modo invitado de solo lectura.
 
 ## Google UCN
 
@@ -100,7 +97,7 @@ $env:PORTAL_GOOGLE_CLIENT_ID='CLIENT_ID.apps.googleusercontent.com'
 npm run serve
 ```
 
-## Verificacion
+## Verificación
 
 ```powershell
 npm run check
@@ -108,4 +105,4 @@ npm run quality
 node scripts\qa-portal.mjs
 ```
 
-La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, acuerdos, comunicados y Gestion CEAL.
+La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, acuerdos, comunicados y Gestión CEAL.

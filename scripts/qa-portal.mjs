@@ -66,27 +66,41 @@ async function loginStudent(page) {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
+    localStorage.setItem('portal.session', JSON.stringify({
+      id: 'qa-student',
+      name: 'Estudiante CEIC UCN',
+      initials: 'EC',
+      role: 'student',
+      label: 'Estudiante',
+      plan: 'planP',
+      yearLabel: '4to año',
+      email: 'qa.estudiante@alumnos.ucn.cl',
+      permissions: []
+    }));
   });
-  await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
-  await page.locator('[data-login-role="student"]').click();
-  await page.waitForFunction(() => window.location.hash === '#/');
+  await page.goto(`${baseUrl}/?qa=${Date.now()}#/`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
-async function loginCeal(page, memberId = 'ceal-kevin-cortes', password = 'Ceal2026!portal') {
+async function loginCeal(page) {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
   await page.evaluate(() => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
+    localStorage.setItem('portal.session', JSON.stringify({
+      id: 'qa-ceal',
+      name: 'CEAL UCN',
+      initials: 'CU',
+      role: 'ceal',
+      label: 'CEAL',
+      plan: 'planP',
+      yearLabel: 'Gestión 2026',
+      email: 'qa.ceal@alumnos.ucn.cl',
+      permissions: ['approve:content', 'manage:roles', 'publish:comunicados', 'upload:acuerdos', 'validate:material', 'edit:mallas', 'manage:forms']
+    }));
   });
-  await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
-  await page.locator('[data-login-member]').selectOption(memberId);
-  await page.locator('form[data-form="ceal-login"] input[name="password"]').fill(password);
-  const confirm = page.locator('form[data-form="ceal-login"] input[name="confirm"]');
-  if (await confirm.count()) await confirm.fill(password);
-  await page.locator('form[data-form="ceal-login"] button[type="submit"]').click();
-  await page.waitForFunction(() => window.location.hash === '#/gestion');
+  await page.goto(`${baseUrl}/?qa=${Date.now()}#/gestion`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
@@ -152,7 +166,7 @@ async function runPublicFlowTests(page) {
   await page.locator('[data-material-search]').fill('estatica');
   await page.waitForTimeout(150);
   if (!(await page.locator('.item-card, .data-table tbody tr').count())) fail('material search returned no results');
-  await page.locator('[data-material-type="Guia"]').click();
+  await page.locator('[data-material-type="Guía"]').click();
   await page.waitForTimeout(150);
   report.flows.push('student material search and type filter');
 
@@ -171,15 +185,15 @@ async function runPublicFlowTests(page) {
   const uploadFile = path.join(uploadDir, 'guia-qa.txt');
   writeFileSync(uploadFile, 'Contenido de prueba para validar subida real de archivo.');
   await page.goto(`${baseUrl}/#/material/subir`, { waitUntil: 'networkidle' });
-  await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guia QA de materiales');
-  await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estatica');
+  await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guía QA de materiales');
+  await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estática');
   await page.locator('form[data-form="upload-material"] textarea[name="description"]').fill('Material de prueba para validar una subida real, persistencia y descarga posterior.');
   await page.locator('form[data-form="upload-material"] input[name="origin"]').fill('Aporte estudiantil QA');
   await page.locator('form[data-form="upload-material"] input[name="file"]').setInputFiles(uploadFile);
   await page.locator('form[data-form="upload-material"] input[name="permission"]').check();
   await page.locator('form[data-form="upload-material"] button[type="submit"]').click();
   await page.waitForURL(/#\/material\/mat-/);
-  await page.waitForSelector('text=Guia QA de materiales');
+  await page.waitForSelector('text=Guía QA de materiales');
   const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await page.locator('[data-download-resource]').first().click();
   const download = await downloadPromise;
@@ -196,12 +210,12 @@ async function runPublicFlowTests(page) {
 async function runCealFlowTests(page) {
   await loginCeal(page);
   await page.goto(`${baseUrl}/#/gestion`, { waitUntil: 'networkidle' });
-  if (!(await page.locator('text=Equipo CEAL 2026').count())) fail('gestion dashboard missing CEAL team section');
+  if (!(await page.locator('text=Gestión de contenido').count())) fail('gestion dashboard missing content management section');
 
   await page.goto(`${baseUrl}/#/gestion/acuerdos/nuevo`, { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
   await page.locator('form[data-form="new-agreement"] input[name="origin"]').fill('Pleno CEAL QA');
-  await page.locator('form[data-form="new-agreement"] input[name="responsible"]').fill('Secretaria CEAL');
+  await page.locator('form[data-form="new-agreement"] input[name="responsible"]').fill('Secretaría CEAL');
   await page.locator('form[data-form="new-agreement"] textarea[name="summary"]').fill('Se registra un acuerdo de prueba para validar el flujo de seguimiento.');
   await page.locator('form[data-form="new-agreement"] input[name="nextStep"]').fill('Revisar y publicar resumen.');
   await page.locator('form[data-form="new-agreement"] input[name="commitment"]').fill('Publicar seguimiento QA.');
@@ -271,7 +285,7 @@ async function main() {
     if (mobilePlanO.cardCount < 55) pushFailure('mobile embedded malla did not load Plan O');
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await loginCeal(page, 'ceal-bruno-castillo', 'Ceal2026!portal2');
+    await loginCeal(page);
     const cealRoutes = [
       ['/gestion', 'gestion'],
       ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],

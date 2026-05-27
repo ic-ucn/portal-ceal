@@ -40,7 +40,7 @@
 
   const Status = {
     recibido: ['Recibido', 'blue'],
-    enRevision: ['En revision', 'blue'],
+    enRevision: ['En revisión', 'blue'],
     enSeguimiento: ['En seguimiento', 'orange'],
     resuelto: ['Resuelto', 'green'],
     derivado: ['Derivado', 'purple'],
@@ -51,7 +51,7 @@
     pendiente: ['Pendiente', 'orange'],
     completado: ['Completado', 'green'],
     borrador: ['Borrador', 'blue'],
-    pendienteRevision: ['Pendiente de revision', 'orange'],
+    pendienteRevision: ['Pendiente de revisión', 'orange'],
     validadoCeal: ['Validado CEAL', 'green'],
     aporteEstudiantil: ['Aporte estudiantil', 'blue'],
     observado: ['Observado', 'red'],
@@ -61,10 +61,10 @@
   };
 
   const AreaStyle = {
-    basica: 'Ciencias basicas',
-    ingenieria: 'Ciencias de la ingenieria',
-    aplicada: 'Ingenieria aplicada',
-    general: 'Formacion general',
+    basica: 'Ciencias básicas',
+    ingenieria: 'Ciencias de la ingeniería',
+    aplicada: 'Ingeniería aplicada',
+    general: 'Formación general',
     proyecto: 'Proyectos',
     electivo: 'Electivos'
   };
@@ -136,6 +136,10 @@
   }
   function loadSession() { try { return JSON.parse(localStorage.getItem('portal.session') || 'null'); } catch { return null; } }
   function saveSession(user) { state.user = user; localStorage.setItem('portal.session', JSON.stringify(user)); }
+  function buildGuestUser() { return { id: 'guest', name: 'Invitado', initials: 'IN', role: 'guest', label: 'Modo invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
+  function startGuestSession() { localStorage.removeItem('portal.session'); state.user = buildGuestUser(); }
+  function isGuest() { return state.user?.role === 'guest'; }
+  function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(Data)); } catch {} }
   function loadLocalSnapshot() { try { const raw = localStorage.getItem(LOCAL_DATA_KEY); if (raw) Object.assign(Data, JSON.parse(raw)); } catch {} }
   function fmtDate(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
@@ -191,12 +195,12 @@
     try { const payload = await apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ memberId, password }) }); if (payload.user) return payload.user; } catch {}
     const member = getCealMember(memberId);
     const stored = localPasswordMap()[memberId];
-    if (!member || !stored || stored.passwordHash !== await sha256Text(`${memberId}:${password}`)) throw new Error('Contrasena incorrecta.');
+    if (!member || !stored || stored.passwordHash !== await sha256Text(`${memberId}:${password}`)) throw new Error('Contraseña incorrecta.');
     return buildMemberUser(member);
   }
   function decodeJwtPayload(token) {
     const part = String(token || '').split('.')[1];
-    if (!part) throw new Error('Respuesta Google invalida.');
+    if (!part) throw new Error('Respuesta Google inválida.');
     const base64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
     return JSON.parse(decodeURIComponent([...atob(base64)].map(ch => `%${ch.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')));
   }
@@ -213,7 +217,7 @@
     const email = String(payload?.email || '').toLowerCase();
     if (!payload?.sub || !email) throw new Error('No se pudo leer la cuenta Google.');
     if (payload.aud && payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Esta credencial Google no pertenece al portal.');
-    if (payload.email_verified !== true && payload.email_verified !== 'true') throw new Error('El correo Google no esta verificado.');
+    if (payload.email_verified !== true && payload.email_verified !== 'true') throw new Error('El correo Google no está verificado.');
     if (String(payload.hd || '').toLowerCase() !== GOOGLE_DOMAIN || !email.endsWith(`@${GOOGLE_DOMAIN}`)) throw new Error(`Usa tu cuenta @${GOOGLE_DOMAIN}.`);
     return payload;
   }
@@ -225,7 +229,7 @@
     const payload = validateGooglePayload(decodeJwtPayload(credential));
     if (role === 'ceal') {
       const member = cealMembers().find(m => String(m.email || '').toLowerCase() === String(payload.email || '').toLowerCase());
-      if (!member) throw new Error('Esta cuenta Google no esta registrada como CEAL.');
+      if (!member) throw new Error('Esta cuenta Google no está registrada como CEAL.');
       return { ...buildMemberUser(member), authProvider: 'google', googleSub: payload.sub, picture: payload.picture || '' };
     }
     return studentFromGoogle(payload);
@@ -297,9 +301,9 @@
       ['/calendario', 'calendar', 'Calendario y acuerdos'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material'],
-      ['/apoyo', 'users', 'Ayudantias y tramites']
+      ['/apoyo', 'users', 'Ayudantías y trámites']
     ];
-    if (state.user?.role === 'ceal') items.push(['/gestion', 'settings', 'Gestion CEAL']);
+    if (state.user?.role === 'ceal') items.push(['/gestion', 'settings', 'Gestión CEAL']);
     return items;
   }
   function isActive(path, itemPath) {
@@ -370,17 +374,10 @@
     }, retry ? 180 : 0);
   }
   function renderLogin() {
-    const members = cealMembers();
-    const selectedId = state.loginMemberId || members[0]?.id || '';
-    const selected = getCealMember(selectedId);
-    const needsSetup = selected ? !memberHasPassword(selected) : false;
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID);
-    const localAuth = isLocalAuthAllowed();
     const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar los botones oficiales.</span></div>`;
-    const localStudent = localAuth ? `<button class="btn secondary full local-auth-btn" data-login-role="student" type="button">Entrar local como estudiante</button>` : '';
-    const localCeal = localAuth ? `<form class="local-ceal-form" data-form="ceal-login"><div class="form-field compact"><label>Integrante</label><select class="select" name="memberId" data-login-member required>${members.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)} - ${esc(m.roleName || m.label)}</option>`).join('')}</select></div><div class="form-grid tight"><div class="form-field compact"><label>${needsSetup ? 'Nueva contrasena' : 'Contrasena'}</label><input class="input" type="password" name="password" minlength="8" required /></div>${needsSetup ? '<div class="form-field compact"><label>Repetir contrasena</label><input class="input" type="password" name="confirm" minlength="8" required /></div>' : ''}</div><button class="btn secondary full" type="submit">${needsSetup ? 'Crear contrasena local' : 'Entrar local CEAL'}</button></form>` : '';
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
-      <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingenieria Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingenieria Civil UCN.</p></div></div>
+      <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingeniería Civil UCN.</p></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h2>Entrar al portal</h2><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
@@ -389,29 +386,33 @@
             <div class="google-login-body">
               <div><strong>Estudiante</strong><span>Material, mallas, calendario y comunicados.</span></div>
               <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="student">${googleConfigured ? '' : '<span>Google UCN</span>'}</div>
-              ${localStudent}
             </div>
           </section>
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Miembro CEAL</strong><span>Acceso interno segun correo registrado.</span></div>
+              <div><strong>Miembro CEAL</strong><span>Acceso interno según correo registrado.</span></div>
               <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="ceal">${googleConfigured ? '' : '<span>Google CEAL</span>'}</div>
-              ${localCeal}
             </div>
           </section>
         </div>
+        <button class="guest-login-card" data-login-role="guest" type="button">
+          <span class="role-icon">${icon('eye')}</span>
+          <span><strong>Entrar como invitado</strong><small>Solo visualizar mallas, material, calendario y comunicados. No guarda registros.</small></span>
+          ${icon('arrow')}
+        </button>
       </div></section></main>`;
   }
   function renderShell(content, path) {
     const user = state.user;
+    const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta';
     const isMallaRoute = path === '/mallas';
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
-    const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Mas']]
+    const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
       .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/apoyo','/ayudantias','/tramites','/perfil','/gestion','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
-    return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERIA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav></aside>
-      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>Mi cuenta</span></a></div></header>
+    return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav></aside>
+      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
   }
@@ -469,15 +470,16 @@
     const items = Data.communications.filter(c => (state.communicationCategory === 'Todas' || plain(c.category) === plain(state.communicationCategory)) && (!q || plain([c.title, c.summary, c.category, c.source].join(' ')).includes(q)));
     const selected = items[0];
     return `${pageHead('Comunicados', 'Avisos, respuestas y actualizaciones de la carrera')}
-      <div class="comms-layout"><aside class="card pad comms-filters"><div class="form-field"><label>Buscar comunicados</label><input class="input" data-com-search value="${esc(state.communicationQuery)}" placeholder="Buscar comunicado" /></div><h2 class="card-title">Categorias</h2><div class="comms-category-list">${cats.map(c => `<button class="chip-btn ${state.communicationCategory === c ? 'active' : ''}" data-com-category="${esc(c)}">${esc(c)}</button>`).join('')}</div></aside>
-      <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay mas comunicados en esta categoria.</p>'}</div></main>
+      <div class="comms-layout"><aside class="card pad comms-filters"><div class="form-field"><label>Buscar comunicados</label><input class="input" data-com-search value="${esc(state.communicationQuery)}" placeholder="Buscar comunicado" /></div><h2 class="card-title">Categorías</h2><div class="comms-category-list">${cats.map(c => `<button class="chip-btn ${state.communicationCategory === c ? 'active' : ''}" data-com-category="${esc(c)}">${esc(c)}</button>`).join('')}</div></aside>
+      <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay más comunicados en esta categoría.</p>'}</div></main>
       <aside class="card pad comms-preview"><h2 class="card-title">Preguntas frecuentes</h2>${renderFAQ()}</aside></div>`;
   }
   function commCard(c) { return `<a class="item-card" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`; }
   function renderCommunicationDetail(id) {
     const c = Data.communications.find(x => x.id === id);
     if (!c) return renderNotFound('No encontramos el comunicado.');
-    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p style="font-size:1.05rem;line-height:1.75;color:var(--slate-700)">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack"><button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leido</button><button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#/calendario"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vinculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
+    const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
+    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p style="font-size:1.05rem;line-height:1.75;color:var(--slate-700)">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#/calendario"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
@@ -485,30 +487,38 @@
     const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
     const manageAgreement = state.user?.role === 'ceal' ? `<a class="btn primary" href="#/gestion/acuerdos/nuevo">${icon('plus')} Nuevo acuerdo</a>` : '';
     const registerAgreement = state.user?.role === 'ceal' ? `<a class="link" href="#/gestion/acuerdos/nuevo">Registrar ${icon('arrow')}</a>` : '';
-    return `${pageHead('Calendario y acuerdos', 'Fechas, decisiones y seguimiento', `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`)}
+    const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
+    return `${pageHead('Calendario y acuerdos', 'Fechas, decisiones y seguimiento', calendarAction)}
       <div class="calendar-layout"><section class="card pad"><div class="row-between"><h2 class="card-title">Agenda</h2>${manageAgreement}</div><div class="card-list">${Data.events.map(dateRow).join('')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos recientes</h2>${registerAgreement}</div>${Data.agreements.map(a => agreementRow(a)).join('')}</section></div>${selected ? `<section class="card pad" style="margin-top:18px">${renderAgreementSummary(selected)}</section>` : ''}`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
-  function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle del acuerdo</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Que se acordo</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div><a class="link" href="#/acuerdos/${a.id}">Ver detalles y documentos ${icon('arrow')}</a>`; }
+  function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle del acuerdo</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Qué se acordó</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div><a class="link" href="#/acuerdos/${a.id}">Ver detalles y documentos ${icon('arrow')}</a>`; }
   function renderAgreementDetail(id) {
     const a = Data.agreements.find(x => x.id === id);
     if (!a) return renderNotFound('No encontramos el acuerdo.');
-    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div><button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button><button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
+    const downloadAction = isGuest() ? '' : `<button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button>`;
+    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
   }
 
   function renderMaterial() {
     const q = plain(state.materialQuery);
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
-    const types = ['all', 'Guia', 'Prueba', 'Apunte', 'PPT', 'PDF', 'Resumen', 'Ejercicios'];
+    const types = ['all', 'Guía', 'Prueba', 'Apunte', 'PPT', 'PDF', 'Resumen', 'Ejercicios'];
     const courses = [...new Set(Data.resources.map(r => r.courseName))].filter(Boolean).slice(0, 8);
-    return `${pageHead('Biblioteca academica', 'Recursos para estudiar por ramo', `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`)}
-      <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guia" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Ano</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
+    const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
+    return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
+      <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guía" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
-  function renderResourceDetail(r) { return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div><button class="icon-btn" data-clear-panel>${icon('x')}</button></div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Codigo</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Ano</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack"><button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button><button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button><button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a></div>`; }
-  function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revision.</p></div>`; }
+  function renderResourceDetail(r) {
+    const actions = isGuest()
+      ? `<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button><button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button><button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+    return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div><button class="icon-btn" data-clear-panel>${icon('x')}</button></div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
+  }
+  function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
   function renderMaterialDetailPage(id) {
     const r = Data.resources.find(x => x.id === id);
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
@@ -516,13 +526,15 @@
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
-    return `${pageHead('Subir material', 'Comparte un recurso para revision CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material"><div class="form-field"><label>Tipo de recurso</label><div class="segmented">${['Apunte','Guia','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label>Titulo</label><input class="input" name="title" required minlength="6" /></div><div class="form-field"><label>Ramo</label><input class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label>Plan</label><select class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label>Ano</label><select class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label>Descripcion</label><textarea class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label>Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, PNG, JPG o ZIP</span><input class="sr-only" type="file" name="file" /></label></div><div class="form-field"><label>Fuente u origen</label><input class="input" name="origin" required /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo academico.</label><div class="hstack"><button class="btn primary" type="submit">Enviar a revision</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form><aside class="card pad"><h2 class="card-title">Proceso</h2>${timeline([{ title:'Enviado', detail:'Recibimos el aporte.', at:new Date() }, { title:'Revision CEAL', detail:'Se revisa formato y ramo asociado.', at:new Date() }, { title:'Publicado u observado', detail:'Queda disponible o con observaciones.', at:new Date() }])}</aside></div>`;
+    if (isGuest()) return `${pageHead('Subir material', 'Modo invitado en solo lectura', `<a class="btn secondary" href="#/material">Volver</a>`)}<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Vista sin registros</h3><p>El modo invitado permite revisar contenido sin guardar actividad ni enviar aportes.</p><a class="btn primary" href="#/material">Volver a material</a></section>`;
+    return `${pageHead('Subir material', 'Comparte un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material"><div class="form-field"><label>Tipo de recurso</label><div class="segmented">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label>Título</label><input class="input" name="title" required minlength="6" /></div><div class="form-field"><label>Ramo</label><input class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label>Plan</label><select class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label>Año</label><select class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label>Descripción</label><textarea class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label>Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, PNG, JPG o ZIP</span><input class="sr-only" type="file" name="file" /></label></div><div class="form-field"><label>Fuente u origen</label><input class="input" name="origin" required /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit">Enviar a revisión</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form><aside class="card pad"><h2 class="card-title">Proceso</h2>${timeline([{ title:'Enviado', detail:'Recibimos el aporte.', at:new Date() }, { title:'Revisión CEAL', detail:'Se revisa formato y ramo asociado.', at:new Date() }, { title:'Publicado u observado', detail:'Queda disponible o con observaciones.', at:new Date() }])}</aside></div>`;
   }
 
   function renderMallas() {
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
     const dark = state.mallaEmbedDark;
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
+    const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
     return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaFocus ? 'is-focus' : ''}" aria-label="Malla curricular embebida">
         <header class="malla-commandbar">
@@ -540,7 +552,7 @@
             </div>
             <button class="malla-tool-btn ${dark ? 'active' : ''}" type="button" data-malla-embed-theme aria-pressed="${dark ? 'true' : 'false'}">${icon('moon')}<span>Oscuro</span></button>
             <button class="malla-tool-btn ${state.mallaFocus ? 'active' : ''}" type="button" data-malla-focus aria-pressed="${state.mallaFocus ? 'true' : 'false'}">${icon(state.mallaFocus ? 'minimize' : 'maximize')}<span>${state.mallaFocus ? 'Salir' : 'Foco'}</span></button>
-            <a class="malla-tool-btn" href="#/perfil">${icon('user')}<span>Mi cuenta</span></a>
+            <a class="malla-tool-btn" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>
             <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
         </header>
@@ -675,22 +687,23 @@
     const prereqs = getPrereqs(plan, course);
     const successors = getSuccessors(plan, course.code);
     const resources = getResourcesForCourse(plan, course.code);
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span></div><p class="small muted" style="line-height:1.6">${esc(course.description || getPlanData(plan).descriptions?.[course.code] || 'Ficha curricular del ramo.')}</p><div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Area</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><div class="detail-block"><h3 class="card-title">Recursos asociados</h3>${resources.slice(0,3).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</div><div class="hstack"><a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a><button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span></div><p class="small muted" style="line-height:1.6">${esc(course.description || getPlanData(plan).descriptions?.[course.code] || 'Ficha curricular del ramo.')}</p><div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><div class="detail-block"><h3 class="card-title">Recursos asociados</h3>${resources.slice(0,3).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</div><div class="hstack"><a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a><button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${badge(getProgress(plan, c.code))}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); return c ? `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section><aside class="card pad"><h2 class="card-title">Conexiones</h2>${getResourcesForCourse(plan, c.code).map(r => resourceCard(r)).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</aside></div>` : renderNotFound('No encontramos el ramo.'); }
 
-  function renderSupport() { return `${pageHead('Ayudantias y tramites', 'Apoyo academico, formularios y gestiones')}<section class="card pad"><div class="row-between"><h2 class="card-title">Ayudantias</h2><a class="link" href="#/calendario">Ver calendario</a></div><div class="card-list">${Data.tutoring.map(tutoringCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Tramites y formularios</h2><div class="grid three">${Data.procedures.map(procedureCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Apoyo academico</h2><div class="access-grid">${access('grid','Mallas','Consulta prerrequisitos y planes.','Abrir','/mallas','blue')}${access('book','Recursos de estudio','Guias y material recomendado.','Explorar','/material')}${access('users','Tutorias','Apoyo entre estudiantes.','Ver','/apoyo','green')}${access('calendar','Calendario','Fechas e hitos academicos.','Abrir','/calendario')}</div></section>`; }
+  function renderSupport() { return `${pageHead('Ayudantías y trámites', 'Apoyo académico, formularios y gestiones')}<section class="card pad"><div class="row-between"><h2 class="card-title">Ayudantías</h2><a class="link" href="#/calendario">Ver calendario</a></div><div class="card-list">${Data.tutoring.map(tutoringCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Trámites y formularios</h2><div class="grid three">${Data.procedures.map(procedureCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Apoyo académico</h2><div class="access-grid">${access('grid','Mallas','Consulta prerrequisitos y planes.','Abrir','/mallas','blue')}${access('book','Recursos de estudio','Guías y material recomendado.','Explorar','/material')}${access('users','Tutorías','Apoyo entre estudiantes.','Ver','/apoyo','green')}${access('calendar','Calendario','Fechas e hitos académicos.','Abrir','/calendario')}</div></section>`; }
   function tutoringCard(t) { return `<a class="item-card" href="#/ayudantias/${t.id}"><div class="row-between"><span class="icon-box">${icon('users')}</span><span class="pill blue">${esc(t.mode)}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.courseName)} - ${fmtDate(t.date)} - ${esc(t.time)} - ${esc(t.location)}</p></a>`; }
   function procedureCard(p) { return `<a class="item-card" href="#/tramites/${p.id}"><div class="row-between"><span class="icon-box orange">${icon('file')}</span>${badge(p.status)}</div><h3>${esc(p.title)}</h3><p>Vence: ${fmtDate(p.due)}<br>${esc(p.responsible)}</p></a>`; }
-  function renderTutoringDetail(id) { const t = Data.tutoring.find(x => x.id === id); return t ? `${pageHead(t.title, `${t.courseName} - ${fmtDate(t.date)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad"><h2 class="card-title">Detalle de ayudantia</h2><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(t.courseName)}</strong></div><div class="detail-row"><span>Hora</span><strong>${esc(t.time)}</strong></div><div class="detail-row"><span>Lugar</span><strong>${esc(t.location)}</strong></div><div class="detail-row"><span>Ayudante</span><strong>${esc(t.tutor)}</strong></div></div><div class="hstack"><button class="btn primary" data-save-reminder="${esc(t.id)}">${icon('bell')} Guardar recordatorio</button><a class="btn secondary" href="#/material/${t.materialId}">Ver material</a></div></section><aside class="card pad"><a class="btn secondary full" href="#/ramo/${findCoursePlanForCode(t.courseCode)}/${encodeURIComponent(t.courseCode)}">Ver ramo</a></aside></div>` : renderNotFound(); }
-  function renderProcedureDetail(id) { const p = Data.procedures.find(x => x.id === id); return p ? `${pageHead(p.title, `Vence ${fmtDate(p.due)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad">${badge(p.status)}<p class="muted">${esc(p.description)}</p><h2 class="card-title">Documentos requeridos</h2>${p.required.map(r => `<div class="link-card-row"><span><strong>${esc(r)}</strong><span>Requisito</span></span>${icon('check')}</div>`).join('')}<div class="divider"></div><a class="btn primary" href="#/mallas">Revisar mallas</a></section><aside class="card pad"><h2 class="card-title">Apoyo</h2><p class="small muted">Revisa mallas, calendario y recursos antes de iniciar una gestion academica.</p></aside></div>` : renderNotFound(); }
+  function renderTutoringDetail(id) {
+    const t = Data.tutoring.find(x => x.id === id);
+    const reminderAction = isGuest() ? '' : `<button class="btn primary" data-save-reminder="${esc(t?.id || '')}">${icon('bell')} Guardar recordatorio</button>`;
+    return t ? `${pageHead(t.title, `${t.courseName} - ${fmtDate(t.date)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad"><h2 class="card-title">Detalle de ayudantía</h2><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(t.courseName)}</strong></div><div class="detail-row"><span>Hora</span><strong>${esc(t.time)}</strong></div><div class="detail-row"><span>Lugar</span><strong>${esc(t.location)}</strong></div><div class="detail-row"><span>Ayudante</span><strong>${esc(t.tutor)}</strong></div></div><div class="hstack">${reminderAction}<a class="btn secondary" href="#/material/${t.materialId}">Ver material</a></div></section><aside class="card pad"><a class="btn secondary full" href="#/ramo/${findCoursePlanForCode(t.courseCode)}/${encodeURIComponent(t.courseCode)}">Ver ramo</a></aside></div>` : renderNotFound();
+  }
+  function renderProcedureDetail(id) { const p = Data.procedures.find(x => x.id === id); return p ? `${pageHead(p.title, `Vence ${fmtDate(p.due)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad">${badge(p.status)}<p class="muted">${esc(p.description)}</p><h2 class="card-title">Documentos requeridos</h2>${p.required.map(r => `<div class="link-card-row"><span><strong>${esc(r)}</strong><span>Requisito</span></span>${icon('check')}</div>`).join('')}<div class="divider"></div><a class="btn primary" href="#/mallas">Revisar mallas</a></section><aside class="card pad"><h2 class="card-title">Apoyo</h2><p class="small muted">Revisa mallas, calendario y recursos antes de iniciar una gestión académica.</p></aside></div>` : renderNotFound(); }
 
   function renderManagement() {
-    const members = cealMembers();
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
-    const perms = new Set(state.user?.permissions || []);
-    const allowed = need => !need || perms.has(need) || perms.has('manage:roles') || perms.has('approve:content');
     const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
     const modules = [
       ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/gestion/comunicados/com-001/editar'],
@@ -698,32 +711,45 @@
       ['upload:acuerdos','file','Subir acuerdo','Registra decisiones y compromisos.','/gestion/acuerdos/nuevo'],
       ['validate:material','book','Validar material','Aprueba recursos enviados.', firstMaterial ? '/gestion/material/' + firstMaterial + '/validar' : '/material'],
       ['edit:mallas','grid','Actualizar mallas','Revisa enlaces y fichas de ramos.','/mallas'],
-      ['manage:forms','file','Gestionar formularios','Ordena tramites y solicitudes.','/apoyo'],
-      ['manage:roles','users','Miembros y permisos','Revisa roles CEAL.','/gestion']
+      ['manage:forms','file','Gestionar formularios','Ordena trámites y solicitudes.','/apoyo'],
+      ['manage:roles','users','Panel común CEAL','Acceso compartido para la directiva.','/gestion']
     ];
-    const visibleModules = modules.map(m => {
-      const ok = allowed(m[0]);
-      const tag = ok ? 'a' : 'div';
-      const href = ok ? ` href="#${m[4]}"` : '';
-      return `<${tag} class="management-card ${ok ? '' : 'disabled'}"${href}><span class="icon-box">${icon(m[1])}</span><strong>${esc(m[2])}</strong><span>${esc(m[3])}</span><em>${ok ? 'Disponible para tu rol' : 'Otro rol CEAL'}</em></${tag}>`;
+    const visibleModules = modules.map(m => `<a class="management-card" href="#${m[4]}"><span class="icon-box">${icon(m[1])}</span><strong>${esc(m[2])}</strong><span>${esc(m[3])}</span><em>Disponible para CEAL</em></a>`).join('');
+    const communicationRows = Data.communications.slice(0, 5).map(c => `<a class="link-card-row" href="#/gestion/comunicados/${c.id}/editar"><span><strong>${esc(c.title)}</strong><span>${esc(c.category)} - ${fmtDate(c.date)}</span></span><span class="link">Editar ${icon('arrow')}</span></a>`).join('');
+    const materialRows = Data.resources.slice(0, 5).map(r => {
+      const href = r.status === 'pendienteRevision' ? `/gestion/material/${r.id}/validar` : `/material/${r.id}`;
+      const action = r.status === 'pendienteRevision' ? 'Validar' : 'Ver';
+      return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.title)}</strong><span>${esc(r.courseName)} - ${esc(r.type)}</span></span><span class="hstack">${badge(r.status)}<span class="link">${action} ${icon('arrow')}</span></span></a>`;
     }).join('');
-    const quick = modules.filter(m => allowed(m[0])).slice(0, 5).map(m => `<a class="link-card-row" href="#${m[4]}"><span><strong>${esc(m[2])}</strong><span>${esc(m[3])}</span></span>${icon('arrow')}</a>`).join('');
-    return `${pageHead('Gestion CEAL', 'Actualiza contenidos y coordina el portal', `<span class="pill blue">Rol actual: ${esc(state.user.label)}</span>`)}<div class="split"><main class="vstack"><section class="card pad"><div class="row-between"><h2 class="card-title">Tu tablero</h2><span class="pill gray">${esc(state.user.name)}</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En seguimiento')}${stat('calendar', Data.events.length, 'Fechas', 'Registradas')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section><section class="card pad"><h2 class="card-title">Modulos de gestion</h2><div class="management-modules">${visibleModules}</div></section><div class="grid two"><section class="card pad"><h2 class="card-title">Pendientes</h2>${[
-      `${pendingMaterial.length} materiales por validar`,
-      `${Data.agreements.filter(a => a.status !== 'publicado').length} acuerdos en seguimiento`,
-      `${Data.events.length} fechas registradas`,
-      `2 mallas curriculares activas`
-    ].map((p, i) => `<div class="link-card-row"><span><strong>${esc(p)}</strong><span>${['Material','Acuerdos','Calendario','Mallas'][i]}</span></span>${icon('arrow')}</div>`).join('')}</section><section class="card pad"><h2 class="card-title">Cambios recientes</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)}</span></span>${n.unread ? badge('orange','Nuevo') : badge('gray','Leido')}</a>`).join('')}</section></div><section class="card pad"><h2 class="card-title">Equipo CEAL 2026</h2><div class="role-strip">${members.map(m => `<div class="role-pill ${m.id === state.user.id ? 'active' : ''}"><strong>${esc(m.roleName || m.label)}</strong><p>${esc(m.name)}</p><span class="pill gray">${memberHasPassword(m) ? 'Con acceso' : 'Debe crear contrasena'}</span></div>`).join('')}</div></section></main><aside class="vstack"><section class="card pad"><h2 class="card-title">Acciones rapidas</h2>${quick || '<p class="small muted">No hay acciones directas para este rol.</p>'}</section><section class="card pad"><h2 class="card-title">Estado del portal</h2><div class="detail-row"><span>Datos</span><strong>${dataMode === 'backend' ? 'Guardados' : 'En este equipo'}</strong></div><div class="detail-row"><span>Integrantes</span><strong>${members.length}</strong></div></section></aside></div>`;
+    const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
+    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y acuerdos', `<span class="pill blue">Acceso CEAL</span>`)}
+      <div class="vstack">
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">${dataMode === 'backend' ? 'Datos guardados' : 'Guardado en este equipo'}</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
+        <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
+        <div class="management-content-grid">
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-001/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y calendario</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo acuerdo</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay acuerdos cargados.</p>'}</div></section>
+        </div>
+      </div>`;
   }
-  function ensureCEAL(content) { return state.user?.role === 'ceal' ? content : `${pageHead('Sin permisos', 'Esta seccion es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
+  function ensureCEAL(content) { return state.user?.role === 'ceal' ? content : `${pageHead('Sin permisos', 'Esta sección es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
   function renderEditor(id) {
     const c = Data.communications.find(x => x.id === id) || Data.communications[0] || {};
-    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Titulo</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoria</label><select class="select" name="category">${['Academico','Actividades','Ayudantias','Material','Tramites','CEAL'].map(x => `<option ${c.category === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
+    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Título</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoría</label><select class="select" name="category">${['Académico','Actividades','Ayudantías','Material','Trámites','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
   }
-  function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision'); return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revision CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
-  function renderAgreementForm() { return `${pageHead('Nuevo acuerdo', 'Registra una decision y su seguimiento', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Titulo del acuerdo</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, reunion, solicitud" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Que se acordo</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Proximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear acuerdo</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
+  function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision'); return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revisión CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
+  function renderAgreementForm() { return `${pageHead('Nuevo acuerdo', 'Registra una decisión y su seguimiento', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del acuerdo</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, reunión, solicitud" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Qué se acordó</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear acuerdo</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
 
-  function renderProfile() { const u = state.user; return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesion</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(u.label)}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div>${u.role === 'ceal' ? '<a class="btn primary" href="#/gestion">Ir a Gestion CEAL</a>' : '<a class="btn secondary" href="#/mallas">Ver mi malla</a>'}</div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`; }
+  function renderProfile() {
+    const u = state.user;
+    if (isGuest()) {
+      return `${pageHead('Invitado', 'Vista sin registros', `<button class="btn danger" data-logout>${icon('x')} Salir</button>`)}
+        <section class="card pad"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="hstack" style="flex-wrap:wrap">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
+        <div class="grid three" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas y acuerdos publicados.','Revisar','/calendario')}</div>`;
+    }
+    return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(u.label)}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div>${u.role === 'ceal' ? '<a class="btn primary" href="#/gestion">Ir a Gestión CEAL</a>' : '<a class="btn secondary" href="#/mallas">Ver mi malla</a>'}</div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
+  }
   function renderSearch(query) {
     const q = String(query || '').trim();
     const normalized = plain(q);
@@ -732,11 +758,11 @@
       ...Data.resources.filter(r => plain([r.title, r.courseName, r.courseCode, r.type].join(' ')).includes(normalized)).slice(0, 5).map(r => resultRow('book', r.title, `${r.courseName} - ${r.type}`, `/material/${r.id}`)),
       ...Data.communications.filter(c => plain([c.title, c.summary, c.category].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('megaphone', c.title, `${c.category} - ${fmtDate(c.date)}`, `/comunicados/${c.id}`))
     ] : [];
-    return `${pageHead('Busqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, acuerdos y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro termino.')}</section>`;
+    return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, acuerdos y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
-  function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); return `${pageHead('Mas', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>Mi cuenta</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesion</strong></span>${icon('arrow')}</button></div></section>`; }
-  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leida')}</a>`).join('')}</section>`; }
+  function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>${isGuest() ? 'Salir del modo invitado' : 'Cerrar sesión'}</strong></span>${icon('arrow')}</button></div></section>`; }
+  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('')}</section>`; }
   function renderNotificationPopover() { return `<aside class="notification-popover"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications>${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${n.route}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
   function renderEmpty(title, desc) { return `<div class="empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(title)}</h3><p>${esc(desc)}</p></div>`; }
@@ -744,29 +770,29 @@
 
   async function onClick(e) {
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
-    if (role === 'student') { saveSession(Data.users.student); routeTo('/'); return; }
+    if (role === 'guest') { startGuestSession(); routeTo('/'); return; }
     if (e.target.closest('[data-logout]')) { window.google?.accounts?.id?.disableAutoSelect?.(); localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     const saveCourse = e.target.closest('[data-save-course]');
-    if (saveCourse) { const key = saveCourse.dataset.saveCourse; if (!Data.saved.courses.includes(key)) Data.saved.courses.push(key); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'courses', id:key }) }).catch(() => {}); showToast('Ramo agregado a seguimiento'); return; }
+    if (saveCourse) { if (isGuest()) { readonlyToast(); return; } const key = saveCourse.dataset.saveCourse; if (!Data.saved.courses.includes(key)) Data.saved.courses.push(key); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'courses', id:key }) }).catch(() => {}); showToast('Ramo agregado a seguimiento'); return; }
     const saveResource = e.target.closest('[data-save-resource]');
-    if (saveResource) { const id = saveResource.dataset.saveResource; if (!Data.saved.resources.includes(id)) Data.saved.resources.push(id); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'resources', id }) }).catch(() => {}); showToast('Recurso guardado'); return; }
+    if (saveResource) { if (isGuest()) { readonlyToast(); return; } const id = saveResource.dataset.saveResource; if (!Data.saved.resources.includes(id)) Data.saved.resources.push(id); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'resources', id }) }).catch(() => {}); showToast('Recurso guardado'); return; }
     const download = e.target.closest('[data-download-resource]');
     if (download) { const r = Data.resources.find(x => x.id === download.dataset.downloadResource); if (r) downloadResource(r); showToast('Descarga preparada', 'blue'); return; }
-    if (e.target.closest('[data-report-resource]')) { showToast('Reporte recibido para revision CEAL', 'blue'); return; }
+    if (e.target.closest('[data-report-resource]')) { if (isGuest()) { readonlyToast(); return; } showToast('Reporte recibido para revisión CEAL', 'blue'); return; }
     const markRead = e.target.closest('[data-mark-read]');
-    if (markRead) { const c = Data.communications.find(x => x.id === markRead.dataset.markRead); if (c) c.unread = false; persistSnapshot(); showToast('Comunicado marcado como leido', 'blue'); return; }
+    if (markRead) { if (isGuest()) { readonlyToast(); return; } const c = Data.communications.find(x => x.id === markRead.dataset.markRead); if (c) c.unread = false; persistSnapshot(); showToast('Comunicado marcado como leído', 'blue'); return; }
     if (e.target.closest('[data-copy-link]')) { copyText(location.href).catch(() => {}); showToast('Enlace copiado', 'blue'); return; }
     const reminder = e.target.closest('[data-save-reminder]');
-    if (reminder) { const id = reminder.dataset.saveReminder; if (!Data.saved.reminders.includes(id)) Data.saved.reminders.push(id); persistSnapshot(); apiRequest('/saved', { method:'POST', body:JSON.stringify({ kind:'reminders', id }) }).catch(() => {}); showToast('Recordatorio guardado', 'blue'); return; }
+    if (reminder) { if (isGuest()) { readonlyToast(); return; } const id = reminder.dataset.saveReminder; if (!Data.saved.reminders.includes(id)) Data.saved.reminders.push(id); persistSnapshot(); apiRequest('/saved', { method:'POST', body:JSON.stringify({ kind:'reminders', id }) }).catch(() => {}); showToast('Recordatorio guardado', 'blue'); return; }
     const approve = e.target.closest('[data-approve-material]');
-    if (approve) { const r = Data.resources.find(x => x.id === approve.dataset.approveMaterial); if (r) { r.status = 'validadoCeal'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'validadoCeal' }) }).catch(() => {}); } showToast('Material validado y publicado'); return; }
+    if (approve) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === approve.dataset.approveMaterial); if (r) { r.status = 'validadoCeal'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'validadoCeal' }) }).catch(() => {}); } showToast('Material validado y publicado'); return; }
     const observe = e.target.closest('[data-observe-material]');
-    if (observe) { const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
+    if (observe) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
     const publish = e.target.closest('[data-publish]');
-    if (publish) { const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
+    if (publish) { if (isGuest()) { readonlyToast(); return; } const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
     const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
     if (mallaEmbedPlan) {
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
@@ -818,7 +844,6 @@
   }
   function onChange(e) {
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
-    if (e.target.matches('[data-login-member]')) { state.loginMemberId = e.target.value; state.authMessage = ''; render({ transition: true, scope: 'panel' }); }
   }
   function onKeydown(e) {
     if (e.key === 'Escape' && state.mallaFocus && getRoute().path === '/mallas') {
@@ -837,33 +862,18 @@
     e.preventDefault();
     if (!form.checkValidity()) { form.reportValidity(); return; }
     const fd = new FormData(form);
-    if (form.dataset.form === 'ceal-login') {
-      const memberId = String(fd.get('memberId'));
-      const member = getCealMember(memberId);
-      const password = String(fd.get('password') || '');
-      const confirm = String(fd.get('confirm') || '');
-      try {
-        const user = memberHasPassword(member) ? await loginMember(memberId, password) : (password === confirm ? await setupMemberPassword(memberId, password) : (() => { throw new Error('Las contrasenas no coinciden.'); })());
-        state.authMessage = '';
-        saveSession(user);
-        routeTo('/gestion');
-      } catch (err) {
-        state.authMessage = err.message || 'No se pudo iniciar sesion.';
-        render({ transition: true, scope: 'panel' });
-      }
-      return;
-    }
+    if (isGuest() && ['upload-material', 'edit-content', 'new-agreement'].includes(form.dataset.form)) { readonlyToast(); return; }
     if (form.dataset.form === 'upload-material') {
       const file = form.elements.file?.files?.[0];
       const courseName = String(fd.get('course') || 'Ramo por asociar');
       let item = { id:`mat-${Date.now()}`, title:fd.get('title'), type:fd.get('type') || 'Apunte', courseCode:courseName, plan:fd.get('plan') || 'planP', courseName, semester:'-', year:fd.get('year') || '2026', format:file?.name?.split('.').pop()?.toUpperCase() || 'LINK', size:file ? humanSize(file.size) : 'Sin archivo', origin:fd.get('origin'), status:'pendienteRevision', uploadedBy:state.user.name, uploadedAt:new Date().toISOString().slice(0,10), description:fd.get('description'), fileName:file?.name || '', fileType:file?.type || '', fileDataUrl: await readFileDataUrl(file) };
       try { const payload = await apiRequest('/materials', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
-      Data.resources.unshift(item); persistSnapshot(); showToast('Material enviado a revision'); routeTo('/material/' + item.id); return;
+      Data.resources.unshift(item); persistSnapshot(); showToast('Material enviado a revisión'); routeTo('/material/' + item.id); return;
     }
     if (form.dataset.form === 'edit-content') {
       const id = fd.get('id') || Data.communications[0]?.id;
       let item = Data.communications.find(c => c.id === id);
-      if (!item) { item = { id:`com-${Date.now()}`, date:new Date().toISOString(), source:'CEIC Ingenieria Civil UCN', unread:true, pinned:false, related:[] }; Data.communications.unshift(item); }
+      if (!item) { item = { id:`com-${Date.now()}`, date:new Date().toISOString(), source:'CEIC Ingeniería Civil UCN', unread:true, pinned:false, related:[] }; Data.communications.unshift(item); }
       Object.assign(item, { title:fd.get('title'), category:fd.get('category'), summary:fd.get('summary'), body:fd.get('body'), updatedAt:new Date().toISOString() });
       persistSnapshot();
       apiRequest(`/communications/${encodeURIComponent(item.id)}`, { method:'PATCH', body:JSON.stringify(item) }).catch(() => {});
@@ -872,7 +882,7 @@
       return;
     }
     if (form.dataset.form === 'new-agreement') {
-      let item = { id:`agr-${Date.now()}`, number:`Acuerdo CEAL N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestion CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Acuerdo creado', detail:'Registro creado desde Gestion CEAL.' }] };
+      let item = { id:`agr-${Date.now()}`, number:`Acuerdo CEAL N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Acuerdo creado', detail:'Registro creado desde Gestión CEAL.' }] };
       try { const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
       Data.agreements.unshift(item); persistSnapshot(); showToast('Acuerdo creado'); routeTo('/acuerdos/' + item.id); return;
     }

@@ -200,12 +200,12 @@ const appRequirements = [
   'renderValidateMaterial',
   'handleGoogleCredential',
   'data-google-button',
-  'setupMemberPassword',
-  'loginMember',
+  'startGuestSession',
+  'guest-login-card',
+  'management-content-grid',
   'downloadResource',
   'data-publish',
   'data-clear-panel',
-  'data-login-member',
   'data-approve-material',
   'data-download-resource'
 ];
