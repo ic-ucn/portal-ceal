@@ -51,6 +51,8 @@ assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'packag
 assert(indexHtml.includes('src/app.js'), 'index should load app.js');
 assert(indexHtml.includes('src/mock-data.js'), 'index should load data seed');
 assert(indexHtml.includes('data/curricula.js'), 'index should load curricula');
+assert(indexHtml.includes('accounts.google.com/gsi/client'), 'index should load Google Identity Services');
+assert(indexHtml.includes('src/config.js'), 'index should load public runtime config');
 
 assert(Array.isArray(data.cealMembers), 'cealMembers should be an array');
 assert(data.cealMembers.length === 9, 'there should be 9 CEAL members from candidate list');
@@ -196,6 +198,8 @@ const appRequirements = [
   'renderUploadMaterial',
   'renderAgreementForm',
   'renderValidateMaterial',
+  'handleGoogleCredential',
+  'data-google-button',
   'setupMemberPassword',
   'loginMember',
   'downloadResource',
@@ -211,6 +215,8 @@ const serverRequirements = [
   '/api/health',
   "id === 'setup'",
   "id === 'login'",
+  "id === 'google'",
+  'verifyGoogleCredential',
   'publicMember',
   'hashPassword',
   'writeDb',

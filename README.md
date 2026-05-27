@@ -19,13 +19,11 @@ GitHub Pages puede servir el frontend estatico. Para persistencia compartida ent
 
 ## Incluye
 
-- Acceso como estudiante.
-- Acceso CEAL por integrante, con creacion de contrasena en el primer ingreso.
+- Acceso con Google para cuentas `@alumnos.ucn.cl`.
+- Entrada separada para estudiante y CEAL; CEAL valida el correo contra integrantes registrados.
 - Inicio con resumen operativo.
 - Comunicados, detalle y publicacion desde Gestion CEAL.
 - Calendario, acuerdos y nuevo acuerdo interno.
-- Casos y seguimiento para estudiantes.
-- Gestion de casos para integrantes CEAL.
 - Biblioteca academica con busqueda, filtros, subida y descarga local de archivos.
 - Mallas interactivas Plan O Catalogo 2016 y Plan P Catalogo 2025.
 - Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
@@ -59,6 +57,7 @@ data/curricula.js
 - `src/mock-data.js`: semilla estatica para GitHub Pages y fallback sin servidor.
 - `server.mjs`: API local con persistencia en `.data/portal-db.json`.
 - `.data/`: estado runtime local, ignorado por git.
+- `src/config.js`: Client ID publico de Google Identity Services para GitHub Pages.
 
 Endpoints principales:
 
@@ -66,6 +65,7 @@ Endpoints principales:
 - `/api/auth/members`
 - `/api/auth/setup`
 - `/api/auth/login`
+- `/api/auth/google`
 - `/api/communications`
 - `/api/cases`
 - `/api/materials`
@@ -73,7 +73,32 @@ Endpoints principales:
 - `/api/events`
 - `/api/saved`
 
-Las contrasenas CEAL se guardan hasheadas con sal y no se exponen por API.
+El backend verifica Google ID tokens con la libreria oficial `google-auth-library`, revisando audiencia, firma, expiracion, correo verificado y `hd=alumnos.ucn.cl`. Las contrasenas locales CEAL quedan solo como contingencia local/QA y se guardan hasheadas con sal.
+
+## Google UCN
+
+1. Crear un OAuth Client ID tipo Web en Google Cloud.
+2. Agregar como JavaScript origins:
+
+```txt
+https://ceicucn.cl
+https://ic-ucn.github.io
+http://localhost:8080
+http://localhost:18080
+```
+
+3. Configurar `src/config.js`:
+
+```js
+window.PORTAL_GOOGLE_CLIENT_ID = 'CLIENT_ID.apps.googleusercontent.com';
+```
+
+4. Si se usa `server.mjs`, arrancar con la misma variable:
+
+```powershell
+$env:PORTAL_GOOGLE_CLIENT_ID='CLIENT_ID.apps.googleusercontent.com'
+npm run serve
+```
 
 ## Verificacion
 
@@ -83,4 +108,4 @@ npm run quality
 node scripts\qa-portal.mjs
 ```
 
-La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, casos, acuerdos, comunicados y Gestion CEAL.
+La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, acuerdos, comunicados y Gestion CEAL.

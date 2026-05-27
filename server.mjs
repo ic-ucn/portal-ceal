@@ -4,12 +4,16 @@ import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { OAuth2Client } from 'google-auth-library';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
 const dataDir = path.join(root, '.data');
 const dbPath = process.env.PORTAL_DB_PATH || path.join(dataDir, 'portal-db.json');
 const port = Number(process.env.PORT || 8080);
+const googleClientId = process.env.PORTAL_GOOGLE_CLIENT_ID || '';
+const googleDomain = process.env.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
+const googleOAuthClient = new OAuth2Client(googleClientId || undefined);
 
 const collectionMap = {
   communications: 'communications',
@@ -189,6 +193,66 @@ function findMember(db, memberId) {
   return (db.data.cealMembers || []).find(member => member.id === memberId || member.username === memberId || member.email === memberId);
 }
 
+function findMemberByEmail(db, email) {
+  const normalized = asText(email).toLowerCase();
+  return (db.data.cealMembers || []).find(member => asText(member.email).toLowerCase() === normalized);
+}
+
+function initialsFromName(name, fallback = 'UC') {
+  const parts = asText(name, fallback).split(/\s+/).filter(Boolean);
+  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) || fallback).toUpperCase();
+}
+
+function studentFromGoogle(payload) {
+  const email = asText(payload.email).toLowerCase();
+  const name = asText(payload.name) || email.split('@')[0].split(/[._-]+/).filter(Boolean).map(part => part[0]?.toUpperCase() + part.slice(1)).join(' ') || 'Estudiante UCN';
+  return {
+    id: `google:${payload.sub}`,
+    name,
+    initials: initialsFromName(name, 'EU'),
+    role: 'student',
+    label: 'Estudiante',
+    plan: 'planP',
+    yearLabel: 'Cuenta UCN',
+    email,
+    picture: payload.picture || '',
+    authProvider: 'google',
+    googleSub: payload.sub,
+    permissions: []
+  };
+}
+
+async function verifyGoogleCredential(credential) {
+  if (!googleClientId) {
+    const err = new Error('google client id not configured');
+    err.statusCode = 503;
+    throw err;
+  }
+  const ticket = await googleOAuthClient.verifyIdToken({
+    idToken: credential,
+    audience: googleClientId
+  });
+  const payload = ticket.getPayload();
+  const email = asText(payload?.email).toLowerCase();
+  const hostedDomain = asText(payload?.hd).toLowerCase();
+  if (!payload?.sub || !email) {
+    const err = new Error('invalid google identity');
+    err.statusCode = 401;
+    throw err;
+  }
+  if (payload.email_verified !== true && payload.email_verified !== 'true') {
+    const err = new Error('google email is not verified');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (hostedDomain !== googleDomain || !email.endsWith(`@${googleDomain}`)) {
+    const err = new Error(`only ${googleDomain} accounts are allowed`);
+    err.statusCode = 403;
+    throw err;
+  }
+  return payload;
+}
+
 function nextNumericId(items, prefix) {
   const used = items
     .map(item => String(item.id || '').replace(prefix, ''))
@@ -285,6 +349,24 @@ async function handleApi(req, res, url) {
         return sendError(res, 401, 'invalid credentials');
       }
       return sendJson(res, 200, { ok: true, user: publicMember(member) });
+    }
+
+    if (id === 'google' && req.method === 'POST') {
+      const body = await readBody(req);
+      const role = asText(body.role, 'student');
+      const credential = asText(body.credential);
+      if (!credential) return sendError(res, 422, 'google credential is required');
+      try {
+        const payload = await verifyGoogleCredential(credential);
+        if (role === 'ceal') {
+          const member = findMemberByEmail(db, payload.email);
+          if (!member) return sendError(res, 403, 'google account is not registered as CEAL');
+          return sendJson(res, 200, { ok: true, user: { ...publicMember(member), authProvider: 'google', googleSub: payload.sub, picture: payload.picture || '' } });
+        }
+        return sendJson(res, 200, { ok: true, user: studentFromGoogle(payload) });
+      } catch (error) {
+        return sendError(res, error.statusCode || 401, error.message || 'invalid google credential');
+      }
     }
 
     return sendError(res, 404, 'unknown auth action');

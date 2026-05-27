@@ -1,0 +1,2 @@
+window.PORTAL_GOOGLE_DOMAIN = window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
+window.PORTAL_GOOGLE_CLIENT_ID = window.PORTAL_GOOGLE_CLIENT_ID || '';

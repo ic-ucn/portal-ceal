@@ -4,10 +4,14 @@
   const Curricula = window.CURRICULA;
   const LOCAL_DATA_KEY = 'portal.data.v4';
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
+  const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
+  const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
   let dataMode = API_BASE ? 'backend' : 'static';
   let hasRendered = false;
+  let googleInitialized = false;
+  let googleRenderTimer = null;
 
   const state = {
     user: loadSession(),
@@ -30,6 +34,7 @@
     mallaFocus: localStorage.getItem('portal.malla.focus') === '1',
     loginMemberId: null,
     authMessage: '',
+    googleRole: 'student',
     toast: null
   };
 
@@ -154,6 +159,7 @@
   function cealMembers() { return Data.cealMembers || []; }
   function getCealMember(id) { return cealMembers().find(m => m.id === id) || cealMembers()[0]; }
   function buildMemberUser(member) { return { ...member, role: 'ceal', label: member.roleName || member.label, permissions: member.permissions || [] }; }
+  function isLocalAuthAllowed() { return !GOOGLE_CLIENT_ID || ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || new URLSearchParams(location.search).has('qa'); }
   function localPasswordMap() { try { return JSON.parse(localStorage.getItem('portal.ceal.passwords') || '{}'); } catch { return {}; } }
   function saveLocalPasswordMap(map) { localStorage.setItem('portal.ceal.passwords', JSON.stringify(map)); }
   function memberHasPassword(member) { return Boolean(member?.passwordSet || localPasswordMap()[member?.id]?.passwordHash); }
@@ -187,6 +193,54 @@
     const stored = localPasswordMap()[memberId];
     if (!member || !stored || stored.passwordHash !== await sha256Text(`${memberId}:${password}`)) throw new Error('Contrasena incorrecta.');
     return buildMemberUser(member);
+  }
+  function decodeJwtPayload(token) {
+    const part = String(token || '').split('.')[1];
+    if (!part) throw new Error('Respuesta Google invalida.');
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    return JSON.parse(decodeURIComponent([...atob(base64)].map(ch => `%${ch.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')));
+  }
+  function initialsFromName(name, fallback = 'UC') {
+    const parts = String(name || fallback).trim().split(/\s+/).filter(Boolean);
+    return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) || fallback).toUpperCase();
+  }
+  function studentFromGoogle(payload) {
+    const email = String(payload.email || '').toLowerCase();
+    const name = payload.name || email.split('@')[0].split(/[._-]+/).filter(Boolean).map(part => part[0]?.toUpperCase() + part.slice(1)).join(' ') || 'Estudiante UCN';
+    return { id: `google:${payload.sub}`, name, initials: initialsFromName(name, 'EU'), role: 'student', label: 'Estudiante', plan: 'planP', yearLabel: 'Cuenta UCN', email, picture: payload.picture || '', authProvider: 'google', googleSub: payload.sub, permissions: [] };
+  }
+  function validateGooglePayload(payload) {
+    const email = String(payload?.email || '').toLowerCase();
+    if (!payload?.sub || !email) throw new Error('No se pudo leer la cuenta Google.');
+    if (payload.aud && payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Esta credencial Google no pertenece al portal.');
+    if (payload.email_verified !== true && payload.email_verified !== 'true') throw new Error('El correo Google no esta verificado.');
+    if (String(payload.hd || '').toLowerCase() !== GOOGLE_DOMAIN || !email.endsWith(`@${GOOGLE_DOMAIN}`)) throw new Error(`Usa tu cuenta @${GOOGLE_DOMAIN}.`);
+    return payload;
+  }
+  async function loginGoogle(role, credential) {
+    if (API_BASE) {
+      const payload = await apiRequest('/auth/google', { method: 'POST', body: JSON.stringify({ role, credential }) });
+      if (payload.user) return payload.user;
+    }
+    const payload = validateGooglePayload(decodeJwtPayload(credential));
+    if (role === 'ceal') {
+      const member = cealMembers().find(m => String(m.email || '').toLowerCase() === String(payload.email || '').toLowerCase());
+      if (!member) throw new Error('Esta cuenta Google no esta registrada como CEAL.');
+      return { ...buildMemberUser(member), authProvider: 'google', googleSub: payload.sub, picture: payload.picture || '' };
+    }
+    return studentFromGoogle(payload);
+  }
+  async function handleGoogleCredential(response) {
+    const role = state.googleRole || 'student';
+    try {
+      const user = await loginGoogle(role, response?.credential);
+      state.authMessage = '';
+      saveSession(user);
+      routeTo(role === 'ceal' ? '/gestion' : '/');
+    } catch (err) {
+      state.authMessage = err.message || 'No se pudo iniciar con Google.';
+      render({ transition: true, scope: 'panel' });
+    }
   }
   function readFileDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -278,27 +332,74 @@
   }
   function afterRender() {
     hydrateMallaEmbed();
+    if (getRoute().path === '/login') scheduleGoogleButtons();
+  }
+  function scheduleGoogleButtons(retry = 0) {
+    clearTimeout(googleRenderTimer);
+    if (!GOOGLE_CLIENT_ID) return;
+    googleRenderTimer = setTimeout(() => {
+      if (!window.google?.accounts?.id) {
+        if (retry < 20) scheduleGoogleButtons(retry + 1);
+        return;
+      }
+      if (!googleInitialized) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+          hd: GOOGLE_DOMAIN,
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
+        googleInitialized = true;
+      }
+      document.querySelectorAll('[data-google-button]').forEach(el => {
+        if (el.dataset.googleRendered === '1') return;
+        el.dataset.googleRendered = '1';
+        window.google.accounts.id.renderButton(el, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+          locale: 'es_419',
+          width: Math.min(360, Math.max(220, Math.round(el.getBoundingClientRect().width || 320))),
+          click_listener: () => { state.googleRole = el.dataset.googleButton || 'student'; state.authMessage = ''; }
+        });
+      });
+    }, retry ? 180 : 0);
   }
   function renderLogin() {
     const members = cealMembers();
     const selectedId = state.loginMemberId || members[0]?.id || '';
     const selected = getCealMember(selectedId);
     const needsSetup = selected ? !memberHasPassword(selected) : false;
+    const googleConfigured = Boolean(GOOGLE_CLIENT_ID);
+    const localAuth = isLocalAuthAllowed();
+    const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar los botones oficiales.</span></div>`;
+    const localStudent = localAuth ? `<button class="btn secondary full local-auth-btn" data-login-role="student" type="button">Entrar local como estudiante</button>` : '';
+    const localCeal = localAuth ? `<form class="local-ceal-form" data-form="ceal-login"><div class="form-field compact"><label>Integrante</label><select class="select" name="memberId" data-login-member required>${members.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)} - ${esc(m.roleName || m.label)}</option>`).join('')}</select></div><div class="form-grid tight"><div class="form-field compact"><label>${needsSetup ? 'Nueva contrasena' : 'Contrasena'}</label><input class="input" type="password" name="password" minlength="8" required /></div>${needsSetup ? '<div class="form-field compact"><label>Repetir contrasena</label><input class="input" type="password" name="confirm" minlength="8" required /></div>' : ''}</div><button class="btn secondary full" type="submit">${needsSetup ? 'Crear contrasena local' : 'Entrar local CEAL'}</button></form>` : '';
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingenieria Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingenieria Civil UCN.</p></div></div>
-      <div class="login-form"><span class="eyebrow">Acceso</span><h2>Entrar al portal</h2><p>Elige el perfil que usaras en esta sesion.</p>
-        <div class="role-grid login-access-grid">
-          <button class="role-card" data-login-role="student"><span class="role-icon">${icon('user')}</span><span><strong>Estudiante</strong><span>Consulta material, mallas, fechas y comunicados.</span></span>${icon('arrow')}</button>
-          <form class="ceal-login-card" data-form="ceal-login">
-            <span class="role-icon">${icon('settings')}</span>
-            <div class="ceal-login-body">
-              <div class="ceal-login-heading"><strong>Miembro CEAL</strong><span>Gestiona contenidos, acuerdos y material.</span></div>
-              <div class="form-field compact"><label>Integrante</label><select class="select" name="memberId" data-login-member required>${members.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)} - ${esc(m.roleName || m.label)}</option>`).join('')}</select></div>
-              <div class="form-grid tight"><div class="form-field compact"><label>${needsSetup ? 'Nueva contrasena' : 'Contrasena'}</label><input class="input" type="password" name="password" minlength="8" required /></div>${needsSetup ? '<div class="form-field compact"><label>Repetir contrasena</label><input class="input" type="password" name="confirm" minlength="8" required /></div>' : ''}</div>
-              <p class="small muted">${needsSetup ? 'Primer ingreso: crea tu contrasena personal.' : 'Usa tu contrasena del portal.'}</p>${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
-              <button class="btn primary full" type="submit">${needsSetup ? 'Crear contrasena e ingresar' : 'Ingresar como miembro CEAL'}</button>
+      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h2>Entrar al portal</h2><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
+        ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
+        <div class="google-login-grid">
+          <section class="google-login-card">
+            <span class="role-icon">${icon('user')}</span>
+            <div class="google-login-body">
+              <div><strong>Estudiante</strong><span>Material, mallas, calendario y comunicados.</span></div>
+              <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="student">${googleConfigured ? '' : '<span>Google UCN</span>'}</div>
+              ${localStudent}
             </div>
-          </form>
+          </section>
+          <section class="google-login-card">
+            <span class="role-icon">${icon('settings')}</span>
+            <div class="google-login-body">
+              <div><strong>Miembro CEAL</strong><span>Acceso interno segun correo registrado.</span></div>
+              <div class="google-button-slot ${googleConfigured ? '' : 'is-disabled'}" data-google-button="ceal">${googleConfigured ? '' : '<span>Google CEAL</span>'}</div>
+              ${localCeal}
+            </div>
+          </section>
         </div>
       </div></section></main>`;
   }
@@ -644,7 +745,7 @@
   async function onClick(e) {
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
     if (role === 'student') { saveSession(Data.users.student); routeTo('/'); return; }
-    if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
+    if (e.target.closest('[data-logout]')) { window.google?.accounts?.id?.disableAutoSelect?.(); localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
