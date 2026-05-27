@@ -11,6 +11,8 @@
   const mallaEmbedCache = {};
   let dataMode = API_BASE ? 'backend' : 'static';
   let hasRendered = false;
+  let lastRenderedRouteKey = '';
+  let pendingScrollReset = false;
   let googleInitialized = false;
   let googleRenderTimer = null;
 
@@ -128,7 +130,7 @@
   function plain(v) { return tx(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
-  function routeTo(path) { window.location.hash = path; }
+  function routeTo(path) { pendingScrollReset = true; window.location.hash = path; }
   function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
   function getRoute() {
     const raw = window.location.hash.replace(/^#/, '') || '/';
@@ -357,16 +359,31 @@
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && path.startsWith('/gestion/casos/')) return routeTo('/gestion');
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
+    return true;
   }
   function render(options = {}) {
     const opts = options instanceof Event ? { transition: true, scope: 'route' } : options;
     const scope = opts.scope || 'state';
+    const routeKey = window.location.hash || '#/';
     const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
     if (shouldAnimate) app.dataset.motionScope = scope;
-    paint();
+    if (!paint()) return;
     afterRender();
+    const shouldResetScroll = opts.resetScroll !== false && (pendingScrollReset || scope === 'route' || routeKey !== lastRenderedRouteKey);
+    lastRenderedRouteKey = routeKey;
+    pendingScrollReset = false;
+    if (shouldResetScroll) resetPageScroll();
     hasRendered = true;
     if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
+  }
+  function resetPageScroll() {
+    const apply = () => {
+      const scrollers = [document.scrollingElement, document.documentElement, document.body, app.querySelector('.app-main'), app.querySelector('.content')].filter(Boolean);
+      scrollers.forEach(el => { el.scrollTop = 0; el.scrollLeft = 0; });
+      window.scrollTo(0, 0);
+    };
+    apply();
+    requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
   }
   function afterRender() {
     hydrateMallaEmbed();
