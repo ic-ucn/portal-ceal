@@ -2,7 +2,7 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const LOCAL_DATA_KEY = 'portal.data.v4';
+  const LOCAL_DATA_KEY = 'portal.data.v5';
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
