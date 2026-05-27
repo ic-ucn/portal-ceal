@@ -198,6 +198,26 @@ function findMemberByEmail(db, email) {
   return (db.data.cealMembers || []).find(member => asText(member.email).toLowerCase() === normalized);
 }
 
+function markMemberGoogleLogin(member, payload) {
+  const now = new Date().toISOString();
+  member.googleSub ||= payload.sub;
+  member.picture = payload.picture || member.picture || '';
+  member.firstLoginAt ||= now;
+  member.lastLoginAt = now;
+  member.loginCount = Number(member.loginCount || 0) + 1;
+  member.onboarded = true;
+  return member;
+}
+
+function memberGoogleUser(member, payload) {
+  return {
+    ...publicMember(member),
+    authProvider: 'google',
+    googleSub: payload.sub,
+    picture: payload.picture || member.picture || ''
+  };
+}
+
 function initialsFromName(name, fallback = 'UC') {
   const parts = asText(name, fallback).split(/\s+/).filter(Boolean);
   return (parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) || fallback).toUpperCase();
@@ -358,12 +378,14 @@ async function handleApi(req, res, url) {
       if (!credential) return sendError(res, 422, 'google credential is required');
       try {
         const payload = await verifyGoogleCredential(credential);
-        if (role === 'ceal') {
-          const member = findMemberByEmail(db, payload.email);
-          if (!member) return sendError(res, 403, 'google account is not registered as CEAL');
-          return sendJson(res, 200, { ok: true, user: { ...publicMember(member), authProvider: 'google', googleSub: payload.sub, picture: payload.picture || '' } });
+        const member = findMemberByEmail(db, payload.email);
+        if (member) {
+          markMemberGoogleLogin(member, payload);
+          await writeDb(db);
+          return sendJson(res, 200, { ok: true, user: memberGoogleUser(member, payload), cealRegistered: true });
         }
-        return sendJson(res, 200, { ok: true, user: studentFromGoogle(payload) });
+        if (role === 'ceal') return sendError(res, 403, 'google account is not registered as CEAL');
+        return sendJson(res, 200, { ok: true, user: studentFromGoogle(payload), cealRegistered: false });
       } catch (error) {
         return sendError(res, error.statusCode || 401, error.message || 'invalid google credential');
       }

@@ -6,6 +6,7 @@
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
+  const QA_MODE = new URLSearchParams(location.search).has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
   let dataMode = API_BASE ? 'backend' : 'static';
@@ -163,7 +164,30 @@
   function cealMembers() { return Data.cealMembers || []; }
   function getCealMember(id) { return cealMembers().find(m => m.id === id) || cealMembers()[0]; }
   function buildMemberUser(member) { return { ...member, role: 'ceal', label: member.roleName || member.label, permissions: member.permissions || [] }; }
-  function isLocalAuthAllowed() { return !GOOGLE_CLIENT_ID || ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || new URLSearchParams(location.search).has('qa'); }
+  function findCealMemberByEmail(email) {
+    const normalized = String(email || '').toLowerCase();
+    return cealMembers().find(m => String(m.email || '').toLowerCase() === normalized);
+  }
+  function markCealGoogleLogin(member, payload) {
+    const now = new Date().toISOString();
+    member.googleSub ||= payload.sub;
+    member.picture = payload.picture || member.picture || '';
+    member.firstLoginAt ||= now;
+    member.lastLoginAt = now;
+    member.loginCount = Number(member.loginCount || 0) + 1;
+    member.onboarded = true;
+    persistSnapshot();
+    return {
+      ...buildMemberUser(member),
+      authProvider: 'google',
+      googleSub: payload.sub,
+      picture: payload.picture || member.picture || '',
+      firstLoginAt: member.firstLoginAt,
+      lastLoginAt: member.lastLoginAt,
+      loginCount: member.loginCount
+    };
+  }
+  function isLocalAuthAllowed() { return !GOOGLE_CLIENT_ID || ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || QA_MODE; }
   function localPasswordMap() { try { return JSON.parse(localStorage.getItem('portal.ceal.passwords') || '{}'); } catch { return {}; } }
   function saveLocalPasswordMap(map) { localStorage.setItem('portal.ceal.passwords', JSON.stringify(map)); }
   function memberHasPassword(member) { return Boolean(member?.passwordSet || localPasswordMap()[member?.id]?.passwordHash); }
@@ -227,11 +251,9 @@
       if (payload.user) return payload.user;
     }
     const payload = validateGooglePayload(decodeJwtPayload(credential));
-    if (role === 'ceal') {
-      const member = cealMembers().find(m => String(m.email || '').toLowerCase() === String(payload.email || '').toLowerCase());
-      if (!member) throw new Error('Esta cuenta Google no está registrada como CEAL.');
-      return { ...buildMemberUser(member), authProvider: 'google', googleSub: payload.sub, picture: payload.picture || '' };
-    }
+    const member = findCealMemberByEmail(payload.email);
+    if (member) return markCealGoogleLogin(member, payload);
+    if (role === 'ceal') throw new Error('Esta cuenta Google no está registrada como CEAL.');
     return studentFromGoogle(payload);
   }
   async function handleGoogleCredential(response) {
@@ -340,7 +362,7 @@
   }
   function scheduleGoogleButtons(retry = 0) {
     clearTimeout(googleRenderTimer);
-    if (!GOOGLE_CLIENT_ID) return;
+    if (!GOOGLE_CLIENT_ID || QA_MODE) return;
     googleRenderTimer = setTimeout(() => {
       if (!window.google?.accounts?.id) {
         if (retry < 20) scheduleGoogleButtons(retry + 1);
@@ -374,7 +396,7 @@
     }, retry ? 180 : 0);
   }
   function renderLogin() {
-    const googleConfigured = Boolean(GOOGLE_CLIENT_ID);
+    const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
     const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar los botones oficiales.</span></div>`;
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingeniería Civil UCN.</p></div></div>
