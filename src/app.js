@@ -739,9 +739,11 @@
   function buildMallaSrcdoc(html, plan, theme) {
     const bootstrap = `<base href="${MALLA_BASE_URL}"><script>try{localStorage.setItem('mc-theme','${theme}');}catch(e){}document.documentElement.classList.toggle('mc-light','${theme}'==='light');<\/script>`;
     const styles = `<style>${mallaEmbedThemeStyles(theme, plan)}</style>`;
+    const guidance = mallaEmbedGuidanceScript();
     return html
       .replace(/<head>/i, `<head>${bootstrap}`)
-      .replace(/<\/head>/i, `${styles}</head>`);
+      .replace(/<\/head>/i, `${styles}</head>`)
+      .replace(/<\/body>/i, `${guidance}</body>`);
   }
   function mallaEmbedThemeStyles(theme, plan) {
     const isDark = theme === 'dark';
@@ -812,12 +814,195 @@
         border-radius: 8px !important;
       }
       .mc-grid::-webkit-scrollbar-thumb { background:${isDark ? '#28547f' : '#bfd0e3'}; }
+      .mc-portal-scroll-hint {
+        position: fixed;
+        left: 50%;
+        z-index: 360;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 34px;
+        max-width: calc(100vw - 24px);
+        padding: 7px 12px;
+        border: 1px solid ${isDark ? 'rgba(215,226,238,.18)' : 'rgba(191,208,227,.95)'};
+        border-radius: 999px;
+        background: ${isDark ? 'rgba(9,39,71,.9)' : 'rgba(255,255,255,.94)'};
+        color: ${isDark ? '#d7e2ee' : '#17365f'};
+        box-shadow: 0 10px 30px ${isDark ? 'rgba(0,0,0,.24)' : 'rgba(15,23,42,.12)'};
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        font-size: .72rem;
+        font-weight: 820;
+        line-height: 1;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 150ms ease, transform 180ms cubic-bezier(0,0,0.2,1);
+      }
+      .mc-portal-scroll-hint--top {
+        top: 58px;
+        transform: translate(-50%, -8px);
+      }
+      .mc-portal-scroll-hint--bottom {
+        bottom: 70px;
+        transform: translate(-50%, 8px);
+      }
+      .mc-portal-scroll-hint.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate(-50%, 0);
+      }
+      .mc-portal-scroll-hint__arrow {
+        color: ${planAccent};
+        font-size: .9rem;
+        line-height: 1;
+      }
+      .mc-portal-scroll-hint__label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       @media (max-width: 640px) {
         .mc-header { height: 52px; padding: 0 10px; }
         .mc-grid { min-height: calc(100vh - 52px); padding: 8px 8px 14px !important; }
         .mc-footer { padding-bottom: 12px; }
       }
+      @media (min-width: 641px) {
+        .mc-portal-scroll-hint { display:none !important; }
+      }
     `;
+  }
+  function mallaEmbedGuidanceScript() {
+    return `<script>
+      (function() {
+        var mq = window.matchMedia ? window.matchMedia('(max-width: 640px)') : { matches: false };
+        var topHint = null;
+        var bottomHint = null;
+        var hideTimer = null;
+        var activeCode = null;
+        function ensureHint(direction) {
+          var el = direction === 'top' ? topHint : bottomHint;
+          if (el) return el;
+          el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'mc-portal-scroll-hint mc-portal-scroll-hint--' + direction;
+          el.setAttribute('aria-hidden', 'true');
+          el.innerHTML = '<span class="mc-portal-scroll-hint__arrow">' + (direction === 'top' ? '↑' : '↓') + '</span><span class="mc-portal-scroll-hint__label"></span>';
+          el.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            scrollToRelated(direction);
+          });
+          document.body.appendChild(el);
+          if (direction === 'top') topHint = el;
+          else bottomHint = el;
+          return el;
+        }
+        function hideHints() {
+          [topHint, bottomHint].forEach(function(el) {
+            if (!el) return;
+            el.classList.remove('is-visible');
+            el.setAttribute('aria-hidden', 'true');
+          });
+        }
+        function labelFor(flags, direction) {
+          if (flags.prereq && flags.successor) return 'Relaciones ' + (direction === 'top' ? 'arriba' : 'abajo');
+          if (flags.prereq) return 'Requisitos ' + (direction === 'top' ? 'arriba' : 'abajo');
+          if (flags.successor) return 'Ramos que abre ' + (direction === 'top' ? 'arriba' : 'abajo');
+          return '';
+        }
+        function setHint(direction, flags) {
+          var label = labelFor(flags, direction);
+          var el = ensureHint(direction);
+          el.querySelector('.mc-portal-scroll-hint__label').textContent = label;
+          el.classList.toggle('is-visible', Boolean(label));
+          el.setAttribute('aria-hidden', label ? 'false' : 'true');
+        }
+        function cardByCode(code) {
+          var cards = document.querySelectorAll('.mc-card[data-mc-code]');
+          for (var i = 0; i < cards.length; i++) {
+            if (cards[i].dataset.mcCode === code) return cards[i];
+          }
+          return null;
+        }
+        function relatedCards() {
+          var MC = window.__MC;
+          var items = [];
+          if (activeCode && MC) {
+            (MC.getDirectPrereqs?.(activeCode) || []).forEach(function(code) {
+              var el = cardByCode(code);
+              if (el) items.push({ el: el, kind: 'prereq' });
+            });
+            (MC.getDirectDependents?.(activeCode) || []).forEach(function(code) {
+              var el = cardByCode(code);
+              if (el) items.push({ el: el, kind: 'successor' });
+            });
+            return items;
+          }
+          return Array.prototype.slice.call(document.querySelectorAll('.mc-card--highlight-prereq, .mc-card--highlight-successor')).map(function(el) {
+            return { el: el, kind: el.classList.contains('mc-card--highlight-prereq') ? 'prereq' : 'successor' };
+          });
+        }
+        function isModalOpen() {
+          var modal = document.getElementById('mc-modal-overlay');
+          return modal && modal.classList.contains('mc-modal-overlay--visible');
+        }
+        function updateHints() {
+          if (!mq.matches || isModalOpen()) {
+            hideHints();
+            return;
+          }
+          var selected = activeCode || document.querySelector('.mc-card--highlight-self[data-mc-code]')?.dataset.mcCode;
+          if (!selected) {
+            hideHints();
+            return;
+          }
+          var topLimit = 56;
+          var bottomLimit = window.innerHeight - 76;
+          var topFlags = { prereq: false, successor: false };
+          var bottomFlags = { prereq: false, successor: false };
+          relatedCards().forEach(function(item) {
+            var rect = item.el.getBoundingClientRect();
+            var kind = item.kind;
+            if (rect.bottom < topLimit) topFlags[kind] = true;
+            else if (rect.top > bottomLimit) bottomFlags[kind] = true;
+          });
+          setHint('top', topFlags);
+          setHint('bottom', bottomFlags);
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(updateHints, 450);
+        }
+        function scrollToRelated(direction) {
+          var topLimit = 56;
+          var bottomLimit = window.innerHeight - 76;
+          var candidates = relatedCards().filter(function(item) {
+            var rect = item.el.getBoundingClientRect();
+            return direction === 'top' ? rect.bottom < topLimit : rect.top > bottomLimit;
+          });
+          if (!candidates.length) return;
+          candidates.sort(function(a, b) {
+            var ar = a.el.getBoundingClientRect();
+            var br = b.el.getBoundingClientRect();
+            return direction === 'top' ? br.bottom - ar.bottom : ar.top - br.top;
+          });
+          candidates[0].el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          setTimeout(updateHints, 360);
+        }
+        document.addEventListener('click', function(e) {
+          var card = e.target.closest?.('.mc-card[data-mc-code]');
+          if (card) activeCode = card.dataset.mcCode;
+          else if (!e.target.closest?.('.mc-portal-scroll-hint') && !e.target.closest?.('.mc-peek')) activeCode = null;
+          setTimeout(updateHints, 90);
+        }, true);
+        document.addEventListener('touchend', function() { setTimeout(updateHints, 120); }, { passive: true });
+        window.addEventListener('scroll', updateHints, { passive: true });
+        var grid = document.getElementById('mc-grid');
+        if (grid) grid.addEventListener('scroll', updateHints, { passive: true });
+        if (mq.addEventListener) mq.addEventListener('change', updateHints);
+        else if (mq.addListener) mq.addListener(updateHints);
+        setTimeout(updateHints, 400);
+      })();
+    <\/script>`;
   }
   function courseCard(plan, c, selected = null, selectedCodes = new Set()) {
     const isSelected = selected?.code === c.code;
