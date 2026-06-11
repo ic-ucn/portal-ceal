@@ -6,6 +6,8 @@ Este flujo sirve para inventariar carpetas compartidas, revisar privacidad y pre
 
 La carpeta personal no debe compartirse directamente. El importador solo la usa como fuente de trabajo local.
 
+El contenido de esa carpeta sirve para el portal, excepto pautas, resoluciones, resueltos, soluciones y desarrollos equivalentes.
+
 En esa carpeta quedan bloqueados para publicacion los archivos cuyo nombre o ruta parezcan:
 
 - pauta
@@ -14,7 +16,7 @@ En esa carpeta quedan bloqueados para publicacion los archivos cuyo nombre o rut
 - desarrollo / desarrollado
 - respuesta
 
-Lo demas queda como candidato, pero marcado con revision obligatoria antes de subirlo al portal.
+Lo demas queda como candidato. Si el importador puede inferir ramo y tipo de material con claridad, queda en `upload-ready.csv`; si falta contexto, queda en revision manual.
 
 ## Preparacion
 
@@ -69,7 +71,7 @@ Genera una carpeta nueva en `.data/drive-imports/` con:
 - `manifest.json`: inventario completo en JSON.
 - `portal-candidates.csv`: archivos candidatos para el portal.
 - `upload-ready.csv`: candidatos con ramo y tipo claros, sin bloqueo ni revision pendiente.
-- `private-candidates-review.csv`: candidatos desde carpeta personal para confirmar antes de publicar.
+- `private-candidates-review.csv`: candidatos desde carpeta personal que todavia requieren revision.
 - `review-required.csv`: candidatos que requieren revision manual.
 - `blocked-private.csv`: bloqueados por regla de carpeta personal.
 

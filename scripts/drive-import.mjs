@@ -332,10 +332,10 @@ function computePrivacy(folder, item, materialType, searchText) {
 
   if (isPrivate) {
     return {
-      privacy_action: 'revisar',
-      privacy_reason: 'Carpeta personal: permitido solo tras revision de nombre/contenido.',
+      privacy_action: 'candidato',
+      privacy_reason: 'Carpeta personal autorizada excepto pautas, resoluciones, resueltos y soluciones.',
       portal_candidate: true,
-      review_required: true
+      review_required: false
     };
   }
 
