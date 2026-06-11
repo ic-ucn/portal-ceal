@@ -272,7 +272,7 @@ window.PortalMock = (() => {
   const notifications = [
     { id: 'not-001', title: 'Mallas disponibles', detail: 'Plan O y Plan P están integrados en la vista inmersiva.', date: 'Hoy, 10:15', unread: true, route: '/mallas' },
     { id: 'not-002', title: 'Fecha próxima', detail: 'Pleno CEAL · 28 may, 15:30.', date: 'Hoy, 09:30', unread: true, route: '/calendario' },
-    { id: 'not-003', title: 'Material en revisión', detail: 'Guía de Programación enviada a validación CEAL.', date: 'Ayer, 18:40', unread: true, route: '/material/mat-010' }
+    { id: 'not-003', title: 'Material en revisión', detail: 'Biblioteca actualizada con recursos validados por ramo.', date: 'Ayer, 18:40', unread: true, route: '/material' }
   ];
 
   const saved = {
@@ -306,7 +306,15 @@ window.PortalMock = (() => {
 
   const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
   const driveIds = new Set(driveResources.map((item) => item.id));
-  const allResources = [...driveResources, ...resources.filter((item) => !driveIds.has(item.id))];
+  const allResources = driveResources.length
+    ? driveResources
+    : resources.filter((item) => !driveIds.has(item.id));
+  const savedState = driveResources.length
+    ? { ...saved, resources: saved.resources.filter((id) => driveIds.has(id)) }
+    : saved;
+  const tutoringState = driveResources.length
+    ? tutoring.map((item) => ({ ...item, materialId: driveResources.find((resource) => resource.courseCode === item.courseCode)?.id || '' }))
+    : tutoring;
 
-  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring, procedures, faqs, notifications, saved, gestion };
+  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, faqs, notifications, saved: savedState, gestion };
 })();

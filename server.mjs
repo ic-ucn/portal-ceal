@@ -128,6 +128,7 @@ function ensureDbShape(db, seed) {
   }
   const seedResources = Array.isArray(seed.data.resources) ? seed.data.resources : [];
   const resources = Array.isArray(db.data.resources) ? db.data.resources : [];
+  const hasDriveSeed = seedResources.some(resource => resource.source === 'drive');
   const resourceById = new Map(resources.map(resource => [resource.id, resource]));
   for (const seedResource of seedResources) {
     const existing = resourceById.get(seedResource.id);
@@ -138,9 +139,10 @@ function ensureDbShape(db, seed) {
     }
   }
   const driveIds = new Set(seedResources.filter(resource => resource.source === 'drive').map(resource => resource.id));
+  if (hasDriveSeed) db.data.saved.resources = db.data.saved.resources.filter(id => driveIds.has(id));
   db.data.resources = [
     ...resources.filter(resource => driveIds.has(resource.id)),
-    ...resources.filter(resource => !driveIds.has(resource.id))
+    ...resources.filter(resource => !driveIds.has(resource.id) && !(hasDriveSeed && /^mat-\d{3}$/.test(resource.id || '')))
   ];
   db.data.resources = db.data.resources.filter(resource => !/demo|prueba funcional/i.test([resource.title, resource.origin, resource.description, resource.size].join(' ')));
   db.data.cases = db.data.cases.filter(item => !/demo|prueba avanzada/i.test([item.title, item.summary].join(' ')));

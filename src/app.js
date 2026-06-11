@@ -174,7 +174,10 @@
     if (!driveResources.length) return;
     const driveIds = new Set(driveResources.map((item) => item.id));
     const localResources = Array.isArray(Data.resources) ? Data.resources : [];
-    Data.resources = [...driveResources, ...localResources.filter((item) => !driveIds.has(item.id))];
+    Data.resources = [...driveResources, ...localResources.filter((item) => !driveIds.has(item.id) && !/^mat-\d{3}$/.test(item.id || ''))];
+    Data.saved ||= { resources: [], courses: [], reminders: [] };
+    Data.saved.resources ||= [];
+    Data.saved.resources = (Data.saved.resources || []).filter((id) => driveIds.has(id));
   }
   function fmtDate(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
   function fmtTime(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); }
@@ -1078,7 +1081,8 @@
   function renderTutoringDetail(id) {
     const t = Data.tutoring.find(x => x.id === id);
     const reminderAction = isGuest() ? '' : `<button class="btn primary" data-save-reminder="${esc(t?.id || '')}">${icon('bell')} Guardar recordatorio</button>`;
-    return t ? `${pageHead(t.title, `${t.courseName} - ${fmtDate(t.date)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad"><h2 class="card-title">Detalle de ayudantía</h2><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(t.courseName)}</strong></div><div class="detail-row"><span>Hora</span><strong>${esc(t.time)}</strong></div><div class="detail-row"><span>Lugar</span><strong>${esc(t.location)}</strong></div><div class="detail-row"><span>Ayudante</span><strong>${esc(t.tutor)}</strong></div></div><div class="hstack">${reminderAction}<a class="btn secondary" href="#/material/${t.materialId}">Ver material</a></div></section><aside class="card pad"><a class="btn secondary full" href="#/ramo/${findCoursePlanForCode(t.courseCode)}/${encodeURIComponent(t.courseCode)}">Ver ramo</a></aside></div>` : renderNotFound();
+    const materialRoute = t && Data.resources.some(r => r.id === t.materialId) ? `/material/${t.materialId}` : '/material';
+    return t ? `${pageHead(t.title, `${t.courseName} - ${fmtDate(t.date)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad"><h2 class="card-title">Detalle de ayudantía</h2><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(t.courseName)}</strong></div><div class="detail-row"><span>Hora</span><strong>${esc(t.time)}</strong></div><div class="detail-row"><span>Lugar</span><strong>${esc(t.location)}</strong></div><div class="detail-row"><span>Ayudante</span><strong>${esc(t.tutor)}</strong></div></div><div class="hstack">${reminderAction}<a class="btn secondary" href="#${materialRoute}">Buscar material</a></div></section><aside class="card pad"><a class="btn secondary full" href="#/ramo/${findCoursePlanForCode(t.courseCode)}/${encodeURIComponent(t.courseCode)}">Ver ramo</a></aside></div>` : renderNotFound();
   }
   function renderProcedureDetail(id) { const p = Data.procedures.find(x => x.id === id); return p ? `${pageHead(p.title, `Vence ${fmtDate(p.due)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad">${badge(p.status)}<p class="muted">${esc(p.description)}</p><h2 class="card-title">Documentos requeridos</h2>${p.required.map(r => `<div class="link-card-row"><span><strong>${esc(r)}</strong><span>Requisito</span></span>${icon('check')}</div>`).join('')}<div class="divider"></div><a class="btn primary" href="#/mallas">Revisar mallas</a></section><aside class="card pad"><h2 class="card-title">Apoyo</h2><p class="small muted">Revisa mallas, calendario y recursos antes de iniciar una gestión académica.</p></aside></div>` : renderNotFound(); }
 

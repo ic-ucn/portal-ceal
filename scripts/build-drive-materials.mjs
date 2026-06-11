@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 
 const DEFAULT_IMPORT_DIR = '.data/drive-imports/2026-06-11T02-35-55';
 const DEFAULT_OUTPUT = 'data/drive-materials.js';
+const DEFAULT_CURRICULA = 'data/curricula.js';
 
 function argValue(name, fallback = '') {
   const direct = process.argv.find((arg) => arg.startsWith(`--${name}=`));
@@ -145,8 +147,37 @@ function loadInputs(importDir) {
   };
 }
 
+function loadCurricula(curriculaPath) {
+  const sandbox = { window: {}, console };
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(curriculaPath, 'utf8'), sandbox, { filename: curriculaPath });
+  return sandbox.window.CURRICULA || {};
+}
+
+function buildCourseIndex(curricula) {
+  const byCode = new Map();
+  for (const [plan, data] of Object.entries(curricula)) {
+    for (const subject of data.subjects || []) {
+      for (const code of [subject.code, subject.visibleCode].filter(Boolean)) {
+        if (!byCode.has(code)) byCode.set(code, []);
+        byCode.get(code).push({ plan, subject });
+      }
+    }
+  }
+  return byCode;
+}
+
+function officialCourseFor(row, courseIndex) {
+  const code = String(row.course_code || '').trim();
+  if (!code || !courseIndex.has(code)) return null;
+  const matches = courseIndex.get(code);
+  return matches.find((match) => match.plan === row.plan) || matches[0] || null;
+}
+
 function buildMaterials(importDir) {
   const { manifest, destination } = loadInputs(importDir);
+  const curriculaPath = argValue('curricula', DEFAULT_CURRICULA);
+  const courseIndex = buildCourseIndex(loadCurricula(curriculaPath));
   const byPublishedPath = new Map();
   for (const row of manifest) {
     const nativeExt = row.mime_type?.startsWith('application/vnd.google-apps.') && row.format ? `.${String(row.format).toLowerCase()}` : '';
@@ -158,9 +189,12 @@ function buildMaterials(importDir) {
     .filter((item) => item.ID && /^originales\//.test(item.Path))
     .map((item, index) => {
       const row = byPublishedPath.get(item.Path) || {};
+      const courseMatch = officialCourseFor(row, courseIndex);
+      if (!courseMatch) return null;
+      const official = courseMatch.subject;
       const type = inferType(row, item);
-      const courseName = titleCase(row.course_name || courseFallback(row, item));
-      const courseCode = row.course_code || '';
+      const courseName = titleCase(official.name);
+      const courseCode = official.visibleCode || official.code;
       const format = inferFormat(row, item);
       const year = inferYear(row, item);
       const title = titleCase(cleanTitle(item.Name || row.name));
@@ -169,9 +203,9 @@ function buildMaterials(importDir) {
         title,
         type,
         courseCode,
-        plan: row.plan || 'both',
+        plan: courseMatch.plan,
         courseName,
-        semester: row.semester ? Number(row.semester) : '',
+        semester: official.semester || (row.semester ? Number(row.semester) : ''),
         year,
         format,
         size: humanSize(item.Size || row.size_bytes),
@@ -184,6 +218,7 @@ function buildMaterials(importDir) {
         source: 'drive'
       };
     })
+    .filter(Boolean)
     .sort((a, b) => {
       const byYear = Number(b.year || 0) - Number(a.year || 0);
       if (byYear) return byYear;
