@@ -1,0 +1,200 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
+const DEFAULT_IMPORT_DIR = '.data/drive-imports/2026-06-11T02-35-55';
+const DEFAULT_OUTPUT = 'data/drive-materials.js';
+
+function argValue(name, fallback = '') {
+  const direct = process.argv.find((arg) => arg.startsWith(`--${name}=`));
+  if (direct) return direct.slice(name.length + 3);
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : fallback;
+}
+
+function readJson(filePath) {
+  return JSON.parse(readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
+}
+
+function humanSize(bytes = 0) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = Number(bytes) || 0;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value >= 10 || idx === 0 ? Math.round(value) : value.toFixed(1)} ${units[idx]}`;
+}
+
+function cleanTitle(name = '') {
+  return String(name)
+    .normalize('NFC')
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeSpanish(value = '') {
+  return String(value)
+    .normalize('NFC')
+    .replace(/Mec\S*nica/giu, 'Mecánica')
+    .replace(/Ayudanti\S*a(s)?/giu, 'Ayudantía$1')
+    .replace(/FundaçÃO/giu, 'Fundación')
+    .replace(/Fundação/giu, 'Fundación')
+    .replace(/Estimaci\S*n/giu, 'Estimación')
+    .replace(/Clasificaci\S*n/giu, 'Clasificación')
+    .replace(/Dise\S*o/giu, 'Diseño')
+    .replace(/\bGuia\b/giu, 'Guía')
+    .replace(/\bPresentacion\b/giu, 'Presentación')
+    .replace(/\bProgramacion\b/giu, 'Programación')
+    .replace(/\bGestion\b/giu, 'Gestión')
+    .replace(/\bIntroduccion\b/giu, 'Introducción')
+    .replace(/\bIngenieria\b/giu, 'Ingeniería')
+    .replace(/\bHidraulica\b/giu, 'Hidráulica')
+    .replace(/\bCalculo\b/giu, 'Cálculo')
+    .replace(/\bAnalisis\b/giu, 'Análisis')
+    .replace(/\bSismico\b/giu, 'Sísmico')
+    .replace(/\bDiseno\b/giu, 'Diseño')
+    .replace(/\bConstruccion\b/giu, 'Construcción');
+}
+
+function titleCase(value = '') {
+  const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCh', 'RIDAA']);
+  return normalizeSpanish(value)
+    .toLowerCase()
+    .replace(/\b([\p{L}\p{N}][\p{L}\p{N}'-]*)/gu, (word) => {
+      const upper = word.toUpperCase();
+      if (keepUpper.has(upper)) return upper;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .replace(/\bNch\b/g, 'NCh')
+    .replace(/\bRidaa\b/g, 'RIDAA')
+    .replace(/\bEtabs\b/g, 'ETABS')
+    .replace(/\bCoi\b/g, 'COI')
+    .replace(/\b(\d+)s\b/gi, '$1S')
+    .replace(/(\s)(De|Del|La|Las|El|Los|Y|A|En|Por|Para|Con|Sin)(?=\s)/g, (_, space, word) => `${space}${word.toLocaleLowerCase('es-CL')}`);
+}
+
+function slug(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+}
+
+function inferYear(row, item) {
+  const fromPath = String(row.path || item.Path || '').match(/\b(20\d{2})\b/);
+  if (fromPath) return Number(fromPath[1]);
+  const date = row.modified_time || item.ModTime;
+  return date ? new Date(date).getFullYear() : 2026;
+}
+
+function inferFormat(row, item) {
+  if (row.format) return String(row.format).toUpperCase();
+  const ext = path.extname(item.Name || row.name || '').replace('.', '');
+  return ext ? ext.toUpperCase() : 'Archivo';
+}
+
+function inferType(row, item) {
+  const type = String(row.material_type || '').trim();
+  if (type && type !== 'Otro') return normalizeSpanish(type);
+  const text = `${row.path || ''} ${item.Name || ''}`.toLowerCase();
+  if (text.includes('ayudant')) return 'Ayudantía';
+  if (text.includes('prueba') || text.includes('control') || text.includes('examen')) return 'Prueba';
+  if (text.includes('taller')) return 'Taller';
+  if (text.includes('apunte') || text.includes('clase')) return 'Apunte';
+  if (text.includes('formulario')) return 'Formulario';
+  if (text.includes('norma') || text.includes('nch') || text.includes('ridaa')) return 'Norma';
+  if (text.includes('presentacion') || text.includes('presentación')) return 'PPT';
+  if (text.includes('ejercicio')) return 'Ejercicios';
+  if (text.includes('informe')) return 'Informe';
+  return inferFormat(row, item) === 'PDF' ? 'PDF' : 'Material';
+}
+
+function courseFallback(row, item) {
+  const pathText = String(row.path || item.Path || '');
+  const segments = pathText.split(/[\\/]/).map((part) => part.trim()).filter(Boolean);
+  const candidates = segments.filter((part) => (
+    !/^(20\d{2}|1er semestre|2do semestre|primer semestre|segundo semestre|ayudant[ií]as?|material|normas?|control \d+|taller|planos?)$/i.test(part)
+    && !/\.[a-z0-9]{2,5}$/i.test(part)
+  ));
+  return candidates[candidates.length - 1] || 'Ingeniería Civil';
+}
+
+function buildDescription(row, item, type, courseName) {
+  const format = inferFormat(row, item);
+  const year = inferYear(row, item);
+  const pieces = [`${type} en formato ${format}`];
+  if (courseName && courseName !== 'Ingeniería Civil') pieces.push(`asociado a ${courseName}`);
+  if (year) pieces.push(`año ${year}`);
+  return normalizeSpanish(`${pieces.join(', ')}. Recurso publicado en la Biblioteca CEIC para apoyo académico.`);
+}
+
+function loadInputs(importDir) {
+  const manifestPath = path.join(importDir, 'manifest.json');
+  const destinationPath = path.join(importDir, 'destination-lsjson.json');
+  if (!existsSync(manifestPath)) throw new Error(`No existe ${manifestPath}`);
+  if (!existsSync(destinationPath)) throw new Error(`No existe ${destinationPath}`);
+  return {
+    manifest: readJson(manifestPath),
+    destination: readJson(destinationPath)
+  };
+}
+
+function buildMaterials(importDir) {
+  const { manifest, destination } = loadInputs(importDir);
+  const byPublishedPath = new Map();
+  for (const row of manifest) {
+    const nativeExt = row.mime_type?.startsWith('application/vnd.google-apps.') && row.format ? `.${String(row.format).toLowerCase()}` : '';
+    const publishedPath = `originales/${row.source_label}/${row.path}${nativeExt && !String(row.path).toLowerCase().endsWith(nativeExt) ? nativeExt : ''}`;
+    byPublishedPath.set(publishedPath, row);
+  }
+
+  return destination
+    .filter((item) => item.ID && /^originales\//.test(item.Path))
+    .map((item, index) => {
+      const row = byPublishedPath.get(item.Path) || {};
+      const type = inferType(row, item);
+      const courseName = titleCase(row.course_name || courseFallback(row, item));
+      const courseCode = row.course_code || '';
+      const format = inferFormat(row, item);
+      const year = inferYear(row, item);
+      const title = titleCase(cleanTitle(item.Name || row.name));
+      return {
+        id: `drive-${slug(item.ID || item.Path) || index}`,
+        title,
+        type,
+        courseCode,
+        plan: row.plan || 'both',
+        courseName,
+        semester: row.semester ? Number(row.semester) : '',
+        year,
+        format,
+        size: humanSize(item.Size || row.size_bytes),
+        origin: 'Biblioteca CEIC',
+        status: 'validadoCeal',
+        uploadedBy: 'Biblioteca CEIC',
+        uploadedAt: '2026-06-11',
+        description: buildDescription(row, item, type, courseName),
+        externalUrl: `https://drive.google.com/open?id=${item.ID}`,
+        source: 'drive'
+      };
+    })
+    .sort((a, b) => {
+      const byYear = Number(b.year || 0) - Number(a.year || 0);
+      if (byYear) return byYear;
+      return a.courseName.localeCompare(b.courseName, 'es') || a.title.localeCompare(b.title, 'es');
+    });
+}
+
+const importDir = argValue('input', DEFAULT_IMPORT_DIR);
+const output = argValue('output', DEFAULT_OUTPUT);
+const materials = buildMaterials(importDir);
+const body = `// Generado por scripts/build-drive-materials.mjs desde la biblioteca Drive CEIC.\nwindow.PortalDriveMaterials = ${JSON.stringify(materials, null, 2)};\n`;
+writeFileSync(output, body, 'utf8');
+console.log(`Materiales Drive generados: ${materials.length}`);
+console.log(`Salida: ${output}`);

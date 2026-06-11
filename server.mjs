@@ -61,7 +61,14 @@ function runBrowserScript(file, globalName, code) {
 async function readSeed() {
   const mockPath = path.join(root, 'src', 'mock-data.js');
   const curriculaPath = path.join(root, 'data', 'curricula.js');
-  const data = runBrowserScript(mockPath, 'PortalMock', await fs.readFile(mockPath, 'utf8'));
+  const driveMaterialsPath = path.join(root, 'data', 'drive-materials.js');
+  const dataSandbox = { window: {}, console };
+  vm.createContext(dataSandbox);
+  try {
+    vm.runInContext(await fs.readFile(driveMaterialsPath, 'utf8'), dataSandbox, { filename: driveMaterialsPath });
+  } catch {}
+  vm.runInContext(await fs.readFile(mockPath, 'utf8'), dataSandbox, { filename: mockPath });
+  const data = dataSandbox.window.PortalMock;
   const curricula = runBrowserScript(curriculaPath, 'CURRICULA', await fs.readFile(curriculaPath, 'utf8'));
   return {
     meta: {
@@ -119,6 +126,22 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications']) {
     db.data[key] ||= seed.data[key] || [];
   }
+  const seedResources = Array.isArray(seed.data.resources) ? seed.data.resources : [];
+  const resources = Array.isArray(db.data.resources) ? db.data.resources : [];
+  const resourceById = new Map(resources.map(resource => [resource.id, resource]));
+  for (const seedResource of seedResources) {
+    const existing = resourceById.get(seedResource.id);
+    if (!existing) {
+      resources.push({ ...seedResource });
+    } else if (seedResource.source === 'drive') {
+      Object.assign(existing, seedResource);
+    }
+  }
+  const driveIds = new Set(seedResources.filter(resource => resource.source === 'drive').map(resource => resource.id));
+  db.data.resources = [
+    ...resources.filter(resource => driveIds.has(resource.id)),
+    ...resources.filter(resource => !driveIds.has(resource.id))
+  ];
   db.data.resources = db.data.resources.filter(resource => !/demo|prueba funcional/i.test([resource.title, resource.origin, resource.description, resource.size].join(' ')));
   db.data.cases = db.data.cases.filter(item => !/demo|prueba avanzada/i.test([item.title, item.summary].join(' ')));
   return db;

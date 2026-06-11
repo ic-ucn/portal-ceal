@@ -109,6 +109,47 @@ Los archivos bloqueados de carpeta personal nunca se descargan con este flujo. L
 
 Los PDFs, Office, imagenes, ZIPs y otros binarios se descargan en su formato original.
 
+## Publicacion en Drive neutro
+
+Configurar un remote de destino con permisos de escritura:
+
+```powershell
+rclone config create ceicbiblioteca drive scope drive
+```
+
+Luego publicar solo lo listo para subir:
+
+```powershell
+npm run drive:publish
+```
+
+Para una prueba pequeña:
+
+```powershell
+npm run drive:publish -- --limit 3
+```
+
+Por defecto publica en:
+
+```text
+ceicbiblioteca:Biblioteca Portal CEIC UCN
+```
+
+El comando copia los archivos permitidos a la cuenta de destino, crea un link publico para la carpeta raiz y genera:
+
+- `published-manifest.csv`
+- `published-manifest.json`
+
+Esos archivos contienen la ruta publicada y el link de Drive de cada archivo copiado.
+
+La publicacion inicial excluye videos por peso. Tambien usa una transferencia local reanudable para evitar errores de permisos entre el Drive origen y el Drive neutro.
+
+Para actualizar el catalogo estatico que lee el portal:
+
+```powershell
+npm run drive:catalog -- --input .data\drive-imports\<inventario>
+```
+
 ## Paso previo a publicar
 
 Antes de subir al portal:

@@ -304,5 +304,9 @@ window.PortalMock = (() => {
     ]
   };
 
-  return { today, users, cealMembers, courseProgress, communications, resources, cases, events, agreements, tutoring, procedures, faqs, notifications, saved, gestion };
+  const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
+  const driveIds = new Set(driveResources.map((item) => item.id));
+  const allResources = [...driveResources, ...resources.filter((item) => !driveIds.has(item.id))];
+
+  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring, procedures, faqs, notifications, saved, gestion };
 })();

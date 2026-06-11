@@ -7,10 +7,12 @@
     "start": "node server.mjs",
     "serve": "node server.mjs",
     "serve:static": "python -m http.server 8080",
-    "check": "node --check src/app.js && node --check src/mock-data.js && node --check data/curricula.js && node --check scripts/qa-portal.mjs && node --check scripts/quality-suite.mjs && node --check scripts/drive-import.mjs && node --check server.mjs",
+    "check": "node --check src/app.js && node --check src/mock-data.js && node --check data/curricula.js && node --check data/drive-materials.js && node --check scripts/qa-portal.mjs && node --check scripts/quality-suite.mjs && node --check scripts/drive-import.mjs && node --check scripts/build-drive-materials.mjs && node --check server.mjs",
     "drive:init": "node scripts/drive-import.mjs init",
     "drive:inventory": "node scripts/drive-import.mjs inventory",
     "drive:download": "node scripts/drive-import.mjs download",
+    "drive:publish": "node scripts/drive-import.mjs publish",
+    "drive:catalog": "node scripts/build-drive-materials.mjs",
     "quality": "node scripts/quality-suite.mjs"
   },
   "devDependencies": {

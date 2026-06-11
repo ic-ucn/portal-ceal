@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
@@ -92,6 +92,21 @@ function safeRelativePath(relativePath) {
     .join(path.sep);
 }
 
+function drivePathPart(value) {
+  return String(value || '')
+    .replace(/[<>:"|?*\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function joinDrivePath(...parts) {
+  return parts
+    .flatMap((part) => String(part || '').split('/'))
+    .map(drivePathPart)
+    .filter(Boolean)
+    .join('/');
+}
+
 function ensureDir(dir) {
   mkdirSync(dir, { recursive: true });
 }
@@ -128,6 +143,8 @@ function writeCsv(filePath, rows) {
     'modified_time',
     'drive_id',
     'drive_url',
+    'published_path',
+    'published_url',
     'local_path'
   ];
   const lines = [
@@ -172,6 +189,10 @@ function defaultConfig() {
       exportGoogleDocsAs: 'pdf',
       exportGoogleSheetsAs: 'xlsx',
       exportGoogleSlidesAs: 'pdf'
+    },
+    publish: {
+      destinationRemote: 'ceicbiblioteca',
+      destinationRoot: 'Biblioteca Portal CEIC UCN'
     }
   };
 }
@@ -303,6 +324,12 @@ function isGoogleNative(mimeType) {
   return String(mimeType || '').startsWith(GOOGLE_MIME_PREFIX);
 }
 
+function isVideoFile(rowOrItem) {
+  const mimeType = String(rowOrItem.mime_type || rowOrItem.MimeType || '');
+  const name = String(rowOrItem.name || rowOrItem.Name || rowOrItem.path || rowOrItem.Path || '');
+  return mimeType.startsWith('video/') || /\.(mp4|mov|avi|wmv|mkv|webm|mpeg|mpg|m4v)$/i.test(name);
+}
+
 function extensionFromName(name) {
   const ext = path.extname(name || '').replace('.', '');
   return ext ? ext.toUpperCase() : '';
@@ -391,6 +418,18 @@ function toManifestRows(folder, items, courses, config) {
       const materialType = inferMaterialType(searchText);
       const course = inferCourse(searchText, courses) || {};
       const privacy = computePrivacy(folder, item, materialType, searchText);
+      if (String(item.MimeType || '').includes('shortcut')) {
+        privacy.privacy_action = 'bloquear';
+        privacy.privacy_reason = 'Acceso directo de Drive; no es un archivo publicable.';
+        privacy.portal_candidate = false;
+        privacy.review_required = true;
+      }
+      if (isVideoFile(item)) {
+        privacy.privacy_action = 'revisar';
+        privacy.privacy_reason = 'Video excluido de la publicacion inicial por peso.';
+        privacy.portal_candidate = false;
+        privacy.review_required = true;
+      }
       if (!privacy.review_required && (materialType === 'Otro' || !course.course_code)) {
         privacy.privacy_action = 'revisar';
         privacy.privacy_reason = 'Falta ramo o tipo de material claro.';
@@ -461,6 +500,78 @@ function writeOutputs(dir, rows) {
   console.log(`Bloqueados carpeta personal: ${publicRows.filter((row) => row.privacy_action === 'bloquear').length}`);
 }
 
+function latestImportDir(config) {
+  const base = path.resolve(config.outputDir || DEFAULT_OUTPUT);
+  if (!existsSync(base)) throw new Error(`No existe directorio de inventarios: ${base}`);
+  const dirs = readdirSync(base)
+    .map((name) => path.join(base, name))
+    .filter((entry) => statSync(entry).isDirectory())
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  if (!dirs.length) throw new Error(`No hay inventarios en: ${base}`);
+  return dirs[0];
+}
+
+function loadManifestRows(config, args) {
+  const input = args.input ? path.resolve(args.input) : latestImportDir(config);
+  const manifestPath = statSync(input).isDirectory() ? path.join(input, 'manifest.json') : input;
+  if (!existsSync(manifestPath)) throw new Error(`No existe manifest: ${manifestPath}`);
+  const rows = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  return { dir: path.dirname(manifestPath), rows };
+}
+
+function folderForRow(config, row) {
+  return (config.folders || []).find((folder) => folder.label === row.source_label);
+}
+
+function destinationPathFor(row) {
+  const basePath = joinDrivePath('originales', row.source_label, row.path);
+  if (!isGoogleNative(row.mime_type)) return basePath;
+  const ext = row.format ? `.${String(row.format).toLowerCase()}` : '';
+  return ext && !basePath.toLowerCase().endsWith(ext) ? `${basePath}${ext}` : basePath;
+}
+
+function itemId(item) {
+  return item?.ID || item?.Id || item?.id || '';
+}
+
+function readDestinationIndex(destinationRemote, destinationRoot) {
+  let output = '[]';
+  try {
+    output = runRclone([
+      'lsjson',
+      '--recursive',
+      '--files-only',
+      '--metadata',
+      `${destinationRemote}:${destinationRoot}`
+    ]);
+  } catch (error) {
+    if (!String(error.message).includes('directory not found')) throw error;
+  }
+  const rows = JSON.parse(output);
+  const byPath = new Map();
+  for (const item of rows) {
+    byPath.set(item.Path, item);
+  }
+  return byPath;
+}
+
+function sourceArgsForFolder(folder) {
+  const args = [];
+  if (folder.sharedWithMe) args.push('--drive-shared-with-me');
+  args.push('--drive-root-folder-id', folder.folderId);
+  return args;
+}
+
+function localTempPathFor(row, tempDir) {
+  const ext = row.format ? `.${String(row.format).toLowerCase()}` : path.extname(row.name || row.path);
+  const safeName = `${row.drive_id || slugPart(row.name)}${ext}`;
+  return path.join(tempDir, row.source_label, safeName);
+}
+
+function removeIfExists(target) {
+  if (existsSync(target)) rmSync(target, { force: true, recursive: false });
+}
+
 function inventory(args) {
   const { config } = readConfig(args);
   RCLONE_BIN = config.rclonePath || process.env.RCLONE_BIN || 'rclone';
@@ -515,6 +626,126 @@ function downloadAllowed(args) {
   console.log(`Descarga escrita en: ${downloadDir}`);
 }
 
+function publishAllowed(args) {
+  const { config } = readConfig(args);
+  RCLONE_BIN = config.rclonePath || process.env.RCLONE_BIN || 'rclone';
+  if (!commandExists(RCLONE_BIN)) {
+    throw new Error('rclone no esta instalado o rclonePath no apunta a un binario valido.');
+  }
+
+  const { dir, rows } = loadManifestRows(config, args);
+  const includeReview = Boolean(argValue(args, 'includeReview', 'include-review'));
+  const dryRun = Boolean(argValue(args, 'dryRun', 'dry-run'));
+  const destinationRemote = args.destination || config.publish?.destinationRemote || 'ceicbiblioteca';
+  const destinationRoot = args.root || config.publish?.destinationRoot || 'Biblioteca Portal CEIC UCN';
+  let publishRows = rows.filter((row) => (
+    row.portal_candidate
+    && row.privacy_action !== 'bloquear'
+    && !String(row.mime_type || '').includes('shortcut')
+    && !isVideoFile(row)
+    && (includeReview || !row.review_required)
+  ));
+  if (args.limit) {
+    const limit = Number(args.limit);
+    if (!Number.isInteger(limit) || limit < 1) throw new Error('--limit debe ser un entero positivo.');
+    publishRows = publishRows.slice(0, limit);
+  }
+
+  if (!publishRows.length) throw new Error('No hay archivos para publicar.');
+  console.log(`Archivos a publicar: ${publishRows.length}${includeReview ? ' (incluye revision)' : ' (solo upload-ready)'}`);
+  console.log(`Destino: ${destinationRemote}:${destinationRoot}`);
+
+  if (dryRun) {
+    const bySource = publishRows.reduce((acc, row) => {
+      acc[row.source_label] = (acc[row.source_label] || 0) + 1;
+      return acc;
+    }, {});
+    for (const [label, count] of Object.entries(bySource)) console.log(`Copiaria ${count} archivos desde ${label}.`);
+    console.log('Dry-run completo. No se publico nada.');
+    return;
+  }
+
+  const tempDir = path.join(dir, '_publish-temp');
+  ensureDir(tempDir);
+  const existingIndex = readDestinationIndex(destinationRemote, destinationRoot);
+  const publishedRows = [];
+  const failedRows = [];
+  let copied = 0;
+  let skipped = 0;
+  for (const row of publishRows) {
+    const folder = folderForRow(config, row);
+    if (!folder) throw new Error(`No hay carpeta configurada para source_label=${row.source_label}`);
+    const localPath = localTempPathFor(row, tempDir);
+    const publishedPath = destinationPathFor(row);
+    const existing = existingIndex.get(publishedPath);
+    if (existing) {
+      skipped += 1;
+      const id = itemId(existing);
+      publishedRows.push({
+        ...row,
+        published_path: publishedPath,
+        published_url: id ? `https://drive.google.com/open?id=${id}` : ''
+      });
+      if (skipped === 1 || skipped % 25 === 0) console.log(`Ya existian ${skipped}`);
+      continue;
+    }
+    ensureDir(path.dirname(localPath));
+    removeIfExists(localPath);
+
+    try {
+      const sourceCopyArgs = ['copyto', ...sourceArgsForFolder(folder)];
+      if (isGoogleNative(row.mime_type)) sourceCopyArgs.push('--drive-export-formats', String(row.format || 'pdf').toLowerCase());
+      sourceCopyArgs.push(`${config.rcloneRemote}:${row.path}`, localPath);
+      runRclone(sourceCopyArgs, { stdio: 'pipe' });
+
+      runRclone(['copyto', localPath, `${destinationRemote}:${joinDrivePath(destinationRoot, publishedPath)}`], { stdio: 'pipe' });
+      publishedRows.push({ ...row, published_path: publishedPath, published_url: '' });
+      copied += 1;
+      if (copied === 1 || copied % 25 === 0 || copied + skipped === publishRows.length) {
+        console.log(`Publicados nuevos ${copied}; existentes ${skipped}; avance ${copied + skipped}/${publishRows.length}`);
+      }
+    } catch (error) {
+      failedRows.push({ ...row, publish_error: error.message.slice(0, 500) });
+      console.warn(`Fallo publicando ${row.path}: ${error.message.split('\n')[0]}`);
+    } finally {
+      removeIfExists(localPath);
+    }
+  }
+
+  let rootLink = '';
+  try {
+    rootLink = runRclone(['link', `${destinationRemote}:${destinationRoot}/`]).trim().split(/\r?\n/).pop() || '';
+    console.log(`Carpeta publica: ${rootLink}`);
+  } catch (error) {
+    console.warn(`No se pudo crear link publico de carpeta: ${error.message}`);
+  }
+
+  const destinationIndex = readDestinationIndex(destinationRemote, destinationRoot);
+  const finalRows = publishedRows.map((row) => {
+    const item = destinationIndex.get(row.published_path);
+    const id = itemId(item);
+    return {
+      ...row,
+      published_url: id ? `https://drive.google.com/open?id=${id}` : ''
+    };
+  });
+
+  writeFileSync(path.join(dir, 'published-manifest.json'), `${JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    destinationRemote,
+    destinationRoot,
+    rootLink,
+    rows: finalRows
+  }, null, 2)}\n`, 'utf8');
+  writeCsv(path.join(dir, 'published-manifest.csv'), finalRows);
+  writeCsv(path.join(dir, 'publish-failed.csv'), failedRows);
+
+  const missing = finalRows.filter((row) => !row.published_url);
+  console.log(`Publicados en manifest: ${finalRows.length}`);
+  console.log(`Sin URL detectada: ${missing.length}`);
+  console.log(`Fallidos: ${failedRows.length}`);
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const command = args._[0] || 'inventory';
@@ -528,6 +759,10 @@ function main() {
   }
   if (command === 'download') {
     downloadAllowed(args);
+    return;
+  }
+  if (command === 'publish') {
+    publishAllowed(args);
     return;
   }
   throw new Error(`Comando no reconocido: ${command}`);

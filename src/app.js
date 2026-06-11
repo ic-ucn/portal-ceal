@@ -169,6 +169,13 @@
   function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(Data)); } catch {} }
   function loadLocalSnapshot() { try { const raw = localStorage.getItem(LOCAL_DATA_KEY); if (raw) Object.assign(Data, JSON.parse(raw)); } catch {} }
+  function mergeDriveResources() {
+    const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
+    if (!driveResources.length) return;
+    const driveIds = new Set(driveResources.map((item) => item.id));
+    const localResources = Array.isArray(Data.resources) ? Data.resources : [];
+    Data.resources = [...driveResources, ...localResources.filter((item) => !driveIds.has(item.id))];
+  }
   function fmtDate(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
   function fmtTime(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); }
   function titleCase(str) { return tx(str).toLocaleLowerCase('es-CL').replace(/(^|\s|\/|-)(\p{L})/gu, (_, a, b) => a + b.toLocaleUpperCase('es-CL')); }
@@ -368,6 +375,10 @@
     a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
   function downloadResource(resource) {
+    if (resource.externalUrl) {
+      window.open(resource.externalUrl, '_blank', 'noopener');
+      return;
+    }
     if (resource.fileDataUrl) {
       const a = document.createElement('a');
       a.href = resource.fileDataUrl; a.download = resource.fileName || `${resource.title}.${String(resource.format || 'pdf').toLowerCase()}`; document.body.appendChild(a); a.click(); a.remove();
@@ -411,6 +422,7 @@
 
   async function boot() {
     loadLocalSnapshot();
+    mergeDriveResources();
     ensureShape();
     await handleGoogleRedirectCallback();
     const shouldHoldInitialTop = state.user && getRoute().path === '/';
@@ -421,6 +433,7 @@
       const payload = await apiRequest('/bootstrap');
       if (payload.data) Object.assign(Data, payload.data);
       if (payload.curricula) Object.assign(Curricula, payload.curricula);
+      mergeDriveResources();
       ensureShape();
       dataMode = 'backend';
       persistSnapshot();
@@ -647,17 +660,20 @@
     const q = plain(state.materialQuery);
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
-    const types = ['all', 'Guía', 'Prueba', 'Apunte', 'PPT', 'PDF', 'Resumen', 'Ejercicios'];
-    const courses = [...new Set(Data.resources.map(r => r.courseName))].filter(Boolean).slice(0, 8);
+    const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
+    const courses = [...new Set(Data.resources.map(r => r.courseName))].filter(Boolean).sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL')).slice(0, 12);
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
       <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guía" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
   function renderResourceDetail(r) {
+    const openAction = r.externalUrl
+      ? `<a class="btn primary" href="${esc(r.externalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
+      : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
-      ? `<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
-      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button><button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button><button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+      ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button>${openAction}<button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
     return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div><button class="icon-btn" data-clear-panel>${icon('x')}</button></div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
   function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
@@ -1146,7 +1162,7 @@
     const saveResource = e.target.closest('[data-save-resource]');
     if (saveResource) { if (isGuest()) { readonlyToast(); return; } const id = saveResource.dataset.saveResource; if (!Data.saved.resources.includes(id)) Data.saved.resources.push(id); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'resources', id }) }).catch(() => {}); showToast('Recurso guardado'); return; }
     const download = e.target.closest('[data-download-resource]');
-    if (download) { const r = Data.resources.find(x => x.id === download.dataset.downloadResource); if (r) downloadResource(r); showToast('Descarga preparada', 'blue'); return; }
+    if (download) { const r = Data.resources.find(x => x.id === download.dataset.downloadResource); if (r) { downloadResource(r); showToast(r.externalUrl ? 'Abriendo material' : 'Descarga preparada', 'blue'); } return; }
     if (e.target.closest('[data-report-resource]')) { if (isGuest()) { readonlyToast(); return; } showToast('Reporte recibido para revisión CEAL', 'blue'); return; }
     const markRead = e.target.closest('[data-mark-read]');
     if (markRead) { if (isGuest()) { readonlyToast(); return; } const c = Data.communications.find(x => x.id === markRead.dataset.markRead); if (c) c.unread = false; persistSnapshot(); showToast('Comunicado marcado como leído', 'blue'); return; }
