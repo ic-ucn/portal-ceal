@@ -196,7 +196,14 @@
   function setProgress(plan, code, value) { Data.courseProgress ||= {}; Data.courseProgress[courseKey(plan, code)] = value; persistSnapshot(); }
   function getPrereqs(plan, course) { return (course.prereqs || []).map(code => findCourse(plan, code)).filter(Boolean); }
   function getSuccessors(plan, code) { return getCourses(plan).filter(c => (c.prereqs || []).includes(code)); }
-  function getResourcesForCourse(plan, code) { return Data.resources.filter(r => r.courseCode === code || (r.plan === plan && r.courseCode === code)); }
+  function getResourcesForCourse(plan, code) {
+    const course = findCourse(plan, code);
+    const courseName = plain(course?.name || '');
+    return Data.resources.filter(r => (
+      r.courseCode === code
+      || (courseName && plain(r.courseName) === courseName)
+    ));
+  }
   function cealMembers() { return Data.cealMembers || []; }
   function getCealMember(id) { return cealMembers().find(m => m.id === id) || cealMembers()[0]; }
   function buildMemberUser(member) { return { ...member, role: 'ceal', accessMode: 'ceal', label: member.roleName || member.label, permissions: member.permissions || [] }; }
