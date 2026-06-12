@@ -63,19 +63,23 @@ function normalizeSpanish(value = '') {
 
 function titleCase(value = '') {
   const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCh', 'RIDAA']);
+  const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
   return normalizeSpanish(value)
-    .toLowerCase()
-    .replace(/\b([\p{L}\p{N}][\p{L}\p{N}'-]*)/gu, (word) => {
-      const upper = word.toUpperCase();
+    .toLocaleLowerCase('es-CL')
+    .split(/(\s+|\/|-)/)
+    .map((part, index) => {
+      if (!part.trim() || part === '/' || part === '-') return part;
+      const upper = part.toLocaleUpperCase('es-CL');
       if (keepUpper.has(upper)) return upper;
-      return word.charAt(0).toUpperCase() + word.slice(1);
+      if (index > 0 && lowerWords.has(part)) return part;
+      return part.charAt(0).toLocaleUpperCase('es-CL') + part.slice(1);
     })
+    .join('')
     .replace(/\bNch\b/g, 'NCh')
     .replace(/\bRidaa\b/g, 'RIDAA')
     .replace(/\bEtabs\b/g, 'ETABS')
     .replace(/\bCoi\b/g, 'COI')
-    .replace(/\b(\d+)s\b/gi, '$1S')
-    .replace(/(\s)(De|Del|La|Las|El|Los|Y|A|En|Por|Para|Con|Sin)(?=\s)/g, (_, space, word) => `${space}${word.toLocaleLowerCase('es-CL')}`);
+    .replace(/\b(\d+)s\b/gi, '$1S');
 }
 
 function slug(value = '') {
@@ -178,28 +182,36 @@ function buildMaterials(importDir) {
   const { manifest, destination } = loadInputs(importDir);
   const curriculaPath = argValue('curricula', DEFAULT_CURRICULA);
   const courseIndex = buildCourseIndex(loadCurricula(curriculaPath));
-  const byPublishedPath = new Map();
-  for (const row of manifest) {
-    const nativeExt = row.mime_type?.startsWith('application/vnd.google-apps.') && row.format ? `.${String(row.format).toLowerCase()}` : '';
-    const publishedPath = `originales/${row.source_label}/${row.path}${nativeExt && !String(row.path).toLowerCase().endsWith(nativeExt) ? nativeExt : ''}`;
-    byPublishedPath.set(publishedPath, row);
-  }
+  const destinationByPath = new Map(destination.filter((item) => item.ID).map((item) => [item.Path, item]));
 
-  return destination
-    .filter((item) => item.ID && /^originales\//.test(item.Path))
-    .map((item, index) => {
-      const row = byPublishedPath.get(item.Path) || {};
+  return manifest
+    .filter((row) => (
+      row.portal_candidate
+      && row.privacy_action !== 'bloquear'
+      && !row.review_required
+      && !String(row.mime_type || '').includes('shortcut')
+      && !String(row.mime_type || '').startsWith('video/')
+      && !/\.(mp4|mov|avi|wmv|mkv|webm|mpeg|mpg|m4v)$/i.test(row.name || row.path || '')
+    ))
+    .map((row, index) => {
       const courseMatch = officialCourseFor(row, courseIndex);
       if (!courseMatch) return null;
+      const nativeExt = row.mime_type?.startsWith('application/vnd.google-apps.') && row.format ? `.${String(row.format).toLowerCase()}` : '';
+      const publishedPath = `originales/${row.source_label}/${row.path}${nativeExt && !String(row.path).toLowerCase().endsWith(nativeExt) ? nativeExt : ''}`;
+      const publishedItem = destinationByPath.get(publishedPath);
+      const externalUrl = publishedItem?.ID
+        ? `https://drive.google.com/open?id=${publishedItem.ID}`
+        : (row.source_label === 'universidad' ? row.drive_url : '');
+      if (!externalUrl) return null;
       const official = courseMatch.subject;
-      const type = inferType(row, item);
+      const type = inferType(row, row);
       const courseName = titleCase(official.name);
       const courseCode = official.visibleCode || official.code;
-      const format = inferFormat(row, item);
-      const year = inferYear(row, item);
-      const title = titleCase(cleanTitle(item.Name || row.name));
+      const format = inferFormat(row, row);
+      const year = inferYear(row, row);
+      const title = titleCase(cleanTitle(row.name));
       return {
-        id: `drive-${slug(item.ID || item.Path) || index}`,
+        id: `drive-${slug(publishedItem?.ID || row.drive_id || row.path) || index}`,
         title,
         type,
         courseCode,
@@ -208,13 +220,13 @@ function buildMaterials(importDir) {
         semester: official.semester || (row.semester ? Number(row.semester) : ''),
         year,
         format,
-        size: humanSize(item.Size || row.size_bytes),
+        size: humanSize(row.size_bytes),
         origin: 'Biblioteca CEIC',
         status: 'validadoCeal',
         uploadedBy: 'Biblioteca CEIC',
         uploadedAt: '2026-06-11',
-        description: buildDescription(row, item, type, courseName),
-        externalUrl: `https://drive.google.com/open?id=${item.ID}`,
+        description: buildDescription(row, row, type, courseName),
+        externalUrl,
         source: 'drive'
       };
     })
