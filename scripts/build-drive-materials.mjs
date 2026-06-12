@@ -105,6 +105,18 @@ function inferFormat(row, item) {
   return ext ? ext.toUpperCase() : 'Archivo';
 }
 
+function isPublishableFormat(row) {
+  const blocked = new Set(['HTML', 'JSON', 'MD', 'TXT', 'BAK', 'HDR', 'CAB', 'EX_', 'BIN', 'OCX', 'INX', 'EXE', 'INI', 'PY']);
+  return !blocked.has(inferFormat(row, row));
+}
+
+function isTechnicalName(row) {
+  const title = cleanTitle(row.name || row.path);
+  return /^[0-9a-f]{8}[\s-]+[0-9a-f]{4}[\s-]+[0-9a-f]{4}/i.test(title)
+    || /(^|[\s_.-])(metadata|desktop|thumbs|cache|temp|tmp)([\s_.-]|$)/i.test(title)
+    || /^~\$/i.test(title);
+}
+
 function inferType(row, item) {
   const type = String(row.material_type || '').trim();
   if (type && type !== 'Otro') return normalizeSpanish(type);
@@ -192,6 +204,8 @@ function buildMaterials(importDir) {
       && !String(row.mime_type || '').includes('shortcut')
       && !String(row.mime_type || '').startsWith('video/')
       && !/\.(mp4|mov|avi|wmv|mkv|webm|mpeg|mpg|m4v)$/i.test(row.name || row.path || '')
+      && isPublishableFormat(row)
+      && !isTechnicalName(row)
     ))
     .map((row, index) => {
       const courseMatch = officialCourseFor(row, courseIndex);
