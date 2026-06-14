@@ -140,13 +140,79 @@ function ensureDbShape(db, seed) {
   }
   const driveIds = new Set(seedResources.filter(resource => resource.source === 'drive').map(resource => resource.id));
   if (hasDriveSeed) db.data.saved.resources = db.data.saved.resources.filter(id => driveIds.has(id));
+  const officialCourses = buildOfficialCourseLookup(seed.curricula);
   db.data.resources = [
     ...resources.filter(resource => driveIds.has(resource.id)),
-    ...resources.filter(resource => !driveIds.has(resource.id) && !(hasDriveSeed && /^mat-\d{3}$/.test(resource.id || '')))
-  ];
+    ...resources.filter(resource => (
+      !driveIds.has(resource.id)
+      && !(hasDriveSeed && String(resource.id || '').startsWith('drive-'))
+      && !(hasDriveSeed && /^mat-\d{3}$/.test(resource.id || ''))
+      && isOfficialCourseResource(resource, officialCourses)
+    ))
+  ].map(resource => canonicalizeResourceCourse(resource, officialCourses));
   db.data.resources = db.data.resources.filter(resource => !/demo|prueba funcional/i.test([resource.title, resource.origin, resource.description, resource.size].join(' ')));
   db.data.cases = db.data.cases.filter(item => !/demo|prueba avanzada/i.test([item.title, item.summary].join(' ')));
   return db;
+}
+
+function tx(value) {
+  const text = String(value ?? '');
+  if (!/[\u00c3\u00c2]|\u00ef\u00bf\u00bd/.test(text)) return text;
+  try { return decodeURIComponent(escape(text)); } catch { return text; }
+}
+
+function plain(value) {
+  return tx(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function titleCase(value = '') {
+  const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+  const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
+  return tx(value)
+    .toLocaleLowerCase('es-CL')
+    .split(/(\s+|\/|-)/)
+    .map((part, index) => {
+      if (!part.trim() || part === '/' || part === '-') return part;
+      const upper = part.toLocaleUpperCase('es-CL');
+      if (keepUpper.has(upper)) return upper === 'NCH' ? 'NCh' : upper;
+      if (index > 0 && lowerWords.has(part)) return part;
+      return part.charAt(0).toLocaleUpperCase('es-CL') + part.slice(1);
+    })
+    .join('');
+}
+
+function buildOfficialCourseLookup(curricula = {}) {
+  const byCode = new Map();
+  const byName = new Map();
+  for (const [plan, data] of Object.entries(curricula || {})) {
+    for (const course of data.subjects || []) {
+      const record = { plan, course };
+      for (const code of [course.code, course.visibleCode].filter(Boolean)) byCode.set(code, record);
+      byName.set(plain(course.name), record);
+    }
+  }
+  return { byCode, byName };
+}
+
+function officialCourseForResource(resource, lookup) {
+  return lookup.byCode.get(asText(resource?.courseCode)) || lookup.byName.get(plain(resource?.courseName)) || null;
+}
+
+function isOfficialCourseResource(resource, lookup) {
+  return Boolean(officialCourseForResource(resource, lookup));
+}
+
+function canonicalizeResourceCourse(resource, lookup) {
+  const match = officialCourseForResource(resource, lookup);
+  if (!match) return resource;
+  const { plan, course } = match;
+  return {
+    ...resource,
+    courseCode: course.visibleCode || course.code,
+    plan: resource.plan && lookup.byCode.has(resource.courseCode) ? resource.plan : plan,
+    courseName: titleCase(course.name),
+    semester: course.semester || resource.semester
+  };
 }
 
 async function writeDb(next) {

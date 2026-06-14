@@ -37,6 +37,7 @@ function plain(value) {
 
 const data = loadBrowserGlobal('src/mock-data.js', 'PortalMock');
 const curricula = loadBrowserGlobal('data/curricula.js', 'CURRICULA');
+const driveMaterials = loadBrowserGlobal('data/drive-materials.js', 'PortalDriveMaterials') || [];
 const appJs = read('src/app.js');
 const serverJs = read('server.mjs');
 const indexHtml = read('index.html');
@@ -55,6 +56,9 @@ assert(!indexHtml.includes('accounts.google.com/gsi/client'), 'index should not 
 assert(indexHtml.includes('src/config.js'), 'index should load public runtime config');
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
 assert(!appJs.includes('window.google'), 'app should not depend on the legacy GSI global');
+assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
+assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
+assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
 
 assert(Array.isArray(data.cealMembers), 'cealMembers should be an array');
 assert(data.cealMembers.length === 9, 'there should be 9 CEAL members from candidate list');
@@ -190,6 +194,21 @@ for (const [plan, expectedSubjects, expectedSemesters] of plans) {
       assert(prereqCourse.semester <= course.semester, `${plan}:${course.code} prereq ${prereq} should not be after course`);
     }
   }
+}
+
+const officialCourseCodes = new Set();
+const officialCourseNames = new Map();
+for (const plan of ['planO', 'planP']) {
+  for (const course of curricula[plan].subjects) {
+    officialCourseCodes.add(course.code);
+    officialCourseCodes.add(course.visibleCode);
+    officialCourseNames.set(plain(course.name), tx(course.name));
+  }
+}
+for (const resource of driveMaterials) {
+  assert(officialCourseCodes.has(resource.courseCode), `drive resource ${resource.id} should use an official course code, got ${resource.courseCode}`);
+  assert(officialCourseNames.has(plain(resource.courseName)), `drive resource ${resource.id} should use an official course name, got ${resource.courseName}`);
+  assert(!/^(agua potable|alcantarillado|tarea 2|hidraulica invierno)$/i.test(plain(resource.courseName)), `drive resource ${resource.id} should not expose a folder/topic as course`);
 }
 
 const appRequirements = [

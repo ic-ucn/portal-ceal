@@ -2,7 +2,7 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const LOCAL_DATA_KEY = 'portal.data.v5';
+  const LOCAL_DATA_KEY = 'portal.data.v6';
   const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
@@ -123,6 +123,7 @@
     Data.notifications ||= [];
     if (!Data.cealMembers.length && Data.users?.ceal) Data.cealMembers = [Data.users.ceal];
     Data.resources = Data.resources.filter(r => !plain([r.title, r.origin, r.description, r.size].join(' ')).includes('demo') && !plain(r.title).includes('prueba funcional'));
+    Data.resources = sanitizeMaterialResources(Data.resources);
     Data.cases = Data.cases.filter(c => !plain([c.title, c.summary].join(' ')).includes('demo') && !plain(c.title).includes('prueba avanzada'));
   }
 
@@ -174,14 +175,33 @@
     if (!driveResources.length) return;
     const driveIds = new Set(driveResources.map((item) => item.id));
     const localResources = Array.isArray(Data.resources) ? Data.resources : [];
-    Data.resources = [...driveResources, ...localResources.filter((item) => !driveIds.has(item.id) && !/^mat-\d{3}$/.test(item.id || ''))];
+    const localUserResources = localResources.filter((item) => (
+      !driveIds.has(item.id)
+      && !String(item.id || '').startsWith('drive-')
+      && !/^mat-\d{3}$/.test(item.id || '')
+      && isOfficialCourseResource(item)
+    ));
+    Data.resources = [...driveResources, ...localUserResources.map(canonicalizeResourceCourse)];
     Data.saved ||= { resources: [], courses: [], reminders: [] };
     Data.saved.resources ||= [];
     Data.saved.resources = (Data.saved.resources || []).filter((id) => driveIds.has(id));
   }
   function fmtDate(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
   function fmtTime(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); }
-  function titleCase(str) { return tx(str).toLocaleLowerCase('es-CL').replace(/(^|\s|\/|-)(\p{L})/gu, (_, a, b) => a + b.toLocaleUpperCase('es-CL')); }
+  function titleCase(str) {
+    const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+    const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
+    return tx(str).toLocaleLowerCase('es-CL')
+      .split(/(\s+|\/|-)/)
+      .map((part, index) => {
+        if (!part.trim() || part === '/' || part === '-') return part;
+        const upper = part.toLocaleUpperCase('es-CL');
+        if (keepUpper.has(upper)) return upper === 'NCH' ? 'NCh' : upper;
+        if (index > 0 && lowerWords.has(part)) return part;
+        return part.charAt(0).toLocaleUpperCase('es-CL') + part.slice(1);
+      })
+      .join('');
+  }
   function badge(key, label) { const [text, color] = Status[key] || [label || key, 'gray']; return `<span class="status-chip ${color}">${esc(label || text)}</span>`; }
   function showToast(message, type = 'green') { state.toast = { message, type }; render(); setTimeout(() => { state.toast = null; render(); }, 2200); }
   function getUnreadCount() { return Data.notifications.filter(n => n.unread).length; }
@@ -189,6 +209,57 @@
   function planShort(plan) { return plan === 'planO' ? 'Plan O' : 'Plan P'; }
   function getCourses(plan = state.activePlan) { return Curricula[plan]?.subjects || []; }
   function getPlanData(plan = state.activePlan) { return Curricula[plan] || Curricula.planP; }
+  function allOfficialCourses() { return ['planP', 'planO'].flatMap(plan => (Curricula[plan]?.subjects || []).map(course => ({ plan, course }))); }
+  function officialCourseByCode(code) {
+    const normalized = String(code || '').trim();
+    if (!normalized) return null;
+    return allOfficialCourses().find(({ course }) => course.code === normalized || course.visibleCode === normalized) || null;
+  }
+  function officialCourseByName(name) {
+    const normalized = plain(name);
+    if (!normalized) return null;
+    return allOfficialCourses().find(({ course }) => plain(course.name) === normalized) || null;
+  }
+  function canonicalizeResourceCourse(resource) {
+    const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
+    if (!match) return resource;
+    const { plan, course } = match;
+    return {
+      ...resource,
+      courseCode: course.visibleCode || course.code,
+      plan: Curricula[resource.plan] ? resource.plan : plan,
+      courseName: titleCase(course.name),
+      semester: course.semester || resource.semester
+    };
+  }
+  function isOfficialCourseResource(resource) {
+    return Boolean(officialCourseByCode(resource?.courseCode) || officialCourseByName(resource?.courseName));
+  }
+  function sanitizeMaterialResources(resources = []) {
+    const currentDriveIds = new Set((window.PortalDriveMaterials || []).map(item => item.id));
+    const hasDriveCatalog = currentDriveIds.size > 0;
+    return (resources || [])
+      .filter(resource => {
+        if (!resource?.id) return false;
+        if (hasDriveCatalog && String(resource.id).startsWith('drive-') && !currentDriveIds.has(resource.id)) return false;
+        if (hasDriveCatalog && /^mat-\d{3}$/.test(resource.id || '')) return false;
+        return isOfficialCourseResource(resource);
+      })
+      .map(canonicalizeResourceCourse);
+  }
+  function materialCourseOptions(resources = Data.resources) {
+    const byName = new Map();
+    for (const resource of resources) {
+      const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
+      if (!match) continue;
+      const label = titleCase(match.course.name);
+      const key = plain(label);
+      if (!byName.has(key)) byName.set(key, { label, semester: Number(match.course.semester || 99), plan: match.plan });
+    }
+    return [...byName.values()]
+      .sort((a, b) => a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'))
+      .map(item => item.label);
+  }
   function findCourse(plan, code) { return getCourses(plan).find(c => c.code === code || c.visibleCode === code); }
   function findCoursePlanForCode(code) { return ['planP', 'planO'].find(plan => findCourse(plan, code)) || state.activePlan; }
   function courseKey(plan, code) { return `${plan}:${code}`; }
@@ -667,11 +738,15 @@
   }
 
   function renderMaterial() {
+    Data.resources = sanitizeMaterialResources(Data.resources);
+    const courses = materialCourseOptions(Data.resources);
+    if (state.materialCourse !== 'all' && !courses.some(course => plain(course) === plain(state.materialCourse))) {
+      state.materialCourse = 'all';
+    }
     const q = plain(state.materialQuery);
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
-    const courses = [...new Set(Data.resources.map(r => r.courseName))].filter(Boolean).sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL')).slice(0, 12);
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
       <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guía" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
