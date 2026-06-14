@@ -135,6 +135,12 @@ Por defecto publica en:
 ceicbiblioteca:Biblioteca Portal CEIC UCN
 ```
 
+Para publicar dentro de una carpeta de Drive ya creada, usa su ID como raiz:
+
+```powershell
+npm run drive:publish -- --root= --root-id ID_CARPETA_BIBLIOTECA
+```
+
 El comando copia los archivos permitidos a la cuenta de destino, crea un link publico para la carpeta raiz y genera:
 
 - `published-manifest.csv`

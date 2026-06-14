@@ -53,7 +53,13 @@ function parseArgs(argv) {
       args._.push(value);
       continue;
     }
-    const key = value.slice(2);
+    const rawKey = value.slice(2);
+    const equalIndex = rawKey.indexOf('=');
+    if (equalIndex !== -1) {
+      args[rawKey.slice(0, equalIndex)] = rawKey.slice(equalIndex + 1);
+      continue;
+    }
+    const key = rawKey;
     const next = argv[i + 1];
     if (!next || next.startsWith('--')) {
       args[key] = true;
@@ -67,6 +73,13 @@ function parseArgs(argv) {
 
 function argValue(args, camelKey, dashedKey) {
   return args[camelKey] ?? args[dashedKey];
+}
+
+function optionalArgValue(args, ...keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(args, key)) return args[key];
+  }
+  return undefined;
 }
 
 function normalizeText(value) {
@@ -534,7 +547,16 @@ function itemId(item) {
   return item?.ID || item?.Id || item?.id || '';
 }
 
-function readDestinationIndex(destinationRemote, destinationRoot) {
+function destinationBackendArgs(destinationRootId) {
+  return destinationRootId ? ['--drive-root-folder-id', destinationRootId] : [];
+}
+
+function destinationRemotePath(destinationRemote, destinationRoot, relativePath = '') {
+  const drivePath = joinDrivePath(destinationRoot || '', relativePath || '');
+  return `${destinationRemote}:${drivePath}`;
+}
+
+function readDestinationIndex(destinationRemote, destinationRoot, destinationRootId = '') {
   let output = '[]';
   try {
     output = runRclone([
@@ -542,7 +564,8 @@ function readDestinationIndex(destinationRemote, destinationRoot) {
       '--recursive',
       '--files-only',
       '--metadata',
-      `${destinationRemote}:${destinationRoot}`
+      ...destinationBackendArgs(destinationRootId),
+      destinationRemotePath(destinationRemote, destinationRoot)
     ]);
   } catch (error) {
     if (!String(error.message).includes('directory not found')) throw error;
@@ -637,7 +660,14 @@ function publishAllowed(args) {
   const includeReview = Boolean(argValue(args, 'includeReview', 'include-review'));
   const dryRun = Boolean(argValue(args, 'dryRun', 'dry-run'));
   const destinationRemote = args.destination || config.publish?.destinationRemote || 'ceicbiblioteca';
-  const destinationRoot = args.root || config.publish?.destinationRoot || 'Biblioteca Portal CEIC UCN';
+  const destinationRootArg = optionalArgValue(args, 'root');
+  const configDestinationRoot = config.publish && Object.prototype.hasOwnProperty.call(config.publish, 'destinationRoot')
+    ? config.publish.destinationRoot
+    : 'Biblioteca Portal CEIC UCN';
+  const destinationRoot = destinationRootArg !== undefined
+    ? (destinationRootArg === true ? '' : destinationRootArg)
+    : configDestinationRoot;
+  const destinationRootId = optionalArgValue(args, 'rootId', 'root-id') || config.publish?.destinationRootId || '';
   let publishRows = rows.filter((row) => (
     row.portal_candidate
     && row.privacy_action !== 'bloquear'
@@ -653,7 +683,8 @@ function publishAllowed(args) {
 
   if (!publishRows.length) throw new Error('No hay archivos para publicar.');
   console.log(`Archivos a publicar: ${publishRows.length}${includeReview ? ' (incluye revision)' : ' (solo upload-ready)'}`);
-  console.log(`Destino: ${destinationRemote}:${destinationRoot}`);
+  console.log(`Destino: ${destinationRemote}:${destinationRoot || '(raiz configurada)'}`);
+  if (destinationRootId) console.log(`Destino root ID: ${destinationRootId}`);
 
   if (dryRun) {
     const bySource = publishRows.reduce((acc, row) => {
@@ -667,7 +698,7 @@ function publishAllowed(args) {
 
   const tempDir = path.join(dir, '_publish-temp');
   ensureDir(tempDir);
-  const existingIndex = readDestinationIndex(destinationRemote, destinationRoot);
+  const existingIndex = readDestinationIndex(destinationRemote, destinationRoot, destinationRootId);
   const publishedRows = [];
   const failedRows = [];
   let copied = 0;
@@ -698,7 +729,12 @@ function publishAllowed(args) {
       sourceCopyArgs.push(`${config.rcloneRemote}:${row.path}`, localPath);
       runRclone(sourceCopyArgs, { stdio: 'pipe' });
 
-      runRclone(['copyto', localPath, `${destinationRemote}:${joinDrivePath(destinationRoot, publishedPath)}`], { stdio: 'pipe' });
+      runRclone([
+        'copyto',
+        localPath,
+        ...destinationBackendArgs(destinationRootId),
+        destinationRemotePath(destinationRemote, destinationRoot, publishedPath)
+      ], { stdio: 'pipe' });
       publishedRows.push({ ...row, published_path: publishedPath, published_url: '' });
       copied += 1;
       if (copied === 1 || copied % 25 === 0 || copied + skipped === publishRows.length) {
@@ -714,13 +750,17 @@ function publishAllowed(args) {
 
   let rootLink = '';
   try {
-    rootLink = runRclone(['link', `${destinationRemote}:${destinationRoot}/`]).trim().split(/\r?\n/).pop() || '';
+    rootLink = runRclone([
+      'link',
+      ...destinationBackendArgs(destinationRootId),
+      destinationRemotePath(destinationRemote, destinationRoot)
+    ]).trim().split(/\r?\n/).pop() || '';
     console.log(`Carpeta publica: ${rootLink}`);
   } catch (error) {
     console.warn(`No se pudo crear link publico de carpeta: ${error.message}`);
   }
 
-  const destinationIndex = readDestinationIndex(destinationRemote, destinationRoot);
+  const destinationIndex = readDestinationIndex(destinationRemote, destinationRoot, destinationRootId);
   const finalRows = publishedRows.map((row) => {
     const item = destinationIndex.get(row.published_path);
     const id = itemId(item);
@@ -734,6 +774,7 @@ function publishAllowed(args) {
     generatedAt: new Date().toISOString(),
     destinationRemote,
     destinationRoot,
+    destinationRootId,
     rootLink,
     rows: finalRows
   }, null, 2)}\n`, 'utf8');
