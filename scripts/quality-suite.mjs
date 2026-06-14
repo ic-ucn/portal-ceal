@@ -59,6 +59,7 @@ assert(!appJs.includes('window.google'), 'app should not depend on the legacy GS
 assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
 assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
+assert(appJs.includes("!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)"), 'scroll reset should not blur active form controls');
 
 assert(Array.isArray(data.cealMembers), 'cealMembers should be an array');
 assert(data.cealMembers.length === 9, 'there should be 9 CEAL members from candidate list');
@@ -227,6 +228,13 @@ const appRequirements = [
   'guest-login-card',
   'management-content-grid',
   'downloadResource',
+  'drivePreviewUrl',
+  'resource-preview-frame',
+  'captureInputFocus',
+  'restoreInputFocus',
+  'scheduleFilterRender',
+  'renderDataRefresh',
+  'preserveFocus',
   'data-publish',
   'data-clear-panel',
   'data-approve-material',

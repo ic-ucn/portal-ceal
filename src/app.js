@@ -16,6 +16,7 @@
   let pendingScrollReset = false;
   let scrollResetToken = 0;
   let pageTopHoldTimer = null;
+  let filterRenderTimer = null;
 
   try {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -467,6 +468,20 @@
     }
     downloadTextFile(`${slug(resource.title)}.txt`, [`${resource.title}`, `Ramo: ${resource.courseName}`, `Tipo: ${resource.type}`, `Origen: ${resource.origin}`, '', resource.description || 'Ficha del recurso.'].join('\n'));
   }
+  function driveFileId(url = '') {
+    const text = String(url || '');
+    try {
+      const parsed = new URL(text);
+      const id = parsed.searchParams.get('id');
+      if (id) return id;
+    } catch {}
+    return text.match(/\/(?:file|document|presentation|spreadsheets)\/d\/([^/?#]+)/)?.[1] || '';
+  }
+  function drivePreviewUrl(resource) {
+    if (!resource?.externalUrl) return '';
+    const id = driveFileId(resource.externalUrl);
+    return id ? `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview` : '';
+  }
   function calendarDownloadText() {
     return ['Calendario CEIC / CEAL UCN', ''].concat(Data.events.map(e => `${fmtDate(e.date)} ${e.time || ''} - ${e.title}\n${e.description || 'Actividad del calendario.'}`)).join('\n\n');
   }
@@ -500,6 +515,38 @@
   }
   function slug(value) { return String(value || 'recurso').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'recurso'; }
   function copyText(text) { return navigator.clipboard?.writeText(text) || Promise.resolve(); }
+  function captureInputFocus() {
+    const el = document.activeElement;
+    if (!el || !['INPUT', 'TEXTAREA'].includes(el.tagName)) return null;
+    const attr = ['data-material-search', 'data-com-search', 'data-malla-search'].find(name => el.hasAttribute(name));
+    if (!attr) return null;
+    return { selector: `[${attr}]`, start: el.selectionStart, end: el.selectionEnd };
+  }
+  function restoreInputFocus(focusState) {
+    if (!focusState?.selector) return;
+    const el = app.querySelector(focusState.selector);
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    if (typeof el.setSelectionRange === 'function' && focusState.start != null) {
+      el.setSelectionRange(focusState.start, focusState.end ?? focusState.start);
+    }
+  }
+  function scheduleFilterRender() {
+    if (filterRenderTimer) clearTimeout(filterRenderTimer);
+    filterRenderTimer = setTimeout(() => {
+      filterRenderTimer = null;
+      render({ scope: 'filter', resetScroll: false, preserveFocus: true });
+    }, 120);
+  }
+  function renderDataRefresh() {
+    if (!captureInputFocus()) {
+      render({ scope: 'data', resetScroll: false, preserveFocus: true });
+      return;
+    }
+    setTimeout(() => {
+      if (!captureInputFocus()) render({ scope: 'data', resetScroll: false, preserveFocus: true });
+    }, 800);
+  }
 
   async function boot() {
     loadLocalSnapshot();
@@ -518,7 +565,7 @@
       ensureShape();
       dataMode = 'backend';
       persistSnapshot();
-      render();
+      renderDataRefresh();
     } catch { dataMode = 'static'; }
   }
 
@@ -558,9 +605,11 @@
     const scope = opts.scope || 'state';
     const routeKey = window.location.hash || '#/';
     const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
+    const focusState = opts.preserveFocus ? captureInputFocus() : null;
     if (shouldAnimate) app.dataset.motionScope = scope;
     if (!paint()) return;
     afterRender();
+    restoreInputFocus(focusState);
     const shouldResetScroll = opts.resetScroll !== false && (pendingScrollReset || scope === 'route' || routeKey !== lastRenderedRouteKey);
     lastRenderedRouteKey = routeKey;
     pendingScrollReset = false;
@@ -579,7 +628,10 @@
     [60, 140, 320, 700].forEach(ms => setTimeout(apply, ms));
   }
   function applyPageTop() {
-    try { document.activeElement?.blur?.(); } catch {}
+    try {
+      const active = document.activeElement;
+      if (active && !['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) active.blur?.();
+    } catch {}
     const scrollers = [
       document.scrollingElement,
       document.documentElement,
@@ -752,21 +804,29 @@
       <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guía" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
-  function renderResourceDetail(r) {
+  function renderResourcePreview(r) {
+    const previewUrl = drivePreviewUrl(r);
+    if (!previewUrl) {
+      return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización no disponible</h2><p class="small muted">Este recurso no tiene enlace embebible. Usa el botón de apertura para revisar el archivo completo.</p></div></section>`;
+    }
+    return `<section class="resource-preview-shell"><div class="resource-preview-head"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(r.title)}</h2></div><a class="btn secondary sm" href="${esc(r.externalUrl)}" target="_blank" rel="noopener">${icon('arrow')} Abrir en Drive</a></div><iframe class="resource-preview-frame" src="${esc(previewUrl)}" title="Vista previa de ${esc(r.title)}" loading="lazy" allow="autoplay"></iframe></section>`;
+  }
+  function renderResourceDetail(r, options = {}) {
     const openAction = r.externalUrl
       ? `<a class="btn primary" href="${esc(r.externalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
       : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
       ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
       : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button>${openAction}<button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
-    return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div><button class="icon-btn" data-clear-panel>${icon('x')}</button></div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
+    const closeControl = options.hideClose ? '' : `<button class="icon-btn" data-clear-panel>${icon('x')}</button>`;
+    return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
   function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
   function renderMaterialDetailPage(id) {
     const r = Data.resources.find(x => x.id === id);
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
     const rPlan = Curricula[r.plan] ? r.plan : findCoursePlanForCode(r.courseCode);
-    return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
+    return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
     if (isGuest()) return `${pageHead('Subir material', 'Modo invitado en solo lectura', `<a class="btn secondary" href="#/material">Volver</a>`)}<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Vista sin registros</h3><p>El modo invitado permite revisar contenido sin guardar actividad ni enviar aportes.</p><a class="btn primary" href="#/material">Volver a material</a></section>`;
@@ -1306,9 +1366,9 @@
     if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
   }
   function onInput(e) {
-    if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; render(); }
-    if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; render(); }
-    if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; render(); }
+    if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; scheduleFilterRender(); }
+    if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; scheduleFilterRender(); }
+    if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
