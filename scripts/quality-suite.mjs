@@ -60,6 +60,7 @@ assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local mate
 assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
 assert(appJs.includes("!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)"), 'scroll reset should not blur active form controls');
+assert(appJs.includes('routeTo(`/material/${resourceRow.dataset.resourceRow}`)'), 'desktop material rows should open the resource detail route');
 
 assert(Array.isArray(data.cealMembers), 'cealMembers should be an array');
 assert(data.cealMembers.length === 9, 'there should be 9 CEAL members from candidate list');

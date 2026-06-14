@@ -1353,7 +1353,7 @@
     const courseFilter = e.target.closest('[data-material-course]');
     if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     const resourceRow = e.target.closest('[data-resource-row]');
-    if (resourceRow) { state.selectedResourceId = resourceRow.dataset.resourceRow; render({ transition: true, scope: 'panel' }); return; }
+    if (resourceRow) { routeTo(`/material/${resourceRow.dataset.resourceRow}`); return; }
     const cat = e.target.closest('[data-com-category]');
     if (cat) { state.communicationCategory = cat.dataset.comCategory; render({ transition: true, scope: 'panel' }); return; }
     const faq = e.target.closest('[data-faq]');
