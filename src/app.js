@@ -249,17 +249,21 @@
       .map(canonicalizeResourceCourse);
   }
   function materialCourseOptions(resources = Data.resources) {
+    return materialCourseFacets(resources).map(item => item.label);
+  }
+  function materialCourseFacets(resources = Data.resources) {
     const byName = new Map();
     for (const resource of resources) {
       const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
       if (!match) continue;
       const label = titleCase(match.course.name);
       const key = plain(label);
-      if (!byName.has(key)) byName.set(key, { label, semester: Number(match.course.semester || 99), plan: match.plan });
+      const current = byName.get(key) || { label, semester: Number(match.course.semester || 99), plan: match.plan, count: 0 };
+      current.count += 1;
+      byName.set(key, current);
     }
     return [...byName.values()]
-      .sort((a, b) => a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'))
-      .map(item => item.label);
+      .sort((a, b) => a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'));
   }
   function findCourse(plan, code) { return getCourses(plan).find(c => c.code === code || c.visibleCode === code); }
   function findCoursePlanForCode(code) { return ['planP', 'planO'].find(plan => findCourse(plan, code)) || state.activePlan; }
@@ -791,7 +795,8 @@
 
   function renderMaterial() {
     Data.resources = sanitizeMaterialResources(Data.resources);
-    const courses = materialCourseOptions(Data.resources);
+    const courseFacets = materialCourseFacets(Data.resources);
+    const courses = courseFacets.map(item => item.label);
     if (state.materialCourse !== 'all' && !courses.some(course => plain(course) === plain(state.materialCourse))) {
       state.materialCourse = 'all';
     }
@@ -799,9 +804,23 @@
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
+    const quickCourses = courseFacets
+      .slice()
+      .sort((a, b) => b.count - a.count || a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'))
+      .slice(0, 8);
+    if (state.materialCourse !== 'all' && !quickCourses.some(course => plain(course.label) === plain(state.materialCourse))) {
+      const activeCourse = courseFacets.find(course => plain(course.label) === plain(state.materialCourse));
+      if (activeCourse) quickCourses.unshift(activeCourse);
+    }
+    const hasActiveFilters = Boolean(state.materialQuery) || state.materialType !== 'all' || state.materialCourse !== 'all';
+    const activeFilters = [
+      state.materialQuery ? ['search', `Texto: ${state.materialQuery}`] : null,
+      state.materialType !== 'all' ? ['type', `Tipo: ${state.materialType}`] : null,
+      state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
+    ].filter(Boolean);
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
-      <div class="split wide"><section class="card pad"><div class="form-field"><label>Buscar recurso</label><input class="input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar ramo, prueba, apunte o guía" /></div><div class="material-filter-group"><div class="segmented">${types.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}">${t === 'all' ? 'Todos' : esc(t)}</button>`).join('')}</div><div class="segmented course-chips"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all">Todos los ramos</button>${courses.map(c => `<button class="${state.materialCourse === c ? 'active' : ''}" data-material-course="${esc(c)}">${esc(c)}</button>`).join('')}</div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
+      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}<div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
   function renderResourcePreview(r) {
@@ -1352,6 +1371,16 @@
     if (typeBtn) { state.materialType = typeBtn.dataset.materialType; render({ transition: true, scope: 'panel' }); return; }
     const courseFilter = e.target.closest('[data-material-course]');
     if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
+    const clearMaterial = e.target.closest('[data-material-clear]');
+    if (clearMaterial) {
+      const target = clearMaterial.dataset.materialClear;
+      if (target === 'search' || target === 'all') state.materialQuery = '';
+      if (target === 'type' || target === 'all') state.materialType = 'all';
+      if (target === 'course' || target === 'all') state.materialCourse = 'all';
+      state.selectedResourceId = null;
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
     const resourceRow = e.target.closest('[data-resource-row]');
     if (resourceRow) { routeTo(`/material/${resourceRow.dataset.resourceRow}`); return; }
     const cat = e.target.closest('[data-com-category]');
@@ -1371,6 +1400,8 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
+    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
   function onKeydown(e) {
