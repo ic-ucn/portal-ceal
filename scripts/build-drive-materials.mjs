@@ -5,6 +5,18 @@ import vm from 'node:vm';
 const DEFAULT_IMPORT_DIR = '.data/drive-imports/2026-06-11T02-35-55';
 const DEFAULT_OUTPUT = 'data/drive-materials.js';
 const DEFAULT_CURRICULA = 'data/curricula.js';
+const MIME_FORMATS = new Map([
+  ['application/pdf', 'PDF'],
+  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'DOCX'],
+  ['application/msword', 'DOC'],
+  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'XLSX'],
+  ['application/vnd.ms-excel', 'XLS'],
+  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'PPTX'],
+  ['application/vnd.ms-powerpoint', 'PPT'],
+  ['text/csv', 'CSV'],
+  ['image/png', 'PNG'],
+  ['image/jpeg', 'JPG']
+]);
 
 function argValue(name, fallback = '') {
   const direct = process.argv.find((arg) => arg.startsWith(`--${name}=`));
@@ -20,6 +32,7 @@ function readJson(filePath) {
 function humanSize(bytes = 0) {
   const units = ['B', 'KB', 'MB', 'GB'];
   let value = Number(bytes) || 0;
+  if (value < 0) return 'Drive';
   let idx = 0;
   while (value >= 1024 && idx < units.length - 1) {
     value /= 1024;
@@ -58,11 +71,12 @@ function normalizeSpanish(value = '') {
     .replace(/\bAnalisis\b/giu, 'Análisis')
     .replace(/\bSismico\b/giu, 'Sísmico')
     .replace(/\bDiseno\b/giu, 'Diseño')
-    .replace(/\bConstruccion\b/giu, 'Construcción');
+    .replace(/\bConstruccion\b/giu, 'Construcción')
+    .replace(/\bPublicas\b/giu, 'Públicas');
 }
 
 function titleCase(value = '') {
-  const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCh', 'RIDAA']);
+  const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCh', 'RIDAA', 'OOHH', 'CINOR']);
   const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
   return normalizeSpanish(value)
     .toLocaleLowerCase('es-CL')
@@ -71,6 +85,7 @@ function titleCase(value = '') {
       if (!part.trim() || part === '/' || part === '-') return part;
       const upper = part.toLocaleUpperCase('es-CL');
       if (keepUpper.has(upper)) return upper;
+      if (/^[ivxlcdm]+$/i.test(part) && part.length <= 6) return upper;
       if (index > 0 && lowerWords.has(part)) return part;
       return part.charAt(0).toLocaleUpperCase('es-CL') + part.slice(1);
     })
@@ -92,6 +107,14 @@ function slug(value = '') {
     .slice(0, 80);
 }
 
+function extractDriveId(url = '') {
+  const text = String(url || '');
+  return text.match(/[?&]id=([^&]+)/)?.[1]
+    || text.match(/\/file\/d\/([^/]+)/)?.[1]
+    || text.match(/\/folders\/([^/?]+)/)?.[1]
+    || '';
+}
+
 function inferYear(row, item) {
   const fromPath = String(row.path || item.Path || '').match(/\b(20\d{2})\b/);
   if (fromPath) return Number(fromPath[1]);
@@ -101,19 +124,20 @@ function inferYear(row, item) {
 
 function inferFormat(row, item) {
   if (row.format) return String(row.format).toUpperCase();
+  if (row.mime_type && MIME_FORMATS.has(row.mime_type)) return MIME_FORMATS.get(row.mime_type);
   const ext = path.extname(item.Name || row.name || '').replace('.', '');
   return ext ? ext.toUpperCase() : 'Archivo';
 }
 
 function isPublishableFormat(row) {
-  const blocked = new Set(['HTML', 'JSON', 'MD', 'TXT', 'BAK', 'HDR', 'CAB', 'EX_', 'BIN', 'OCX', 'INX', 'EXE', 'INI', 'PY']);
+  const blocked = new Set(['HTML', 'JSON', 'MD', 'TXT', 'CSV', 'TNS', 'BAK', 'HDR', 'CAB', 'EX_', 'BIN', 'OCX', 'INX', 'EXE', 'INI', 'PY']);
   return !blocked.has(inferFormat(row, row));
 }
 
 function isTechnicalName(row) {
   const title = cleanTitle(row.name || row.path);
   return /^[0-9a-f]{8}[\s-]+[0-9a-f]{4}[\s-]+[0-9a-f]{4}/i.test(title)
-    || /(^|[\s_.-])(metadata|desktop|thumbs|cache|temp|tmp)([\s_.-]|$)/i.test(title)
+    || /(^|[\s_.-])(metadata|manifest|desktop|thumbs|cache|temp|tmp)([\s_.-]|$)/i.test(title)
     || /^~\$/i.test(title);
 }
 
@@ -153,6 +177,15 @@ function buildDescription(row, item, type, courseName) {
 }
 
 function loadInputs(importDir) {
+  const publishedPath = path.join(importDir, 'published-manifest.json');
+  if (existsSync(publishedPath)) {
+    const published = readJson(publishedPath);
+    return {
+      manifest: published.rows || [],
+      destination: []
+    };
+  }
+
   const manifestPath = path.join(importDir, 'manifest.json');
   const destinationPath = path.join(importDir, 'destination-lsjson.json');
   if (!existsSync(manifestPath)) throw new Error(`No existe ${manifestPath}`);
@@ -213,9 +246,10 @@ function buildMaterials(importDir) {
       const nativeExt = row.mime_type?.startsWith('application/vnd.google-apps.') && row.format ? `.${String(row.format).toLowerCase()}` : '';
       const publishedPath = `originales/${row.source_label}/${row.path}${nativeExt && !String(row.path).toLowerCase().endsWith(nativeExt) ? nativeExt : ''}`;
       const publishedItem = destinationByPath.get(publishedPath);
-      const externalUrl = publishedItem?.ID
+      const publishedId = extractDriveId(row.published_url);
+      const externalUrl = row.published_url || (publishedItem?.ID
         ? `https://drive.google.com/open?id=${publishedItem.ID}`
-        : (row.source_label === 'universidad' ? row.drive_url : '');
+        : (row.source_label === 'universidad' ? row.drive_url : ''));
       if (!externalUrl) return null;
       const official = courseMatch.subject;
       const type = inferType(row, row);
@@ -225,7 +259,7 @@ function buildMaterials(importDir) {
       const year = inferYear(row, row);
       const title = titleCase(cleanTitle(row.name));
       return {
-        id: `drive-${slug(publishedItem?.ID || row.drive_id || row.path) || index}`,
+        id: `drive-${slug(publishedId || publishedItem?.ID || row.drive_id || row.path) || index}`,
         title,
         type,
         courseCode,

@@ -26,6 +26,62 @@ const DEFAULT_BLOCKED_PRIVATE_PATTERNS = [
   'respuesta',
   'respuestas'
 ];
+const RCLONE_TRANSIENT_PATTERNS = [
+  'no such host',
+  'i/o timeout',
+  'connection reset',
+  'connection refused',
+  'context deadline exceeded',
+  'etimedout',
+  'timed out',
+  'spawnsync',
+  'tls handshake timeout',
+  'error 401',
+  'invalid authentication credentials',
+  'unauthorized',
+  'rateLimitExceeded',
+  'userRateLimitExceeded',
+  'backendError',
+  'internalError'
+];
+const RCLONE_RETRY_DELAYS_MS = [3000, 10000, 30000, 60000];
+const RCLONE_TIMEOUT_MS = Number(process.env.RCLONE_TIMEOUT_MS || 180000);
+const BLOCKED_PUBLIC_EXTENSIONS = new Set([
+  'JSON',
+  'PY',
+  'JS',
+  'TS',
+  'HTML',
+  'CSS',
+  'CSV',
+  'XML',
+  'LOG',
+  'TMP',
+  'INI',
+  'DB',
+  'SQL',
+  'EXE',
+  'DLL',
+  'BAT',
+  'CMD',
+  'PS1'
+]);
+const BLOCKED_PATH_PATTERNS = [
+  'capcut drafts',
+  'draft_meta',
+  'manifest',
+  'metadata',
+  'meta_info',
+  'appdata',
+  'cache',
+  'tmp',
+  'temp',
+  'node_modules',
+  '__macosx',
+  '.ds_store',
+  'desktop.ini'
+];
+const LARGE_ARCHIVE_LIMIT_BYTES = 500 * 1024 * 1024;
 
 const MATERIAL_RULES = [
   { type: 'Pauta/Resolucion', patterns: ['pauta', 'resuelto', 'resuelta', 'resolucion', 'solucion', 'solucionario', 'desarrollo', 'respuesta'] },
@@ -238,20 +294,42 @@ function commandExists(command) {
   }
 }
 
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function rcloneErrorMessage(error) {
+  const stderr = error.stderr ? String(error.stderr) : '';
+  const stdout = error.stdout ? String(error.stdout) : '';
+  return [stdout, stderr].filter(Boolean).join('\n').trim() || error.message;
+}
+
+function isTransientRcloneError(message) {
+  const normalized = normalizeText(message);
+  return RCLONE_TRANSIENT_PATTERNS.some((pattern) => normalized.includes(normalizeText(pattern)));
+}
+
 function runRclone(args, options = {}) {
-  try {
-    return execFileSync(RCLONE_BIN, args, {
-      cwd: ROOT,
-      encoding: options.encoding || 'utf8',
-      maxBuffer: 200 * 1024 * 1024,
-      stdio: options.stdio || ['ignore', 'pipe', 'pipe']
-    });
-  } catch (error) {
-    const stderr = error.stderr ? String(error.stderr) : '';
-    const stdout = error.stdout ? String(error.stdout) : '';
-    const message = [stdout, stderr].filter(Boolean).join('\n').trim();
-    throw new Error(message || error.message);
+  const maxAttempts = options.maxAttempts || RCLONE_RETRY_DELAYS_MS.length + 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return execFileSync(RCLONE_BIN, args, {
+        cwd: ROOT,
+        encoding: options.encoding || 'utf8',
+        maxBuffer: 200 * 1024 * 1024,
+        stdio: options.stdio || ['ignore', 'pipe', 'pipe'],
+        timeout: options.timeout || RCLONE_TIMEOUT_MS
+      });
+    } catch (error) {
+      const message = rcloneErrorMessage(error);
+      const canRetry = attempt < maxAttempts && isTransientRcloneError(message);
+      if (!canRetry) throw new Error(message);
+      const delay = RCLONE_RETRY_DELAYS_MS[attempt - 1] || RCLONE_RETRY_DELAYS_MS.at(-1);
+      console.warn(`rclone fallo temporalmente; reintento ${attempt + 1}/${maxAttempts} en ${Math.round(delay / 1000)}s.`);
+      sleepMs(delay);
+    }
   }
+  throw new Error('rclone fallo sin entregar detalle.');
 }
 
 function rcloneFolderArgs(folder, remote) {
@@ -341,6 +419,22 @@ function isVideoFile(rowOrItem) {
   const mimeType = String(rowOrItem.mime_type || rowOrItem.MimeType || '');
   const name = String(rowOrItem.name || rowOrItem.Name || rowOrItem.path || rowOrItem.Path || '');
   return mimeType.startsWith('video/') || /\.(mp4|mov|avi|wmv|mkv|webm|mpeg|mpg|m4v)$/i.test(name);
+}
+
+function isNoisyMetadataFile(rowOrItem) {
+  const rawName = String(rowOrItem.name || rowOrItem.Name || '');
+  const rawPath = String(rowOrItem.path || rowOrItem.Path || rawName);
+  const normalizedPath = normalizeText(rawPath);
+  const ext = extensionFromName(rawName || rawPath);
+  return BLOCKED_PUBLIC_EXTENSIONS.has(ext)
+    || BLOCKED_PATH_PATTERNS.some((pattern) => normalizedPath.includes(pattern));
+}
+
+function isOversizedArchive(rowOrItem) {
+  const name = String(rowOrItem.name || rowOrItem.Name || rowOrItem.path || rowOrItem.Path || '');
+  const ext = extensionFromName(name);
+  const size = Number(rowOrItem.size_bytes ?? rowOrItem.Size ?? 0);
+  return ['ZIP', 'RAR', '7Z'].includes(ext) && size > LARGE_ARCHIVE_LIMIT_BYTES;
 }
 
 function extensionFromName(name) {
@@ -440,6 +534,18 @@ function toManifestRows(folder, items, courses, config) {
       if (isVideoFile(item)) {
         privacy.privacy_action = 'revisar';
         privacy.privacy_reason = 'Video excluido de la publicacion inicial por peso.';
+        privacy.portal_candidate = false;
+        privacy.review_required = true;
+      }
+      if (isNoisyMetadataFile(item)) {
+        privacy.privacy_action = 'revisar';
+        privacy.privacy_reason = 'Archivo tecnico/metadato excluido de la publicacion inicial.';
+        privacy.portal_candidate = false;
+        privacy.review_required = true;
+      }
+      if (isOversizedArchive(item)) {
+        privacy.privacy_action = 'revisar';
+        privacy.privacy_reason = 'Archivo comprimido grande; revisar/subir manualmente si corresponde.';
         privacy.portal_candidate = false;
         privacy.review_required = true;
       }
@@ -673,6 +779,8 @@ function publishAllowed(args) {
     && row.privacy_action !== 'bloquear'
     && !String(row.mime_type || '').includes('shortcut')
     && !isVideoFile(row)
+    && !isNoisyMetadataFile(row)
+    && !isOversizedArchive(row)
     && (includeReview || !row.review_required)
   ));
   if (args.limit) {
@@ -741,6 +849,9 @@ function publishAllowed(args) {
         console.log(`Publicados nuevos ${copied}; existentes ${skipped}; avance ${copied + skipped}/${publishRows.length}`);
       }
     } catch (error) {
+      if (isTransientRcloneError(error.message)) {
+        throw new Error(`Fallo temporal de red/API publicando ${row.path}. Se detiene la corrida para reintentar despues sin marcar archivos como fallidos.\n${error.message}`);
+      }
       failedRows.push({ ...row, publish_error: error.message.slice(0, 500) });
       console.warn(`Fallo publicando ${row.path}: ${error.message.split('\n')[0]}`);
     } finally {
