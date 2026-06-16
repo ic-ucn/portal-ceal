@@ -25,6 +25,10 @@ function argValue(name, fallback = '') {
   return index >= 0 ? process.argv[index + 1] : fallback;
 }
 
+function hasFlag(...names) {
+  return names.some((name) => process.argv.includes(`--${name}`));
+}
+
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
 }
@@ -107,6 +111,15 @@ function slug(value = '') {
     .slice(0, 80);
 }
 
+function stableText(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractDriveId(url = '') {
   const text = String(url || '');
   return text.match(/[?&]id=([^&]+)/)?.[1]
@@ -139,6 +152,53 @@ function isTechnicalName(row) {
   return /^[0-9a-f]{8}[\s-]+[0-9a-f]{4}[\s-]+[0-9a-f]{4}/i.test(title)
     || /(^|[\s_.-])(metadata|manifest|desktop|thumbs|cache|temp|tmp)([\s_.-]|$)/i.test(title)
     || /^~\$/i.test(title);
+}
+
+function isCleanMaterialRow(row) {
+  if (!row?.externalUrl) return false;
+  if (!isPublishableFormat(row)) return false;
+  if (isTechnicalName(row)) return false;
+  const text = `${row.title || ''} ${row.description || ''} ${row.format || ''}`;
+  return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text)
+    && !/pauta|resuelt|resoluci[oó]n|soluci[oó]n|solucionario|respuesta/i.test(text);
+}
+
+function materialKey(row) {
+  return [
+    stableText(row.title),
+    stableText(row.courseCode || row.courseName),
+    stableText(row.format)
+  ].join('|');
+}
+
+function loadExistingMaterials(outputPath) {
+  if (!existsSync(outputPath)) return [];
+  const sandbox = { window: {}, console };
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(outputPath, 'utf8'), sandbox, { filename: outputPath });
+  return Array.isArray(sandbox.window.PortalDriveMaterials) ? sandbox.window.PortalDriveMaterials : [];
+}
+
+function normalizeExistingRow(row) {
+  return {
+    ...row,
+    size: String(row.size || '') === '-1 B' ? 'Drive' : row.size
+  };
+}
+
+function mergeMaterials(generated, existing) {
+  const byKey = new Map();
+  for (const row of existing.map(normalizeExistingRow).filter(isCleanMaterialRow)) {
+    byKey.set(materialKey(row), row);
+  }
+  for (const row of generated.filter(isCleanMaterialRow)) {
+    byKey.set(materialKey(row), row);
+  }
+  return [...byKey.values()].sort((a, b) => {
+    const byYear = Number(b.year || 0) - Number(a.year || 0);
+    if (byYear) return byYear;
+    return a.courseName.localeCompare(b.courseName, 'es') || a.title.localeCompare(b.title, 'es');
+  });
 }
 
 function inferType(row, item) {
@@ -288,7 +348,9 @@ function buildMaterials(importDir) {
 
 const importDir = argValue('input', DEFAULT_IMPORT_DIR);
 const output = argValue('output', DEFAULT_OUTPUT);
-const materials = buildMaterials(importDir);
+const generated = buildMaterials(importDir);
+const existing = hasFlag('noMergeExisting', 'no-merge-existing') ? [] : loadExistingMaterials(output);
+const materials = mergeMaterials(generated, existing);
 const body = `// Generado por scripts/build-drive-materials.mjs desde la biblioteca Drive CEIC.\nwindow.PortalDriveMaterials = ${JSON.stringify(materials, null, 2)};\n`;
 writeFileSync(output, body, 'utf8');
 console.log(`Materiales Drive generados: ${materials.length}`);
