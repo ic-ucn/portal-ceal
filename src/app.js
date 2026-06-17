@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260617j';
-  const LOCAL_DATA_KEY = 'portal.data.v15';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14'];
+  const DATA_CONTENT_VERSION = '20260617k';
+  const LOCAL_DATA_KEY = 'portal.data.v16';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -452,7 +452,7 @@
       const user = await loginGoogle(stored.role || 'student', credential);
       state.authMessage = '';
       saveSession(user);
-      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.role === 'ceal' ? '/gestion' : '/'}`);
+      history.replaceState(null, '', `${location.pathname}${location.search}#/`);
       pendingScrollReset = true;
       holdPageTop(1600);
       return true;
@@ -605,7 +605,6 @@
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
-    if (hasCealAccess()) items.push(['/gestion', 'settings', 'Gestión CEAL']);
     return items;
   }
   function isActive(path, itemPath) {
@@ -624,7 +623,7 @@
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
-    if (state.user && path.startsWith('/gestion/casos/')) return routeTo('/gestion');
+    if (state.user && path.startsWith('/gestion')) return routeTo('/');
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
     return true;
   }
@@ -726,7 +725,7 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/gestion','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -759,10 +758,7 @@
     if (path === '/mallas') return renderMallas();
     if (path.startsWith('/ramo/')) { const [, , plan, code] = path.split('/'); return renderCourseDetailPage(plan, decodeURIComponent(code)); }
     if (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/')) return renderMaterial();
-    if (path === '/gestion') return ensureCEAL(renderManagement());
-    if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
-    if (path.startsWith('/gestion/comunicados/')) return ensureCEAL(renderEditor(path.split('/')[3]));
-    if (path.startsWith('/gestion/material/')) return ensureCEAL(renderValidateMaterial(path.split('/')[3]));
+    if (path === '/gestion' || path.startsWith('/gestion/')) return renderNotFound('Gestión CEAL está pausada por ahora.');
     return renderNotFound();
   }
 
@@ -865,7 +861,7 @@
   }
   function renderContingency() {
     const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
-    const registerAgreement = hasCealAccess() ? `<a class="btn primary" href="#/gestion/acuerdos/nuevo">${icon('plus')} Nuevo seguimiento</a>` : '';
+    const registerAgreement = '';
     const contingencyComms = Data.communications.filter(c => plain(c.category) === 'contingencia');
     return `${pageHead('Contingencia del paro', 'Comunicados, acuerdos de seguimiento y estado actual', registerAgreement)}
       <section class="card pad contingency-hero"><div><span class="kicker">Estado actual</span><h2 class="card-title">Movilización institucional en seguimiento</h2><p class="muted">Esta sección concentra la información del paro para que el calendario académico quede limpio y la comunidad pueda revisar rápidamente qué se comunicó, qué compromisos existen y cuál es el siguiente paso.</p></div><div class="stat-grid compact">${stat('megaphone', contingencyComms.length, 'Comunicados', 'Publicados')}${stat('file', Data.agreements.length, 'Seguimientos', 'Activos')}</div></section>
@@ -1380,7 +1376,7 @@
         <section class="card pad"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="hstack" style="flex-wrap:wrap">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
         <div class="grid four" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}${access('file','Contingencia','Comunicados y seguimiento del paro.','Abrir','/contingencia','orange')}</div>`;
     }
-    return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(hasCealAccess() ? u.label : 'Estudiante')}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div>${hasCealAccess() ? '<a class="btn primary" href="#/gestion">Ir a Gestión CEAL</a>' : '<a class="btn secondary" href="#/mallas">Ver mi malla</a>'}</div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
+    return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(hasCealAccess() ? u.label : 'Estudiante')}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div><a class="btn secondary" href="#/mallas">Ver mi malla</a></div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
   }
   function renderSearch(query) {
     const q = String(query || '').trim();
