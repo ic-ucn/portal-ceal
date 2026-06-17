@@ -3310,7 +3310,7 @@ body::before {
   width: 112px;
   height: 48px;
   border-radius: 7px;
-  background: url("../assets/ucn-campus-line.png") center / cover no-repeat;
+  background: none;
   opacity: .14;
   pointer-events: none;
 }
@@ -3497,4 +3497,10 @@ body::before {
   .home-campus-copy span {
     font-size: .74rem;
   }
+}
+
+/* Temporary rollback: do not show generated campus artwork without the original asset. */
+.mobile-header::after {
+  display: none;
+  background: none;
 }
