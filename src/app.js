@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260617p';
-  const LOCAL_DATA_KEY = 'portal.data.v21';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-original.png?v=20260617p';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20'];
+  const DATA_CONTENT_VERSION = '20260617r';
+  const LOCAL_DATA_KEY = 'portal.data.v22';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260617r';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
