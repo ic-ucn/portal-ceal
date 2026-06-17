@@ -2,8 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const LOCAL_DATA_KEY = 'portal.data.v9';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8'];
+  const DATA_CONTENT_VERSION = '20260617e';
+  const LOCAL_DATA_KEY = 'portal.data.v10';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -172,9 +173,21 @@
   function isGuest() { return state.user?.role === 'guest'; }
   function hasCealAccess() { return state.user?.role === 'ceal' && (state.user.accessMode === 'ceal' || !state.user.authProvider); }
   function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
-  function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(Data)); } catch {} }
+  function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
   function pruneStaleSnapshots() { try { STALE_DATA_KEYS.forEach(key => localStorage.removeItem(key)); } catch {} }
-  function loadLocalSnapshot() { try { pruneStaleSnapshots(); const raw = localStorage.getItem(LOCAL_DATA_KEY); if (raw) Object.assign(Data, JSON.parse(raw)); } catch {} }
+  function loadLocalSnapshot() {
+    try {
+      pruneStaleSnapshots();
+      const raw = localStorage.getItem(LOCAL_DATA_KEY);
+      if (!raw) return;
+      const snapshot = JSON.parse(raw);
+      if (snapshot?.version !== DATA_CONTENT_VERSION || !snapshot.data) {
+        localStorage.removeItem(LOCAL_DATA_KEY);
+        return;
+      }
+      Object.assign(Data, snapshot.data);
+    } catch {}
+  }
   function mergeDriveResources() {
     const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
     if (!driveResources.length) return;
