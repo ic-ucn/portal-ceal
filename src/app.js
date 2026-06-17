@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260617i';
-  const LOCAL_DATA_KEY = 'portal.data.v14';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13'];
+  const DATA_CONTENT_VERSION = '20260617j';
+  const LOCAL_DATA_KEY = 'portal.data.v15';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -781,6 +781,61 @@
     const detail = [fmtDate(e.date), e.time, e.description].filter(Boolean).map(esc).join(' - ');
     return `<a class="link-card-row" href="#/calendario"><span><strong>${esc(e.title)}</strong><span>${detail}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`;
   }
+  function parseCalendarDate(date) {
+    const [year, month, day] = String(date).slice(0, 10).split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  function isoCalendarDate(year, monthIndex, day) {
+    return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  function calendarMonthLabel(date) {
+    return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+  }
+  function calendarEventTone(type = '') {
+    const value = plain(type);
+    if (value.includes('evaluacion') || value.includes('examen')) return 'purple';
+    if (value.includes('tramite') || value.includes('inscripcion')) return 'orange';
+    if (value.includes('receso') || value.includes('bienestar')) return 'green';
+    return 'blue';
+  }
+  function renderMonthCalendar(monthDate, events) {
+    const todayKey = Data.today || new Date().toISOString().slice(0, 10);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startOffset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+    const previousMonthDays = new Date(year, month, 0).getDate();
+    const eventsByDate = events.reduce((acc, event) => {
+      const key = String(event.date).slice(0, 10);
+      (acc[key] ||= []).push(event);
+      return acc;
+    }, {});
+    const heads = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => `<div class="day-head">${day}</div>`).join('');
+    const cells = Array.from({ length: totalCells }, (_, index) => {
+      const dayNumber = index - startOffset + 1;
+      const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+      const visibleDay = inMonth ? dayNumber : dayNumber < 1 ? previousMonthDays + dayNumber : dayNumber - daysInMonth;
+      const dateKey = inMonth ? isoCalendarDate(year, month, visibleDay) : '';
+      const dayEvents = inMonth ? (eventsByDate[dateKey] || []) : [];
+      const classes = ['day-cell', inMonth ? '' : 'outside', dateKey === todayKey ? 'today' : '', dayEvents.length ? 'has-event' : ''].filter(Boolean).join(' ');
+      const eventsMarkup = dayEvents.slice(0, 2).map(event => `<span class="day-event ${calendarEventTone(event.type)}" title="${esc(event.title)}">${esc(event.title)}</span>`).join('');
+      const extra = dayEvents.length > 2 ? `<span class="day-more">+${dayEvents.length - 2}</span>` : '';
+      return `<div class="${classes}" ${dateKey ? `data-calendar-date="${dateKey}"` : ''}><time datetime="${dateKey || ''}"><span class="day-number ${inMonth ? '' : 'muted'}">${visibleDay}</span>${dateKey === todayKey ? '<span class="today-dot">Hoy</span>' : ''}</time>${eventsMarkup}${extra}</div>`;
+    }).join('');
+    return `<div class="month-grid" aria-label="Calendario ${esc(calendarMonthLabel(monthDate))}">${heads}${cells}</div>`;
+  }
+  function renderMonthEventAgenda(monthDate, events) {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const monthEvents = events.filter(event => {
+      const date = parseCalendarDate(event.date);
+      return date.getFullYear() === year && date.getMonth() === month;
+    });
+    if (!monthEvents.length) return renderEmpty('Sin fechas este mes', 'Las próximas actividades aparecen en la agenda lateral.');
+    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<a class="calendar-agenda-row" href="#/calendario"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${[event.time, event.description].filter(Boolean).map(esc).join(' - ')}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></a>`).join('')}</div>`;
+  }
 
   function renderCommunications() {
     const cats = ['Todas', ...new Set(Data.communications.map(c => c.category))];
@@ -804,8 +859,9 @@
   function renderCalendar() {
     const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
     const nextEvents = Data.events.filter(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || '2026-06-17'}T00:00:00`));
+    const currentMonth = parseCalendarDate(Data.today || nextEvents[0]?.date || '2026-06-17');
     return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
-      <div class="calendar-layout"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos académicos</h2><span class="pill blue">${nextEvents.length} fechas</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div></section><aside class="card pad"><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
   }
   function renderContingency() {
     const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
