@@ -693,8 +693,8 @@
     const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar el acceso con Google.</span></div>`;
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
-      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y contingencia de Ingeniería Civil UCN.</p></div></div>
-      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h2>Entrar al portal</h2><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
+      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /></div></div>
+      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
           <section class="google-login-card">
