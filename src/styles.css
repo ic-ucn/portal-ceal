@@ -3758,3 +3758,17 @@ body::before {
     max-height: none;
   }
 }
+
+@media (max-width: 920px) {
+  .login-campus-art img {
+    width: min(100%, 360px);
+    height: clamp(198px, 55vw, 238px);
+    margin-inline: auto;
+  }
+
+  .home-campus-feature img {
+    width: min(100%, 350px);
+    height: clamp(198px, 52vw, 235px);
+    margin-inline: auto;
+  }
+}
