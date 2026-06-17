@@ -1020,6 +1020,12 @@ img { max-width: 100%; display: block; }
 .commit-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
 .commit-row strong { display: block; color: var(--navy-950); font-size: .86rem; }
 .commit-row span { color: var(--slate-600); font-size: .76rem; }
+.contingency-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, .48fr);
+  gap: 18px;
+  align-items: center;
+}
 
 /* COMMUNICATIONS */
 .comms-layout {
@@ -1032,6 +1038,13 @@ img { max-width: 100%; display: block; }
 .comms-category-list .chip-btn { width: 100%; justify-content: center; }
 .comms-feed, .comms-preview { min-width: 0; }
 .comms-preview { position: sticky; top: calc(var(--topbar-h) + 18px); max-height: calc(100vh - var(--topbar-h) - 36px); overflow: auto; }
+.communication-body {
+  margin: 14px 0;
+  color: var(--slate-700);
+  font-size: 1.02rem;
+  line-height: 1.78;
+  white-space: pre-line;
+}
 
 /* PROFILE, SEARCH */
 .profile-hero { display: grid; grid-template-columns: 96px 1fr auto; gap: 18px; align-items: center; }
@@ -1092,7 +1105,7 @@ img { max-width: 100%; display: block; }
 }
 
 @media (max-width: 1180px) {
-  .split, .split.wide, .editor-layout, .calendar-layout, .case-layout, .home-hero, .comms-layout { grid-template-columns: 1fr; }
+  .split, .split.wide, .editor-layout, .calendar-layout, .case-layout, .home-hero, .comms-layout, .contingency-hero { grid-template-columns: 1fr; }
   .management-content-grid { grid-template-columns: 1fr; }
   .management-modules { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .role-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }

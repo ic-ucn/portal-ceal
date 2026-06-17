@@ -2,12 +2,15 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const LOCAL_DATA_KEY = 'portal.data.v6';
-  const API_BASE = window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : '');
+  const LOCAL_DATA_KEY = 'portal.data.v9';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8'];
+  const URL_PARAMS = new URLSearchParams(location.search);
+  const STATIC_MODE = URL_PARAMS.has('static');
+  const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
-  const QA_MODE = new URLSearchParams(location.search).has('qa');
+  const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
   let dataMode = API_BASE ? 'backend' : 'static';
@@ -170,7 +173,8 @@
   function hasCealAccess() { return state.user?.role === 'ceal' && (state.user.accessMode === 'ceal' || !state.user.authProvider); }
   function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(Data)); } catch {} }
-  function loadLocalSnapshot() { try { const raw = localStorage.getItem(LOCAL_DATA_KEY); if (raw) Object.assign(Data, JSON.parse(raw)); } catch {} }
+  function pruneStaleSnapshots() { try { STALE_DATA_KEYS.forEach(key => localStorage.removeItem(key)); } catch {} }
+  function loadLocalSnapshot() { try { pruneStaleSnapshots(); const raw = localStorage.getItem(LOCAL_DATA_KEY); if (raw) Object.assign(Data, JSON.parse(raw)); } catch {} }
   function mergeDriveResources() {
     const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
     if (!driveResources.length) return;
@@ -187,7 +191,13 @@
     Data.saved.resources ||= [];
     Data.saved.resources = (Data.saved.resources || []).filter((id) => driveIds.has(id));
   }
-  function fmtDate(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  function parsePortalDate(date) {
+    const raw = String(date || '');
+    const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    return new Date(raw);
+  }
+  function fmtDate(date) { const d = parsePortalDate(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
   function fmtTime(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); }
   function titleCase(str) {
     const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
@@ -487,7 +497,7 @@
     return id ? `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview` : '';
   }
   function calendarDownloadText() {
-    return ['Calendario CEIC / CEAL UCN', ''].concat(Data.events.map(e => `${fmtDate(e.date)} ${e.time || ''} - ${e.title}\n${e.description || 'Actividad del calendario.'}`)).join('\n\n');
+    return ['Calendario académico CEIC / CEAL UCN', 'Fuente: Calendario de Actividades Docentes para pregrado 2026, DGPRE UCN', ''].concat(Data.events.map(e => `${fmtDate(e.date)} ${e.time || ''} - ${e.title}\n${e.description || 'Actividad del calendario.'}`)).join('\n\n');
   }
   function agreementDownloadText(a) {
     const commitments = (a.commitments || []).map(c => `- ${c.title} · ${c.responsible} · vence ${fmtDate(c.due)}`).join('\n') || 'Sin compromisos registrados.';
@@ -501,7 +511,7 @@
       `Responsable: ${a.responsible}`,
       `Estado: ${(Status[a.status]?.[0] || a.status)}`,
       '',
-      'Qué se acordó',
+      'Resumen',
       a.summary || 'Sin resumen disponible.',
       '',
       'Estado actual',
@@ -577,17 +587,17 @@
     const items = [
       ['/', 'home', 'Inicio'],
       ['/comunicados', 'megaphone', 'Comunicados'],
-      ['/calendario', 'calendar', 'Calendario y acuerdos'],
+      ['/calendario', 'calendar', 'Calendario'],
+      ['/contingencia', 'file', 'Contingencia del paro'],
       ['/mallas', 'grid', 'Mallas'],
-      ['/material', 'book', 'Material'],
-      ['/apoyo', 'users', 'Ayudantías y trámites']
+      ['/material', 'book', 'Material']
     ];
     if (hasCealAccess()) items.push(['/gestion', 'settings', 'Gestión CEAL']);
     return items;
   }
   function isActive(path, itemPath) {
     if (itemPath === '/') return path === '/';
-    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
+    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/contingencia' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
   }
   function pageHead(title, subtitle = '', actions = '') {
     return `<div class="page-head"><div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
@@ -600,6 +610,7 @@
     if (!state.user && path !== '/login') return routeTo('/login');
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
+    if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
     if (state.user && path.startsWith('/gestion/casos/')) return routeTo('/gestion');
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
     return true;
@@ -669,7 +680,7 @@
     const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar el acceso con Google.</span></div>`;
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
-      <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y acuerdos de Ingeniería Civil UCN.</p></div></div>
+      <div class="login-brand"><div><img src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><h1>Portal CEIC / CEAL UCN</h1><p>Consulta material, mallas, fechas, comunicados y contingencia de Ingeniería Civil UCN.</p></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h2>Entrar al portal</h2><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
@@ -702,7 +713,7 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/apoyo','/ayudantias','/tramites','/perfil','/gestion','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/gestion','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a><nav class="nav">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -717,6 +728,7 @@
     if (path === '/comunicados') return renderCommunications();
     if (path.startsWith('/comunicados/')) return renderCommunicationDetail(path.split('/')[2]);
     if (path === '/calendario') return renderCalendar();
+    if (path === '/contingencia') return renderContingency();
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
@@ -733,9 +745,7 @@
     if (path.startsWith('/material/')) return renderMaterialDetailPage(path.split('/')[2]);
     if (path === '/mallas') return renderMallas();
     if (path.startsWith('/ramo/')) { const [, , plan, code] = path.split('/'); return renderCourseDetailPage(plan, decodeURIComponent(code)); }
-    if (path === '/apoyo') return renderSupport();
-    if (path.startsWith('/ayudantias/')) return renderTutoringDetail(path.split('/')[2]);
-    if (path.startsWith('/tramites/')) return renderProcedureDetail(path.split('/')[2]);
+    if (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/')) return renderMaterial();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
     if (path.startsWith('/gestion/comunicados/')) return ensureCEAL(renderEditor(path.split('/')[3]));
@@ -747,14 +757,17 @@
     const unread = Data.communications.filter(c => c.unread).length;
     const newMaterials = Data.resources.filter(r => r.status !== 'observado').length;
     return `${pageHead('Inicio', 'Resumen actualizado del portal académico')}
-      <section class="home-hero"><div class="card pad home-summary"><div class="row-between"><h2 class="card-title">Estado general</h2><span class="pill green">Portal actualizado</span></div><p class="muted">Revisa comunicados, fechas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Visibles')}</div></div>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas, hitos y acuerdos importantes.','Abrir','/calendario')}${access('megaphone','Comunicados','Avisos y respuestas publicadas.','Leer','/comunicados')}</div></div></section>
+      <section class="home-hero"><div class="card pad home-summary"><div class="row-between"><h2 class="card-title">Estado general</h2><span class="pill green">Portal actualizado</span></div><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Visibles')}</div></div>
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
 
   }
   function access(ico, title, desc, action, href, tone = '') { return `<a class="access-card" href="#${href}"><span class="icon-box ${tone}">${icon(ico)}</span><span class="access-copy"><strong>${esc(title)}</strong><span>${esc(desc)}</span><em>${esc(action)} ${icon('arrow')}</em></span></a>`; }
   function newsRow(ico, title, desc, href, date) { return `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<span><strong>${esc(title)}</strong><span>${esc(desc || '')}</span></span></span><span class="small muted">${fmtDate(date)}</span></a>`; }
-  function dateRow(e) { return `<a class="link-card-row" href="#/calendario"><span><strong>${esc(e.title)}</strong><span>${fmtDate(e.date)} - ${esc(e.time || '')} - ${esc(e.description || '')}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`; }
+  function dateRow(e) {
+    const detail = [fmtDate(e.date), e.time, e.description].filter(Boolean).map(esc).join(' - ');
+    return `<a class="link-card-row" href="#/calendario"><span><strong>${esc(e.title)}</strong><span>${detail}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`;
+  }
 
   function renderCommunications() {
     const cats = ['Todas', ...new Set(Data.communications.map(c => c.category))];
@@ -771,26 +784,32 @@
     const c = Data.communications.find(x => x.id === id);
     if (!c) return renderNotFound('No encontramos el comunicado.');
     const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
-    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p style="font-size:1.05rem;line-height:1.75;color:var(--slate-700)">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#/calendario"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
+    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#${r.type === 'contingencia' ? '/contingencia' : '/calendario'}"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
   function renderCalendar() {
-    const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
-    const manageAgreement = hasCealAccess() ? `<a class="btn primary" href="#/gestion/acuerdos/nuevo">${icon('plus')} Nuevo acuerdo</a>` : '';
-    const registerAgreement = hasCealAccess() ? `<a class="link" href="#/gestion/acuerdos/nuevo">Registrar ${icon('arrow')}</a>` : '';
     const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
-    return `${pageHead('Calendario y acuerdos', 'Fechas, decisiones y seguimiento', calendarAction)}
-      <div class="calendar-layout"><section class="card pad"><div class="row-between"><h2 class="card-title">Agenda</h2>${manageAgreement}</div><div class="card-list">${Data.events.map(dateRow).join('')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos recientes</h2>${registerAgreement}</div>${Data.agreements.map(a => agreementRow(a)).join('')}</section></div>${selected ? `<section class="card pad" style="margin-top:18px">${renderAgreementSummary(selected)}</section>` : ''}`;
+    const nextEvents = Data.events.filter(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || '2026-06-17'}T00:00:00`));
+    return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
+      <div class="calendar-layout"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos académicos</h2><span class="pill blue">${nextEvents.length} fechas</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div></section><aside class="card pad"><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
+  }
+  function renderContingency() {
+    const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
+    const registerAgreement = hasCealAccess() ? `<a class="btn primary" href="#/gestion/acuerdos/nuevo">${icon('plus')} Nuevo seguimiento</a>` : '';
+    const contingencyComms = Data.communications.filter(c => plain(c.category) === 'contingencia');
+    return `${pageHead('Contingencia del paro', 'Comunicados, acuerdos de seguimiento y estado actual', registerAgreement)}
+      <section class="card pad contingency-hero"><div><span class="kicker">Estado actual</span><h2 class="card-title">Movilización institucional en seguimiento</h2><p class="muted">Esta sección concentra la información del paro para que el calendario académico quede limpio y la comunidad pueda revisar rápidamente qué se comunicó, qué compromisos existen y cuál es el siguiente paso.</p></div><div class="stat-grid compact">${stat('megaphone', contingencyComms.length, 'Comunicados', 'Publicados')}${stat('file', Data.agreements.length, 'Seguimientos', 'Activos')}</div></section>
+      <div class="calendar-layout" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Seguimiento</h2><span class="pill orange">Paro</span></div>${Data.agreements.map(a => agreementRow(a)).join('')}</section><section class="card pad"><h2 class="card-title">Últimos comunicados</h2><div class="card-list">${contingencyComms.map(c => commCard(c)).join('')}</div></section></div>${selected ? `<section class="card pad" style="margin-top:18px">${renderAgreementSummary(selected)}</section>` : ''}`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
-  function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle del acuerdo</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Qué se acordó</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div><a class="link" href="#/acuerdos/${a.id}">Ver detalles y documentos ${icon('arrow')}</a>`; }
+  function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle de seguimiento</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Resumen</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div><a class="link" href="#/acuerdos/${a.id}">Ver detalles y documentos ${icon('arrow')}</a>`; }
   function renderAgreementDetail(id) {
     const a = Data.agreements.find(x => x.id === id);
     if (!a) return renderNotFound('No encontramos el acuerdo.');
     const downloadAction = isGuest() ? '' : `<button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button>`;
-    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
+    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/contingencia">Volver</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
   }
 
   function renderMaterial() {
@@ -1236,7 +1255,7 @@
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${badge(getProgress(plan, c.code))}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); return c ? `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section><aside class="card pad"><h2 class="card-title">Conexiones</h2>${getResourcesForCourse(plan, c.code).map(r => resourceCard(r)).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</aside></div>` : renderNotFound('No encontramos el ramo.'); }
 
-  function renderSupport() { return `${pageHead('Ayudantías y trámites', 'Apoyo académico, formularios y gestiones')}<section class="card pad"><div class="row-between"><h2 class="card-title">Ayudantías</h2><a class="link" href="#/calendario">Ver calendario</a></div><div class="card-list">${Data.tutoring.map(tutoringCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Trámites y formularios</h2><div class="grid three">${Data.procedures.map(procedureCard).join('')}</div></section><section class="card pad" style="margin-top:18px"><h2 class="card-title">Apoyo académico</h2><div class="access-grid">${access('grid','Mallas','Consulta prerrequisitos y planes.','Abrir','/mallas','blue')}${access('book','Recursos de estudio','Guías y material recomendado.','Explorar','/material')}${access('users','Tutorías','Apoyo entre estudiantes.','Ver','/apoyo','green')}${access('calendar','Calendario','Fechas e hitos académicos.','Abrir','/calendario')}</div></section>`; }
+  function renderSupport() { return renderMaterial(); }
   function tutoringCard(t) { return `<a class="item-card" href="#/ayudantias/${t.id}"><div class="row-between"><span class="icon-box">${icon('users')}</span><span class="pill blue">${esc(t.mode)}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.courseName)} - ${fmtDate(t.date)} - ${esc(t.time)} - ${esc(t.location)}</p></a>`; }
   function procedureCard(p) { return `<a class="item-card" href="#/tramites/${p.id}"><div class="row-between"><span class="icon-box orange">${icon('file')}</span>${badge(p.status)}</div><h3>${esc(p.title)}</h3><p>Vence: ${fmtDate(p.due)}<br>${esc(p.responsible)}</p></a>`; }
   function renderTutoringDetail(id) {
@@ -1251,12 +1270,11 @@
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
     const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
     const modules = [
-      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/gestion/comunicados/com-001/editar'],
-      ['edit:calendario','calendar','Editar calendario','Gestiona fechas importantes.','/calendario'],
-      ['upload:acuerdos','file','Subir acuerdo','Registra decisiones y compromisos.','/gestion/acuerdos/nuevo'],
+      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/gestion/comunicados/com-paro-005/editar'],
+      ['edit:calendario','calendar','Editar calendario','Gestiona fechas académicas oficiales.','/calendario'],
+      ['upload:acuerdos','file','Registrar contingencia','Registra seguimiento y compromisos.','/gestion/acuerdos/nuevo'],
       ['validate:material','book','Validar material','Aprueba recursos enviados.', firstMaterial ? '/gestion/material/' + firstMaterial + '/validar' : '/material'],
       ['edit:mallas','grid','Actualizar mallas','Revisa enlaces y fichas de ramos.','/mallas'],
-      ['manage:forms','file','Gestionar formularios','Ordena trámites y solicitudes.','/apoyo'],
       ['manage:roles','users','Panel común CEAL','Acceso compartido para la directiva.','/gestion']
     ];
     const visibleModules = modules.map(m => `<a class="management-card" href="#${m[4]}"><span class="icon-box">${icon(m[1])}</span><strong>${esc(m[2])}</strong><span>${esc(m[3])}</span><em>Disponible para CEAL</em></a>`).join('');
@@ -1267,31 +1285,31 @@
       return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.title)}</strong><span>${esc(r.courseName)} - ${esc(r.type)}</span></span><span class="hstack">${badge(r.status)}<span class="link">${action} ${icon('arrow')}</span></span></a>`;
     }).join('');
     const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
-    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y acuerdos', `<span class="pill blue">Acceso CEAL</span>`)}
+    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y contingencia', `<span class="pill blue">Acceso CEAL</span>`)}
       <div class="vstack">
-        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Contingencia', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
         <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
         <div class="management-content-grid">
-          <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-001/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-paro-005/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
-          <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y calendario</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo acuerdo</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay acuerdos cargados.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Contingencia del paro</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
       </div>`;
   }
   function ensureCEAL(content) { return hasCealAccess() ? content : `${pageHead('Sin permisos', 'Esta sección es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
   function renderEditor(id) {
     const c = Data.communications.find(x => x.id === id) || Data.communications[0] || {};
-    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Título</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoría</label><select class="select" name="category">${['Académico','Actividades','Ayudantías','Material','Trámites','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
+    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Título</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoría</label><select class="select" name="category">${['Contingencia','Académico','Material','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
   }
   function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision'); return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revisión CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
-  function renderAgreementForm() { return `${pageHead('Nuevo acuerdo', 'Registra una decisión y su seguimiento', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del acuerdo</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, reunión, solicitud" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Qué se acordó</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear acuerdo</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
+  function renderAgreementForm() { return `${pageHead('Nuevo seguimiento', 'Registra una decisión, avance o compromiso de contingencia', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del seguimiento</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, mesa, comunicado" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Resumen</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear seguimiento</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
 
   function renderProfile() {
     const u = state.user;
     if (isGuest()) {
       return `${pageHead('Invitado', 'Vista sin registros', `<button class="btn danger" data-logout>${icon('x')} Salir</button>`)}
         <section class="card pad"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="hstack" style="flex-wrap:wrap">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
-        <div class="grid three" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas y acuerdos publicados.','Revisar','/calendario')}</div>`;
+        <div class="grid four" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}${access('file','Contingencia','Comunicados y seguimiento del paro.','Abrir','/contingencia','orange')}</div>`;
     }
     return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(hasCealAccess() ? u.label : 'Estudiante')}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div>${hasCealAccess() ? '<a class="btn primary" href="#/gestion">Ir a Gestión CEAL</a>' : '<a class="btn secondary" href="#/mallas">Ver mi malla</a>'}</div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
   }
@@ -1301,9 +1319,10 @@
     const rows = q ? [
       ...['planO','planP'].flatMap(plan => getCourses(plan).filter(c => plain([c.name, c.code, c.visibleCode].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('grid', titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `/ramo/${plan}/${encodeURIComponent(c.code)}`))),
       ...Data.resources.filter(r => plain([r.title, r.courseName, r.courseCode, r.type].join(' ')).includes(normalized)).slice(0, 5).map(r => resultRow('book', r.title, `${r.courseName} - ${r.type}`, `/material/${r.id}`)),
-      ...Data.communications.filter(c => plain([c.title, c.summary, c.category].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('megaphone', c.title, `${c.category} - ${fmtDate(c.date)}`, `/comunicados/${c.id}`))
+      ...Data.communications.filter(c => plain([c.title, c.summary, c.category].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('megaphone', c.title, `${c.category} - ${fmtDate(c.date)}`, `/comunicados/${c.id}`)),
+      ...Data.agreements.filter(a => plain([a.title, a.summary, a.origin].join(' ')).includes(normalized)).slice(0, 4).map(a => resultRow('file', a.title, `${a.origin} - ${fmtDate(a.date)}`, `/acuerdos/${a.id}`))
     ] : [];
-    return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, acuerdos y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
+    return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, contingencia y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
   function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>${isGuest() ? 'Salir del modo invitado' : 'Cerrar sesión'}</strong></span>${icon('arrow')}</button></div></section>`; }
@@ -1441,9 +1460,9 @@
       return;
     }
     if (form.dataset.form === 'new-agreement') {
-      let item = { id:`agr-${Date.now()}`, number:`Acuerdo CEAL N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Acuerdo creado', detail:'Registro creado desde Gestión CEAL.' }] };
+      let item = { id:`agr-${Date.now()}`, number:`Contingencia N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Seguimiento creado', detail:'Registro creado desde Gestión CEAL.' }] };
       try { const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
-      Data.agreements.unshift(item); persistSnapshot(); showToast('Acuerdo creado'); routeTo('/acuerdos/' + item.id); return;
+      Data.agreements.unshift(item); persistSnapshot(); showToast('Seguimiento creado'); routeTo('/acuerdos/' + item.id); return;
     }
   }
 

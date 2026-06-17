@@ -575,7 +575,7 @@ async function handleApi(req, res, url) {
       requireFields(body, ['title', 'summary']);
       created = {
         id: nextNumericId(collection, 'agr-'),
-        number: asText(body.number, `Acuerdo CEAL N ${String(collection.length + 1).padStart(2, '0')}/2026`),
+        number: asText(body.number, `Contingencia N ${String(collection.length + 1).padStart(2, '0')}/2026`),
         status: asText(body.status, 'enSeguimiento'),
         date: body.date || new Date().toISOString(),
         origin: asText(body.origin, 'Gestión CEAL'),
@@ -586,7 +586,7 @@ async function handleApi(req, res, url) {
         nextStep: asText(body.nextStep, 'Definir próximo paso.'),
         documents: Array.isArray(body.documents) ? body.documents : [],
         commitments: Array.isArray(body.commitments) ? body.commitments : [],
-        history: [{ at: new Date().toISOString(), title: 'Acuerdo creado', detail: 'Registro creado desde Gestión CEAL.' }]
+        history: [{ at: new Date().toISOString(), title: 'Seguimiento creado', detail: 'Registro creado desde Gestión CEAL.' }]
       };
     } else {
       created = { id: nextNumericId(collection, `${resource.slice(0, 3)}-`), ...body, createdAt: new Date().toISOString() };
