@@ -422,7 +422,7 @@ img { max-width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 34px;
+  gap: 12px;
 }
 .login-campus-art {
   margin: 0;
@@ -1148,7 +1148,7 @@ img { max-width: 100%; display: block; }
 @media (max-width: 920px) {
   body { background: var(--slate-50); }
   .login-card { grid-template-columns: 1fr; border-radius: 24px; }
-  .login-brand { padding: 28px; border-right: 0; border-bottom: 1px solid var(--line); gap: 34px; }
+  .login-brand { padding: 28px; border-right: 0; border-bottom: 1px solid var(--line); gap: 12px; }
   .login-logo { width: 220px; }
   .login-campus-art img { height: 142px; }
   .login-brand h1 { font-size: 1.8rem; }
