@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260619b';
-  const LOCAL_DATA_KEY = 'portal.data.v23';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260619b';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22'];
+  const DATA_CONTENT_VERSION = '20260619c';
+  const LOCAL_DATA_KEY = 'portal.data.v24';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260619c';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -188,6 +188,14 @@
   function startGuestSession() { localStorage.removeItem('portal.session'); state.user = buildGuestUser(); }
   function isGuest() { return state.user?.role === 'guest'; }
   function hasCealAccess() { return state.user?.role === 'ceal' && (state.user.accessMode === 'ceal' || !state.user.authProvider); }
+  function hasJefaturaAccess() { return state.user?.role === 'jefatura' && state.user.accessMode === 'jefatura'; }
+  function accountRoleLabel(user = state.user) {
+    if (!user) return '';
+    if (isGuest()) return 'Invitado';
+    if (user.role === 'ceal') return 'Miembros CEAL';
+    if (user.role === 'jefatura') return 'Jefatura de carrera';
+    return 'Estudiante';
+  }
   function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
   function pruneStaleSnapshots() { try { STALE_DATA_KEYS.forEach(key => localStorage.removeItem(key)); } catch {} }
@@ -326,6 +334,29 @@
     const normalized = String(email || '').toLowerCase();
     return cealMembers().find(m => String(m.email || '').toLowerCase() === normalized);
   }
+  function staffProfiles() { return Data.staffProfiles || []; }
+  function findStaffProfileByEmail(email) {
+    const normalized = String(email || '').toLowerCase();
+    return staffProfiles().find(profile => String(profile.email || '').toLowerCase() === normalized);
+  }
+  function buildStaffUser(profile, payload = {}) {
+    const name = profile.displayName || profile.name || payload.name || 'Jefatura de carrera';
+    return {
+      id: profile.id || `jefatura:${payload.sub || 'career'}`,
+      name,
+      initials: initialsFromName(name, 'JC'),
+      role: 'jefatura',
+      accessMode: 'jefatura',
+      label: 'Jefatura de carrera',
+      plan: 'planP',
+      yearLabel: 'Perfil institucional',
+      email: profile.email || payload.email || '',
+      picture: payload.picture || profile.picture || '',
+      authProvider: 'google',
+      googleSub: payload.sub || profile.googleSub || '',
+      permissions: ['manage:office-hours', 'edit:calendario']
+    };
+  }
   function markCealGoogleLogin(member, payload) {
     const now = new Date().toISOString();
     member.googleSub ||= payload.sub;
@@ -422,8 +453,12 @@
     if (!payload?.sub || !email) throw new Error('No se pudo leer la cuenta Google.');
     if (payload.aud && payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Esta credencial Google no pertenece al portal.');
     if (payload.email_verified !== true && payload.email_verified !== 'true') throw new Error('El correo Google no está verificado.');
-    if (String(payload.hd || '').toLowerCase() !== GOOGLE_DOMAIN || !email.endsWith(`@${GOOGLE_DOMAIN}`)) throw new Error(`Usa tu cuenta @${GOOGLE_DOMAIN}.`);
     return payload;
+  }
+  function requireGoogleDomain(payload, domain = GOOGLE_DOMAIN) {
+    const email = String(payload?.email || '').toLowerCase();
+    const hostedDomain = String(payload?.hd || '').toLowerCase();
+    if (hostedDomain !== domain || !email.endsWith(`@${domain}`)) throw new Error(`Usa tu cuenta @${domain}.`);
   }
   async function loginGoogle(role, credential) {
     if (API_BASE) {
@@ -436,6 +471,12 @@
       if (!member) throw new Error('Esta cuenta Google no está registrada como CEAL.');
       return markCealGoogleLogin(member, payload);
     }
+    if (role === 'jefatura') {
+      const profile = findStaffProfileByEmail(payload.email);
+      if (!profile) throw new Error('Esta cuenta Google no está registrada como Jefatura de carrera.');
+      return buildStaffUser(profile, payload);
+    }
+    requireGoogleDomain(payload);
     return studentFromGoogle(payload);
   }
   function googleRedirectUri() {
@@ -460,7 +501,8 @@
       render({ transition: true, scope: 'panel', resetScroll: false });
       return;
     }
-    const mode = role === 'ceal' ? 'ceal' : 'student';
+    const mode = ['ceal', 'jefatura'].includes(role) ? role : 'student';
+    const hostedDomainHint = mode === 'jefatura' ? 'ucn.cl' : GOOGLE_DOMAIN;
     const stateId = randomToken();
     const nonce = randomToken();
     localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, createdAt: Date.now() }));
@@ -471,7 +513,7 @@
       scope: 'openid email profile',
       nonce,
       state: stateId,
-      hd: GOOGLE_DOMAIN,
+      hd: hostedDomainHint,
       prompt: 'select_account'
     });
     location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
@@ -739,7 +781,7 @@
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
     return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /></div></div>
-      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @${esc(GOOGLE_DOMAIN)}.</p>
+      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional o un acceso autorizado del portal.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
           <section class="google-login-card">
@@ -752,8 +794,15 @@
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Miembro CEAL</strong><span>Acceso interno CEAL</span></div>
+              <div><strong>Miembros CEAL</strong><span>Acceso interno CEAL</span></div>
               ${googleButton('ceal')}
+            </div>
+          </section>
+          <section class="google-login-card">
+            <span class="role-icon">${icon('users')}</span>
+            <div class="google-login-body">
+              <div><strong>Jefatura de carrera</strong><span>Horarios de atención e información oficial.</span></div>
+              ${googleButton('jefatura')}
             </div>
           </section>
         </div>
@@ -1461,8 +1510,8 @@
     const hours = profile.officeHours || [];
     const calendarButton = profile.calendarUrl ? `<a class="btn primary" href="${esc(profile.calendarUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver calendario</a>` : `<button class="btn primary" disabled>${icon('calendar')} Calendario pendiente</button>`;
     const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('clock')} Tomar hora</a>` : `<button class="btn secondary" disabled>${icon('clock')} Toma de hora pendiente</button>`;
-    return `${pageHead('Jefatura', 'Horarios de atención e información de carrera')}
-      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.name || 'Jefatura de Carrera')}</span><h2 class="card-title">${esc(profile.displayName || 'Prof. Zelada')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><p class="muted">${esc(profile.description || 'Perfil preparado para publicar horarios e información oficial de atención.')}</p><div class="hstack">${calendarButton}${bookingButton}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section><aside class="card pad"><span class="kicker">Próximo paso técnico</span><h2 class="card-title">Google Calendar</h2><p class="small muted">Para que el profesor edite horarios y estudiantes tomen horas desde el portal hay que autorizar una cuenta de calendario y agregar permisos OAuth de Calendar. Mientras tanto se puede publicar un enlace de Google Calendar o Calendly.</p><div class="divider"></div>${(profile.notes || []).map(note => `<div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>${esc(note)}</strong></span></div>`).join('')}</aside></div>`;
+    return `${pageHead('Jefatura de carrera', 'Horarios de atención e información oficial')}
+      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(profile.email || 'jc.icivil.afta@ucn.cl')}</strong></div><div class="detail-row"><span>Acceso</span><strong>${hasJefaturaAccess() ? 'Sesión de jefatura activa' : 'Perfil público de consulta'}</strong></div></div><p class="muted">${esc(profile.description || 'Perfil preparado para publicar horarios e información oficial de atención.')}</p><div class="hstack">${calendarButton}${bookingButton}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section><aside class="card pad"><span class="kicker">Próximo paso técnico</span><h2 class="card-title">Google Calendar</h2><p class="small muted">Para que el profesor edite horarios y estudiantes tomen horas desde el portal hay que autorizar una cuenta de calendario y agregar permisos OAuth de Calendar. Mientras tanto se puede publicar un enlace de Google Calendar o Calendly.</p><div class="divider"></div>${(profile.notes || []).map(note => `<div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>${esc(note)}</strong></span></div>`).join('')}</aside></div>`;
   }
 
   function renderCealAssistant() {
@@ -1564,7 +1613,12 @@
         <section class="card pad"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="hstack" style="flex-wrap:wrap">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
         <div class="grid four" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}${access('file','Contingencia','Comunicados y seguimiento del paro.','Abrir','/contingencia','orange')}</div>`;
     }
-    return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(hasCealAccess() ? u.label : 'Estudiante')}</span><span class="pill gray">${planShort(u.plan)} - ${esc(u.yearLabel)}</span></div><p class="small muted">${esc(u.email)}</p></div><a class="btn secondary" href="#/mallas">Ver mi malla</a></div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
+    const roleLabel = accountRoleLabel(u);
+    const profileContext = u.role === 'student' ? `${planShort(u.plan)} - ${u.yearLabel}` : u.yearLabel;
+    const profileAction = hasJefaturaAccess()
+      ? `<a class="btn secondary" href="#/jefatura">Ver jefatura</a>`
+      : `<a class="btn secondary" href="#/mallas">Ver mi malla</a>`;
+    return `${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn danger" data-logout>${icon('x')} Cerrar sesión</button>`)}<section class="card pad"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">${esc(u.name)}</h2><div class="hstack" style="flex-wrap:wrap">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four" style="margin-top:18px">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two" style="margin-top:18px"><section class="card pad"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div>`;
   }
   function renderSearch(query) {
     const q = String(query || '').trim();

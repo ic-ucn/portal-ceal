@@ -101,6 +101,19 @@ for (const member of data.cealMembers) {
   assert(member.permissions.length >= 2, `${member.id} should have meaningful permissions`);
   for (const perm of member.permissions) assert(allowedPerms.has(perm), `${member.id} unknown permission ${perm}`);
 }
+for (const email of [
+  'martina.briceno@alumnos.ucn.cl',
+  'camila.villegas@alumnos.ucn.cl',
+  'belen.astudillo@alumnos.ucn.cl',
+  'matias.gonzalez11@alumnos.ucn.cl',
+  'gabriel.sanchez@alumnos.ucn.cl',
+  'bruno.castillo@alumnos.ucn.cl',
+  'paolo.cardaniz@alumnos.ucn.cl',
+  'paolo.ferruzola@alumnos.ucn.cl',
+  'kevin.cortes@alumnos.ucn.cl'
+]) {
+  assert(memberEmails.has(email), `missing CEAL email ${email}`);
+}
 
 assert(data.users.student.role === 'student', 'student user should be student');
 assert(data.users.ceal.role === 'ceal', 'seed CEAL user should be CEAL');
@@ -113,6 +126,7 @@ assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring shou
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
 assert(Array.isArray(data.surveys) && data.surveys.length >= 1, 'surveys should be seeded');
 assert(Array.isArray(data.staffProfiles) && data.staffProfiles.length >= 1, 'staff profiles should be seeded');
+assert(data.staffProfiles.some(profile => profile.email === 'jc.icivil.afta@ucn.cl'), 'career head profile email should be registered');
 
 for (const collection of ['communications', 'resources', 'cases', 'events', 'agreements', 'tutoring', 'procedures', 'surveys', 'staffProfiles']) {
   const ids = new Set();

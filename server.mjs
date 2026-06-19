@@ -159,6 +159,17 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles']) {
     db.data[key] ||= seed.data[key] || [];
   }
+  const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
+  for (const profile of seed.data.staffProfiles || []) {
+    const existing = db.data.staffProfiles.find(current => current.id === profile.id);
+    if (!existing) {
+      db.data.staffProfiles.push({ ...profile });
+    } else {
+      for (const key of staffSeedKeys) {
+        if (key in profile) existing[key] = Array.isArray(profile[key]) ? [...profile[key]] : profile[key];
+      }
+    }
+  }
   const seedResources = Array.isArray(seed.data.resources) ? seed.data.resources : [];
   const resources = Array.isArray(db.data.resources) ? db.data.resources : [];
   const hasDriveSeed = seedResources.some(resource => resource.source === 'drive');
@@ -330,6 +341,11 @@ function findMemberByEmail(db, email) {
   return (db.data.cealMembers || []).find(member => asText(member.email).toLowerCase() === normalized);
 }
 
+function findStaffProfileByEmail(db, email) {
+  const normalized = asText(email).toLowerCase();
+  return (db.data.staffProfiles || []).find(profile => asText(profile.email).toLowerCase() === normalized);
+}
+
 function markMemberGoogleLogin(member, payload) {
   const now = new Date().toISOString();
   member.googleSub ||= payload.sub;
@@ -347,6 +363,25 @@ function memberGoogleUser(member, payload) {
     authProvider: 'google',
     googleSub: payload.sub,
     picture: payload.picture || member.picture || ''
+  };
+}
+
+function staffProfileGoogleUser(profile, payload) {
+  const name = asText(profile.displayName || profile.name, 'Jefatura de carrera');
+  return {
+    id: asText(profile.id, `jefatura:${payload.sub}`),
+    name,
+    initials: initialsFromName(name, 'JC'),
+    role: 'jefatura',
+    accessMode: 'jefatura',
+    label: 'Jefatura de carrera',
+    plan: 'planP',
+    yearLabel: 'Perfil institucional',
+    email: asText(profile.email || payload.email).toLowerCase(),
+    picture: payload.picture || profile.picture || '',
+    authProvider: 'google',
+    googleSub: payload.sub,
+    permissions: ['manage:office-hours', 'edit:calendario']
   };
 }
 
@@ -453,7 +488,6 @@ async function verifyGoogleCredential(credential) {
   });
   const payload = ticket.getPayload();
   const email = asText(payload?.email).toLowerCase();
-  const hostedDomain = asText(payload?.hd).toLowerCase();
   if (!payload?.sub || !email) {
     const err = new Error('invalid google identity');
     err.statusCode = 401;
@@ -464,12 +498,17 @@ async function verifyGoogleCredential(credential) {
     err.statusCode = 403;
     throw err;
   }
-  if (hostedDomain !== googleDomain || !email.endsWith(`@${googleDomain}`)) {
-    const err = new Error(`only ${googleDomain} accounts are allowed`);
+  return payload;
+}
+
+function requireGoogleDomain(payload, domain = googleDomain) {
+  const email = asText(payload?.email).toLowerCase();
+  const hostedDomain = asText(payload?.hd).toLowerCase();
+  if (hostedDomain !== domain || !email.endsWith(`@${domain}`)) {
+    const err = new Error(`only ${domain} accounts are allowed`);
     err.statusCode = 403;
     throw err;
   }
-  return payload;
 }
 
 function todayKey() {
@@ -997,6 +1036,14 @@ async function handleApi(req, res, url) {
           await writeDb(db);
           return sendJson(res, 200, { ok: true, user, cealRegistered: true });
         }
+        if (role === 'jefatura') {
+          const profile = findStaffProfileByEmail(db, payload.email);
+          if (!profile) return sendError(res, 403, 'google account is not registered as Jefatura de carrera');
+          const user = withSessionToken(db, staffProfileGoogleUser(profile, payload));
+          await writeDb(db);
+          return sendJson(res, 200, { ok: true, user, staffRegistered: true });
+        }
+        requireGoogleDomain(payload);
         const user = withSessionToken(db, studentFromGoogle(payload));
         await writeDb(db);
         return sendJson(res, 200, { ok: true, user, cealRegistered: false });
