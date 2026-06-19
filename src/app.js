@@ -10,6 +10,7 @@
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
   const AI_ENDPOINT = String(window.PORTAL_AI_ENDPOINT || '').trim();
+  const CEAL_ASSISTANT_AUDIENCE = 'Estudiantes de Ingeniería Civil UCN';
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
@@ -42,7 +43,7 @@
     materialCourse: 'all',
     communicationCategory: 'Todas',
     communicationQuery: '',
-    cealAssistantRequest: { rawText: '', category: 'Auto', audience: 'Estudiantes de Ingeniería Civil UCN', urgency: 'normal', extraContext: '' },
+    cealAssistantRequest: { rawText: '', category: 'Auto', audience: CEAL_ASSISTANT_AUDIENCE, urgency: 'normal', extraContext: '' },
     cealAssistantResult: null,
     cealAssistantError: '',
     cealAssistantLoading: false,
@@ -1376,7 +1377,7 @@
             <div class="form-field"><label>Categoría sugerida</label><select class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
             <div class="form-field"><label>Urgencia</label><select class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
           </div>
-          <div class="form-field"><label>Audiencia</label><input class="input" name="audience" value="${esc(req.audience || 'Estudiantes de Ingeniería Civil UCN')}" /></div>
+          <div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div>
           <div class="form-field"><label>Contexto adicional</label><textarea class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
           <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.cealAssistantLoading ? '' : 'disabled'}>${state.cealAssistantLoading ? 'Generando...' : 'Generar borrador'}</button><button class="btn secondary" type="button" data-assistant-clear>Limpiar</button></div>
         </form>
@@ -1503,7 +1504,7 @@
     const publish = e.target.closest('[data-publish]');
     if (publish) { if (isGuest()) { readonlyToast(); return; } const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
     if (e.target.closest('[data-assistant-clear]')) {
-      state.cealAssistantRequest = { rawText: '', category: 'Auto', audience: 'Estudiantes de Ingeniería Civil UCN', urgency: 'normal', extraContext: '' };
+      state.cealAssistantRequest = { rawText: '', category: 'Auto', audience: CEAL_ASSISTANT_AUDIENCE, urgency: 'normal', extraContext: '' };
       state.cealAssistantResult = null;
       state.cealAssistantError = '';
       render({ transition: true, scope: 'panel' });
@@ -1630,7 +1631,7 @@
         intent: 'comunicado',
         rawText: String(fd.get('rawText') || '').trim(),
         category: String(fd.get('category') || 'Auto'),
-        audience: String(fd.get('audience') || 'Estudiantes de Ingeniería Civil UCN').trim(),
+        audience: CEAL_ASSISTANT_AUDIENCE,
         urgency: String(fd.get('urgency') || 'normal'),
         extraContext: String(fd.get('extraContext') || '').trim()
       };
