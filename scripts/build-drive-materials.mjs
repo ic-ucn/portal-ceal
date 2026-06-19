@@ -143,7 +143,28 @@ function inferFormat(row, item) {
 }
 
 function isPublishableFormat(row) {
-  const blocked = new Set(['HTML', 'JSON', 'MD', 'TXT', 'CSV', 'TNS', 'BAK', 'HDR', 'CAB', 'EX_', 'BIN', 'OCX', 'INX', 'EXE', 'INI', 'PY']);
+  const blocked = new Set([
+    'HTML',
+    'JSON',
+    'MD',
+    'TXT',
+    'CSV',
+    'TNS',
+    'BAK',
+    'HDR',
+    'CAB',
+    'EX_',
+    'BIN',
+    'OCX',
+    'INX',
+    'EXE',
+    'INI',
+    'PY',
+    'JAR',
+    'LAYOUT',
+    'ED$',
+    'ED3'
+  ]);
   return !blocked.has(inferFormat(row, row));
 }
 
@@ -154,16 +175,27 @@ function isTechnicalName(row) {
     || /^~\$/i.test(title);
 }
 
-function isCleanMaterialRow(row) {
+function isCleanMaterialRow(row, options = {}) {
   if (!row?.externalUrl) return false;
   if (!isPublishableFormat(row)) return false;
   if (isTechnicalName(row)) return false;
   const text = `${row.title || ''} ${row.description || ''} ${row.format || ''}`;
+  if (options.includeReview) {
+    return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text);
+  }
   return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text)
     && !/pauta|resuelt|resoluci[oó]n|soluci[oó]n|solucionario|respuesta/i.test(text);
 }
 
-function materialKey(row) {
+function materialKey(row, options = {}) {
+  if (options.includeReview) {
+    return [
+      stableText(row.title),
+      stableText(row.courseCode || row.courseName),
+      stableText(row.format),
+      stableText(row.externalUrl || row.id)
+    ].join('|');
+  }
   return [
     stableText(row.title),
     stableText(row.courseCode || row.courseName),
@@ -186,13 +218,13 @@ function normalizeExistingRow(row) {
   };
 }
 
-function mergeMaterials(generated, existing) {
+function mergeMaterials(generated, existing, options = {}) {
   const byKey = new Map();
-  for (const row of existing.map(normalizeExistingRow).filter(isCleanMaterialRow)) {
-    byKey.set(materialKey(row), row);
+  for (const row of existing.map(normalizeExistingRow).filter((item) => isCleanMaterialRow(item, options))) {
+    byKey.set(materialKey(row, options), row);
   }
-  for (const row of generated.filter(isCleanMaterialRow)) {
-    byKey.set(materialKey(row), row);
+  for (const row of generated.filter((item) => isCleanMaterialRow(item, options))) {
+    byKey.set(materialKey(row, options), row);
   }
   return [...byKey.values()].sort((a, b) => {
     const byYear = Number(b.year || 0) - Number(a.year || 0);
@@ -288,12 +320,13 @@ function buildMaterials(importDir) {
   const curriculaPath = argValue('curricula', DEFAULT_CURRICULA);
   const courseIndex = buildCourseIndex(loadCurricula(curriculaPath));
   const destinationByPath = new Map(destination.filter((item) => item.ID).map((item) => [item.Path, item]));
+  const includeReview = hasFlag('includeReview', 'include-review');
 
   return manifest
     .filter((row) => (
       row.portal_candidate
       && row.privacy_action !== 'bloquear'
-      && !row.review_required
+      && (includeReview || !row.review_required)
       && !String(row.mime_type || '').includes('shortcut')
       && !String(row.mime_type || '').startsWith('video/')
       && !/\.(mp4|mov|avi|wmv|mkv|webm|mpeg|mpg|m4v)$/i.test(row.name || row.path || '')
@@ -350,7 +383,7 @@ const importDir = argValue('input', DEFAULT_IMPORT_DIR);
 const output = argValue('output', DEFAULT_OUTPUT);
 const generated = buildMaterials(importDir);
 const existing = hasFlag('noMergeExisting', 'no-merge-existing') ? [] : loadExistingMaterials(output);
-const materials = mergeMaterials(generated, existing);
+const materials = mergeMaterials(generated, existing, { includeReview: hasFlag('includeReview', 'include-review') });
 const body = `// Generado por scripts/build-drive-materials.mjs desde la biblioteca Drive CEIC.\nwindow.PortalDriveMaterials = ${JSON.stringify(materials, null, 2)};\n`;
 writeFileSync(output, body, 'utf8');
 console.log(`Materiales Drive generados: ${materials.length}`);

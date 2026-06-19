@@ -82,14 +82,87 @@ const BLOCKED_PATH_PATTERNS = [
   'desktop.ini'
 ];
 const LARGE_ARCHIVE_LIMIT_BYTES = 500 * 1024 * 1024;
+const NON_STUDY_RULES = [
+  {
+    reason: 'firmas o asistencia',
+    patterns: [
+      /\bfirmas?\b/,
+      /\basistencia\b/,
+      /\bcontrol\s+de\s+asistencia\b/,
+      /\blista\s+de\s+asistencia\b/
+    ]
+  },
+  {
+    reason: 'nominas o listados de estudiantes',
+    patterns: [
+      /\bnomina\b/,
+      /\blistado\s+de\s+(alumnos|estudiantes|curso)\b/,
+      /\blista\s+de\s+(alumnos|estudiantes|curso)\b/,
+      /\balumnos\s+inscritos\b/,
+      /\bestudiantes\s+inscritos\b/
+    ]
+  },
+  {
+    reason: 'tramite administrativo',
+    patterns: [
+      /\bacta\b/,
+      /\bautorizacion\b/,
+      /\bcertificado\b/,
+      /\bcomprobante\b/,
+      /\binscripcion(es)?\b/,
+      /\bmatricula\b/,
+      /\bpermiso\b/,
+      /\bpostulacion(es)?\b/,
+      /\bsolicitud(es)?\b/
+    ]
+  },
+  {
+    reason: 'captura o comunicacion interna',
+    patterns: [
+      /\bcaptura\b/,
+      /\bpantallazo\b/,
+      /\bscreenshot\b/,
+      /\bwhatsapp\b/,
+      /\bcorreo\b/,
+      /\bmail\b/
+    ]
+  },
+  {
+    reason: 'datos personales o calificaciones',
+    patterns: [
+      /\brut\b/,
+      /\bcedula\b/,
+      /\bcalificacion(es)?\b/,
+      /\bplanilla\s+de\s+notas\b/,
+      /\bnotas\s+finales\b/,
+      /\bpromedios\b/
+    ]
+  },
+  {
+    reason: 'documento evaluativo no material de estudio',
+    patterns: [
+      /\brubrica\b/,
+      /\bevaluacion\s+docente\b/
+    ]
+  },
+  {
+    reason: 'entrega o informe de estudiantes',
+    patterns: [
+      /\binforme\s+grupal\b/,
+      /\bentrega\s+(final|[0-9]+)\b/,
+      /\bgrupo\s+[0-9]+\b/,
+      /\btrabajo\s+final\b/
+    ]
+  }
+];
 
 const MATERIAL_RULES = [
   { type: 'Pauta/Resolucion', patterns: ['pauta', 'resuelto', 'resuelta', 'resolucion', 'solucion', 'solucionario', 'desarrollo', 'respuesta'] },
-  { type: 'Enunciado', patterns: ['enunciado', 'certamen', 'control', 'parcial', 'examen', 'prueba', 'solemne'] },
-  { type: 'Guia', patterns: ['guia', 'guias', 'ejercicios', 'tarea', 'ayudantia', 'taller'] },
-  { type: 'Presentacion', patterns: ['ppt', 'pptx', 'diapositiva', 'slides', 'presentacion'] },
-  { type: 'Apunte', patterns: ['apunte', 'apuntes', 'clase', 'clases'] },
-  { type: 'Resumen', patterns: ['resumen', 'formulario', 'mapa conceptual'] },
+  { type: 'Guia', patterns: ['guia', 'guias', 'ejercicios', 'ejercicio', 'problema', 'problemas', 'tarea', 'ayudantia', 'taller', 'manual', 'norma', 'nch', 'texto guia'] },
+  { type: 'Presentacion', patterns: ['ppt', 'pptx', 'diapositiva', 'slides', 'presentacion', 'capsula'] },
+  { type: 'Apunte', patterns: ['apunte', 'apuntes', 'clase', 'clases', 'materia', 'tema', 'unidad'] },
+  { type: 'Resumen', patterns: ['resumen', 'formulario', 'formulario y tablas', 'tabla', 'tablas', 'mapa conceptual'] },
+  { type: 'Enunciado', patterns: ['enunciado', 'certamen', 'control', 'parcial', 'examen', 'prueba', 'solemne', 'pregunta', 'preguntas'] },
   { type: 'Programa', patterns: ['programa', 'syllabus'] },
   { type: 'Laboratorio', patterns: ['laboratorio', 'lab', 'informe'] }
 ];
@@ -437,6 +510,14 @@ function isOversizedArchive(rowOrItem) {
   return ['ZIP', 'RAR', '7Z'].includes(ext) && size > LARGE_ARCHIVE_LIMIT_BYTES;
 }
 
+function nonStudyReason(rowOrItem) {
+  const rawName = String(rowOrItem.name || rowOrItem.Name || '');
+  const rawPath = String(rowOrItem.path || rowOrItem.Path || rawName);
+  const searchText = normalizeText(`${rawPath} ${rawName}`);
+  const matched = NON_STUDY_RULES.find((rule) => rule.patterns.some((pattern) => pattern.test(searchText)));
+  return matched?.reason || '';
+}
+
 function extensionFromName(name) {
   const ext = path.extname(name || '').replace('.', '');
   return ext ? ext.toUpperCase() : '';
@@ -531,6 +612,13 @@ function toManifestRows(folder, items, courses, config) {
         privacy.portal_candidate = false;
         privacy.review_required = true;
       }
+      const nonStudy = nonStudyReason(item);
+      if (nonStudy) {
+        privacy.privacy_action = 'bloquear';
+        privacy.privacy_reason = `Documento administrativo/no academico: ${nonStudy}.`;
+        privacy.portal_candidate = false;
+        privacy.review_required = true;
+      }
       if (isVideoFile(item)) {
         privacy.privacy_action = 'revisar';
         privacy.privacy_reason = 'Video excluido de la publicacion inicial por peso.';
@@ -611,12 +699,14 @@ function writeOutputs(dir, rows) {
   )));
   writeCsv(path.join(dir, 'review-required.csv'), publicRows.filter((row) => row.review_required));
   writeCsv(path.join(dir, 'blocked-private.csv'), publicRows.filter((row) => row.privacy_action === 'bloquear'));
+  writeCsv(path.join(dir, 'blocked-non-study.csv'), publicRows.filter((row) => String(row.privacy_reason || '').includes('administrativo/no academico')));
   console.log(`Inventario escrito en: ${dir}`);
   console.log(`Archivos totales: ${rows.length}`);
   console.log(`Candidatos portal: ${publicRows.filter((row) => row.portal_candidate).length}`);
   console.log(`Listos para subir: ${publicRows.filter((row) => row.portal_candidate && !row.review_required).length}`);
   console.log(`Requieren revision: ${publicRows.filter((row) => row.review_required).length}`);
-  console.log(`Bloqueados carpeta personal: ${publicRows.filter((row) => row.privacy_action === 'bloquear').length}`);
+  console.log(`Bloqueados/no subibles: ${publicRows.filter((row) => row.privacy_action === 'bloquear').length}`);
+  console.log(`Bloqueados por no ser material de estudio: ${publicRows.filter((row) => String(row.privacy_reason || '').includes('administrativo/no academico')).length}`);
 }
 
 function latestImportDir(config) {
@@ -781,6 +871,7 @@ function publishAllowed(args) {
     && !isVideoFile(row)
     && !isNoisyMetadataFile(row)
     && !isOversizedArchive(row)
+    && !nonStudyReason(row)
     && (includeReview || !row.review_required)
   ));
   if (args.limit) {

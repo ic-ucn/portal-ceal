@@ -179,6 +179,133 @@
   font-weight: 800;
 }
 
+.assistant-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.icon-box.blue {
+  color: var(--blue-700);
+  background: var(--blue-100);
+}
+
+.ceal-assistant-form {
+  display: grid;
+  gap: 16px;
+}
+
+.assistant-input {
+  min-height: 220px;
+  line-height: 1.6;
+}
+
+.textarea.compact {
+  min-height: 92px;
+}
+
+.assistant-side {
+  display: grid;
+  gap: 14px;
+}
+
+.assistant-rule {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff, var(--slate-25));
+}
+
+.assistant-rule strong,
+.assistant-rule small {
+  display: block;
+}
+
+.assistant-rule small {
+  margin-top: 4px;
+  color: var(--slate-600);
+  line-height: 1.45;
+}
+
+.assistant-empty,
+.assistant-preview {
+  margin-top: 18px;
+}
+
+.assistant-empty {
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--slate-600);
+}
+
+.assistant-questions {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(249, 115, 22, .28);
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.assistant-questions strong,
+.assistant-questions p {
+  margin: 0;
+}
+
+.assistant-questions p {
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+.assistant-draft-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 18px;
+  margin: 18px 0;
+}
+
+.assistant-draft-main,
+.assistant-notes {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--slate-25);
+  padding: 16px;
+}
+
+.assistant-summary {
+  margin: 14px 0;
+  color: var(--slate-700);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.assistant-draft-body {
+  color: var(--text);
+  line-height: 1.75;
+}
+
+.assistant-draft-body p {
+  margin: 0 0 12px;
+}
+
+.assistant-notes p {
+  margin: 10px 0 0;
+  color: var(--slate-600);
+  line-height: 1.55;
+}
+
+.assistant-flag {
+  color: #991b1b !important;
+  font-weight: 700;
+}
+
 .guest-login-card {
   width: 100%;
   margin-top: 16px;
@@ -3773,5 +3900,21 @@ body::before {
     width: min(100%, 350px);
     height: clamp(198px, 52vw, 235px);
     margin-inline: auto;
+  }
+}
+
+@media (max-width: 920px) {
+  .assistant-layout,
+  .assistant-draft-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-input {
+    min-height: 180px;
+  }
+
+  .assistant-preview .row-between {
+    align-items: flex-start;
+    gap: 12px;
   }
 }

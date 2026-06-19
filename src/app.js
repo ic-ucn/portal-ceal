@@ -9,6 +9,7 @@
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
+  const AI_ENDPOINT = String(window.PORTAL_AI_ENDPOINT || '').trim();
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
@@ -41,6 +42,11 @@
     materialCourse: 'all',
     communicationCategory: 'Todas',
     communicationQuery: '',
+    cealAssistantRequest: { rawText: '', category: 'Auto', audience: 'Estudiantes de Ingeniería Civil UCN', urgency: 'normal', extraContext: '' },
+    cealAssistantResult: null,
+    cealAssistantError: '',
+    cealAssistantLoading: false,
+    cealAssistantUsage: null,
     openFAQ: null,
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
@@ -109,7 +115,8 @@
     filter: '<svg viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/></svg>',
     bookmark: '<svg viewBox="0 0 24 24"><path d="M19 21 12 16 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
-    more: '<svg viewBox="0 0 24 24"><path d="M12 12h.01"/><path d="M19 12h.01"/><path d="M5 12h.01"/></svg>'
+    more: '<svg viewBox="0 0 24 24"><path d="M12 12h.01"/><path d="M19 12h.01"/><path d="M5 12h.01"/></svg>',
+    sparkles: '<svg viewBox="0 0 24 24"><path d="M12 3 10.2 8.2 5 10l5.2 1.8L12 17l1.8-5.2L19 10l-5.2-1.8Z"/><path d="M19 14.5 18 17l-2.5 1 2.5 1 1 2.5 1-2.5 2.5-1-2.5-1Z"/><path d="M5 3.5 4.4 5 3 5.6 4.4 6.2 5 7.5 5.6 6.2 7 5.6 5.6 5Z"/></svg>'
   };
 
   function ensureShape() {
@@ -343,10 +350,22 @@
   }
   async function apiRequest(path, options = {}) {
     if (!API_BASE) throw new Error('api unavailable');
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
+    const headers = { 'content-type': 'application/json', ...(options.headers || {}) };
+    if (state.user?.sessionToken && !headers.Authorization) headers.Authorization = `Bearer ${state.user.sessionToken}`;
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok || payload.ok === false) throw new Error(payload.error || `api ${res.status}`);
     return payload;
+  }
+  async function cealAssistantRequest(payload) {
+    const endpoint = AI_ENDPOINT || (API_BASE ? `${API_BASE}/ai/ceal-draft` : '');
+    if (!endpoint) throw new Error('Asistente IA sin backend configurado.');
+    const headers = { 'content-type': 'application/json' };
+    if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
+    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
+    return data;
   }
   async function setupMemberPassword(memberId, password) {
     try { const payload = await apiRequest('/auth/setup', { method: 'POST', body: JSON.stringify({ memberId, password }) }); if (payload.user) return payload.user; } catch {}
@@ -606,6 +625,7 @@
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
+    if (hasCealAccess()) items.push(['/asistente', 'sparkles', 'Asistente CEAL']);
     return items;
   }
   function isActive(path, itemPath) {
@@ -727,7 +747,7 @@
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -743,6 +763,7 @@
     if (path.startsWith('/comunicados/')) return renderCommunicationDetail(path.split('/')[2]);
     if (path === '/calendario') return renderCalendar();
     if (path === '/contingencia') return renderContingency();
+    if (path === '/asistente') return renderCealAssistant();
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
@@ -1334,6 +1355,60 @@
   }
   function renderProcedureDetail(id) { const p = Data.procedures.find(x => x.id === id); return p ? `${pageHead(p.title, `Vence ${fmtDate(p.due)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad">${badge(p.status)}<p class="muted">${esc(p.description)}</p><h2 class="card-title">Documentos requeridos</h2>${p.required.map(r => `<div class="link-card-row"><span><strong>${esc(r)}</strong><span>Requisito</span></span>${icon('check')}</div>`).join('')}<div class="divider"></div><a class="btn primary" href="#/mallas">Revisar mallas</a></section><aside class="card pad"><h2 class="card-title">Apoyo</h2><p class="small muted">Revisa mallas, calendario y recursos antes de iniciar una gestión académica.</p></aside></div>` : renderNotFound(); }
 
+  function renderCealAssistant() {
+    const req = state.cealAssistantRequest || {};
+    const endpointReady = Boolean(AI_ENDPOINT || API_BASE);
+    const sessionReady = Boolean(state.user?.sessionToken);
+    const ready = endpointReady && sessionReady;
+    const usage = state.cealAssistantUsage ? `<span class="pill gray">${esc(state.cealAssistantUsage.count || 0)} usos hoy</span>` : '';
+    const status = !endpointReady
+      ? `<div class="google-auth-note"><strong>Backend IA pendiente</strong><span>Configura PORTAL_AI_ENDPOINT o abre el portal con server.mjs para usar Gemini sin exponer la key.</span></div>`
+      : !sessionReady
+        ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>El asistente necesita una sesión interna nueva para validar el acceso.</span></div>`
+        : '';
+    return ensureCEAL(`${pageHead('Asistente CEAL', 'Convierte texto crudo en comunicado revisable para el portal', `<span class="pill blue">Gemini ${esc(state.cealAssistantLoading ? 'trabajando' : 'listo')}</span>${usage}`)}
+      <div class="assistant-layout">
+        <form class="card pad ceal-assistant-form" data-form="ceal-assistant">
+          <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
+          ${status}${state.cealAssistantError ? `<p class="form-alert">${esc(state.cealAssistantError)}</p>` : ''}
+          <div class="form-field"><label>Texto recibido</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
+          <div class="form-grid">
+            <div class="form-field"><label>Categoría sugerida</label><select class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>Urgencia</label><select class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
+          </div>
+          <div class="form-field"><label>Audiencia</label><input class="input" name="audience" value="${esc(req.audience || 'Estudiantes de Ingeniería Civil UCN')}" /></div>
+          <div class="form-field"><label>Contexto adicional</label><textarea class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
+          <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.cealAssistantLoading ? '' : 'disabled'}>${state.cealAssistantLoading ? 'Generando...' : 'Generar borrador'}</button><button class="btn secondary" type="button" data-assistant-clear>Limpiar</button></div>
+        </form>
+        <aside class="card pad assistant-side">
+          <h2 class="card-title">Cómo decide</h2>
+          <div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Ordena sin inventar</strong><small>Si faltan datos críticos, pregunta antes de dejar listo el texto.</small></span></div>
+          <div class="assistant-rule"><span class="icon-box">${icon('megaphone')}</span><span><strong>Formato portal</strong><small>Título, resumen, categoría, cuerpo, prioridad y notas editoriales.</small></span></div>
+          <div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Publicación humana</strong><small>CEAL revisa y aprueba antes de que aparezca en Comunicados.</small></span></div>
+        </aside>
+      </div>
+      ${renderAssistantResult()}`);
+  }
+
+  function renderAssistantResult() {
+    const result = state.cealAssistantResult;
+    if (!result) {
+      return `<section class="card pad assistant-empty"><span class="icon-wrap">${icon('sparkles')}</span><h3>Sin borrador generado</h3><p>Pega un texto del CEAL y el asistente lo devolverá como comunicado listo para revisión.</p></section>`;
+    }
+    const draft = result.draft;
+    const questions = result.questions || [];
+    const notes = result.editorNotes || [];
+    const flags = result.safetyFlags || [];
+    return `<section class="card pad assistant-preview">
+      <div class="row-between"><div><span class="kicker">${result.needsClarification ? 'Requiere aclaración' : 'Borrador sugerido'}</span><h2 class="card-title">${draft ? esc(draft.title) : 'Faltan datos antes de redactar'}</h2></div>${draft ? `<span class="pill ${draft.priority === 'alta' ? 'orange' : 'blue'}">${draft.priority === 'alta' ? 'Prioridad alta' : 'Prioridad normal'}</span>` : '<span class="pill orange">Pendiente</span>'}</div>
+      ${questions.length ? `<div class="assistant-questions"><strong>Preguntas necesarias</strong>${questions.map(q => `<p>${esc(q)}</p>`).join('')}</div>` : ''}
+      ${draft ? `<div class="assistant-draft-grid">
+        <div class="assistant-draft-main"><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${esc(draft.category)}</span><span class="pill gray">${esc(draft.audience)}</span><span class="pill gray">${esc(draft.suggestedPublishTiming)}</span></div><p class="assistant-summary">${esc(draft.summary)}</p><div class="assistant-draft-body"><p>${esc(draft.body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p></div></div>
+        <aside class="assistant-notes">${notes.length ? `<h3 class="card-title">Notas editoriales</h3>${notes.map(n => `<p>${esc(n)}</p>`).join('')}` : '<h3 class="card-title">Notas editoriales</h3><p>Sin observaciones adicionales.</p>'}${flags.length ? `<div class="divider"></div><h3 class="card-title">Alertas</h3>${flags.map(f => `<p class="assistant-flag">${esc(f)}</p>`).join('')}` : ''}</aside>
+      </div><div class="hstack"><button class="btn primary" data-assistant-publish type="button">${icon('megaphone')} Publicar en comunicados</button><button class="btn secondary" data-assistant-copy type="button">Copiar texto</button></div>` : ''}
+    </section>`;
+  }
+
   function renderManagement() {
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
     const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
@@ -1427,6 +1502,46 @@
     if (observe) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
     const publish = e.target.closest('[data-publish]');
     if (publish) { if (isGuest()) { readonlyToast(); return; } const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
+    if (e.target.closest('[data-assistant-clear]')) {
+      state.cealAssistantRequest = { rawText: '', category: 'Auto', audience: 'Estudiantes de Ingeniería Civil UCN', urgency: 'normal', extraContext: '' };
+      state.cealAssistantResult = null;
+      state.cealAssistantError = '';
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
+    if (e.target.closest('[data-assistant-copy]')) {
+      const draft = state.cealAssistantResult?.draft;
+      if (draft) copyText(`${draft.title}\n\n${draft.summary}\n\n${draft.body}`).catch(() => {});
+      showToast('Borrador copiado', 'blue');
+      return;
+    }
+    if (e.target.closest('[data-assistant-publish]')) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const draft = state.cealAssistantResult?.draft;
+      if (!draft) { showToast('Primero genera un borrador', 'blue'); return; }
+      let item = {
+        id: `com-ai-${Date.now()}`,
+        title: draft.title,
+        category: draft.category || 'CEAL',
+        date: new Date().toISOString(),
+        source: 'CEIC Ingeniería Civil UCN',
+        pinned: draft.priority === 'alta',
+        unread: true,
+        summary: draft.summary,
+        body: draft.body,
+        related: []
+      };
+      try {
+        const payload = await apiRequest('/communications', { method: 'POST', body: JSON.stringify(item) });
+        if (payload.item) item = payload.item;
+      } catch {}
+      Data.communications = Data.communications.filter(c => c.id !== item.id);
+      Data.communications.unshift(item);
+      persistSnapshot();
+      showToast('Comunicado publicado');
+      routeTo('/comunicados/' + item.id);
+      return;
+    }
     const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
     if (mallaEmbedPlan) {
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
@@ -1509,6 +1624,34 @@
     if (!form.checkValidity()) { form.reportValidity(); return; }
     const fd = new FormData(form);
     if (isGuest() && ['upload-material', 'edit-content', 'new-agreement'].includes(form.dataset.form)) { readonlyToast(); return; }
+    if (form.dataset.form === 'ceal-assistant') {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const request = {
+        intent: 'comunicado',
+        rawText: String(fd.get('rawText') || '').trim(),
+        category: String(fd.get('category') || 'Auto'),
+        audience: String(fd.get('audience') || 'Estudiantes de Ingeniería Civil UCN').trim(),
+        urgency: String(fd.get('urgency') || 'normal'),
+        extraContext: String(fd.get('extraContext') || '').trim()
+      };
+      state.cealAssistantRequest = request;
+      state.cealAssistantResult = null;
+      state.cealAssistantError = '';
+      state.cealAssistantLoading = true;
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await cealAssistantRequest(request);
+        state.cealAssistantResult = payload.result;
+        state.cealAssistantUsage = payload.usage || null;
+        showToast(payload.result?.needsClarification ? 'El asistente necesita aclaraciones' : 'Borrador generado', 'blue');
+      } catch (error) {
+        state.cealAssistantError = error.message || 'No se pudo generar el borrador.';
+      } finally {
+        state.cealAssistantLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
     if (form.dataset.form === 'upload-material') {
       const file = form.elements.file?.files?.[0];
       const courseName = String(fd.get('course') || 'Ramo por asociar');

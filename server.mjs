@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { promises as fs } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
@@ -8,12 +9,17 @@ import { OAuth2Client } from 'google-auth-library';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
+loadLocalEnv(path.join(root, '.env.local'));
+loadLocalEnv(path.join(root, '.env'));
 const dataDir = path.join(root, '.data');
 const dbPath = process.env.PORTAL_DB_PATH || path.join(dataDir, 'portal-db.json');
 const port = Number(process.env.PORT || 8080);
 const googleClientId = process.env.PORTAL_GOOGLE_CLIENT_ID || '';
 const googleDomain = process.env.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
 const googleOAuthClient = new OAuth2Client(googleClientId || undefined);
+const geminiApiKey = process.env.GEMINI_API_KEY || '';
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const geminiDailySoftLimit = Number(process.env.GEMINI_DAILY_SOFT_LIMIT || 50);
 
 const collectionMap = {
   communications: 'communications',
@@ -50,6 +56,22 @@ const mime = {
 };
 
 let dbPromise;
+
+function loadLocalEnv(filePath) {
+  if (!existsSync(filePath)) return;
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    let value = match[2].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[match[1]] = value;
+  }
+}
 
 function runBrowserScript(file, globalName, code) {
   const sandbox = { window: {}, console };
@@ -118,6 +140,9 @@ function ensureDbShape(db, seed) {
     }
   }
   db.data.users ||= seed.data.users || {};
+  db.data.sessions ||= [];
+  db.data.aiUsage ||= {};
+  db.data.aiDrafts ||= [];
   if ((db.data.cealMembers || []).length) db.data.users.ceal = publicMember(db.data.cealMembers[0]);
   db.data.saved ||= seed.data.saved || { resources: [], courses: [], reminders: [] };
   db.data.saved.resources ||= [];
@@ -334,6 +359,62 @@ function studentFromGoogle(payload) {
   };
 }
 
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function createSession(db, user) {
+  db.data.sessions ||= [];
+  const now = new Date();
+  const token = crypto.randomBytes(32).toString('base64url');
+  const session = {
+    tokenHash: tokenHash(token),
+    userId: user.id || '',
+    email: asText(user.email).toLowerCase(),
+    role: asText(user.role, 'student'),
+    accessMode: asText(user.accessMode, user.role || 'student'),
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14).toISOString()
+  };
+  db.data.sessions = db.data.sessions
+    .filter(item => new Date(item.expiresAt).getTime() > now.getTime())
+    .slice(-80);
+  db.data.sessions.push(session);
+  return token;
+}
+
+function withSessionToken(db, user) {
+  return { ...user, sessionToken: createSession(db, user) };
+}
+
+function sessionFromRequest(req, db) {
+  const header = asText(req.headers.authorization || req.headers.Authorization || '');
+  const token = header.match(/^Bearer\s+(.+)$/i)?.[1] || '';
+  if (!token) return null;
+  const now = Date.now();
+  const hash = tokenHash(token);
+  return (db.data.sessions || []).find(session => (
+    session.tokenHash === hash
+    && new Date(session.expiresAt).getTime() > now
+  )) || null;
+}
+
+function requireCealSession(req, db) {
+  const session = sessionFromRequest(req, db);
+  if (!session || session.role !== 'ceal' || session.accessMode !== 'ceal') {
+    const err = new Error('ceal session required');
+    err.statusCode = 401;
+    throw err;
+  }
+  const member = findMemberByEmail(db, session.email);
+  if (!member) {
+    const err = new Error('google account is not registered as CEAL');
+    err.statusCode = 403;
+    throw err;
+  }
+  return member;
+}
+
 async function verifyGoogleCredential(credential) {
   if (!googleClientId) {
     const err = new Error('google client id not configured');
@@ -363,6 +444,162 @@ async function verifyGoogleCredential(credential) {
     throw err;
   }
   return payload;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function assertAiQuota(db) {
+  db.data.aiUsage ||= {};
+  const key = todayKey();
+  const usage = db.data.aiUsage[key] || { count: 0 };
+  if (Number.isFinite(geminiDailySoftLimit) && geminiDailySoftLimit > 0 && usage.count >= geminiDailySoftLimit) {
+    const err = new Error(`daily ai soft limit reached (${geminiDailySoftLimit})`);
+    err.statusCode = 429;
+    throw err;
+  }
+  return usage;
+}
+
+function markAiUsage(db) {
+  db.data.aiUsage ||= {};
+  const key = todayKey();
+  const usage = db.data.aiUsage[key] || { count: 0 };
+  usage.count = Number(usage.count || 0) + 1;
+  usage.lastUsedAt = new Date().toISOString();
+  usage.model = geminiModel;
+  db.data.aiUsage[key] = usage;
+  return usage;
+}
+
+function recentCommunicationContext(db) {
+  return (db.data.communications || [])
+    .slice(0, 8)
+    .map(item => `- ${item.title} (${item.category}, ${String(item.date || '').slice(0, 10)}): ${item.summary}`)
+    .join('\n');
+}
+
+function buildCealAssistantPrompt(db, body, member) {
+  const recent = recentCommunicationContext(db) || '- Sin comunicados recientes cargados.';
+  return `Eres el Asistente CEAL del Portal CEIC UCN para Ingenieria Civil UCN.
+
+Tu funcion es transformar texto crudo entregado por integrantes CEAL en borradores publicables del portal.
+Contexto del portal:
+- Audiencia principal: estudiantes de Ingenieria Civil UCN.
+- Secciones actuales: Comunicados, Calendario, Contingencia del paro, Mallas y Material.
+- Tono: institucional, claro, directo, cercano, sobrio, sin emojis y sin exageraciones.
+- Fecha actual: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}.
+- Integrante solicitante: ${member.name || member.email} (${member.roleName || member.label || 'CEAL'}).
+- Comunicados recientes para evitar duplicados:
+${recent}
+
+Reglas:
+- No inventes horarios, salas, responsables, links ni acuerdos si no aparecen en el texto.
+- Si faltan datos criticos para publicar, marca needsClarification=true y pregunta maximo 3 cosas concretas.
+- Si el texto ya es suficiente, entrega draft listo para revisar/publicar.
+- El cuerpo debe quedar en texto plano con parrafos separados por salto de linea, no Markdown decorativo.
+- Si hay datos personales, acusaciones, informacion sensible o lenguaje riesgoso, agregalo en safetyFlags.
+- Si parece una fecha de calendario mas que comunicado, igual genera comunicado, pero sugiere category="Académico" o "CEAL" segun corresponda.
+
+Entrada del CEAL:
+${JSON.stringify({
+    intent: body.intent || 'comunicado',
+    rawText: body.rawText,
+    categoryHint: body.category || 'Auto',
+    audience: body.audience || 'Estudiantes de Ingenieria Civil UCN',
+    urgency: body.urgency || 'normal',
+    extraContext: body.extraContext || ''
+  }, null, 2)}
+
+Responde solamente JSON valido con esta forma:
+{
+  "needsClarification": boolean,
+  "questions": ["pregunta concreta"],
+  "draft": {
+    "title": "titulo corto",
+    "category": "Académico|Contingencia|Material|CEAL",
+    "summary": "resumen de una linea",
+    "body": "contenido completo",
+    "audience": "audiencia",
+    "priority": "normal|alta",
+    "suggestedPublishTiming": "ahora|programar|revisar"
+  },
+  "editorNotes": ["nota para CEAL"],
+  "safetyFlags": ["riesgo o dato sensible"]
+}`;
+}
+
+function parseGeminiJson(text) {
+  const raw = asText(text);
+  try {
+    return JSON.parse(raw);
+  } catch {}
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('gemini response was not json');
+  return JSON.parse(match[0]);
+}
+
+function normalizeAssistantResult(result) {
+  const draft = result?.draft && typeof result.draft === 'object' ? result.draft : null;
+  return {
+    needsClarification: Boolean(result?.needsClarification),
+    questions: Array.isArray(result?.questions) ? result.questions.map(asText).filter(Boolean).slice(0, 3) : [],
+    draft: draft ? {
+      title: asText(draft.title).slice(0, 120),
+      category: ['Académico', 'Contingencia', 'Material', 'CEAL'].includes(asText(draft.category)) ? asText(draft.category) : 'CEAL',
+      summary: asText(draft.summary).slice(0, 220),
+      body: asText(draft.body),
+      audience: asText(draft.audience, 'Estudiantes de Ingeniería Civil UCN'),
+      priority: asText(draft.priority, 'normal') === 'alta' ? 'alta' : 'normal',
+      suggestedPublishTiming: asText(draft.suggestedPublishTiming, 'revisar')
+    } : null,
+    editorNotes: Array.isArray(result?.editorNotes) ? result.editorNotes.map(asText).filter(Boolean).slice(0, 5) : [],
+    safetyFlags: Array.isArray(result?.safetyFlags) ? result.safetyFlags.map(asText).filter(Boolean).slice(0, 5) : []
+  };
+}
+
+async function generateCealDraft(db, body, member) {
+  if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
+    const err = new Error('gemini api key not configured');
+    err.statusCode = 503;
+    throw err;
+  }
+  const rawText = asText(body.rawText);
+  if (rawText.length < 20) {
+    const err = new Error('raw text is too short');
+    err.statusCode = 422;
+    throw err;
+  }
+  if (rawText.length > 12000) {
+    const err = new Error('raw text is too long');
+    err.statusCode = 413;
+    throw err;
+  }
+  assertAiQuota(db);
+  const prompt = buildCealAssistantPrompt(db, body, member);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.25,
+        topP: 0.9,
+        responseMimeType: 'application/json'
+      }
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload?.error?.message || `gemini api ${response.status}`);
+    err.statusCode = response.status;
+    throw err;
+  }
+  markAiUsage(db);
+  const text = (payload.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('\n');
+  return normalizeAssistantResult(parseGeminiJson(text));
 }
 
 function nextNumericId(items, prefix) {
@@ -449,8 +686,9 @@ async function handleApi(req, res, url) {
       member.passwordSalt = crypto.randomBytes(16).toString('hex');
       member.passwordHash = hashPassword(password, member.passwordSalt);
       member.passwordSet = true;
+      const user = withSessionToken(db, publicMember(member));
       await writeDb(db);
-      return sendJson(res, 200, { ok: true, user: publicMember(member) });
+      return sendJson(res, 200, { ok: true, user });
     }
 
     if (id === 'login' && req.method === 'POST') {
@@ -460,7 +698,9 @@ async function handleApi(req, res, url) {
       if (!member || !member.passwordHash || hashPassword(password, member.passwordSalt) !== member.passwordHash) {
         return sendError(res, 401, 'invalid credentials');
       }
-      return sendJson(res, 200, { ok: true, user: publicMember(member) });
+      const user = withSessionToken(db, publicMember(member));
+      await writeDb(db);
+      return sendJson(res, 200, { ok: true, user });
     }
 
     if (id === 'google' && req.method === 'POST') {
@@ -474,16 +714,49 @@ async function handleApi(req, res, url) {
           const member = findMemberByEmail(db, payload.email);
           if (!member) return sendError(res, 403, 'google account is not registered as CEAL');
           markMemberGoogleLogin(member, payload);
+          const user = withSessionToken(db, memberGoogleUser(member, payload));
           await writeDb(db);
-          return sendJson(res, 200, { ok: true, user: memberGoogleUser(member, payload), cealRegistered: true });
+          return sendJson(res, 200, { ok: true, user, cealRegistered: true });
         }
-        return sendJson(res, 200, { ok: true, user: studentFromGoogle(payload), cealRegistered: false });
+        const user = withSessionToken(db, studentFromGoogle(payload));
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, user, cealRegistered: false });
       } catch (error) {
         return sendError(res, error.statusCode || 401, error.message || 'invalid google credential');
       }
     }
 
     return sendError(res, 404, 'unknown auth action');
+  }
+
+  if (resource === 'ai') {
+    if (id === 'ceal-draft' && req.method === 'POST') {
+      try {
+        const member = requireCealSession(req, db);
+        const body = await readBody(req);
+        const result = await generateCealDraft(db, body, member);
+        db.data.aiDrafts ||= [];
+        db.data.aiDrafts.unshift({
+          id: `ai-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          createdBy: member.email,
+          intent: asText(body.intent, 'comunicado'),
+          rawText: asText(body.rawText).slice(0, 12000),
+          result
+        });
+        db.data.aiDrafts = db.data.aiDrafts.slice(0, 50);
+        await writeDb(db);
+        return sendJson(res, 200, {
+          ok: true,
+          model: geminiModel,
+          usage: db.data.aiUsage?.[todayKey()] || { count: 0 },
+          result
+        });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'ai generation failed');
+      }
+    }
+    return sendError(res, 404, 'unknown ai action');
   }
 
   if (resource === 'saved' && req.method === 'POST') {
