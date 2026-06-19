@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
+import { strToU8, zipSync } from 'fflate';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
@@ -37,7 +38,14 @@ const collectionMap = {
   ayudantias: 'tutoring',
   procedures: 'procedures',
   tramites: 'procedures',
-  notifications: 'notifications'
+  notifications: 'notifications',
+  surveys: 'surveys',
+  encuestas: 'surveys',
+  votaciones: 'surveys',
+  appointments: 'appointments',
+  atenciones: 'appointments',
+  staffProfiles: 'staffProfiles',
+  jefatura: 'staffProfiles'
 };
 
 const mime = {
@@ -148,7 +156,7 @@ function ensureDbShape(db, seed) {
   db.data.saved.resources ||= [];
   db.data.saved.courses ||= [];
   db.data.saved.reminders ||= [];
-  for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications']) {
+  for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles']) {
     db.data[key] ||= seed.data[key] || [];
   }
   const seedResources = Array.isArray(seed.data.resources) ? seed.data.resources : [];
@@ -259,6 +267,14 @@ function sendJson(res, status, body) {
     'access-control-allow-headers': 'content-type'
   });
   res.end(JSON.stringify(body));
+}
+
+function sendBinary(res, status, body, headers = {}) {
+  res.writeHead(status, {
+    'cache-control': 'no-store',
+    ...headers
+  });
+  res.end(body);
 }
 
 function sendError(res, status, message, details) {
@@ -413,6 +429,16 @@ function requireCealSession(req, db) {
     throw err;
   }
   return member;
+}
+
+function requirePortalSession(req, db) {
+  const session = sessionFromRequest(req, db);
+  if (!session) {
+    const err = new Error('portal session required');
+    err.statusCode = 401;
+    throw err;
+  }
+  return session;
 }
 
 async function verifyGoogleCredential(credential) {
@@ -602,6 +628,257 @@ async function generateCealDraft(db, body, member) {
   return normalizeAssistantResult(parseGeminiJson(text));
 }
 
+function buildSurveyAssistantPrompt(body, member) {
+  return `Eres el Asistente CEAL del Portal CEIC UCN.
+
+Transforma una instruccion en lenguaje natural en una encuesta o votacion lista para publicar.
+
+Contexto:
+- Comunidad: estudiantes de Ingenieria Civil UCN.
+- El CEAL crea encuestas de opinion, formularios de levantamiento, votaciones de paro/toma/listas y consultas rapidas.
+- Las votaciones son secretas por defecto.
+- No inventes candidatos, listas, horarios ni opciones si no aparecen en la instruccion.
+- Si faltan datos criticos, marca needsClarification=true y pregunta maximo 3 cosas.
+- Fecha actual: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}.
+- Solicitante: ${member.name || member.email}.
+
+Entrada:
+${JSON.stringify({
+    rawText: body.rawText,
+    requestedMode: body.mode || 'auto',
+    audience: 'Estudiantes de Ingenieria Civil UCN'
+  }, null, 2)}
+
+Responde solamente JSON valido con esta forma:
+{
+  "needsClarification": boolean,
+  "questions": ["pregunta concreta"],
+  "survey": {
+    "title": "titulo corto",
+    "description": "descripcion breve para estudiantes",
+    "mode": "encuesta|votacion",
+    "audience": "Estudiantes de Ingenieria Civil UCN",
+    "secret": boolean,
+    "allowMultipleResponses": false,
+    "status": "draft",
+    "questions": [
+      {
+        "label": "pregunta",
+        "type": "single|multiple|text|rating",
+        "required": true,
+        "options": ["opcion 1", "opcion 2"]
+      }
+    ]
+  },
+  "editorNotes": ["nota para CEAL"],
+  "safetyFlags": ["riesgo o dato sensible"]
+}`;
+}
+
+function normalizeSurveyQuestions(questions = []) {
+  const allowedTypes = new Set(['single', 'multiple', 'text', 'rating']);
+  return (Array.isArray(questions) ? questions : [])
+    .map((question, index) => {
+      const type = allowedTypes.has(asText(question.type)) ? asText(question.type) : 'single';
+      let options = Array.isArray(question.options) ? question.options.map(asText).filter(Boolean).slice(0, 12) : [];
+      if (type === 'rating' && !options.length) options = ['1', '2', '3', '4', '5'];
+      if (['single', 'multiple'].includes(type) && options.length < 2) options = ['Sí', 'No'];
+      if (type === 'text') options = [];
+      return {
+        id: asText(question.id, `q${index + 1}`),
+        label: asText(question.label || question.title || question.question, `Pregunta ${index + 1}`).slice(0, 220),
+        type,
+        required: question.required !== false,
+        options
+      };
+    })
+    .filter(question => question.label)
+    .slice(0, 16);
+}
+
+function normalizeSurveyDraft(result, body = {}) {
+  const survey = result?.survey && typeof result.survey === 'object' ? result.survey : {};
+  const raw = `${body.rawText || ''} ${survey.title || ''}`.toLowerCase();
+  const inferredVote = /votaci[oó]n|votar|voto|paro|toma|lista|candidato|postulante/i.test(raw);
+  const mode = asText(survey.mode, inferredVote ? 'votacion' : 'encuesta') === 'votacion' ? 'votacion' : 'encuesta';
+  const questions = normalizeSurveyQuestions(survey.questions);
+  return {
+    needsClarification: Boolean(result?.needsClarification) || !questions.length,
+    questions: Array.isArray(result?.questions) ? result.questions.map(asText).filter(Boolean).slice(0, 3) : [],
+    survey: {
+      title: asText(survey.title, mode === 'votacion' ? 'Votación CEAL' : 'Encuesta CEAL').slice(0, 120),
+      description: asText(survey.description, 'Consulta dirigida a estudiantes de Ingeniería Civil UCN.').slice(0, 500),
+      mode,
+      audience: 'Estudiantes de Ingeniería Civil UCN',
+      secret: survey.secret !== false || mode === 'votacion',
+      allowMultipleResponses: false,
+      status: 'draft',
+      questions
+    },
+    editorNotes: Array.isArray(result?.editorNotes) ? result.editorNotes.map(asText).filter(Boolean).slice(0, 5) : [],
+    safetyFlags: Array.isArray(result?.safetyFlags) ? result.safetyFlags.map(asText).filter(Boolean).slice(0, 5) : []
+  };
+}
+
+async function generateSurveyDraft(db, body, member) {
+  if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
+    const err = new Error('gemini api key not configured');
+    err.statusCode = 503;
+    throw err;
+  }
+  const rawText = asText(body.rawText);
+  if (rawText.length < 15) {
+    const err = new Error('raw text is too short');
+    err.statusCode = 422;
+    throw err;
+  }
+  if (rawText.length > 8000) {
+    const err = new Error('raw text is too long');
+    err.statusCode = 413;
+    throw err;
+  }
+  assertAiQuota(db);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: buildSurveyAssistantPrompt(body, member) }] }],
+      generationConfig: {
+        temperature: 0.2,
+        topP: 0.9,
+        responseMimeType: 'application/json'
+      }
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload?.error?.message || `gemini api ${response.status}`);
+    err.statusCode = response.status;
+    throw err;
+  }
+  markAiUsage(db);
+  const text = (payload.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('\n');
+  return normalizeSurveyDraft(parseGeminiJson(text), body);
+}
+
+function publicSurvey(survey = {}) {
+  const { responses, ...safe } = survey;
+  return {
+    ...safe,
+    responseCount: Array.isArray(responses) ? responses.length : Number(survey.responseCount || 0)
+  };
+}
+
+function publicData(data = {}) {
+  return {
+    ...data,
+    surveys: Array.isArray(data.surveys) ? data.surveys.map(publicSurvey) : []
+  };
+}
+
+function surveyVoterHash(surveyId, session) {
+  const secret = process.env.PORTAL_VOTE_SALT || geminiApiKey || googleClientId || 'portal-ceic-local';
+  return crypto.createHmac('sha256', secret)
+    .update(`${surveyId}:${asText(session.email).toLowerCase()}`)
+    .digest('hex');
+}
+
+function normalizeSurveyAnswers(survey, body) {
+  const answers = body.answers && typeof body.answers === 'object' ? body.answers : {};
+  const normalized = {};
+  for (const question of survey.questions || []) {
+    const raw = answers[question.id];
+    if (question.required && (raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && !raw.length))) {
+      const err = new Error(`missing answer: ${question.label}`);
+      err.statusCode = 422;
+      throw err;
+    }
+    if (raw === undefined || raw === null) continue;
+    if (question.type === 'multiple') {
+      const values = Array.isArray(raw) ? raw.map(asText).filter(Boolean) : [asText(raw)].filter(Boolean);
+      normalized[question.id] = values.filter(value => !question.options.length || question.options.includes(value)).slice(0, 12);
+    } else {
+      const value = asText(raw).slice(0, 2000);
+      if (['single', 'rating'].includes(question.type) && question.options.length && !question.options.includes(value)) {
+        const err = new Error(`invalid answer: ${question.label}`);
+        err.statusCode = 422;
+        throw err;
+      }
+      normalized[question.id] = value;
+    }
+  }
+  return normalized;
+}
+
+function xmlEscape(value = '') {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function excelColumn(index) {
+  let n = index + 1;
+  let result = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    result = String.fromCharCode(65 + rem) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
+
+function sheetXml(rows) {
+  const sheetData = rows.map((row, rowIndex) => {
+    const cells = row.map((value, colIndex) => {
+      const ref = `${excelColumn(colIndex)}${rowIndex + 1}`;
+      if (typeof value === 'number') return `<c r="${ref}"><v>${value}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`;
+    }).join('');
+    return `<row r="${rowIndex + 1}">${cells}</row>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetData}</sheetData></worksheet>`;
+}
+
+function workbookXlsxBuffer(sheets) {
+  const entries = {};
+  entries['[Content_Types].xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`);
+  entries['_rels/.rels'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+  entries['xl/workbook.xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((sheet, i) => `<sheet name="${xmlEscape(sheet.name).slice(0, 31)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`);
+  entries['xl/_rels/workbook.xml.rels'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`);
+  sheets.forEach((sheet, i) => {
+    entries[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(sheetXml(sheet.rows));
+  });
+  return Buffer.from(zipSync(entries));
+}
+
+function surveyExportBuffer(survey) {
+  const questions = survey.questions || [];
+  const header = ['Fecha', 'ID respuesta', ...questions.map(question => question.label)];
+  const rows = (survey.responses || []).map(response => [
+    response.submittedAt,
+    response.id,
+    ...questions.map(question => {
+      const value = response.answers?.[question.id];
+      return Array.isArray(value) ? value.join('; ') : value ?? '';
+    })
+  ]);
+  return workbookXlsxBuffer([
+    { name: 'Respuestas', rows: [header, ...rows] },
+    { name: 'Resumen', rows: [
+      ['Título', survey.title],
+      ['Tipo', survey.mode === 'votacion' ? 'Votación' : 'Encuesta'],
+      ['Audiencia', survey.audience],
+      ['Secreta', survey.secret ? 'Sí' : 'No'],
+      ['Estado', survey.status],
+      ['Respuestas', survey.responses?.length || 0],
+      ['Exportado', new Date().toISOString()]
+    ] }
+  ]);
+}
+
 function nextNumericId(items, prefix) {
   const used = items
     .map(item => String(item.id || '').replace(prefix, ''))
@@ -641,7 +918,9 @@ function countDb(db) {
     agreements: data.agreements.length,
     events: data.events.length,
     tutoring: data.tutoring.length,
-    procedures: data.procedures.length
+    procedures: data.procedures.length,
+    surveys: data.surveys?.length || 0,
+    appointments: data.appointments?.length || 0
   };
 }
 
@@ -656,7 +935,7 @@ async function handleApi(req, res, url) {
       ok: true,
       mode: 'backend',
       meta: db.meta,
-      data: db.data,
+      data: publicData(db.data),
       curricula: db.curricula,
       counts: countDb(db)
     });
@@ -756,6 +1035,32 @@ async function handleApi(req, res, url) {
         return sendError(res, error.statusCode || 500, error.message || 'ai generation failed');
       }
     }
+    if (id === 'survey-draft' && req.method === 'POST') {
+      try {
+        const member = requireCealSession(req, db);
+        const body = await readBody(req);
+        const result = await generateSurveyDraft(db, body, member);
+        db.data.aiDrafts ||= [];
+        db.data.aiDrafts.unshift({
+          id: `ai-survey-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          createdBy: member.email,
+          intent: 'encuesta',
+          rawText: asText(body.rawText).slice(0, 8000),
+          result
+        });
+        db.data.aiDrafts = db.data.aiDrafts.slice(0, 50);
+        await writeDb(db);
+        return sendJson(res, 200, {
+          ok: true,
+          model: geminiModel,
+          usage: db.data.aiUsage?.[todayKey()] || { count: 0 },
+          result
+        });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'survey generation failed');
+      }
+    }
     return sendError(res, 404, 'unknown ai action');
   }
 
@@ -772,6 +1077,54 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true, saved: db.data.saved });
   }
 
+  if (resource === 'surveys' || resource === 'encuestas' || resource === 'votaciones') {
+    const action = parts[2] || '';
+    if (id && action === 'respond' && req.method === 'POST') {
+      try {
+        const session = requirePortalSession(req, db);
+        const survey = (db.data.surveys || []).find(item => item.id === id);
+        if (!survey) return sendError(res, 404, 'survey not found');
+        if (survey.status !== 'open') return sendError(res, 409, 'survey is not open');
+        survey.responses ||= [];
+        const voterHash = surveyVoterHash(survey.id, session);
+        if (!survey.allowMultipleResponses && survey.responses.some(response => response.voterHash === voterHash)) {
+          return sendError(res, 409, 'already responded');
+        }
+        const body = await readBody(req);
+        const response = {
+          id: `res-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+          surveyId: survey.id,
+          submittedAt: new Date().toISOString(),
+          voterHash,
+          role: session.role,
+          answers: normalizeSurveyAnswers(survey, body)
+        };
+        survey.responses.push(response);
+        survey.updatedAt = new Date().toISOString();
+        await writeDb(db);
+        return sendJson(res, 201, { ok: true, item: publicSurvey(survey), responseId: response.id });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'survey response failed');
+      }
+    }
+
+    if (id && action === 'export' && req.method === 'GET') {
+      try {
+        requireCealSession(req, db);
+        const survey = (db.data.surveys || []).find(item => item.id === id);
+        if (!survey) return sendError(res, 404, 'survey not found');
+        const buffer = surveyExportBuffer(survey);
+        const filename = `${asText(survey.title, 'encuesta').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'encuesta'}-respuestas.xlsx`;
+        return sendBinary(res, 200, buffer, {
+          'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'content-disposition': `attachment; filename="${filename}"`
+        });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'survey export failed');
+      }
+    }
+  }
+
   const collectionName = collectionMap[resource];
   if (!collectionName || !db.data[collectionName]) {
     return sendError(res, 404, 'unknown api resource');
@@ -779,9 +1132,9 @@ async function handleApi(req, res, url) {
   const collection = db.data[collectionName];
 
   if (req.method === 'GET') {
-    if (!id) return sendJson(res, 200, { ok: true, items: collection });
+    if (!id) return sendJson(res, 200, { ok: true, items: collectionName === 'surveys' ? collection.map(publicSurvey) : collection });
     const item = collection.find(entry => entry.id === id);
-    return item ? sendJson(res, 200, { ok: true, item }) : sendError(res, 404, 'item not found');
+    return item ? sendJson(res, 200, { ok: true, item: collectionName === 'surveys' ? publicSurvey(item) : item }) : sendError(res, 404, 'item not found');
   }
 
   if (req.method === 'POST') {
@@ -861,18 +1214,52 @@ async function handleApi(req, res, url) {
         commitments: Array.isArray(body.commitments) ? body.commitments : [],
         history: [{ at: new Date().toISOString(), title: 'Seguimiento creado', detail: 'Registro creado desde Gestión CEAL.' }]
       };
+    } else if (collectionName === 'surveys') {
+      const member = requireCealSession(req, db);
+      requireFields(body, ['title']);
+      const questions = normalizeSurveyQuestions(body.questions);
+      if (!questions.length) return sendError(res, 422, 'at least one question is required');
+      const mode = asText(body.mode, 'encuesta') === 'votacion' ? 'votacion' : 'encuesta';
+      created = {
+        id: nextNumericId(collection, mode === 'votacion' ? 'vot-' : 'enc-'),
+        title: asText(body.title),
+        description: asText(body.description, 'Consulta dirigida a estudiantes de Ingeniería Civil UCN.'),
+        mode,
+        audience: 'Estudiantes de Ingeniería Civil UCN',
+        secret: body.secret !== false || mode === 'votacion',
+        allowMultipleResponses: false,
+        status: ['draft', 'open', 'closed'].includes(asText(body.status)) ? asText(body.status) : 'draft',
+        questions,
+        responses: [],
+        createdAt: new Date().toISOString(),
+        createdBy: member.email,
+        updatedAt: new Date().toISOString()
+      };
     } else {
       created = { id: nextNumericId(collection, `${resource.slice(0, 3)}-`), ...body, createdAt: new Date().toISOString() };
     }
     collection.unshift(created);
     await writeDb(db);
-    return sendJson(res, 201, { ok: true, item: created });
+    return sendJson(res, 201, { ok: true, item: collectionName === 'surveys' ? publicSurvey(created) : created });
   }
 
   if (req.method === 'PATCH') {
     if (!id) return sendError(res, 400, 'id is required');
     const body = await readBody(req);
-    const item = patchItem(collection, id, body);
+    let patch = body;
+    if (collectionName === 'surveys') {
+      requireCealSession(req, db);
+      patch = {};
+      if (body.title !== undefined) patch.title = asText(body.title);
+      if (body.description !== undefined) patch.description = asText(body.description);
+      if (['draft', 'open', 'closed'].includes(asText(body.status))) patch.status = asText(body.status);
+      if (Array.isArray(body.questions)) {
+        const questions = normalizeSurveyQuestions(body.questions);
+        if (!questions.length) return sendError(res, 422, 'at least one question is required');
+        patch.questions = questions;
+      }
+    }
+    const item = patchItem(collection, id, patch);
     if (!item) return sendError(res, 404, 'item not found');
     if (collectionName === 'cases' && (body.response || body.note || body.status)) {
       item.history ||= [];
@@ -883,7 +1270,7 @@ async function handleApi(req, res, url) {
       });
     }
     await writeDb(db);
-    return sendJson(res, 200, { ok: true, item });
+    return sendJson(res, 200, { ok: true, item: collectionName === 'surveys' ? publicSurvey(item) : item });
   }
 
   return sendError(res, 405, 'method not allowed');

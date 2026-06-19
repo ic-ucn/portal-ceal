@@ -355,6 +355,46 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     { id: 'proc-003', title: 'Consulta académica formal', due: '2026-06-15', status: 'enRevision', required: ['Descripción de consulta', 'Ramo o unidad relacionada'], responsible: 'Dirección de Docencia', description: 'Formulario para consultas académicas formales.' }
   ];
 
+  const surveys = [
+    {
+      id: 'enc-001',
+      title: 'Preferencias de horarios de atenciÃ³n',
+      description: 'Levantamiento inicial para ajustar horarios de atenciÃ³n de jefatura y coordinaciÃ³n acadÃ©mica.',
+      mode: 'encuesta',
+      audience: 'Estudiantes de IngenierÃ­a Civil UCN',
+      secret: true,
+      allowMultipleResponses: false,
+      status: 'open',
+      createdAt: '2026-06-19T10:30:00',
+      createdBy: 'CEAL IngenierÃ­a Civil UCN',
+      responseCount: 0,
+      questions: [
+        { id: 'q1', label: 'Â¿QuÃ© bloque prefieres para atenciÃ³n?', type: 'single', required: true, options: ['MaÃ±ana', 'MediodÃ­a', 'Tarde'] },
+        { id: 'q2', label: 'Â¿QuÃ© temas necesitas priorizar?', type: 'multiple', required: false, options: ['InscripciÃ³n de ramos', 'PrÃ¡ctica', 'Avance curricular', 'SituaciÃ³n personal acadÃ©mica'] },
+        { id: 'q3', label: 'Comentario adicional', type: 'text', required: false, options: [] }
+      ]
+    }
+  ];
+
+  const staffProfiles = [
+    {
+      id: 'zelada',
+      name: 'Jefatura de Carrera',
+      displayName: 'Prof. Zelada',
+      role: 'Jefe de Carrera IngenierÃ­a Civil UCN',
+      email: '',
+      calendarUrl: '',
+      bookingUrl: '',
+      status: 'En configuraciÃ³n',
+      description: 'Perfil preparado para publicar horarios de atenciÃ³n, avisos de disponibilidad y enlace a calendario cuando estÃ© autorizado.',
+      officeHours: [
+        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de IngenierÃ­a Civil', status: 'Por confirmar' },
+        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Por confirmar' }
+      ],
+      notes: ['Las horas quedan sujetas a confirmaciÃ³n de jefatura.', 'El enlace de Google Calendar se agregarÃ¡ cuando el perfil estÃ© autorizado.']
+    }
+  ];
+
   const faqs = [
     { q: '¿Dónde reviso material por ramo?', a: 'En Material puedes buscar por ramo, código, tipo de recurso o semestre. Desde la malla también puedes abrir el material del ramo seleccionado.' },
     { q: '¿Dónde reviso mi malla?', a: 'En Mallas puedes alternar Plan O y Plan P, usar modo oscuro y abrir la vista foco para estudiar con más espacio.' },
@@ -410,5 +450,5 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     ? tutoring.map((item) => ({ ...item, materialId: driveResources.find((resource) => resource.courseCode === item.courseCode)?.id || '' }))
     : tutoring;
 
-  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, faqs, notifications, saved: savedState, gestion };
+  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
 })();

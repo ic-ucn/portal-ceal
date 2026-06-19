@@ -111,8 +111,10 @@ assert(Array.isArray(data.events) && data.events.length >= 5, 'events should be 
 assert(Array.isArray(data.agreements) && data.agreements.length >= 3, 'agreements should be seeded');
 assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring should be seeded');
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
+assert(Array.isArray(data.surveys) && data.surveys.length >= 1, 'surveys should be seeded');
+assert(Array.isArray(data.staffProfiles) && data.staffProfiles.length >= 1, 'staff profiles should be seeded');
 
-for (const collection of ['communications', 'resources', 'cases', 'events', 'agreements', 'tutoring', 'procedures']) {
+for (const collection of ['communications', 'resources', 'cases', 'events', 'agreements', 'tutoring', 'procedures', 'surveys', 'staffProfiles']) {
   const ids = new Set();
   for (const item of data[collection]) {
     assert(Boolean(item.id), `${collection} item should have id`);

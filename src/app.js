@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260617r';
-  const LOCAL_DATA_KEY = 'portal.data.v22';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260617r';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21'];
+  const DATA_CONTENT_VERSION = '20260619b';
+  const LOCAL_DATA_KEY = 'portal.data.v23';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260619b';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -48,6 +48,10 @@
     cealAssistantError: '',
     cealAssistantLoading: false,
     cealAssistantUsage: null,
+    surveyBuilderRequest: { rawText: '', mode: 'auto' },
+    surveyBuilderResult: null,
+    surveyBuilderError: '',
+    surveyBuilderLoading: false,
     openFAQ: null,
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
@@ -135,6 +139,9 @@
     Data.procedures ||= [];
     Data.faqs ||= [];
     Data.notifications ||= [];
+    Data.surveys ||= [];
+    Data.appointments ||= [];
+    Data.staffProfiles ||= [];
     if (!Data.cealMembers.length && Data.users?.ceal) Data.cealMembers = [Data.users.ceal];
     Data.resources = Data.resources.filter(r => !plain([r.title, r.origin, r.description, r.size].join(' ')).includes('demo') && !plain(r.title).includes('prueba funcional'));
     Data.resources = sanitizeMaterialResources(Data.resources);
@@ -368,6 +375,16 @@
     if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
     return data;
   }
+  async function surveyAssistantRequest(payload) {
+    const endpoint = AI_ENDPOINT || (API_BASE ? `${API_BASE}/ai/survey-draft` : '');
+    if (!endpoint) throw new Error('Asistente IA sin backend configurado.');
+    const headers = { 'content-type': 'application/json' };
+    if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
+    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
+    return data;
+  }
   async function setupMemberPassword(memberId, password) {
     try { const payload = await apiRequest('/auth/setup', { method: 'POST', body: JSON.stringify({ memberId, password }) }); if (payload.user) return payload.user; } catch {}
     const member = getCealMember(memberId);
@@ -504,6 +521,11 @@
     const a = document.createElement('a');
     a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
+  function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
   function downloadResource(resource) {
     if (resource.externalUrl) {
       window.open(resource.externalUrl, '_blank', 'noopener');
@@ -622,6 +644,8 @@
       ['/', 'home', 'Inicio'],
       ['/comunicados', 'megaphone', 'Comunicados'],
       ['/calendario', 'calendar', 'Calendario'],
+      ['/encuestas', 'check', 'Encuestas'],
+      ['/jefatura', 'users', 'Jefatura'],
       ['/contingencia', 'file', 'Contingencia del paro'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
@@ -748,7 +772,7 @@
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -763,6 +787,10 @@
     if (path === '/comunicados') return renderCommunications();
     if (path.startsWith('/comunicados/')) return renderCommunicationDetail(path.split('/')[2]);
     if (path === '/calendario') return renderCalendar();
+    if (path === '/encuestas') return renderSurveys();
+    if (path === '/encuestas/nueva') return renderSurveyBuilder();
+    if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
+    if (path === '/jefatura') return renderStaffAdvising();
     if (path === '/contingencia') return renderContingency();
     if (path === '/asistente') return renderCealAssistant();
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
@@ -792,7 +820,7 @@
     return `${pageHead('Inicio', 'Resumen actualizado del portal académico')}
       <section class="home-hero"><div class="card pad home-summary"><div class="row-between"><h2 class="card-title">Estado general</h2><span class="pill green">Portal actualizado</span></div><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Visibles')}</div></div>
       <section class="home-campus-feature"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><div class="row-between"><h2 class="card-title">Acciones frecuentes</h2><span class="pill blue">Accesos rápidos</span></div><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
+      <div class="card pad home-actions-panel"><div class="row-between"><h2 class="card-title">Acciones frecuentes</h2><span class="pill blue">Accesos rápidos</span></div><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}${access('users','Jefatura','Horarios de atención e información.','Ver','/jefatura')}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
 
   }
@@ -882,7 +910,7 @@
     const nextEvents = Data.events.filter(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || '2026-06-17'}T00:00:00`));
     const currentMonth = parseCalendarDate(Data.today || nextEvents[0]?.date || '2026-06-17');
     return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Durante la contingencia, algunos hitos pueden ajustarse. CEAL actualizará esta vista cuando exista información oficial.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
   }
   function renderContingency() {
     const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
@@ -1356,6 +1384,87 @@
   }
   function renderProcedureDetail(id) { const p = Data.procedures.find(x => x.id === id); return p ? `${pageHead(p.title, `Vence ${fmtDate(p.due)}`, `<a class="btn secondary" href="#/apoyo">Volver</a>`)}<div class="split"><section class="card pad">${badge(p.status)}<p class="muted">${esc(p.description)}</p><h2 class="card-title">Documentos requeridos</h2>${p.required.map(r => `<div class="link-card-row"><span><strong>${esc(r)}</strong><span>Requisito</span></span>${icon('check')}</div>`).join('')}<div class="divider"></div><a class="btn primary" href="#/mallas">Revisar mallas</a></section><aside class="card pad"><h2 class="card-title">Apoyo</h2><p class="small muted">Revisa mallas, calendario y recursos antes de iniciar una gestión académica.</p></aside></div>` : renderNotFound(); }
 
+  function surveyStatus(survey) {
+    const value = String(survey?.status || 'draft');
+    if (value === 'open') return ['Abierta', 'green'];
+    if (value === 'closed') return ['Cerrada', 'gray'];
+    return ['Borrador', 'blue'];
+  }
+  function surveyBadge(survey) {
+    const [label, tone] = surveyStatus(survey);
+    return `<span class="status-chip ${tone}">${label}</span>`;
+  }
+  function surveyModeLabel(mode) {
+    return plain(mode).includes('votacion') ? 'Votación' : 'Encuesta';
+  }
+  function surveyCard(survey) {
+    const count = Number(survey.responseCount || survey.responses?.length || 0);
+    return `<a class="item-card survey-card" href="#/encuestas/${esc(survey.id)}"><div class="row-between"><span class="pill blue">${surveyModeLabel(survey.mode)}</span>${surveyBadge(survey)}</div><h3>${esc(survey.title)}</h3><p>${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="survey-meta-row"><span>${icon('users')} ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}</span><span>${icon('check')} ${count} respuestas</span><span>${survey.secret !== false ? `${icon('eye')} voto secreto` : `${icon('eye')} identificada`}</span></div></a>`;
+  }
+  function renderSurveys() {
+    const surveys = [...(Data.surveys || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const open = surveys.filter(s => s.status === 'open');
+    const cealAction = hasCealAccess() ? `<a class="btn primary" href="#/encuestas/nueva">${icon('sparkles')} Crear con IA</a>` : '';
+    return `${pageHead('Encuestas y votaciones', 'Consultas internas con voto secreto y exportación a Excel', cealAction)}
+      <section class="card pad survey-hero"><div><span class="kicker">Participación estudiantil</span><h2 class="card-title">Consultas listas para aplicar</h2><p class="muted">CEAL puede convertir una instrucción en encuesta o votación, abrirla a estudiantes de Ingeniería Civil UCN y exportar resultados en XLSX.</p></div><div class="stat-grid compact">${stat('check', open.length, 'Activas', 'Abiertas')}${stat('file', surveys.length, 'Consultas', 'Totales')}${stat('eye', surveys.filter(s => s.secret !== false).length, 'Secretas', 'Sin correos')}</div></section>
+      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Activas</h2><span class="pill blue">${open.length}</span></div><div class="card-list">${open.map(surveyCard).join('') || renderEmpty('Sin consultas abiertas', 'Cuando CEAL abra una encuesta o votación aparecerá aquí.')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Historial</h2><span class="pill gray">${surveys.length}</span></div><div class="card-list">${surveys.map(surveyCard).join('') || renderEmpty('Sin consultas creadas', 'Usa el asistente para crear la primera.')}</div></section></div>`;
+  }
+  function renderSurveyBuilder() {
+    const req = state.surveyBuilderRequest || {};
+    const result = state.surveyBuilderResult?.survey || null;
+    const endpointReady = Boolean(AI_ENDPOINT || API_BASE);
+    const sessionReady = Boolean(state.user?.sessionToken);
+    const ready = endpointReady && sessionReady;
+    const status = !endpointReady
+      ? `<div class="google-auth-note"><strong>Backend IA pendiente</strong><span>Abre el portal con server.mjs o configura PORTAL_AI_ENDPOINT para generar encuestas con Gemini sin exponer la key.</span></div>`
+      : !sessionReady
+        ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>La generación necesita sesión interna para validar acceso.</span></div>`
+        : '';
+    const preview = result ? `<section class="card pad survey-preview"><div class="row-between"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(result.title)}</h2></div><span class="pill blue">${surveyModeLabel(result.mode)}</span></div><p class="muted">${esc(result.description)}</p><div class="detail-block"><div class="detail-row"><span>Audiencia</span><strong>${esc(result.audience || CEAL_ASSISTANT_AUDIENCE)}</strong></div><div class="detail-row"><span>Privacidad</span><strong>${result.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${(result.questions || []).length}</strong></div></div><div class="survey-question-list">${(result.questions || []).map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}</span><strong>${esc(q.label)}</strong><small>${esc(q.type)}${q.required ? ' - obligatoria' : ''}</small>${(q.options || []).length ? `<div class="quick-chip-row">${q.options.map(o => `<span class="filter-token">${esc(o)}</span>`).join('')}</div>` : ''}</div>`).join('')}</div><div class="hstack"><button class="btn primary" data-survey-create="open" type="button">${icon('check')} Crear y abrir</button><button class="btn secondary" data-survey-create="draft" type="button">Guardar borrador</button></div></section>` : `<section class="card pad assistant-empty"><span class="icon-wrap">${icon('sparkles')}</span><h3>Sin encuesta generada</h3><p>Describe la consulta en lenguaje natural. El asistente propondrá preguntas, opciones, tipo de respuesta y formato.</p></section>`;
+    return ensureCEAL(`${pageHead('Crear encuesta', 'De lenguaje natural a consulta lista para aplicar', `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
+      <div class="assistant-layout">
+        <form class="card pad form" data-form="survey-ai">
+          <div class="row-between"><div><span class="kicker">Asistente de participacion</span><h2 class="card-title">Nueva consulta</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
+          ${status}${state.surveyBuilderError ? `<p class="form-alert">${esc(state.surveyBuilderError)}</p>` : ''}
+          <div class="form-field"><label>Qué necesitas preguntar</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Ejemplo: crear votación secreta sobre mantener paro, con opciones sí/no/abstención y espacio opcional de comentario.">${esc(req.rawText || '')}</textarea></div>
+          <div class="form-grid"><div class="form-field"><label>Formato</label><select class="select" name="mode">${[['auto','Automático'],['encuesta','Encuesta'],['votacion','Votación secreta']].map(([value, label]) => `<option value="${value}"${(req.mode || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div></div>
+          <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.surveyBuilderLoading ? '' : 'disabled'}>${state.surveyBuilderLoading ? 'Generando...' : 'Generar encuesta'}</button><button class="btn secondary" data-survey-builder-clear type="button">Limpiar</button></div>
+        </form>
+        <aside class="card pad assistant-side"><h2 class="card-title">Reglas aplicadas</h2><div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Voto secreto por defecto</strong><small>No exporta nombre ni correo; solo respuestas y fecha.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Audiencia fija</strong><small>Solo Estudiantes de Ingeniería Civil UCN.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('download')}</span><span><strong>XLSX real</strong><small>CEAL descarga resultados para análisis posterior.</small></span></div></aside>
+      </div>${preview}`);
+  }
+  function renderSurveyQuestionInput(question) {
+    const id = esc(question.id);
+    const name = `survey-${id}`;
+    const required = question.required ? 'required' : '';
+    if (question.type === 'text') return `<textarea class="textarea compact" name="${name}" ${required} placeholder="Escribe tu respuesta"></textarea>`;
+    if (question.type === 'rating') return `<div class="survey-option-grid">${[1, 2, 3, 4, 5].map(value => `<label class="survey-option"><input type="radio" name="${name}" value="${value}" ${required} /><span>${value}</span></label>`).join('')}</div>`;
+    if (question.type === 'multiple') return `<div class="survey-option-grid">${(question.options || []).map(option => `<label class="survey-option"><input type="checkbox" name="${name}" value="${esc(option)}" /><span>${esc(option)}</span></label>`).join('')}</div>`;
+    return `<div class="survey-option-grid">${(question.options || []).map(option => `<label class="survey-option"><input type="radio" name="${name}" value="${esc(option)}" ${required} /><span>${esc(option)}</span></label>`).join('')}</div>`;
+  }
+  function renderSurveyDetail(id) {
+    const survey = (Data.surveys || []).find(item => item.id === id);
+    if (!survey) return renderNotFound('No encontramos la encuesta solicitada.');
+    const questions = survey.questions || [];
+    const count = Number(survey.responseCount || survey.responses?.length || 0);
+    const cealControls = hasCealAccess() ? `<div class="vstack"><button class="btn primary" data-survey-export="${esc(survey.id)}">${icon('download')} Exportar XLSX</button>${survey.status !== 'open' ? `<button class="btn secondary" data-survey-status="open" data-survey-id="${esc(survey.id)}">Abrir consulta</button>` : `<button class="btn secondary" data-survey-status="closed" data-survey-id="${esc(survey.id)}">Cerrar consulta</button>`}</div>` : '';
+    const responseArea = survey.status !== 'open'
+      ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('check')}</span><h3>Consulta cerrada</h3><p>Los resultados quedan disponibles para CEAL.</p></section>`
+      : isGuest()
+        ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Ingresa para responder</h3><p>El modo invitado permite revisar, pero no votar ni registrar respuestas.</p></section>`
+        : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label>${esc(q.label)}</label>${renderSurveyQuestionInput(q)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
+    return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
+      <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
+  }
+  function renderStaffAdvising() {
+    const profile = (Data.staffProfiles || [])[0] || {};
+    const hours = profile.officeHours || [];
+    const calendarButton = profile.calendarUrl ? `<a class="btn primary" href="${esc(profile.calendarUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver calendario</a>` : `<button class="btn primary" disabled>${icon('calendar')} Calendario pendiente</button>`;
+    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('clock')} Tomar hora</a>` : `<button class="btn secondary" disabled>${icon('clock')} Toma de hora pendiente</button>`;
+    return `${pageHead('Jefatura', 'Horarios de atención e información de carrera')}
+      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.name || 'Jefatura de Carrera')}</span><h2 class="card-title">${esc(profile.displayName || 'Prof. Zelada')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><p class="muted">${esc(profile.description || 'Perfil preparado para publicar horarios e información oficial de atención.')}</p><div class="hstack">${calendarButton}${bookingButton}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section><aside class="card pad"><span class="kicker">Próximo paso técnico</span><h2 class="card-title">Google Calendar</h2><p class="small muted">Para que el profesor edite horarios y estudiantes tomen horas desde el portal hay que autorizar una cuenta de calendario y agregar permisos OAuth de Calendar. Mientras tanto se puede publicar un enlace de Google Calendar o Calendly.</p><div class="divider"></div>${(profile.notes || []).map(note => `<div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>${esc(note)}</strong></span></div>`).join('')}</aside></div>`;
+  }
+
   function renderCealAssistant() {
     const req = state.cealAssistantRequest || {};
     const endpointReady = Boolean(AI_ENDPOINT || API_BASE);
@@ -1543,6 +1652,70 @@
       routeTo('/comunicados/' + item.id);
       return;
     }
+    if (e.target.closest('[data-survey-builder-clear]')) {
+      state.surveyBuilderRequest = { rawText: '', mode: 'auto' };
+      state.surveyBuilderResult = null;
+      state.surveyBuilderError = '';
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
+    const createSurvey = e.target.closest('[data-survey-create]');
+    if (createSurvey) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const survey = state.surveyBuilderResult?.survey;
+      if (!survey) { showToast('Primero genera una encuesta', 'blue'); return; }
+      const desiredStatus = createSurvey.dataset.surveyCreate === 'open' ? 'open' : 'draft';
+      let item = { ...survey, status: desiredStatus, audience: CEAL_ASSISTANT_AUDIENCE };
+      try {
+        const payload = await apiRequest('/surveys', { method: 'POST', body: JSON.stringify(item) });
+        if (payload.item) item = payload.item;
+      } catch (error) {
+        showToast(error.message || 'No se pudo crear la encuesta', 'blue');
+        return;
+      }
+      Data.surveys = Data.surveys.filter(s => s.id !== item.id);
+      Data.surveys.unshift(item);
+      persistSnapshot();
+      showToast(desiredStatus === 'open' ? 'Encuesta abierta' : 'Borrador guardado');
+      routeTo('/encuestas/' + item.id);
+      return;
+    }
+    const surveyStatusBtn = e.target.closest('[data-survey-status]');
+    if (surveyStatusBtn) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const id = surveyStatusBtn.dataset.surveyId;
+      const nextStatus = surveyStatusBtn.dataset.surveyStatus;
+      const survey = Data.surveys.find(s => s.id === id);
+      if (!survey) return;
+      try {
+        const payload = await apiRequest(`/surveys/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus }) });
+        Object.assign(survey, payload.item || { status: nextStatus });
+      } catch {
+        survey.status = nextStatus;
+      }
+      persistSnapshot();
+      showToast(nextStatus === 'open' ? 'Consulta abierta' : 'Consulta cerrada', 'blue');
+      render({ transition: true, scope: 'panel' });
+      return;
+    }
+    const surveyExport = e.target.closest('[data-survey-export]');
+    if (surveyExport) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      if (!API_BASE) { showToast('La exportación XLSX requiere backend activo', 'blue'); return; }
+      const id = surveyExport.dataset.surveyExport;
+      try {
+        const headers = {};
+        if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
+        const res = await fetch(`${API_BASE}/surveys/${encodeURIComponent(id)}/export`, { headers });
+        if (!res.ok) throw new Error(`export ${res.status}`);
+        const blob = await res.blob();
+        downloadBlob(`resultados-${slug(id)}.xlsx`, blob);
+        showToast('XLSX descargado', 'blue');
+      } catch {
+        showToast('No se pudo exportar la encuesta', 'blue');
+      }
+      return;
+    }
     const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
     if (mallaEmbedPlan) {
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
@@ -1650,6 +1823,52 @@
       } finally {
         state.cealAssistantLoading = false;
         render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    if (form.dataset.form === 'survey-ai') {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const request = {
+        rawText: String(fd.get('rawText') || '').trim(),
+        mode: String(fd.get('mode') || 'auto'),
+        audience: CEAL_ASSISTANT_AUDIENCE
+      };
+      state.surveyBuilderRequest = request;
+      state.surveyBuilderResult = null;
+      state.surveyBuilderError = '';
+      state.surveyBuilderLoading = true;
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await surveyAssistantRequest(request);
+        state.surveyBuilderResult = payload.result;
+        showToast('Encuesta generada', 'blue');
+      } catch (error) {
+        state.surveyBuilderError = error.message || 'No se pudo generar la encuesta.';
+      } finally {
+        state.surveyBuilderLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    if (form.dataset.form === 'survey-response') {
+      if (isGuest()) { readonlyToast(); return; }
+      if (!API_BASE) { showToast('Responder requiere backend activo para guardar datos reales', 'blue'); return; }
+      const survey = Data.surveys.find(s => s.id === form.dataset.surveyId);
+      if (!survey) { showToast('Encuesta no encontrada', 'blue'); return; }
+      const answers = {};
+      for (const question of survey.questions || []) {
+        const key = `survey-${question.id}`;
+        const values = fd.getAll(key).map(value => String(value).trim()).filter(Boolean);
+        answers[question.id] = question.type === 'multiple' ? values : (values[0] || '');
+      }
+      try {
+        const payload = await apiRequest(`/surveys/${encodeURIComponent(survey.id)}/respond`, { method: 'POST', body: JSON.stringify({ answers }) });
+        Object.assign(survey, payload.item || {});
+        persistSnapshot();
+        showToast('Respuesta registrada', 'blue');
+        render({ transition: true, scope: 'panel' });
+      } catch (error) {
+        showToast(error.message || 'No se pudo registrar la respuesta', 'blue');
       }
       return;
     }
