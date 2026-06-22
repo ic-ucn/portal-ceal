@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260622b';
-  const LOCAL_DATA_KEY = 'portal.data.v25';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622b';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24'];
+  const DATA_CONTENT_VERSION = '20260622c';
+  const LOCAL_DATA_KEY = 'portal.data.v26';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622c';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -340,7 +340,10 @@
   function staffProfiles() { return Data.staffProfiles || []; }
   function findStaffProfileByEmail(email) {
     const normalized = String(email || '').toLowerCase();
-    return staffProfiles().find(profile => String(profile.email || '').toLowerCase() === normalized);
+    return staffProfiles().find(profile => (
+      String(profile.email || '').toLowerCase() === normalized
+      || (profile.authorizedEmails || []).map(item => String(item || '').toLowerCase()).includes(normalized)
+    ));
   }
   function buildStaffUser(profile, payload = {}) {
     const name = profile.displayName || profile.name || payload.name || 'Jefatura de carrera';

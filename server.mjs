@@ -220,7 +220,7 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles']) {
     db.data[key] ||= seed.data[key] || [];
   }
-  const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
+  const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'authorizedEmails', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
   for (const profile of seed.data.staffProfiles || []) {
     const existing = db.data.staffProfiles.find(current => current.id === profile.id);
     if (!existing) {
@@ -408,7 +408,10 @@ function findMemberByEmail(db, email) {
 
 function findStaffProfileByEmail(db, email) {
   const normalized = asText(email).toLowerCase();
-  return (db.data.staffProfiles || []).find(profile => asText(profile.email).toLowerCase() === normalized);
+  return (db.data.staffProfiles || []).find(profile => (
+    asText(profile.email).toLowerCase() === normalized
+    || (profile.authorizedEmails || []).map(item => asText(item).toLowerCase()).includes(normalized)
+  ));
 }
 
 function markMemberGoogleLogin(member, payload) {
