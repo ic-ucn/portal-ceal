@@ -3825,9 +3825,35 @@ body::before {
 
 .survey-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr);
-  gap: 20px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.survey-hero .stat-grid.compact {
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
+}
+
+.survey-hero .stat-grid.compact .stat-card {
+  min-width: 0;
+}
+
+.survey-hero .stat-copy {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.survey-hero .stat-copy > span,
+.survey-hero .stat-copy small {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+@media (max-width: 760px) {
+  .survey-hero .stat-grid.compact {
+    grid-template-columns: 1fr;
+  }
 }
 
 .survey-meta-row {
