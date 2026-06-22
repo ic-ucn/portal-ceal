@@ -21,6 +21,17 @@ const googleOAuthClient = new OAuth2Client(googleClientId || undefined);
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
 const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const geminiDailySoftLimit = Number(process.env.GEMINI_DAILY_SOFT_LIMIT || 50);
+const publicPortalUrl = (process.env.PORTAL_PUBLIC_URL || '').replace(/\/$/, '');
+const calendarClientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || googleClientId;
+const calendarClientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '';
+const calendarRedirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || '';
+const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'biblioteca.ceicucn@gmail.com').toLowerCase();
+const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+const calendarScopes = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.freebusy',
+  'https://www.googleapis.com/auth/userinfo.email'
+];
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabaseStateTable = process.env.SUPABASE_STATE_TABLE || 'portal_state';
@@ -212,6 +223,14 @@ function ensureDbShape(db, seed) {
   db.data.sessions ||= [];
   db.data.aiUsage ||= {};
   db.data.aiDrafts ||= [];
+  db.data.integrations ||= {};
+  db.data.integrations.googleCalendar ||= {
+    account: calendarAccount,
+    calendarId,
+    connected: false,
+    tokens: null,
+    updatedAt: null
+  };
   if ((db.data.cealMembers || []).length) db.data.users.ceal = publicMember(db.data.cealMembers[0]);
   db.data.saved ||= seed.data.saved || { resources: [], courses: [], reminders: [] };
   db.data.saved.resources ||= [];
@@ -340,7 +359,7 @@ function sendJson(res, status, body) {
     'cache-control': 'no-store',
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type'
+    'access-control-allow-headers': 'content-type,authorization'
   });
   res.end(JSON.stringify(body));
 }
@@ -355,6 +374,14 @@ function sendBinary(res, status, body, headers = {}) {
 
 function sendError(res, status, message, details) {
   sendJson(res, status, { ok: false, error: message, details });
+}
+
+function sendRedirect(res, location) {
+  res.writeHead(302, {
+    location,
+    'cache-control': 'no-store'
+  });
+  res.end();
 }
 
 async function readBody(req) {
@@ -544,6 +571,22 @@ function requirePortalSession(req, db) {
   return session;
 }
 
+function requireStaffSession(req, db) {
+  const session = requirePortalSession(req, db);
+  if (session.role !== 'jefatura' || session.accessMode !== 'jefatura') {
+    const err = new Error('jefatura session required');
+    err.statusCode = 403;
+    throw err;
+  }
+  const profile = findStaffProfileByEmail(db, session.email);
+  if (!profile) {
+    const err = new Error('google account is not registered as Jefatura de carrera');
+    err.statusCode = 403;
+    throw err;
+  }
+  return { session, profile };
+}
+
 async function verifyGoogleCredential(credential) {
   if (!googleClientId) {
     const err = new Error('google client id not configured');
@@ -577,6 +620,181 @@ function requireGoogleDomain(payload, domain = googleDomain) {
     err.statusCode = 403;
     throw err;
   }
+}
+
+function requestOrigin(req) {
+  const forwardedProto = asText(req.headers['x-forwarded-proto']).split(',')[0];
+  const proto = forwardedProto || (req.socket?.encrypted ? 'https' : 'http');
+  return `${proto}://${req.headers.host || `localhost:${port}`}`;
+}
+
+function portalReturnUrl(req, status = '') {
+  const base = publicPortalUrl || requestOrigin(req);
+  const suffix = status ? `?calendar=${encodeURIComponent(status)}` : '';
+  return `${base}/#/jefatura${suffix}`;
+}
+
+function calendarOAuthRedirectUri(req) {
+  return calendarRedirectUri || `${requestOrigin(req)}/api/calendar/oauth/callback`;
+}
+
+function calendarConfigured() {
+  return Boolean(calendarClientId && calendarClientSecret);
+}
+
+function googleCalendarIntegration(db) {
+  db.data.integrations ||= {};
+  db.data.integrations.googleCalendar ||= {};
+  const integration = db.data.integrations.googleCalendar;
+  integration.account ||= calendarAccount;
+  integration.calendarId ||= calendarId;
+  integration.connected = Boolean(integration.tokens?.refresh_token);
+  return integration;
+}
+
+function publicCalendarStatus(db, session = null) {
+  const integration = googleCalendarIntegration(db);
+  return {
+    configured: calendarConfigured(),
+    connected: Boolean(integration.tokens?.refresh_token),
+    account: integration.account || calendarAccount,
+    calendarId: integration.calendarId || calendarId,
+    connectedAt: integration.connectedAt || null,
+    updatedAt: integration.updatedAt || null,
+    canManage: Boolean(session && session.role === 'jefatura' && session.accessMode === 'jefatura')
+  };
+}
+
+function calendarOAuthClient(req) {
+  return new OAuth2Client(calendarClientId, calendarClientSecret, calendarOAuthRedirectUri(req));
+}
+
+function createCalendarOAuthState(db, session) {
+  const integration = googleCalendarIntegration(db);
+  const state = crypto.randomBytes(24).toString('base64url');
+  integration.pendingOAuth = {
+    stateHash: tokenHash(state),
+    requestedBy: session.email,
+    createdAt: new Date().toISOString()
+  };
+  integration.updatedAt = new Date().toISOString();
+  return state;
+}
+
+function consumeCalendarOAuthState(db, state) {
+  const integration = googleCalendarIntegration(db);
+  const pending = integration.pendingOAuth;
+  const createdAt = pending?.createdAt ? new Date(pending.createdAt).getTime() : 0;
+  const expired = !createdAt || Date.now() - createdAt > 1000 * 60 * 15;
+  if (!pending?.stateHash || pending.stateHash !== tokenHash(state) || expired) {
+    const err = new Error('calendar oauth state expired or invalid');
+    err.statusCode = 401;
+    throw err;
+  }
+  delete integration.pendingOAuth;
+  return pending;
+}
+
+async function calendarAuthorizedEmail(client) {
+  const response = await client.request({ url: 'https://www.googleapis.com/oauth2/v2/userinfo' });
+  return asText(response.data?.email).toLowerCase();
+}
+
+async function connectGoogleCalendar(req, db, code, state) {
+  consumeCalendarOAuthState(db, state);
+  if (!calendarConfigured()) {
+    const err = new Error('google calendar oauth is not configured');
+    err.statusCode = 503;
+    throw err;
+  }
+  const integration = googleCalendarIntegration(db);
+  const client = calendarOAuthClient(req);
+  const tokenResponse = await client.getToken(code);
+  const tokens = tokenResponse.tokens || {};
+  const mergedTokens = {
+    ...(integration.tokens || {}),
+    ...tokens,
+    refresh_token: tokens.refresh_token || integration.tokens?.refresh_token || ''
+  };
+  client.setCredentials(mergedTokens);
+  const authorizedEmail = await calendarAuthorizedEmail(client);
+  if (authorizedEmail !== calendarAccount) {
+    const err = new Error(`calendar account must be ${calendarAccount}`);
+    err.statusCode = 403;
+    throw err;
+  }
+  integration.account = authorizedEmail;
+  integration.calendarId = calendarId;
+  integration.tokens = mergedTokens;
+  integration.connected = Boolean(mergedTokens.refresh_token);
+  integration.connectedAt ||= new Date().toISOString();
+  integration.updatedAt = new Date().toISOString();
+  await writeDb(db);
+  return publicCalendarStatus(db);
+}
+
+async function calendarApiRequest(req, db, request) {
+  const integration = googleCalendarIntegration(db);
+  if (!integration.tokens?.refresh_token) {
+    const err = new Error('google calendar is not connected');
+    err.statusCode = 409;
+    throw err;
+  }
+  const client = calendarOAuthClient(req);
+  client.setCredentials(integration.tokens);
+  const response = await client.request(request);
+  integration.tokens = {
+    ...integration.tokens,
+    ...(client.credentials || {}),
+    refresh_token: client.credentials?.refresh_token || integration.tokens.refresh_token
+  };
+  integration.updatedAt = new Date().toISOString();
+  await writeDb(db);
+  return response.data;
+}
+
+function validateCalendarDateTime(value, field) {
+  const raw = asText(value);
+  const date = new Date(raw);
+  if (!raw || Number.isNaN(date.getTime())) {
+    const err = new Error(`${field} must be a valid ISO date`);
+    err.statusCode = 422;
+    throw err;
+  }
+  return date;
+}
+
+function calendarEventPayload(body, session) {
+  const startDate = validateCalendarDateTime(body.start, 'start');
+  const endDate = validateCalendarDateTime(body.end, 'end');
+  if (endDate.getTime() <= startDate.getTime()) {
+    const err = new Error('end must be after start');
+    err.statusCode = 422;
+    throw err;
+  }
+  const durationMinutes = (endDate.getTime() - startDate.getTime()) / 60000;
+  if (durationMinutes > 120) {
+    const err = new Error('appointments cannot exceed 120 minutes');
+    err.statusCode = 422;
+    throw err;
+  }
+  const requester = asText(body.name, session.email.split('@')[0]);
+  const reason = asText(body.reason, 'Solicitud de hora de atención').slice(0, 1200);
+  return {
+    summary: `Atención Jefatura - ${requester}`,
+    description: `Solicitud creada desde Portal CEIC UCN.\n\nSolicitante: ${requester}\nCorreo: ${session.email}\nMotivo: ${reason}`,
+    start: { dateTime: startDate.toISOString(), timeZone: 'America/Santiago' },
+    end: { dateTime: endDate.toISOString(), timeZone: 'America/Santiago' },
+    attendees: [{ email: session.email }],
+    reminders: { useDefault: true },
+    extendedProperties: {
+      private: {
+        portal: 'ceic-ucn',
+        requesterEmail: session.email,
+        requesterRole: session.role
+      }
+    }
+  };
 }
 
 function todayKey() {
@@ -877,9 +1095,25 @@ function publicSurvey(survey = {}) {
   };
 }
 
-function publicData(data = {}) {
+function publicIntegrationData(data = {}) {
+  const googleCalendar = data.integrations?.googleCalendar || {};
   return {
-    ...data,
+    googleCalendar: {
+      configured: calendarConfigured(),
+      connected: Boolean(googleCalendar.tokens?.refresh_token),
+      account: googleCalendar.account || calendarAccount,
+      calendarId: googleCalendar.calendarId || calendarId,
+      connectedAt: googleCalendar.connectedAt || null,
+      updatedAt: googleCalendar.updatedAt || null
+    }
+  };
+}
+
+function publicData(data = {}) {
+  const { sessions, aiUsage, aiDrafts, integrations, ...safe } = data;
+  return {
+    ...safe,
+    integrations: publicIntegrationData(data),
     surveys: Array.isArray(data.surveys) ? data.surveys.map(publicSurvey) : []
   };
 }
@@ -1194,6 +1428,122 @@ async function handleApi(req, res, url) {
       }
     }
     return sendError(res, 404, 'unknown ai action');
+  }
+
+  if (resource === 'calendar') {
+    const action = parts[2] || '';
+    if (id === 'status' && req.method === 'GET') {
+      const session = sessionFromRequest(req, db);
+      return sendJson(res, 200, { ok: true, status: publicCalendarStatus(db, session) });
+    }
+
+    if (id === 'oauth' && action === 'start' && req.method === 'POST') {
+      try {
+        const { session } = requireStaffSession(req, db);
+        if (!calendarConfigured()) return sendError(res, 503, 'google calendar oauth is not configured');
+        const state = createCalendarOAuthState(db, session);
+        await writeDb(db);
+        const client = calendarOAuthClient(req);
+        const authUrl = client.generateAuthUrl({
+          access_type: 'offline',
+          prompt: 'consent',
+          include_granted_scopes: true,
+          login_hint: calendarAccount,
+          scope: calendarScopes,
+          state
+        });
+        return sendJson(res, 200, { ok: true, authUrl, redirectUri: calendarOAuthRedirectUri(req), account: calendarAccount });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'calendar oauth start failed');
+      }
+    }
+
+    if (id === 'oauth' && action === 'callback' && req.method === 'GET') {
+      try {
+        const error = asText(url.searchParams.get('error'));
+        if (error) throw Object.assign(new Error(error), { statusCode: 401 });
+        const code = asText(url.searchParams.get('code'));
+        const state = asText(url.searchParams.get('state'));
+        if (!code || !state) throw Object.assign(new Error('missing calendar oauth code or state'), { statusCode: 422 });
+        await connectGoogleCalendar(req, db, code, state);
+        return sendRedirect(res, portalReturnUrl(req, 'connected'));
+      } catch (error) {
+        return sendRedirect(res, portalReturnUrl(req, 'error'));
+      }
+    }
+
+    if (id === 'disconnect' && req.method === 'POST') {
+      try {
+        requireStaffSession(req, db);
+        const integration = googleCalendarIntegration(db);
+        integration.tokens = null;
+        integration.connected = false;
+        integration.connectedAt = null;
+        integration.updatedAt = new Date().toISOString();
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, status: publicCalendarStatus(db) });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'calendar disconnect failed');
+      }
+    }
+
+    if (id === 'freebusy' && req.method === 'POST') {
+      try {
+        requirePortalSession(req, db);
+        const body = await readBody(req);
+        const timeMin = validateCalendarDateTime(body.timeMin, 'timeMin').toISOString();
+        const timeMax = validateCalendarDateTime(body.timeMax, 'timeMax').toISOString();
+        const data = await calendarApiRequest(req, db, {
+          method: 'POST',
+          url: 'https://www.googleapis.com/calendar/v3/freeBusy',
+          data: {
+            timeMin,
+            timeMax,
+            timeZone: 'America/Santiago',
+            items: [{ id: calendarId }]
+          }
+        });
+        return sendJson(res, 200, { ok: true, busy: data.calendars?.[calendarId]?.busy || [] });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'calendar freebusy failed');
+      }
+    }
+
+    if (id === 'appointments' && req.method === 'POST') {
+      try {
+        const session = requirePortalSession(req, db);
+        if (!asText(session.email).toLowerCase().endsWith(`@${googleDomain}`) && session.role !== 'jefatura') {
+          return sendError(res, 403, `only ${googleDomain} accounts can request appointments`);
+        }
+        const body = await readBody(req);
+        const event = calendarEventPayload(body, session);
+        const createdEvent = await calendarApiRequest(req, db, {
+          method: 'POST',
+          url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
+          data: event
+        });
+        const appointment = {
+          id: `apt-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          requesterEmail: session.email,
+          requesterRole: session.role,
+          status: 'solicitada',
+          start: event.start.dateTime,
+          end: event.end.dateTime,
+          reason: asText(body.reason),
+          googleEventId: createdEvent.id || null,
+          googleEventLink: createdEvent.htmlLink || null
+        };
+        db.data.appointments ||= [];
+        db.data.appointments.unshift(appointment);
+        await writeDb(db);
+        return sendJson(res, 201, { ok: true, item: appointment, event: { id: createdEvent.id, htmlLink: createdEvent.htmlLink } });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'calendar appointment failed');
+      }
+    }
+
+    return sendError(res, 404, 'unknown calendar action');
   }
 
   if (resource === 'saved' && req.method === 'POST') {

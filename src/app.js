@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260622f';
-  const LOCAL_DATA_KEY = 'portal.data.v28';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622f';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27'];
+  const DATA_CONTENT_VERSION = '20260622g';
+  const LOCAL_DATA_KEY = 'portal.data.v29';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622g';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -52,6 +52,9 @@
     surveyBuilderResult: null,
     surveyBuilderError: '',
     surveyBuilderLoading: false,
+    calendarStatus: null,
+    calendarStatusLoading: false,
+    calendarStatusError: '',
     openFAQ: null,
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
@@ -142,6 +145,8 @@
     Data.surveys ||= [];
     Data.appointments ||= [];
     Data.staffProfiles ||= [];
+    Data.integrations ||= {};
+    Data.integrations.googleCalendar ||= { configured: false, connected: false, account: 'biblioteca.ceicucn@gmail.com', calendarId: 'primary' };
     if (!Data.cealMembers.length && Data.users?.ceal) Data.cealMembers = [Data.users.ceal];
     Data.resources = Data.resources.filter(r => !plain([r.title, r.origin, r.description, r.size].join(' ')).includes('demo') && !plain(r.title).includes('prueba funcional'));
     Data.resources = sanitizeMaterialResources(Data.resources);
@@ -421,6 +426,15 @@
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
     return data;
+  }
+  async function calendarStatusRequest() {
+    return apiRequest('/calendar/status');
+  }
+  async function calendarOAuthStartRequest() {
+    return apiRequest('/calendar/oauth/start', { method: 'POST', body: JSON.stringify({}) });
+  }
+  async function calendarDisconnectRequest() {
+    return apiRequest('/calendar/disconnect', { method: 'POST', body: JSON.stringify({}) });
   }
   async function setupMemberPassword(memberId, password) {
     try { const payload = await apiRequest('/auth/setup', { method: 'POST', body: JSON.stringify({ memberId, password }) }); if (payload.user) return payload.user; } catch {}
@@ -787,6 +801,21 @@
   }
   function afterRender() {
     hydrateMallaEmbed();
+    hydrateCalendarStatus();
+  }
+  async function hydrateCalendarStatus() {
+    if (getRoute().path !== '/jefatura' || !hasJefaturaAccess() || !API_BASE || state.calendarStatus || state.calendarStatusLoading || state.calendarStatusError) return;
+    state.calendarStatusLoading = true;
+    state.calendarStatusError = '';
+    try {
+      const payload = await calendarStatusRequest();
+      state.calendarStatus = payload.status || null;
+    } catch (error) {
+      state.calendarStatusError = error.message || 'No se pudo revisar Calendar.';
+    } finally {
+      state.calendarStatusLoading = false;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+    }
   }
   function renderLogin() {
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
@@ -1507,6 +1536,26 @@
     return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
+  function renderStaffCalendarPanel(profile = {}) {
+    const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
+    const account = status.account || 'biblioteca.ceicucn@gmail.com';
+    if (!API_BASE) {
+      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Backend requerido</h2><p class="small muted">La conexión directa con Google Calendar necesita desplegar server.mjs como API del portal. La key y el refresh token no se guardan en el navegador.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Cuenta temporal</strong><small>${esc(account)}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Preparado para OAuth</strong><small>Al activar la API aparecerá el botón de conexión.</small></span></div></aside>`;
+    }
+    if (state.calendarStatusLoading && !state.calendarStatus) {
+      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Revisando Calendar</h2><p class="small muted">Consultando el estado de conexión de Google Calendar.</p></aside>`;
+    }
+    if (state.calendarStatusError) {
+      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
+    }
+    if (!status.configured) {
+      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">OAuth Calendar por configurar</h2><p class="small muted">Falta agregar el secreto OAuth del cliente web en el backend. La cuenta objetivo será ${esc(account)}.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('settings')}</span><span><strong>Variable requerida</strong><small>GOOGLE_CALENDAR_CLIENT_SECRET</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Redirect URI</strong><small>/api/calendar/oauth/callback</small></span></div></aside>`;
+    }
+    if (status.connected) {
+      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Google Calendar conectado</h2><p class="small muted">La agenda de ${esc(account)} está autorizada para crear eventos desde el backend del portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Conexión activa</strong><small>${status.connectedAt ? fmtDate(status.connectedAt) : 'Lista para usar'}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span></div><button class="btn secondary" data-calendar-disconnect type="button">${icon('x')} Desconectar Calendar</button></aside>`;
+    }
+    return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención desde el backend.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo. El token queda guardado solo en el backend.</p></aside>`;
+  }
   function renderStaffAdvising() {
     const profile = (Data.staffProfiles || [])[0] || {};
     const hours = profile.officeHours || [];
@@ -1515,7 +1564,7 @@
     const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('clock')} Tomar hora</a>` : `<a class="btn secondary" href="mailto:${esc(contactEmail)}?subject=${encodeURIComponent('Solicitud de hora de atención')}">${icon('clock')} Solicitar hora por correo</a>`;
     const actions = `${calendarButton}${bookingButton}`;
     return `${pageHead('Jefatura de carrera', 'Horarios de atención e información oficial')}
-      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p><div class="hstack">${actions}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section><aside class="card pad"><span class="kicker">Atención de estudiantes</span><h2 class="card-title">Cómo se agenda</h2><p class="small muted">Los horarios publicados son la referencia actual. La confirmación de una hora se realiza por correo institucional hasta que exista un enlace oficial de agenda.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Revisar disponibilidad</strong><small>Usa los bloques publicados antes de solicitar una hora.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('user')}</span><span><strong>Escribir desde correo UCN</strong><small>La solicitud debe venir desde una cuenta institucional.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Esperar confirmación</strong><small>La hora queda válida cuando Jefatura responde el correo.</small></span></div></aside></div>`;
+      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p><div class="hstack">${actions}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${renderStaffCalendarPanel(profile)}</div>`;
   }
 
   function renderCealAssistant() {
@@ -1651,6 +1700,45 @@
     if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
+    if (e.target.closest('[data-calendar-refresh]')) {
+      state.calendarStatus = null;
+      state.calendarStatusError = '';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    if (e.target.closest('[data-calendar-connect]')) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      state.calendarStatusLoading = true;
+      state.calendarStatusError = '';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await calendarOAuthStartRequest();
+        if (!payload.authUrl) throw new Error('Google no entregó URL de autorización.');
+        location.assign(payload.authUrl);
+      } catch (error) {
+        state.calendarStatusLoading = false;
+        state.calendarStatusError = error.message || 'No se pudo iniciar OAuth Calendar.';
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    if (e.target.closest('[data-calendar-disconnect]')) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      state.calendarStatusLoading = true;
+      state.calendarStatusError = '';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await calendarDisconnectRequest();
+        state.calendarStatus = payload.status || null;
+        showToast('Google Calendar desconectado', 'blue');
+      } catch (error) {
+        state.calendarStatusError = error.message || 'No se pudo desconectar Calendar.';
+      } finally {
+        state.calendarStatusLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
     if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     const saveCourse = e.target.closest('[data-save-course]');
     if (saveCourse) { if (isGuest()) { readonlyToast(); return; } const key = saveCourse.dataset.saveCourse; if (!Data.saved.courses.includes(key)) Data.saved.courses.push(key); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'courses', id:key }) }).catch(() => {}); showToast('Ramo agregado a seguimiento'); return; }
