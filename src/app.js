@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260619c';
-  const LOCAL_DATA_KEY = 'portal.data.v24';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260619c';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23'];
+  const DATA_CONTENT_VERSION = '20260622a';
+  const LOCAL_DATA_KEY = 'portal.data.v25';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622a';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -176,6 +176,10 @@
   function loadSession() {
     try {
       const user = JSON.parse(localStorage.getItem('portal.session') || 'null');
+      if (user?.role === 'guest') {
+        localStorage.removeItem('portal.session');
+        return null;
+      }
       if (user?.authProvider === 'google' && user.role === 'ceal' && !user.accessMode) {
         localStorage.removeItem('portal.session');
         return null;
@@ -191,12 +195,11 @@
   function hasJefaturaAccess() { return state.user?.role === 'jefatura' && state.user.accessMode === 'jefatura'; }
   function accountRoleLabel(user = state.user) {
     if (!user) return '';
-    if (isGuest()) return 'Invitado';
     if (user.role === 'ceal') return 'Miembros CEAL';
     if (user.role === 'jefatura') return 'Jefatura de carrera';
     return 'Estudiante';
   }
-  function readonlyToast() { showToast('Modo invitado: vista sin registros', 'blue'); }
+  function readonlyToast() { showToast('Inicia sesión para usar esta acción', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
   function pruneStaleSnapshots() { try { STALE_DATA_KEYS.forEach(key => localStorage.removeItem(key)); } catch {} }
   function loadLocalSnapshot() {
@@ -466,6 +469,13 @@
       if (payload.user) return payload.user;
     }
     const payload = validateGooglePayload(decodeJwtPayload(credential));
+    if (role === 'internal') {
+      const profile = findStaffProfileByEmail(payload.email);
+      if (profile) return buildStaffUser(profile, payload);
+      const member = findCealMemberByEmail(payload.email);
+      if (member) return markCealGoogleLogin(member, payload);
+      throw new Error('Esta cuenta Google no está registrada como Jefatura ni como Miembro CEAL.');
+    }
     if (role === 'ceal') {
       const member = findCealMemberByEmail(payload.email);
       if (!member) throw new Error('Esta cuenta Google no está registrada como CEAL.');
@@ -501,8 +511,8 @@
       render({ transition: true, scope: 'panel', resetScroll: false });
       return;
     }
-    const mode = ['ceal', 'jefatura'].includes(role) ? role : 'student';
-    const hostedDomainHint = mode === 'jefatura' ? 'ucn.cl' : GOOGLE_DOMAIN;
+    const mode = ['ceal', 'jefatura', 'internal'].includes(role) ? role : 'student';
+    const hostedDomainHint = mode === 'jefatura' ? 'ucn.cl' : mode === 'internal' ? '' : GOOGLE_DOMAIN;
     const stateId = randomToken();
     const nonce = randomToken();
     localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, createdAt: Date.now() }));
@@ -513,9 +523,9 @@
       scope: 'openid email profile',
       nonce,
       state: stateId,
-      hd: hostedDomainHint,
       prompt: 'select_account'
     });
+    if (hostedDomainHint) params.set('hd', hostedDomainHint);
     location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
   }
   async function handleGoogleRedirectCallback() {
@@ -787,35 +797,23 @@
           <section class="google-login-card">
             <span class="role-icon">${icon('user')}</span>
             <div class="google-login-body">
-              <div><strong>Estudiante</strong><span>Material, mallas, calendario y comunicados.</span></div>
+              <div><strong>Estudiantes</strong><span>Material, mallas, calendario, comunicados y encuestas.</span></div>
               ${googleButton('student')}
             </div>
           </section>
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Miembros CEAL</strong><span>Acceso interno CEAL</span></div>
-              ${googleButton('ceal')}
-            </div>
-          </section>
-          <section class="google-login-card">
-            <span class="role-icon">${icon('users')}</span>
-            <div class="google-login-body">
-              <div><strong>Jefatura de carrera</strong><span>Horarios de atención e información oficial.</span></div>
-              ${googleButton('jefatura')}
+              <div><strong>Jefatura / CEAL</strong><span>Acceso interno según correo autorizado.</span></div>
+              ${googleButton('internal')}
             </div>
           </section>
         </div>
-        <button class="guest-login-card" data-login-role="guest" type="button">
-          <span class="role-icon">${icon('eye')}</span>
-          <span><strong>Entrar como invitado</strong><small>Solo visualizar mallas, material, calendario y comunicados. No guarda registros.</small></span>
-          ${icon('arrow')}
-        </button>
       </div></section></main>`;
   }
   function renderShell(content, path) {
     const user = state.user;
-    const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta';
+    const accountLabel = 'Mi cuenta';
     const isMallaRoute = path === '/mallas';
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
@@ -1042,7 +1040,7 @@
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
     const dark = state.mallaEmbedDark;
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
-    const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta';
+    const accountLabel = 'Mi cuenta';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
     return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaFocus ? 'is-focus' : ''}" aria-label="Malla curricular embebida">
         <header class="malla-commandbar">
@@ -1632,7 +1630,7 @@
     return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, contingencia y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
-  function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = isGuest() ? 'Invitado' : 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>${isGuest() ? 'Salir del modo invitado' : 'Cerrar sesión'}</strong></span>${icon('arrow')}</button></div></section>`; }
+  function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesión</strong></span>${icon('arrow')}</button></div></section>`; }
   function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('')}</section>`; }
   function renderNotificationPopover() { return `<aside class="notification-popover"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications>${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${n.route}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
@@ -1643,7 +1641,7 @@
     const googleRedirect = e.target.closest('[data-google-redirect]');
     if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
-    if (role === 'guest') { startGuestSession(); routeTo('/', true); return; }
+    if (role) { routeTo('/login'); return; }
     if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
     if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
     if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }

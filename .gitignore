@@ -2,6 +2,8 @@ server.log
 server.err.log
 node_modules/
 .data/
+.env
+.env.local
 *.local
 *.log
 qa-report.json

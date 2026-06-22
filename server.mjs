@@ -21,6 +21,11 @@ const googleOAuthClient = new OAuth2Client(googleClientId || undefined);
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
 const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const geminiDailySoftLimit = Number(process.env.GEMINI_DAILY_SOFT_LIMIT || 50);
+const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseStateTable = process.env.SUPABASE_STATE_TABLE || 'portal_state';
+const supabaseStateId = process.env.SUPABASE_STATE_ID || 'main';
+const useSupabaseState = Boolean(supabaseUrl && supabaseSecretKey);
 
 const collectionMap = {
   communications: 'communications',
@@ -64,6 +69,50 @@ const mime = {
 };
 
 let dbPromise;
+
+function supabaseRestUrl(pathname) {
+  return `${supabaseUrl}/rest/v1/${pathname}`;
+}
+
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: supabaseSecretKey,
+    authorization: `Bearer ${supabaseSecretKey}`,
+    ...extra
+  };
+}
+
+async function readDbFromSupabase() {
+  const response = await fetch(supabaseRestUrl(`${encodeURIComponent(supabaseStateTable)}?id=eq.${encodeURIComponent(supabaseStateId)}&select=payload`), {
+    headers: supabaseHeaders({ accept: 'application/json' })
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || `supabase read ${response.status}`;
+    throw new Error(message);
+  }
+  return Array.isArray(payload) && payload[0]?.payload ? payload[0].payload : null;
+}
+
+async function writeDbToSupabase(next) {
+  const response = await fetch(supabaseRestUrl(`${encodeURIComponent(supabaseStateTable)}?on_conflict=id`), {
+    method: 'POST',
+    headers: supabaseHeaders({
+      'content-type': 'application/json',
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }),
+    body: JSON.stringify({
+      id: supabaseStateId,
+      payload: next,
+      updated_at: new Date().toISOString()
+    })
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message = payload?.message || payload?.error || `supabase write ${response.status}`;
+    throw new Error(message);
+  }
+}
 
 function loadLocalEnv(filePath) {
   if (!existsSync(filePath)) return;
@@ -115,6 +164,18 @@ async function readSeed() {
 async function loadDb() {
   if (dbPromise) return dbPromise;
   dbPromise = (async () => {
+    if (useSupabaseState) {
+      const seed = await readSeed();
+      const remote = await readDbFromSupabase();
+      if (remote) {
+        const normalized = ensureDbShape(remote, seed);
+        await writeDb(normalized);
+        return normalized;
+      }
+      const created = ensureDbShape(seed, seed);
+      await writeDb(created);
+      return created;
+    }
     await fs.mkdir(dataDir, { recursive: true });
     try {
       const db = JSON.parse(await fs.readFile(dbPath, 'utf8'));
@@ -260,12 +321,16 @@ function canonicalizeResourceCourse(resource, lookup) {
 }
 
 async function writeDb(next) {
-  await fs.mkdir(dataDir, { recursive: true });
   next.meta = {
     ...(next.meta || {}),
     version: next.meta?.version || 1,
     updatedAt: new Date().toISOString()
   };
+  if (useSupabaseState) {
+    await writeDbToSupabase(next);
+    return;
+  }
+  await fs.mkdir(dataDir, { recursive: true });
   await fs.writeFile(dbPath, JSON.stringify(next, null, 2), 'utf8');
 }
 
@@ -984,7 +1049,8 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, {
       ok: true,
       service: 'portal-ceic-backend',
-      dbPath,
+      storage: useSupabaseState ? 'supabase' : 'local-json',
+      dbPath: useSupabaseState ? null : dbPath,
       counts: countDb(db)
     });
   }
@@ -1028,6 +1094,22 @@ async function handleApi(req, res, url) {
       if (!credential) return sendError(res, 422, 'google credential is required');
       try {
         const payload = await verifyGoogleCredential(credential);
+        if (role === 'internal') {
+          const profile = findStaffProfileByEmail(db, payload.email);
+          if (profile) {
+            const user = withSessionToken(db, staffProfileGoogleUser(profile, payload));
+            await writeDb(db);
+            return sendJson(res, 200, { ok: true, user, staffRegistered: true });
+          }
+          const member = findMemberByEmail(db, payload.email);
+          if (member) {
+            markMemberGoogleLogin(member, payload);
+            const user = withSessionToken(db, memberGoogleUser(member, payload));
+            await writeDb(db);
+            return sendJson(res, 200, { ok: true, user, cealRegistered: true });
+          }
+          return sendError(res, 403, 'google account is not registered as CEAL or Jefatura de carrera');
+        }
         if (role === 'ceal') {
           const member = findMemberByEmail(db, payload.email);
           if (!member) return sendError(res, 403, 'google account is not registered as CEAL');
@@ -1129,6 +1211,9 @@ async function handleApi(req, res, url) {
     if (id && action === 'respond' && req.method === 'POST') {
       try {
         const session = requirePortalSession(req, db);
+        if (!asText(session.email).toLowerCase().endsWith(`@${googleDomain}`)) {
+          return sendError(res, 403, `only ${googleDomain} accounts can respond`);
+        }
         const survey = (db.data.surveys || []).find(item => item.id === id);
         if (!survey) return sendError(res, 404, 'survey not found');
         if (survey.status !== 'open') return sendError(res, 409, 'survey is not open');
