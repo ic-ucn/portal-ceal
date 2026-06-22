@@ -387,13 +387,13 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       authorizedEmails: ['jc.icivil.afta@ucn.cl', 'biblioteca.ceicucn@gmail.com'],
       calendarUrl: '',
       bookingUrl: '',
-      status: 'En configuraciÃ³n',
-      description: 'Perfil preparado para publicar horarios de atenciÃ³n, avisos de disponibilidad y enlace a calendario cuando estÃ© autorizado.',
+      status: 'Horarios publicados',
+      description: 'Horarios de atenciÃ³n e informaciÃ³n oficial de Jefatura de carrera.',
       officeHours: [
-        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de IngenierÃ­a Civil', status: 'Por confirmar' },
-        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Por confirmar' }
+        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de IngenierÃ­a Civil', status: 'Sujeto a confirmaciÃ³n' },
+        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Sujeto a confirmaciÃ³n' }
       ],
-      notes: ['Las horas quedan sujetas a confirmaciÃ³n de jefatura.', 'El enlace de Google Calendar se agregarÃ¡ cuando el perfil estÃ© autorizado.']
+      notes: ['Las horas quedan sujetas a confirmaciÃ³n de jefatura.', 'La solicitud se realiza por correo institucional mientras se habilita agenda oficial.']
     }
   ];
 
