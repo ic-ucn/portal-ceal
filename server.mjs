@@ -1446,7 +1446,7 @@ async function handleApi(req, res, url) {
         const client = calendarOAuthClient(req);
         const authUrl = client.generateAuthUrl({
           access_type: 'offline',
-          prompt: 'consent',
+          prompt: 'consent select_account',
           include_granted_scopes: true,
           login_hint: calendarAccount,
           scope: calendarScopes,
