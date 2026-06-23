@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260622g';
-  const LOCAL_DATA_KEY = 'portal.data.v29';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622g';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28'];
+  const DATA_CONTENT_VERSION = '20260622k';
+  const LOCAL_DATA_KEY = 'portal.data.v30';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622k';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -1560,8 +1560,11 @@
     const profile = (Data.staffProfiles || [])[0] || {};
     const hours = profile.officeHours || [];
     const contactEmail = profile.email || 'jc.icivil.afta@ucn.cl';
-    const calendarButton = profile.calendarUrl ? `<a class="btn primary" href="${esc(profile.calendarUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver calendario</a>` : '';
-    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('clock')} Tomar hora</a>` : `<a class="btn secondary" href="mailto:${esc(contactEmail)}?subject=${encodeURIComponent('Solicitud de hora de atención')}">${icon('clock')} Solicitar hora por correo</a>`;
+    const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
+    const calendarButton = status.connected
+      ? `<span class="pill green">Agenda conectada</span>`
+      : `<span class="pill orange">Agenda no conectada</span>`;
+    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver agenda pública</a>` : '';
     const actions = `${calendarButton}${bookingButton}`;
     return `${pageHead('Jefatura de carrera', 'Horarios de atención e información oficial')}
       <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p><div class="hstack">${actions}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${renderStaffCalendarPanel(profile)}</div>`;
