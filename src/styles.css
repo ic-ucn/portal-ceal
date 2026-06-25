@@ -4543,6 +4543,7 @@ body.theme-dark .calendar-agenda-row em.purple {
 
 body.theme-dark .material-search-panel,
 body.theme-dark .material-search-box,
+body.theme-dark .resource-preview-shell,
 body.theme-dark .quick-chip-row button,
 body.theme-dark .filter-token,
 body.theme-dark .active-filter-row,
@@ -4578,6 +4579,24 @@ body.theme-dark .material-search-box input::placeholder {
 
 body.theme-dark .material-search-box input::placeholder {
   color: #8fa4bf;
+}
+
+body.theme-dark .resource-preview-shell {
+  background: linear-gradient(180deg, rgba(13, 31, 53, .98), rgba(9, 25, 44, .98));
+  box-shadow: none;
+}
+
+body.theme-dark .resource-preview-head {
+  border-color: var(--line);
+}
+
+body.theme-dark .resource-preview-head .card-title,
+body.theme-dark .resource-preview-empty .card-title {
+  color: var(--text);
+}
+
+body.theme-dark .resource-preview-frame {
+  background: rgba(8, 24, 43, .96);
 }
 
 body.theme-dark .data-table tr.clickable:hover,
