@@ -4445,6 +4445,149 @@ body.theme-dark .malla-workspace.is-light {
   background: #071527;
 }
 
+/* Dark-mode final contrast pass for refined surfaces rendered after base cards */
+body.theme-dark .academic-calendar-card .month-grid,
+body.theme-dark .academic-calendar-card .day-head,
+body.theme-dark .academic-calendar-card .day-cell,
+body.theme-dark .academic-calendar-card .day-cell.outside,
+body.theme-dark .academic-calendar-card .day-cell.today,
+body.theme-dark .academic-calendar-card .day-cell.has-event {
+  background: rgba(10, 29, 51, .96);
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: none;
+}
+
+body.theme-dark .academic-calendar-card .day-cell.outside {
+  background: rgba(8, 24, 43, .96);
+}
+
+body.theme-dark .academic-calendar-card .day-cell.today {
+  background: linear-gradient(180deg, rgba(28, 72, 116, .95), rgba(13, 31, 53, .96));
+  box-shadow: inset 0 0 0 2px rgba(143, 192, 255, .34);
+}
+
+body.theme-dark .academic-calendar-card .day-cell.has-event {
+  background: linear-gradient(180deg, rgba(13, 31, 53, .98), rgba(9, 25, 44, .98));
+}
+
+body.theme-dark .academic-calendar-card .day-cell time,
+body.theme-dark .academic-calendar-card .day-number {
+  color: #dcecff;
+}
+
+body.theme-dark .academic-calendar-card .day-cell.outside time,
+body.theme-dark .academic-calendar-card .day-cell.outside .day-number {
+  color: #7188a4;
+}
+
+body.theme-dark .today-dot {
+  background: rgba(143, 192, 255, .22);
+  color: #dcecff;
+}
+
+body.theme-dark .calendar-agenda-row,
+body.theme-dark .calendar-change-note {
+  background: rgba(13, 31, 53, .94);
+  color: var(--text);
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+body.theme-dark .calendar-agenda-row > span strong,
+body.theme-dark .calendar-change-note strong,
+body.theme-dark .item-card h3,
+body.theme-dark .management-card strong,
+body.theme-dark .access-card strong,
+body.theme-dark .quick-card,
+body.theme-dark .preview-card strong {
+  color: var(--text);
+}
+
+body.theme-dark .calendar-agenda-row small,
+body.theme-dark .calendar-change-note span,
+body.theme-dark .item-card p,
+body.theme-dark .management-card span,
+body.theme-dark .access-card p,
+body.theme-dark .day-more {
+  color: var(--text-muted);
+}
+
+body.theme-dark .calendar-agenda-row time {
+  background: rgba(112, 173, 255, .14);
+  color: #b9d8ff;
+}
+
+body.theme-dark .calendar-agenda-row em,
+body.theme-dark .calendar-agenda-row em.orange,
+body.theme-dark .calendar-agenda-row em.green,
+body.theme-dark .calendar-agenda-row em.purple {
+  background: rgba(160, 184, 214, .14);
+  color: #dcecff;
+}
+
+body.theme-dark .calendar-agenda-row em.orange {
+  background: rgba(249, 115, 22, .18);
+  color: #fed7aa;
+}
+
+body.theme-dark .calendar-agenda-row em.green {
+  background: rgba(34, 197, 94, .16);
+  color: #bbf7d0;
+}
+
+body.theme-dark .calendar-agenda-row em.purple {
+  background: rgba(167, 139, 250, .18);
+  color: #ddd6fe;
+}
+
+body.theme-dark .material-search-panel,
+body.theme-dark .material-search-box,
+body.theme-dark .quick-chip-row button,
+body.theme-dark .filter-token,
+body.theme-dark .active-filter-row,
+body.theme-dark .table-card {
+  background: rgba(13, 31, 53, .94);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.theme-dark .quick-chip-row button,
+body.theme-dark .filter-token {
+  box-shadow: none;
+}
+
+body.theme-dark .quick-chip-row button.active,
+body.theme-dark .filter-token:hover {
+  background: rgba(112, 173, 255, .24);
+  color: #f3f8ff;
+  border-color: rgba(143, 192, 255, .38);
+}
+
+body.theme-dark .quick-chip-row button small,
+body.theme-dark .material-suggestions > span,
+body.theme-dark .active-filter-row > span,
+body.theme-dark .material-controls label span {
+  color: var(--text-muted);
+}
+
+body.theme-dark .material-search-box input,
+body.theme-dark .material-search-box input::placeholder {
+  color: var(--text);
+}
+
+body.theme-dark .material-search-box input::placeholder {
+  color: #8fa4bf;
+}
+
+body.theme-dark .data-table tr.clickable:hover,
+body.theme-dark .item-card:hover,
+body.theme-dark .link-card-row:hover,
+body.theme-dark .calendar-agenda-row:hover {
+  background: rgba(20, 43, 68, .98);
+  border-color: rgba(143, 192, 255, .30);
+}
+
 @media (max-width: 920px) {
   .mobile-theme-toggle span,
   .theme-floating-toggle span {
@@ -4458,19 +4601,6 @@ body.theme-dark .malla-workspace.is-light {
   }
 
   .theme-floating-toggle {
-    position: fixed;
-    right: 14px;
-    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 14px);
-    z-index: 35;
-    width: 46px;
-    min-height: 46px;
-    padding: 0;
-    display: inline-flex;
-    border-radius: 14px;
-    box-shadow: 0 12px 28px rgba(7,36,74,.18);
-  }
-
-  .app-shell.malla-route .theme-floating-toggle {
     display: none;
   }
 
