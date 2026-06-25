@@ -126,7 +126,18 @@ assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring shou
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
 assert(Array.isArray(data.surveys) && data.surveys.length >= 1, 'surveys should be seeded');
 assert(Array.isArray(data.staffProfiles) && data.staffProfiles.length >= 1, 'staff profiles should be seeded');
+for (const notification of data.notifications || []) {
+  assert(notification.route !== '/contingencia', `notification ${notification.id} should not link to removed contingency route`);
+}
 assert(data.staffProfiles.some(profile => profile.email === 'jc.icivil.afta@ucn.cl'), 'career head profile email should be registered');
+const cealEmailSet = new Set(data.cealMembers.map((member) => member.email));
+for (const profile of data.staffProfiles) {
+  const authorized = [profile.email, ...(profile.authorizedEmails || [])].filter(Boolean);
+  const authorizedSet = new Set(authorized.map((email) => email.toLowerCase()));
+  assert(authorized.includes('jc.icivil.afta@ucn.cl'), 'Jefatura should authorize the official career-head email');
+  assert(authorizedSet.size === 1 && authorizedSet.has('jc.icivil.afta@ucn.cl'), 'Jefatura should only authorize the official career-head email');
+  for (const email of authorized) assert(!cealEmailSet.has(email), `Jefatura should not authorize CEAL email ${email}`);
+}
 
 for (const collection of ['communications', 'resources', 'cases', 'events', 'agreements', 'tutoring', 'procedures', 'surveys', 'staffProfiles']) {
   const ids = new Set();
@@ -224,9 +235,15 @@ for (const plan of ['planO', 'planP']) {
   }
 }
 for (const resource of driveMaterials) {
+  const normalizedTitle = plain(resource.title);
   assert(officialCourseCodes.has(resource.courseCode), `drive resource ${resource.id} should use an official course code, got ${resource.courseCode}`);
   assert(officialCourseNames.has(plain(resource.courseName)), `drive resource ${resource.id} should use an official course name, got ${resource.courseName}`);
   assert(!/^(agua potable|alcantarillado|tarea 2|hidraulica invierno)$/i.test(plain(resource.courseName)), `drive resource ${resource.id} should not expose a folder/topic as course`);
+  assert(!/^\d{5,}$/.test(normalizedTitle), `drive resource ${resource.id} should not have a numeric-only title`);
+  assert(!/^doc\s*20\d{6}\s*wa/i.test(normalizedTitle), `drive resource ${resource.id} should not expose WhatsApp document filenames`);
+  assert(!/^(newdoc|archivo|documento|material|videos?)$/.test(normalizedTitle), `drive resource ${resource.id} should not have a generic title`);
+  assert(!/^(p|c|e)\s*\d+$/.test(normalizedTitle), `drive resource ${resource.id} should not have a bare assessment code title`);
+  assert(!/pauta|resoluci[oó]n|soluci[oó]n|solucionario/.test(plain(resource.type)), `drive resource ${resource.id} should not publish restricted solution material`);
 }
 
 const appRequirements = [

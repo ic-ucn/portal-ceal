@@ -2,21 +2,26 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260625a';
-  const LOCAL_DATA_KEY = 'portal.data.v31';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625a';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30'];
+  const DATA_CONTENT_VERSION = '20260625l';
+  const LOCAL_DATA_KEY = 'portal.data.v42';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625l';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
-  const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
+  const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
+  const API_BASE = !STATIC_MODE && (LOCAL_API_BASE || window.PORTAL_API_BASE || '');
   const AI_ENDPOINT = String(window.PORTAL_AI_ENDPOINT || '').trim();
+  const LEGACY_CALENDAR_ACCOUNT = 'biblioteca.ceicucn@gmail.com';
   const CEAL_ASSISTANT_AUDIENCE = 'Estudiantes de Ingeniería Civil UCN';
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
+  const PORTAL_THEME_KEY = 'portal.theme';
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
+  const initialPortalDark = localStorage.getItem(PORTAL_THEME_KEY) === 'dark'
+    || (!localStorage.getItem(PORTAL_THEME_KEY) && localStorage.getItem('portal.malla.embedDark') === '1');
   let dataMode = API_BASE ? 'backend' : 'static';
   let hasRendered = false;
   let lastRenderedRouteKey = '';
@@ -58,12 +63,14 @@
     openFAQ: null,
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
-    mallaEmbedDark: localStorage.getItem('portal.malla.embedDark') === '1',
+    portalDark: initialPortalDark,
+    mallaEmbedDark: initialPortalDark,
     mallaFocus: localStorage.getItem('portal.malla.focus') === '1',
     loginMemberId: null,
     authMessage: '',
     toast: null
   };
+  applyPortalTheme();
 
   const Status = {
     recibido: ['Recibido', 'blue'],
@@ -94,6 +101,39 @@
     general: 'Formación general',
     proyecto: 'Proyectos',
     electivo: 'Electivos'
+  };
+
+  const SurveyPresets = {
+    paralizacion: {
+      label: 'Paralización / toma',
+      mode: 'votacion',
+      prompt: [
+        'Crear una votación secreta, neutral y objetiva para estudiantes de Ingeniería Civil UCN sobre la continuidad de la paralización.',
+        'Separar la preferencia principal de la disposición a respetar la mayoría.',
+        'Pregunta 1: ¿Estás de acuerdo con renovar la paralización? Opciones: Sí; No; Me abstengo.',
+        'Pregunta 2: Si gana una opción distinta a la tuya, ¿te sumarías a la decisión mayoritaria? Opciones: Sí; No; Depende de las condiciones.',
+        'Pregunta 3 opcional de comentario breve para fundamentos o condiciones relevantes.',
+        'Evitar lenguaje de campaña, presión o sesgo.'
+      ].join('\n')
+    },
+    ramo: {
+      label: 'Evaluar ramo',
+      mode: 'encuesta',
+      prompt: [
+        'Crear una encuesta objetiva para levantar opinión estudiantil sobre un ramo específico.',
+        'Preguntar claridad de clases, carga académica, evaluaciones, disponibilidad de material, apoyo docente y comentarios de mejora.',
+        'Usar escalas de 1 a 5 y una pregunta final abierta. No pedir datos personales.'
+      ].join('\n')
+    },
+    contingencia: {
+      label: 'Contingencia',
+      mode: 'encuesta',
+      prompt: [
+        'Crear una consulta neutral sobre contingencia académica para estudiantes de Ingeniería Civil UCN.',
+        'Medir nivel de información, principales preocupaciones, prioridades y disponibilidad para participar en actividades o asambleas.',
+        'Separar opinión, preocupación y disponibilidad en preguntas distintas.'
+      ].join('\n')
+    }
   };
 
   const ICONS = {
@@ -142,11 +182,23 @@
     Data.procedures ||= [];
     Data.faqs ||= [];
     Data.notifications ||= [];
+    Data.notifications = Data.notifications.map((item) => ({
+      ...item,
+      route: item.route === '/contingencia' ? '/comunicados' : item.route
+    }));
     Data.surveys ||= [];
     Data.appointments ||= [];
     Data.staffProfiles ||= [];
     Data.integrations ||= {};
-    Data.integrations.googleCalendar ||= { configured: false, connected: false, account: 'biblioteca.ceicucn@gmail.com', calendarId: 'primary' };
+    Data.integrations.googleCalendar ||= { configured: false, connected: false, account: 'jc.icivil.afta@ucn.cl', calendarId: 'primary' };
+    if (String(Data.integrations.googleCalendar.account || '').toLowerCase() === LEGACY_CALENDAR_ACCOUNT) {
+      Data.integrations.googleCalendar = {
+        ...Data.integrations.googleCalendar,
+        configured: false,
+        connected: false,
+        account: 'jc.icivil.afta@ucn.cl'
+      };
+    }
     if (!Data.cealMembers.length && Data.users?.ceal) Data.cealMembers = [Data.users.ceal];
     Data.resources = Data.resources.filter(r => !plain([r.title, r.origin, r.description, r.size].join(' ')).includes('demo') && !plain(r.title).includes('prueba funcional'));
     Data.resources = sanitizeMaterialResources(Data.resources);
@@ -161,6 +213,25 @@
   function plain(v) { return tx(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
+  function applyPortalTheme() {
+    const dark = Boolean(state.portalDark);
+    document.documentElement.classList.toggle('theme-dark', dark);
+    document.body?.classList.toggle('theme-dark', dark);
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  }
+  function setPortalTheme(dark, options = {}) {
+    state.portalDark = Boolean(dark);
+    state.mallaEmbedDark = state.portalDark;
+    localStorage.setItem(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
+    localStorage.setItem('portal.malla.embedDark', state.portalDark ? '1' : '0');
+    applyPortalTheme();
+    render({ transition: true, scope: options.scope || 'theme', resetScroll: false });
+  }
+  function themeToggleButton(extraClass = '', extraAttrs = '') {
+    const dark = Boolean(state.portalDark);
+    const label = dark ? 'Claro' : 'Oscuro';
+    return `<button class="theme-toggle-btn ${extraClass} ${dark ? 'active' : ''}" type="button" data-portal-theme-toggle ${extraAttrs} aria-pressed="${dark ? 'true' : 'false'}" aria-label="Cambiar a modo ${dark ? 'claro' : 'oscuro'}">${icon(dark ? 'sun' : 'moon')}<span>${label}</span></button>`;
+  }
   function routeTo(path, holdTop = false) {
     pendingScrollReset = true;
     resetPageScroll();
@@ -195,9 +266,12 @@
   function saveSession(user) { state.user = user; localStorage.setItem('portal.session', JSON.stringify(user)); }
   function buildGuestUser() { return { id: 'guest', name: 'Invitado', initials: 'IN', role: 'guest', label: 'Modo invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
   function startGuestSession() { localStorage.removeItem('portal.session'); state.user = buildGuestUser(); }
+  function isLocalDevHost() { return ['localhost', '127.0.0.1', '::1'].includes(location.hostname); }
   function isGuest() { return state.user?.role === 'guest'; }
   function hasCealAccess() { return state.user?.role === 'ceal' && (state.user.accessMode === 'ceal' || !state.user.authProvider); }
   function hasJefaturaAccess() { return state.user?.role === 'jefatura' && state.user.accessMode === 'jefatura'; }
+  function hasPermission(permission) { return (state.user?.permissions || []).includes(permission); }
+  function canPublishCommunications() { return hasCealAccess() && hasPermission('publish:comunicados'); }
   function accountRoleLabel(user = state.user) {
     if (!user) return '';
     if (user.role === 'ceal') return 'Miembros CEAL';
@@ -320,6 +394,10 @@
     return [...byName.values()]
       .sort((a, b) => a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'));
   }
+  function isPlanPCourseName(name = '') {
+    const normalized = plain(name);
+    return Boolean(normalized && (Curricula.planP?.subjects || []).some(course => plain(course.name) === normalized));
+  }
   function findCourse(plan, code) { return getCourses(plan).find(c => c.code === code || c.visibleCode === code); }
   function findCoursePlanForCode(code) { return ['planP', 'planO'].find(plan => findCourse(plan, code)) || state.activePlan; }
   function courseKey(plan, code) { return `${plan}:${code}`; }
@@ -387,7 +465,18 @@
       loginCount: member.loginCount
     };
   }
-  function isLocalAuthAllowed() { return !GOOGLE_CLIENT_ID || ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || QA_MODE; }
+  function isLocalAuthAllowed() { return !GOOGLE_CLIENT_ID || isLocalDevHost() || QA_MODE; }
+  function devSessionFor(role) {
+    if (role === 'jefatura') {
+      const profile = staffProfiles()[0] || { id: 'jc', displayName: 'Jefatura de carrera', email: 'jc.icivil.afta@ucn.cl' };
+      return { ...buildStaffUser(profile, { sub: 'local-jefatura', email: profile.authorizedEmails?.[0] || profile.email || 'jc.icivil.afta@ucn.cl' }), authProvider: 'local-dev', sessionToken: 'local-dev-jefatura' };
+    }
+    if (role === 'ceal') {
+      const member = findCealMemberByEmail('kevin.cortes@alumnos.ucn.cl') || cealMembers()[0];
+      return { ...buildMemberUser(member), authProvider: 'local-dev', accessMode: 'ceal', sessionToken: 'local-dev-ceal' };
+    }
+    return { id: 'local-student', name: 'Estudiante UCN', initials: 'EU', role: 'student', accessMode: 'student', label: 'Estudiante', plan: 'planP', yearLabel: 'Cuenta UCN', email: 'estudiante@alumnos.ucn.cl', authProvider: 'local-dev', sessionToken: 'local-dev-student', permissions: [] };
+  }
   function localPasswordMap() { try { return JSON.parse(localStorage.getItem('portal.ceal.passwords') || '{}'); } catch { return {}; } }
   function saveLocalPasswordMap(map) { localStorage.setItem('portal.ceal.passwords', JSON.stringify(map)); }
   function memberHasPassword(member) { return Boolean(member?.passwordSet || localPasswordMap()[member?.id]?.passwordHash); }
@@ -409,7 +498,7 @@
   }
   async function cealAssistantRequest(payload) {
     const endpoint = AI_ENDPOINT || (API_BASE ? `${API_BASE}/ai/ceal-draft` : '');
-    if (!endpoint) throw new Error('Asistente IA sin backend configurado.');
+    if (!endpoint) throw new Error('Asistente IA no disponible.');
     const headers = { 'content-type': 'application/json' };
     if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
     const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
@@ -419,7 +508,7 @@
   }
   async function surveyAssistantRequest(payload) {
     const endpoint = AI_ENDPOINT || (API_BASE ? `${API_BASE}/ai/survey-draft` : '');
-    if (!endpoint) throw new Error('Asistente IA sin backend configurado.');
+    if (!endpoint) throw new Error('Asistente IA no disponible.');
     const headers = { 'content-type': 'application/json' };
     if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
     const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
@@ -714,17 +803,19 @@
       ['/comunicados', 'megaphone', 'Comunicados'],
       ['/calendario', 'calendar', 'Calendario'],
       ['/encuestas', 'check', 'Encuestas'],
-      ['/contingencia', 'file', 'Contingencia del paro'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
-    if (hasJefaturaAccess()) items.splice(4, 0, ['/jefatura', 'users', 'Jefatura']);
-    if (hasCealAccess()) items.push(['/asistente', 'sparkles', 'Asistente CEAL']);
+    if (hasCealAccess()) {
+      items.push(['/asistente', 'sparkles', 'Asistente CEAL']);
+      items.push(['/gestion', 'settings', 'Gestión']);
+    }
+    if (hasJefaturaAccess()) items.push(['/jefatura', 'users', 'Jefatura']);
     return items;
   }
   function isActive(path, itemPath) {
     if (itemPath === '/') return path === '/';
-    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/contingencia' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
+    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
   }
   function pageHead(title, subtitle = '', actions = '') {
     return `<div class="page-head"><div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
@@ -733,12 +824,14 @@
     return `<div class="stat-card"><span class="icon-box">${icon(ico)}</span><span class="stat-copy"><strong>${esc(num)}</strong><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
   }
   function paint() {
+    applyPortalTheme();
     const { path, query } = getRoute();
     if (!state.user && path !== '/login') return routeTo('/login');
     if (state.user && path === '/login') return routeTo('/');
+    if (state.user && path === '/contingencia') return routeTo('/comunicados');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
-    if (state.user && path.startsWith('/gestion')) return routeTo('/');
+    if (state.user && path.startsWith('/gestion') && !hasCealAccess()) return routeTo('/');
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
     return true;
   }
@@ -821,7 +914,8 @@
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
     const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar el acceso con Google.</span></div>`;
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
-    return `<main class="login-shell"><section class="login-card" aria-label="Ingreso al portal">
+    const devAccess = isLocalDevHost() ? `<div class="dev-login-panel"><span class="kicker">Ingreso rapido</span><div class="quick-chip-row"><button class="chip-btn" type="button" data-dev-login="student">Estudiante</button><button class="chip-btn" type="button" data-dev-login="ceal">CEAL</button><button class="chip-btn" type="button" data-dev-login="jefatura">Jefatura</button></div></div>` : '';
+    return `<main class="login-shell">${themeToggleButton('login-theme-toggle')}<section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @alumnos.ucn.cl.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
@@ -836,11 +930,11 @@
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Jefatura / CEAL</strong><span>Miembros CEAL y Jefatura de carrera.</span></div>
+              <div><strong>Jefatura / CEAL</strong><span>Usa tu correo institucional @alumnos.ucn.cl.</span></div>
               ${googleButton('internal')}
             </div>
           </section>
-        </div>
+        </div>${devAccess}
       </div></section></main>`;
   }
   function renderShell(content, path) {
@@ -851,11 +945,11 @@
     const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/contingencia','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
     return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav">${nav}</nav></aside>
-      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions"><button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
-      <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions"><button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
-      <section class="content ${isMallaRoute ? 'content-mallas' : ''}">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
+      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
+      <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
+      <section class="content ${isMallaRoute ? 'content-mallas' : ''}">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
   }
   function renderPage(path, query) {
     if (path === '/') return renderHome();
@@ -870,8 +964,11 @@
     if (path === '/encuestas/nueva') return renderSurveyBuilder();
     if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
     if (path === '/jefatura') return hasJefaturaAccess() ? renderStaffAdvising() : renderNotFound('Esta sección está disponible solo para Jefatura de carrera.');
-    if (path === '/contingencia') return renderContingency();
     if (path === '/asistente') return renderCealAssistant();
+    if (path === '/gestion') return ensureCEAL(renderManagement());
+    if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
+    if (path.startsWith('/gestion/material/') && path.endsWith('/validar')) return ensureCEAL(renderValidateMaterial(path.split('/')[3]));
+    if (path.startsWith('/gestion/comunicados/') && path.endsWith('/editar')) return ensureCEAL(renderEditor(path.split('/')[3]));
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
@@ -889,18 +986,16 @@
     if (path === '/mallas') return renderMallas();
     if (path.startsWith('/ramo/')) { const [, , plan, code] = path.split('/'); return renderCourseDetailPage(plan, decodeURIComponent(code)); }
     if (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/')) return renderMaterial();
-    if (path === '/gestion' || path.startsWith('/gestion/')) return renderNotFound('Gestión CEAL está pausada por ahora.');
     return renderNotFound();
   }
 
   function renderHome() {
     const unread = Data.communications.filter(c => c.unread).length;
     const newMaterials = Data.resources.filter(r => r.status !== 'observado').length;
-    const jefaturaAction = hasJefaturaAccess() ? access('users','Jefatura','Horarios de atención e información.','Ver','/jefatura') : '';
-    return `${pageHead('Inicio', 'Resumen actualizado del portal académico')}
-      <section class="home-hero"><div class="card pad home-summary"><h2 class="card-title">Estado general</h2><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Disponibles')}</div></div>
+    return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}
+      <section class="home-hero"><div class="card pad home-summary"><h2 class="card-title">Vista rápida</h2><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Disponibles')}</div></div>
       <section class="home-campus-feature"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}${jefaturaAction}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}</div></div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
 
   }
@@ -971,17 +1066,36 @@
     const q = plain(state.communicationQuery);
     const items = Data.communications.filter(c => (state.communicationCategory === 'Todas' || plain(c.category) === plain(state.communicationCategory)) && (!q || plain([c.title, c.summary, c.category, c.source].join(' ')).includes(q)));
     const selected = items[0];
-    return `${pageHead('Comunicados', 'Avisos, respuestas y actualizaciones de la carrera')}
+    const createAction = canPublishCommunications() ? `<a class="btn primary" href="#/asistente">${icon('megaphone')} Crear comunicado</a>` : '';
+    return `${pageHead('Comunicados', 'Avisos, respuestas y actualizaciones de la carrera', createAction)}
       <div class="comms-layout"><aside class="card pad comms-filters"><div class="form-field"><label>Buscar comunicados</label><input class="input" data-com-search value="${esc(state.communicationQuery)}" placeholder="Buscar comunicado" /></div><h2 class="card-title">Categorías</h2><div class="comms-category-list">${cats.map(c => `<button class="chip-btn ${state.communicationCategory === c ? 'active' : ''}" data-com-category="${esc(c)}">${esc(c)}</button>`).join('')}</div></aside>
       <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay más comunicados en esta categoría.</p>'}</div></main>
       <aside class="card pad comms-preview"><h2 class="card-title">Preguntas frecuentes</h2>${renderFAQ()}</aside></div>`;
   }
   function commCard(c) { return `<a class="item-card" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`; }
+  function relatedLink(r) {
+    const isAgreement = ['contingencia', 'acuerdo', 'seguimiento'].includes(plain(r.type));
+    const href = isAgreement ? (r.id ? `/acuerdos/${encodeURIComponent(r.id)}` : '/calendario') : '/calendario';
+    const type = isAgreement ? 'Acuerdo' : (r.type || 'Relacionado');
+    return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.label)}</strong><span>${esc(type)}</span></span>${icon('arrow')}</a>`;
+  }
+  function findCommunicationById(id) {
+    return Data.communications.find(x => x.id === id)
+      || (id === 'com-001' ? Data.communications.find(x => x.id === 'com-paro-005') || Data.communications[0] : null);
+  }
+  function findAgreementById(id) {
+    return Data.agreements.find(x => x.id === id)
+      || (id === 'agr-003' ? Data.agreements.find(x => x.id === 'agr-paro-003') || Data.agreements[0] : null);
+  }
+  function findResourceById(id) {
+    return Data.resources.find(x => x.id === id)
+      || (/^mat-\d{3}$/.test(id || '') ? Data.resources.find(x => x.status === 'pendienteRevision') || Data.resources[0] : null);
+  }
   function renderCommunicationDetail(id) {
-    const c = Data.communications.find(x => x.id === id);
+    const c = findCommunicationById(id);
     if (!c) return renderNotFound('No encontramos el comunicado.');
     const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
-    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(r => `<a class="link-card-row" href="#${r.type === 'contingencia' ? '/contingencia' : '/calendario'}"><span><strong>${esc(r.label)}</strong><span>${esc(r.type)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
+    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(relatedLink).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
@@ -989,25 +1103,19 @@
     const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
     const nextEvents = Data.events.filter(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || '2026-06-17'}T00:00:00`));
     const currentMonth = parseCalendarDate(Data.today || nextEvents[0]?.date || '2026-06-17');
+    const agreementAction = hasCealAccess() ? `<a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a>` : '';
+    const agreementRows = Data.agreements.slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
     return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Durante la contingencia, algunos hitos pueden ajustarse. CEAL actualizará esta vista cuando exista información oficial.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div>${access('file','Contingencia del paro','Seguimiento separado de acuerdos, comunicados y compromisos.','Abrir','/contingencia','orange')}</aside></div>`;
-  }
-  function renderContingency() {
-    const selected = Data.agreements.find(a => a.id === state.selectedAgreementId) || Data.agreements[0];
-    const registerAgreement = '';
-    const contingencyComms = Data.communications.filter(c => plain(c.category) === 'contingencia');
-    return `${pageHead('Contingencia del paro', 'Comunicados, acuerdos de seguimiento y estado actual', registerAgreement)}
-      <section class="card pad contingency-hero"><div><span class="kicker">Estado actual</span><h2 class="card-title">Movilización institucional en seguimiento</h2><p class="muted">Esta sección concentra la información del paro para que el calendario académico quede limpio y la comunidad pueda revisar rápidamente qué se comunicó, qué compromisos existen y cuál es el siguiente paso.</p></div><div class="stat-grid compact">${stat('megaphone', contingencyComms.length, 'Comunicados', 'Publicados')}${stat('file', Data.agreements.length, 'Seguimientos', 'Activos')}</div></section>
-      <div class="calendar-layout" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Seguimiento</h2><span class="pill orange">Paro</span></div>${Data.agreements.map(a => agreementRow(a)).join('')}</section><section class="card pad"><h2 class="card-title">Últimos comunicados</h2><div class="card-list">${contingencyComms.map(c => commCard(c)).join('')}</div></section></div>${selected ? `<section class="card pad" style="margin-top:18px">${renderAgreementSummary(selected)}</section>` : ''}`;
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Algunos hitos pueden ajustarse si la carrera informa cambios oficiales. CEAL actualizará esta vista cuando exista información confirmada.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></aside></div>`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
   function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle de seguimiento</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Resumen</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div>`; }
   function renderAgreementDetail(id) {
-    const a = Data.agreements.find(x => x.id === id);
+    const a = findAgreementById(id);
     if (!a) return renderNotFound('No encontramos el acuerdo.');
     const downloadAction = isGuest() ? '' : `<button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button>`;
-    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/contingencia">Volver</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
+    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver al calendario</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
   }
 
   function renderMaterial() {
@@ -1021,6 +1129,8 @@
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
+    const quickTypes = ['Guía', 'Prueba', 'Apunte', 'PPT', 'Resumen'].filter(type => types.includes(type));
+    if (state.materialType !== 'all' && types.includes(state.materialType) && !quickTypes.includes(state.materialType)) quickTypes.unshift(state.materialType);
     const quickCourses = courseFacets
       .slice()
       .sort((a, b) => b.count - a.count || a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'))
@@ -1035,12 +1145,18 @@
       state.materialType !== 'all' ? ['type', `Tipo: ${state.materialType}`] : null,
       state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
     ].filter(Boolean);
+    const planPNotice = state.materialCourse !== 'all' && isPlanPCourseName(state.materialCourse)
+      ? `<div class="material-plan-note">${icon('grid')}<span>Plan P está incorporando material de forma progresiva. Cuando exista continuidad con Plan O, la biblioteca muestra recursos equivalentes por nombre de ramo.</span></div>`
+      : '';
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
-      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}<div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
+      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)}</button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
   function renderResourcePreview(r) {
+    if (QA_MODE) {
+      return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización omitida</h2><p class="small muted">La revisión automática usa los datos del recurso sin cargar servicios externos.</p></div></section>`;
+    }
     const previewUrl = drivePreviewUrl(r);
     if (!previewUrl) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización no disponible</h2><p class="small muted">Este recurso no tiene enlace embebible. Usa el botón de apertura para revisar el archivo completo.</p></div></section>`;
@@ -1059,7 +1175,7 @@
   }
   function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
   function renderMaterialDetailPage(id) {
-    const r = Data.resources.find(x => x.id === id);
+    const r = findResourceById(id);
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
     const rPlan = Curricula[r.plan] ? r.plan : findCoursePlanForCode(r.courseCode);
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
@@ -1071,7 +1187,7 @@
 
   function renderMallas() {
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
-    const dark = state.mallaEmbedDark;
+    const dark = state.portalDark;
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
     const accountLabel = 'Mi cuenta';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
@@ -1089,7 +1205,7 @@
               <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
               <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
-            <button class="malla-tool-btn ${dark ? 'active' : ''}" type="button" data-malla-embed-theme aria-pressed="${dark ? 'true' : 'false'}">${icon('moon')}<span>Oscuro</span></button>
+            ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
             <button class="malla-tool-btn ${state.mallaFocus ? 'active' : ''}" type="button" data-malla-focus aria-pressed="${state.mallaFocus ? 'true' : 'false'}">${icon(state.mallaFocus ? 'minimize' : 'maximize')}<span>${state.mallaFocus ? 'Salir' : 'Foco'}</span></button>
             <a class="malla-tool-btn" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>
             <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
@@ -1104,6 +1220,7 @@
   function mallaEmbedUrl(plan) { return `${MALLA_BASE_URL}malla-${plan === 'o' ? 'o' : 'p'}.html`; }
   async function getMallaEmbedHtml(plan) {
     const key = plan === 'o' ? 'o' : 'p';
+    if (QA_MODE) throw new Error('local malla fallback');
     if (!mallaEmbedCache[key]) {
       mallaEmbedCache[key] = fetch(mallaEmbedUrl(key)).then(res => {
         if (!res.ok) throw new Error(`malla ${res.status}`);
@@ -1130,8 +1247,73 @@
     } catch {
       if (!app.contains(frame) || frame.dataset.loadKey !== loadKey) return;
       wrap?.classList.add('is-fallback');
-      frame.src = mallaEmbedUrl(plan);
+      frame.srcdoc = buildLocalMallaSrcdoc(plan, theme);
     }
+  }
+  function safeJsonForScript(value) {
+    return JSON.stringify(value).replace(/</g, '\\u003c');
+  }
+  function buildLocalMallaSrcdoc(plan, theme) {
+    const data = plan === 'o' ? Curricula.planO : Curricula.planP;
+    const planName = plan === 'o' ? 'Plan O Catálogo 2016' : 'Plan P Catálogo 2025';
+    const subjects = [...(data.subjects || [])].sort((a, b) => a.semester - b.semester || (a.row || 0) - (b.row || 0) || titleCase(a.name).localeCompare(titleCase(b.name), 'es-CL'));
+    const semesters = Array.from({ length: data.totalSemesters || Math.max(...subjects.map(c => c.semester), 1) }, (_, index) => index + 1);
+    const columns = semesters.map(semester => {
+      const cards = subjects.filter(course => course.semester === semester).map(course => {
+        const area = esc(course.area || 'general');
+        return `<article class="mc-card mc-area-${area}" data-mc-code="${esc(course.code)}" tabindex="0">
+          <span class="mc-card__code">${esc(course.visibleCode || course.code)}</span>
+          <strong class="mc-card__title">${esc(titleCase(course.name))}</strong>
+          <span class="mc-card__meta">${esc(AreaStyle[course.area] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
+        </article>`;
+      }).join('');
+      return `<section class="mc-semester"><h2>${semester} semestre</h2><div class="mc-semester__cards">${cards}</div></section>`;
+    }).join('');
+    const localStyles = `<style>
+      ${mallaEmbedThemeStyles(theme, plan)}
+      *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--mc-bg);color:var(--mc-text)}
+      .mc-local-shell{min-height:100vh;padding:18px}
+      .mc-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:0 0 16px}
+      .mc-header h1{font-size:22px;line-height:1.15;margin:0;font-weight:800;letter-spacing:0}
+      .mc-header__subtitle{margin:5px 0 0;color:var(--mc-muted);font-weight:700}
+      .mc-header__meta{color:var(--mc-muted);font-size:13px;font-weight:700}
+      .mc-grid{display:grid;grid-template-columns:repeat(${semesters.length},minmax(172px,1fr));gap:12px;min-width:max(100%,${semesters.length * 184}px)}
+      .mc-semester{display:grid;gap:10px;align-content:start}
+      .mc-semester h2{margin:0;padding:9px 10px;border-radius:10px;background:var(--mc-panel);border:1px solid var(--mc-border);font-size:13px;text-transform:uppercase;color:var(--mc-muted);letter-spacing:.04em}
+      .mc-semester__cards{display:grid;gap:10px}
+      .mc-card{display:grid;gap:6px;min-height:104px;padding:12px;border:1px solid var(--mc-border);border-left:4px solid var(--mc-area-general);border-radius:var(--mc-card-radius);background:var(--mc-card-bg);box-shadow:var(--mc-card-shadow);cursor:pointer}
+      .mc-card__code{font-size:11px;font-weight:800;color:var(--mc-muted)}
+      .mc-card__title{font-size:13px;line-height:1.25;color:var(--mc-text)}
+      .mc-card__meta{font-size:11px;color:var(--mc-muted);line-height:1.25}
+      .mc-area-basica{border-left-color:var(--mc-area-basica);background:linear-gradient(180deg,var(--mc-area-basica-bg),var(--mc-card-bg))}
+      .mc-area-ingenieria{border-left-color:var(--mc-area-ingenieria);background:linear-gradient(180deg,var(--mc-area-ingenieria-bg),var(--mc-card-bg))}
+      .mc-area-aplicada{border-left-color:var(--mc-area-aplicada);background:linear-gradient(180deg,var(--mc-area-aplicada-bg),var(--mc-card-bg))}
+      .mc-area-general{border-left-color:var(--mc-area-general);background:linear-gradient(180deg,var(--mc-area-general-bg),var(--mc-card-bg))}
+      .mc-area-proyecto{border-left-color:var(--mc-area-proyecto);background:linear-gradient(180deg,var(--mc-area-proyecto-bg),var(--mc-card-bg))}
+      .mc-area-electivo{border-left-color:var(--mc-area-electivo);background:linear-gradient(180deg,var(--mc-area-electivo-bg),var(--mc-card-bg))}
+      @media(max-width:640px){.mc-local-shell{padding:12px}.mc-header{display:grid}.mc-grid{display:grid;grid-template-columns:1fr;min-width:0}.mc-semester{content-visibility:auto}.mc-semester h2{position:sticky;top:0;z-index:2}}
+    </style>`;
+    const subjectPayload = safeJsonForScript(subjects.map(course => ({ code: course.code, prereqs: course.prereqs || [] })));
+    const localScript = `<script>
+      (function(){
+        document.documentElement.classList.toggle('mc-light', ${JSON.stringify(theme === 'light')});
+        var subjects = ${subjectPayload};
+        var byCode = Object.fromEntries(subjects.map(function(item){ return [item.code, item]; }));
+        function dependents(code){ return subjects.filter(function(item){ return (item.prereqs || []).indexOf(code) >= 0; }).map(function(item){ return item.code; }); }
+        function card(code){ return document.querySelector('.mc-card[data-mc-code="' + CSS.escape(code) + '"]'); }
+        function clearHighlight(){ document.querySelectorAll('.mc-card--highlight-self,.mc-card--highlight-prereq,.mc-card--highlight-successor').forEach(function(el){ el.classList.remove('mc-card--highlight-self','mc-card--highlight-prereq','mc-card--highlight-successor'); }); }
+        function highlightChain(code){
+          clearHighlight();
+          var current = card(code);
+          if (current) current.classList.add('mc-card--highlight-self');
+          ((byCode[code] && byCode[code].prereqs) || []).forEach(function(item){ var el = card(item); if (el) el.classList.add('mc-card--highlight-prereq'); });
+          dependents(code).forEach(function(item){ var el = card(item); if (el) el.classList.add('mc-card--highlight-successor'); });
+        }
+        window.__MC = { clearHighlight: clearHighlight, highlightChain: highlightChain, getDirectPrereqs: function(code){ return (byCode[code] && byCode[code].prereqs) || []; }, getDirectDependents: dependents };
+        document.addEventListener('click', function(event){ var item = event.target.closest('.mc-card[data-mc-code]'); if (item) highlightChain(item.dataset.mcCode); });
+      })();
+    <\/script>`;
+    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
   }
   function buildMallaSrcdoc(html, plan, theme) {
     const bootstrap = `<base href="${MALLA_BASE_URL}"><script>try{localStorage.setItem('mc-theme','${theme}');}catch(e){}document.documentElement.classList.toggle('mc-light','${theme}'==='light');<\/script>`;
@@ -1448,10 +1630,14 @@
     const prereqs = getPrereqs(plan, course);
     const successors = getSuccessors(plan, course.code);
     const resources = getResourcesForCourse(plan, course.code);
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span></div><p class="small muted" style="line-height:1.6">${esc(course.description || getPlanData(plan).descriptions?.[course.code] || 'Ficha curricular del ramo.')}</p><div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><div class="detail-block"><h3 class="card-title">Recursos asociados</h3>${resources.slice(0,3).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</div><div class="hstack"><a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a><button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
+    const materialBlock = resources.length
+      ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
+      : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
+    const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div><p class="small muted" style="line-height:1.6">${esc(course.description || getPlanData(plan).descriptions?.[course.code] || 'Ficha curricular del ramo.')}</p><div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${badge(getProgress(plan, c.code))}</a>`; }
-  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); return c ? `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section><aside class="card pad"><h2 class="card-title">Conexiones</h2>${getResourcesForCourse(plan, c.code).map(r => resourceCard(r)).join('') || '<p class="small muted">Sin recursos asociados.</p>'}</aside></div>` : renderNotFound('No encontramos el ramo.'); }
+  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
 
   function renderSupport() { return renderMaterial(); }
   function tutoringCard(t) { return `<a class="item-card" href="#/ayudantias/${t.id}"><div class="row-between"><span class="icon-box">${icon('users')}</span><span class="pill blue">${esc(t.mode)}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.courseName)} - ${fmtDate(t.date)} - ${esc(t.time)} - ${esc(t.location)}</p></a>`; }
@@ -1484,9 +1670,9 @@
   function renderSurveys() {
     const surveys = [...(Data.surveys || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     const open = surveys.filter(s => s.status === 'open');
-    const cealAction = hasCealAccess() ? `<a class="btn primary" href="#/encuestas/nueva">${icon('sparkles')} Crear con IA</a>` : '';
+    const cealAction = hasCealAccess() ? `<a class="btn primary" href="#/encuestas/nueva">${icon('check')} Crear encuesta o votación</a>` : '';
     return `${pageHead('Encuestas y votaciones', 'Consultas internas con voto secreto y exportación a Excel', cealAction)}
-      <section class="card pad survey-hero"><div><span class="kicker">Participación estudiantil</span><h2 class="card-title">Consultas listas para aplicar</h2><p class="muted">CEAL puede convertir una instrucción en encuesta o votación, abrirla a estudiantes de Ingeniería Civil UCN y exportar resultados en XLSX.</p></div><div class="stat-grid compact">${stat('check', open.length, 'Activas', 'Abiertas')}${stat('file', surveys.length, 'Consultas', 'Totales')}${stat('eye', surveys.filter(s => s.secret !== false).length, 'Secretas', 'Sin correos')}</div></section>
+      <section class="card pad survey-hero"><div><span class="kicker">Participación estudiantil</span><h2 class="card-title">Consultas listas para aplicar</h2><p class="muted">CEAL puede convertir una instrucción en encuesta o votación, abrirla a estudiantes de Ingeniería Civil UCN y exportar resultados en XLSX.</p><p class="privacy-note">${icon('eye')} Las respuestas se informan como resultados agregados. No se publica quién votó qué; el acceso queda validado por CEAL/Jefatura.</p></div><div class="stat-grid compact">${stat('check', open.length, 'Activas', 'Abiertas')}${stat('file', surveys.length, 'Consultas', 'Totales')}${stat('eye', surveys.filter(s => s.secret !== false).length, 'Secretas', 'Sin correos')}</div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Activas</h2><span class="pill blue">${open.length}</span></div><div class="card-list">${open.map(surveyCard).join('') || renderEmpty('Sin consultas abiertas', 'Cuando CEAL abra una encuesta o votación aparecerá aquí.')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Historial</h2><span class="pill gray">${surveys.length}</span></div><div class="card-list">${surveys.map(surveyCard).join('') || renderEmpty('Sin consultas creadas', 'Usa el asistente para crear la primera.')}</div></section></div>`;
   }
   function renderSurveyBuilder() {
@@ -1496,7 +1682,7 @@
     const sessionReady = Boolean(state.user?.sessionToken);
     const ready = endpointReady && sessionReady;
     const status = !endpointReady
-      ? `<div class="google-auth-note"><strong>Backend IA pendiente</strong><span>Abre el portal con server.mjs o configura PORTAL_AI_ENDPOINT para generar encuestas con Gemini sin exponer la key.</span></div>`
+      ? `<div class="google-auth-note"><strong>Asistente no disponible</strong><span>La creación asistida se activará cuando el servicio institucional esté listo.</span></div>`
       : !sessionReady
         ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>La generación necesita sesión interna para validar acceso.</span></div>`
         : '';
@@ -1506,11 +1692,15 @@
         <form class="card pad form" data-form="survey-ai">
           <div class="row-between"><div><span class="kicker">Asistente de participacion</span><h2 class="card-title">Nueva consulta</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
           ${status}${state.surveyBuilderError ? `<p class="form-alert">${esc(state.surveyBuilderError)}</p>` : ''}
+          <div class="survey-preset-panel">
+            <span class="kicker">Plantillas neutrales</span>
+            <div class="quick-chip-row">${Object.entries(SurveyPresets).map(([key, preset]) => `<button class="chip-btn" type="button" data-survey-preset="${esc(key)}">${esc(preset.label)}</button>`).join('')}</div>
+          </div>
           <div class="form-field"><label>Qué necesitas preguntar</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Ejemplo: crear votación secreta sobre mantener paro, con opciones sí/no/abstención y espacio opcional de comentario.">${esc(req.rawText || '')}</textarea></div>
           <div class="form-grid"><div class="form-field"><label>Formato</label><select class="select" name="mode">${[['auto','Automático'],['encuesta','Encuesta'],['votacion','Votación secreta']].map(([value, label]) => `<option value="${value}"${(req.mode || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div></div>
           <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.surveyBuilderLoading ? '' : 'disabled'}>${state.surveyBuilderLoading ? 'Generando...' : 'Generar encuesta'}</button><button class="btn secondary" data-survey-builder-clear type="button">Limpiar</button></div>
         </form>
-        <aside class="card pad assistant-side"><h2 class="card-title">Reglas aplicadas</h2><div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Voto secreto por defecto</strong><small>No exporta nombre ni correo; solo respuestas y fecha.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Audiencia fija</strong><small>Solo Estudiantes de Ingeniería Civil UCN.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('download')}</span><span><strong>XLSX real</strong><small>CEAL descarga resultados para análisis posterior.</small></span></div></aside>
+        <aside class="card pad assistant-side"><h2 class="card-title">Reglas aplicadas</h2><div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Voto secreto por defecto</strong><small>Se muestran cantidades agregadas; no se publica quién votó qué.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Acceso validado</strong><small>Solo Estudiantes de Ingeniería Civil UCN, con revisión CEAL/Jefatura.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('download')}</span><span><strong>XLSX real</strong><small>CEAL descarga resultados para análisis posterior.</small></span></div></aside>
       </div>${preview}`);
   }
   function renderSurveyQuestionInput(question) {
@@ -1534,13 +1724,13 @@
         ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Ingresa para responder</h3><p>El modo invitado permite revisar, pero no votar ni registrar respuestas.</p></section>`
         : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label>${esc(q.label)}</label>${renderSurveyQuestionInput(q)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
     return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
-      <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
+      <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><p class="privacy-note compact">${icon('eye')} Resultados agregados. No se publica quién votó qué.</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
   function renderStaffCalendarPanel(profile = {}) {
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
-    const account = status.account || 'biblioteca.ceicucn@gmail.com';
+    const account = status.account || profile.email || 'jc.icivil.afta@ucn.cl';
     if (!API_BASE) {
-      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Backend requerido</h2><p class="small muted">La conexión directa con Google Calendar necesita desplegar server.mjs como API del portal. La key y el refresh token no se guardan en el navegador.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Cuenta temporal</strong><small>${esc(account)}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Preparado para OAuth</strong><small>Al activar la API aparecerá el botón de conexión.</small></span></div></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conexión no disponible</h2><p class="small muted">La conexión directa con Google Calendar se activará cuando el servicio institucional esté listo.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Cuenta de agenda</strong><small>${esc(account)}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Agenda institucional</strong><small>Al activarse aparecerá el botón de conexión.</small></span></div></aside>`;
     }
     if (state.calendarStatusLoading && !state.calendarStatus) {
       return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Revisando Calendar</h2><p class="small muted">Consultando el estado de conexión de Google Calendar.</p></aside>`;
@@ -1549,12 +1739,12 @@
       return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
     }
     if (!status.configured) {
-      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">OAuth Calendar por configurar</h2><p class="small muted">Falta agregar el secreto OAuth del cliente web en el backend. La cuenta objetivo será ${esc(account)}.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('settings')}</span><span><strong>Variable requerida</strong><small>GOOGLE_CALENDAR_CLIENT_SECRET</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Redirect URI</strong><small>/api/calendar/oauth/callback</small></span></div></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conexión pendiente</h2><p class="small muted">La agenda de ${esc(account)} aún no está habilitada para crear horarios desde el portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('settings')}</span><span><strong>Revisión requerida</strong><small>Jefatura podrá conectarla cuando esté disponible.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>Google Calendar</small></span></div></aside>`;
     }
     if (status.connected) {
-      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Google Calendar conectado</h2><p class="small muted">La agenda de ${esc(account)} está autorizada para crear eventos desde el backend del portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Conexión activa</strong><small>${status.connectedAt ? fmtDate(status.connectedAt) : 'Lista para usar'}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span></div><button class="btn secondary" data-calendar-disconnect type="button">${icon('x')} Desconectar Calendar</button></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Google Calendar conectado</h2><p class="small muted">La agenda de ${esc(account)} está autorizada para crear eventos desde el portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Conexión activa</strong><small>${status.connectedAt ? fmtDate(status.connectedAt) : 'Lista para usar'}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span></div><button class="btn secondary" data-calendar-disconnect type="button">${icon('x')} Desconectar Calendar</button></aside>`;
     }
-    return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención desde el backend.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo. El token queda guardado solo en el backend.</p></aside>`;
+    return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo institucional.</p></aside>`;
   }
   function renderStaffAdvising() {
     const profile = (Data.staffProfiles || [])[0] || {};
@@ -1577,7 +1767,7 @@
     const ready = endpointReady && sessionReady;
     const usage = state.cealAssistantUsage ? `<span class="pill gray">${esc(state.cealAssistantUsage.count || 0)} usos hoy</span>` : '';
     const status = !endpointReady
-      ? `<div class="google-auth-note"><strong>Backend IA pendiente</strong><span>Configura PORTAL_AI_ENDPOINT o abre el portal con server.mjs para usar Gemini sin exponer la key.</span></div>`
+      ? `<div class="google-auth-note"><strong>Asistente no disponible</strong><span>La redacción asistida se activará cuando el servicio institucional esté listo.</span></div>`
       : !sessionReady
         ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>El asistente necesita una sesión interna nueva para validar el acceso.</span></div>`
         : '';
@@ -1628,9 +1818,9 @@
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
     const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
     const modules = [
-      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/gestion/comunicados/com-paro-005/editar'],
+      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/asistente'],
       ['edit:calendario','calendar','Editar calendario','Gestiona fechas académicas oficiales.','/calendario'],
-      ['upload:acuerdos','file','Registrar contingencia','Registra seguimiento y compromisos.','/gestion/acuerdos/nuevo'],
+      ['upload:acuerdos','file','Registrar seguimiento','Registra acuerdos y compromisos.','/gestion/acuerdos/nuevo'],
       ['validate:material','book','Validar material','Aprueba recursos enviados.', firstMaterial ? '/gestion/material/' + firstMaterial + '/validar' : '/material'],
       ['edit:mallas','grid','Actualizar mallas','Revisa enlaces y fichas de ramos.','/mallas'],
       ['manage:roles','users','Panel común CEAL','Acceso compartido para la directiva.','/gestion']
@@ -1643,31 +1833,31 @@
       return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.title)}</strong><span>${esc(r.courseName)} - ${esc(r.type)}</span></span><span class="hstack">${badge(r.status)}<span class="link">${action} ${icon('arrow')}</span></span></a>`;
     }).join('');
     const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
-    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y contingencia', `<span class="pill blue">Acceso CEAL</span>`)}
+    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y acuerdos', `<span class="pill blue">Acceso CEAL</span>`)}
       <div class="vstack">
-        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Contingencia', 'En seguimiento')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Seguimientos', 'Activos')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
         <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
         <div class="management-content-grid">
           <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-paro-005/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
-          <section class="card pad"><div class="row-between"><h2 class="card-title">Contingencia del paro</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
       </div>`;
   }
   function ensureCEAL(content) { return hasCealAccess() ? content : `${pageHead('Sin permisos', 'Esta sección es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
   function renderEditor(id) {
-    const c = Data.communications.find(x => x.id === id) || Data.communications[0] || {};
+    const c = Data.communications.find(x => x.id === id) || { ...(Data.communications[0] || {}), id: id || '' };
     return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Título</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoría</label><select class="select" name="category">${['Contingencia','Académico','Material','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
   }
-  function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision'); return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revisión CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
-  function renderAgreementForm() { return `${pageHead('Nuevo seguimiento', 'Registra una decisión, avance o compromiso de contingencia', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del seguimiento</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, mesa, comunicado" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Resumen</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear seguimiento</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
+  function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision') || Data.resources[0]; return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revisión CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
+  function renderAgreementForm() { return `${pageHead('Nuevo seguimiento', 'Registra una decisión, avance o compromiso académico', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del seguimiento</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, mesa, comunicado" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Resumen</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear seguimiento</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
 
   function renderProfile() {
     const u = state.user;
     if (isGuest()) {
       return `${pageHead('Invitado', 'Vista sin registros', `<button class="btn danger" data-logout>${icon('x')} Salir</button>`)}
         <section class="card pad"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="hstack" style="flex-wrap:wrap">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
-        <div class="grid four" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}${access('file','Contingencia','Comunicados y seguimiento del paro.','Abrir','/contingencia','orange')}</div>`;
+        <div class="grid four" style="margin-top:18px">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}</div>`;
     }
     const roleLabel = accountRoleLabel(u);
     const profileContext = u.role === 'student' ? `${planShort(u.plan)} - ${u.yearLabel}` : u.yearLabel;
@@ -1685,7 +1875,7 @@
       ...Data.communications.filter(c => plain([c.title, c.summary, c.category].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('megaphone', c.title, `${c.category} - ${fmtDate(c.date)}`, `/comunicados/${c.id}`)),
       ...Data.agreements.filter(a => plain([a.title, a.summary, a.origin].join(' ')).includes(normalized)).slice(0, 4).map(a => resultRow('file', a.title, `${a.origin} - ${fmtDate(a.date)}`, `/acuerdos/${a.id}`))
     ] : [];
-    return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, contingencia y comunicados')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
+    return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, comunicados y acuerdos')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
   function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesión</strong></span>${icon('arrow')}</button></div></section>`; }
@@ -1696,6 +1886,16 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    if (e.target.closest('[data-portal-theme-toggle]')) {
+      setPortalTheme(!state.portalDark);
+      return;
+    }
+    const devLogin = e.target.closest('[data-dev-login]');
+    if (devLogin && isLocalDevHost()) {
+      saveSession(devSessionFor(devLogin.dataset.devLogin));
+      routeTo('/');
+      return;
+    }
     const googleRedirect = e.target.closest('[data-google-redirect]');
     if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
@@ -1808,6 +2008,17 @@
       render({ transition: true, scope: 'panel' });
       return;
     }
+    const surveyPresetButton = e.target.closest('[data-survey-preset]');
+    if (surveyPresetButton) {
+      const preset = SurveyPresets[surveyPresetButton.dataset.surveyPreset];
+      if (preset) {
+        state.surveyBuilderRequest = { rawText: preset.prompt, mode: preset.mode };
+        state.surveyBuilderResult = null;
+        state.surveyBuilderError = '';
+        render({ transition: true, scope: 'panel' });
+      }
+      return;
+    }
     const createSurvey = e.target.closest('[data-survey-create]');
     if (createSurvey) {
       if (!hasCealAccess()) { readonlyToast(); return; }
@@ -1850,7 +2061,7 @@
     const surveyExport = e.target.closest('[data-survey-export]');
     if (surveyExport) {
       if (!hasCealAccess()) { readonlyToast(); return; }
-      if (!API_BASE) { showToast('La exportación XLSX requiere backend activo', 'blue'); return; }
+      if (!API_BASE) { showToast('La exportación XLSX estará disponible cuando se active el servicio de datos', 'blue'); return; }
       const id = surveyExport.dataset.surveyExport;
       try {
         const headers = {};
@@ -1871,12 +2082,6 @@
       localStorage.setItem('portal.malla.embedPlan', state.mallaEmbedPlan);
       state.activePlan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
       localStorage.setItem('portal.activePlan', state.activePlan);
-      render({ transition: true, scope: 'panel' });
-      return;
-    }
-    if (e.target.closest('[data-malla-embed-theme]')) {
-      state.mallaEmbedDark = !state.mallaEmbedDark;
-      localStorage.setItem('portal.malla.embedDark', state.mallaEmbedDark ? '1' : '0');
       render({ transition: true, scope: 'panel' });
       return;
     }
@@ -2001,7 +2206,7 @@
     }
     if (form.dataset.form === 'survey-response') {
       if (isGuest()) { readonlyToast(); return; }
-      if (!API_BASE) { showToast('Responder requiere backend activo para guardar datos reales', 'blue'); return; }
+      if (!API_BASE) { showToast('Responder estará disponible cuando se active el registro de respuestas', 'blue'); return; }
       const survey = Data.surveys.find(s => s.id === form.dataset.surveyId);
       if (!survey) { showToast('Encuesta no encontrada', 'blue'); return; }
       const answers = {};
@@ -2031,7 +2236,7 @@
     if (form.dataset.form === 'edit-content') {
       const id = fd.get('id') || Data.communications[0]?.id;
       let item = Data.communications.find(c => c.id === id);
-      if (!item) { item = { id:`com-${Date.now()}`, date:new Date().toISOString(), source:'CEIC Ingeniería Civil UCN', unread:true, pinned:false, related:[] }; Data.communications.unshift(item); }
+      if (!item) { item = { id: id || `com-${Date.now()}`, date:new Date().toISOString(), source:'CEIC Ingeniería Civil UCN', unread:true, pinned:false, related:[] }; Data.communications.unshift(item); }
       Object.assign(item, { title:fd.get('title'), category:fd.get('category'), summary:fd.get('summary'), body:fd.get('body'), updatedAt:new Date().toISOString() });
       persistSnapshot();
       apiRequest(`/communications/${encodeURIComponent(item.id)}`, { method:'PATCH', body:JSON.stringify(item) }).catch(() => {});
@@ -2040,7 +2245,7 @@
       return;
     }
     if (form.dataset.form === 'new-agreement') {
-      let item = { id:`agr-${Date.now()}`, number:`Contingencia N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Seguimiento creado', detail:'Registro creado desde Gestión CEAL.' }] };
+      let item = { id:`agr-${Date.now()}`, number:`Seguimiento N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Seguimiento creado', detail:'Registro creado desde Gestión CEAL.' }] };
       try { const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
       Data.agreements.unshift(item); persistSnapshot(); showToast('Seguimiento creado'); routeTo('/acuerdos/' + item.id); return;
     }

@@ -4091,3 +4091,391 @@ body::before {
     gap: 12px;
   }
 }
+
+/* Global theme */
+.theme-toggle-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(191, 208, 227, .9);
+  border-radius: 8px;
+  background: rgba(255,255,255,.9);
+  color: var(--navy-950);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 840;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.theme-toggle-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(7,94,203,.36);
+  box-shadow: 0 8px 22px rgba(7,36,74,.08);
+}
+
+.theme-toggle-btn .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.theme-floating-toggle {
+  display: none;
+}
+
+.login-theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 5;
+  background: rgba(255,255,255,.96);
+}
+
+.survey-preset-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.privacy-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 760px;
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(18, 111, 227, .18);
+  border-radius: 8px;
+  background: rgba(18, 111, 227, .07);
+  color: var(--navy-900);
+  font-size: .92rem;
+  line-height: 1.35;
+  font-weight: 720;
+}
+
+.privacy-note.compact {
+  display: flex;
+  margin-bottom: 12px;
+  font-size: .86rem;
+}
+
+.privacy-note .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--blue-700);
+  flex: 0 0 auto;
+}
+
+.dev-login-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.material-plan-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 145, 178, .18);
+  border-radius: 8px;
+  background: rgba(8, 145, 178, .08);
+  color: var(--navy-900);
+  font-size: .88rem;
+  line-height: 1.45;
+  font-weight: 720;
+}
+
+.material-plan-note.compact {
+  margin: 12px 0;
+  font-size: .84rem;
+}
+
+.material-plan-note .icon {
+  width: 18px;
+  height: 18px;
+  color: #0891b2;
+  flex: 0 0 auto;
+}
+
+body.theme-dark {
+  --text: #e8f1fb;
+  --text-muted: #a8bad0;
+  --surface: #0d1f35;
+  --surface-soft: #132a44;
+  --surface-tint: #172f4a;
+  --line: rgba(130, 157, 190, .32);
+  --line-strong: rgba(160, 184, 214, .42);
+  --navy-950: #f3f8ff;
+  --navy-900: #dcecff;
+  --blue-700: #70adff;
+  --blue-600: #8fc0ff;
+  --blue-100: rgba(60, 132, 230, .18);
+  --steel-100: rgba(143, 182, 226, .13);
+  --slate-600: #a8bad0;
+  --slate-500: #96abc4;
+  --slate-400: #7f94ad;
+  --shadow-sm: 0 12px 30px rgba(0, 0, 0, .22);
+  --shadow-card: 0 18px 44px rgba(0, 0, 0, .32);
+  background:
+    radial-gradient(circle at top left, rgba(18,111,227,.18), transparent 28rem),
+    linear-gradient(180deg, #071527 0%, #0a1d33 48%, #071527 100%);
+  color: var(--text);
+}
+
+body.theme-dark::before {
+  background:
+    linear-gradient(rgba(190, 214, 243, .035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(190, 214, 243, .028) 1px, transparent 1px);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,.42), transparent 68%);
+}
+
+body.theme-dark .login-shell {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(18,111,227,.26), transparent 26rem),
+    linear-gradient(135deg, #03101f, #06203e);
+}
+
+body.theme-dark .login-card,
+body.theme-dark .login-form,
+body.theme-dark .login-brand,
+body.theme-dark .google-login-card,
+body.theme-dark .sidebar,
+body.theme-dark .sidebar-campus-card,
+body.theme-dark .card,
+body.theme-dark .item-card,
+body.theme-dark .quick-card,
+body.theme-dark .access-card,
+body.theme-dark .management-card,
+body.theme-dark .link-card-row,
+body.theme-dark .result-row,
+body.theme-dark .stat-card,
+body.theme-dark .notification-popover,
+body.theme-dark .month-grid,
+body.theme-dark .day-cell,
+body.theme-dark .staff-hour-row,
+body.theme-dark .resource-preview-card,
+body.theme-dark .survey-preset-panel,
+body.theme-dark .dev-login-panel,
+body.theme-dark .google-oauth-btn,
+body.theme-dark .input,
+body.theme-dark .select,
+body.theme-dark .textarea,
+body.theme-dark .upload-zone,
+body.theme-dark .chip-btn,
+body.theme-dark .segmented button,
+body.theme-dark .course-chip,
+body.theme-dark .course-filter-select,
+body.theme-dark .filter-select,
+body.theme-dark .data-table {
+  background: rgba(13, 31, 53, .94);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.theme-dark .sidebar-brand,
+body.theme-dark .topbar,
+body.theme-dark .mobile-header,
+body.theme-dark .bottom-nav {
+  background: rgba(7, 21, 39, .96);
+  color: var(--text);
+  border-color: var(--line);
+  box-shadow: 0 16px 34px rgba(0,0,0,.22);
+}
+
+body.theme-dark .content {
+  background: transparent;
+}
+
+body.theme-dark .global-search,
+body.theme-dark .theme-toggle-btn,
+body.theme-dark .icon-btn,
+body.theme-dark .btn.secondary,
+body.theme-dark .btn.ghost {
+  background: rgba(20, 43, 68, .92);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.theme-dark .global-search input,
+body.theme-dark .input,
+body.theme-dark .select,
+body.theme-dark .textarea {
+  color: var(--text);
+}
+
+body.theme-dark .global-search input::placeholder,
+body.theme-dark .input::placeholder,
+body.theme-dark .textarea::placeholder {
+  color: #7f94ad;
+}
+
+body.theme-dark .page-title,
+body.theme-dark .card-title,
+body.theme-dark .section-title,
+body.theme-dark .google-login-body strong,
+body.theme-dark .role-card strong,
+body.theme-dark .user-mini strong,
+body.theme-dark .brand-copy strong,
+body.theme-dark .mobile-brand strong,
+body.theme-dark .detail-row strong,
+body.theme-dark .stat-card strong,
+body.theme-dark .stat-copy span,
+body.theme-dark .link-card-row strong,
+body.theme-dark .result-row strong,
+body.theme-dark .data-table td,
+body.theme-dark .data-table th {
+  color: var(--text);
+}
+
+body.theme-dark .page-subtitle,
+body.theme-dark .muted,
+body.theme-dark .small,
+body.theme-dark .card-subtitle,
+body.theme-dark .google-login-body span,
+body.theme-dark .role-card span,
+body.theme-dark .sidebar-campus-card small,
+body.theme-dark .user-mini span,
+body.theme-dark .detail-row span,
+body.theme-dark .kicker,
+body.theme-dark .resource-meta-block span,
+body.theme-dark .data-table th {
+  color: var(--text-muted);
+}
+
+body.theme-dark .nav-item {
+  color: #c8daee;
+}
+
+body.theme-dark .nav-item:hover,
+body.theme-dark .topbar .icon-btn:hover,
+body.theme-dark .mobile-header .icon-btn:hover {
+  background: rgba(112, 173, 255, .12);
+}
+
+body.theme-dark .nav-item.active,
+body.theme-dark .bottom-item.active,
+body.theme-dark .segmented button.active,
+body.theme-dark .chip-btn.active,
+body.theme-dark .malla-tool-btn.active {
+  background: rgba(112, 173, 255, .18);
+  color: #dcecff;
+  border-color: rgba(112, 173, 255, .34);
+}
+
+body.theme-dark .btn.primary {
+  background: #1d74df;
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(13, 102, 209, .28);
+}
+
+body.theme-dark .icon-box,
+body.theme-dark .role-icon {
+  background: rgba(112, 173, 255, .14);
+  color: #8fc0ff;
+}
+
+body.theme-dark .badge-count {
+  background: #f97316;
+  color: #fff;
+}
+
+body.theme-dark .pill.gray,
+body.theme-dark .status-chip.gray {
+  background: rgba(160,184,214,.14);
+  color: #c8daee;
+  border-color: rgba(160,184,214,.28);
+}
+
+body.theme-dark .pill.blue,
+body.theme-dark .status-chip.blue {
+  background: rgba(112,173,255,.16);
+  color: #b9d8ff;
+  border-color: rgba(112,173,255,.28);
+}
+
+body.theme-dark .privacy-note {
+  background: rgba(112,173,255,.12);
+  color: #dcecff;
+  border-color: rgba(112,173,255,.24);
+}
+
+body.theme-dark .material-plan-note {
+  background: rgba(34, 211, 238, .10);
+  color: #dcecff;
+  border-color: rgba(34, 211, 238, .20);
+}
+
+body.theme-dark .divider,
+body.theme-dark .detail-block,
+body.theme-dark .data-table td,
+body.theme-dark .data-table th,
+body.theme-dark .feed-row,
+body.theme-dark .day-head {
+  border-color: var(--line);
+}
+
+body.theme-dark .day-head,
+body.theme-dark .data-table th {
+  background: rgba(20, 43, 68, .92);
+}
+
+body.theme-dark .course-card {
+  background: rgba(20, 43, 68, .92);
+  color: var(--text);
+}
+
+body.theme-dark .course-card.selected {
+  background: rgba(249, 115, 22, .13);
+  border-color: rgba(249, 115, 22, .55);
+}
+
+body.theme-dark .notification-popover header {
+  border-color: var(--line);
+}
+
+body.theme-dark .malla-workspace.is-light {
+  background: #071527;
+}
+
+@media (max-width: 920px) {
+  .mobile-theme-toggle span,
+  .theme-floating-toggle span {
+    display: none;
+  }
+
+  .mobile-theme-toggle {
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  .theme-floating-toggle {
+    position: fixed;
+    right: 14px;
+    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 14px);
+    z-index: 35;
+    width: 46px;
+    min-height: 46px;
+    padding: 0;
+    display: inline-flex;
+    border-radius: 14px;
+    box-shadow: 0 12px 28px rgba(7,36,74,.18);
+  }
+
+  .app-shell.malla-route .theme-floating-toggle {
+    display: none;
+  }
+
+  body.theme-dark .bottom-nav {
+    background: rgba(7, 21, 39, .98);
+    border-top: 1px solid var(--line);
+  }
+}

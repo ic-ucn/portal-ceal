@@ -18,6 +18,10 @@ const report = {
   failures: []
 };
 
+function appUrl(route = '/') {
+  return `${baseUrl}/?qa=${Date.now()}#${route}`;
+}
+
 function fail(message) {
   report.failures.push(message);
   throw new Error(message);
@@ -43,7 +47,7 @@ function startServer() {
   rmSync(dbPath, { force: true });
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath },
+    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath, PORTAL_STATE_BACKEND: 'local' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true
   });
@@ -66,6 +70,7 @@ async function loginStudent(page) {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
+    localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify({
       id: 'qa-student',
       name: 'Estudiante CEIC UCN',
@@ -78,7 +83,7 @@ async function loginStudent(page) {
       permissions: []
     }));
   });
-  await page.goto(`${baseUrl}/?qa=${Date.now()}#/`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
@@ -88,6 +93,7 @@ async function loginCeal(page) {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
+    localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify({
       id: 'qa-ceal',
       name: 'CEAL UCN',
@@ -100,7 +106,7 @@ async function loginCeal(page) {
       permissions: ['approve:content', 'manage:roles', 'publish:comunicados', 'upload:acuerdos', 'validate:material', 'edit:mallas', 'manage:forms']
     }));
   });
-  await page.goto(`${baseUrl}/?qa=${Date.now()}#/gestion`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
@@ -126,7 +132,7 @@ async function waitForEmbeddedMalla(page, expectedPlan = 'p', expectedTheme = 'l
 }
 
 async function auditRoute(page, route, name, viewportName, screenshot = false) {
-  await page.goto(`${baseUrl}/#${route}`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl(route), { waitUntil: 'networkidle' });
   await page.waitForSelector(name === 'mallas' ? '.malla-commandbar-title' : '.page-title', { timeout: 8000 });
   if (name === 'mallas') {
     await waitForEmbeddedMalla(page, 'p', 'light');
@@ -163,7 +169,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
 async function runPublicFlowTests(page) {
   await loginStudent(page);
 
-  await page.goto(`${baseUrl}/#/material`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/material'), { waitUntil: 'networkidle' });
   await page.locator('[data-material-search]').fill('estatica');
   await page.waitForTimeout(150);
   if (!(await page.locator('.item-card, .data-table tbody tr').count())) fail('material search returned no results');
@@ -171,7 +177,7 @@ async function runPublicFlowTests(page) {
   await page.waitForTimeout(150);
   report.flows.push('student material search and type filter');
 
-  await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/mallas'), { waitUntil: 'networkidle' });
   const planP = await waitForEmbeddedMalla(page, 'p', 'light');
   if (planP.cardCount < 60 || !planP.lightTheme) fail('embedded Plan P malla did not load in light mode');
   await page.locator('[data-malla-embed-theme]').click();
@@ -185,7 +191,7 @@ async function runPublicFlowTests(page) {
   mkdirSync(uploadDir, { recursive: true });
   const uploadFile = path.join(uploadDir, 'guia-qa.txt');
   writeFileSync(uploadFile, 'Contenido de prueba para validar subida real de archivo.');
-  await page.goto(`${baseUrl}/#/material/subir`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/material/subir'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guía QA de materiales');
   await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estática');
   await page.locator('form[data-form="upload-material"] textarea[name="description"]').fill('Material de prueba para validar una subida real, persistencia y descarga posterior.');
@@ -201,7 +207,7 @@ async function runPublicFlowTests(page) {
   if (!download) pushFailure('uploaded material did not trigger browser download event');
   report.flows.push('student uploads material and triggers download');
 
-  await page.goto(`${baseUrl}/#/ramo/planP/P-0402`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/ramo/planP/P-0402'), { waitUntil: 'networkidle' });
   await page.locator('a.btn.primary[href*="/material?course="]').click();
   await page.waitForURL(/#\/material\?course=/);
   await page.waitForSelector('.page-title');
@@ -210,10 +216,10 @@ async function runPublicFlowTests(page) {
 
 async function runCealFlowTests(page) {
   await loginCeal(page);
-  await page.goto(`${baseUrl}/#/gestion`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   if (!(await page.locator('text=Gestión de contenido').count())) fail('gestion dashboard missing content management section');
 
-  await page.goto(`${baseUrl}/#/gestion/acuerdos/nuevo`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/gestion/acuerdos/nuevo'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
   await page.locator('form[data-form="new-agreement"] input[name="origin"]').fill('Pleno CEAL QA');
   await page.locator('form[data-form="new-agreement"] input[name="responsible"]').fill('Secretaría CEAL');
@@ -225,12 +231,12 @@ async function runCealFlowTests(page) {
   await page.waitForSelector('text=Acuerdo QA de seguimiento');
   report.flows.push('CEAL creates agreement');
 
-  await page.goto(`${baseUrl}/#/gestion/material/mat-010/validar`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/gestion/material/mat-010/validar'), { waitUntil: 'networkidle' });
   await page.locator('[data-approve-material]').click();
   await page.waitForSelector('text=Material validado y publicado');
   report.flows.push('CEAL validates material');
 
-  await page.goto(`${baseUrl}/#/gestion/comunicados/com-001/editar`, { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/gestion/comunicados/com-001/editar'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="edit-content"] input[name="title"]').fill('Comunicado QA publicado');
   await page.locator('[data-publish]').click();
   await page.waitForURL(/#\/comunicados\/com-001/);
@@ -246,7 +252,11 @@ async function main() {
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('console', msg => {
-      if (['error', 'warning'].includes(msg.type())) pushFailure(`console ${msg.type()}: ${msg.text()}`);
+      if (['error', 'warning'].includes(msg.type())) {
+        const location = msg.location();
+        const source = location?.url ? ` (${location.url})` : '';
+        pushFailure(`console ${msg.type()}: ${msg.text()}${source}`);
+      }
     });
     page.on('pageerror', error => pushFailure(`page error: ${error.message}`));
 
@@ -280,7 +290,7 @@ async function main() {
     for (const [route, name] of studentRoutes) {
       await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas'].includes(name));
     }
-    await page.goto(`${baseUrl}/#/mallas`, { waitUntil: 'networkidle' });
+    await page.goto(appUrl('/mallas'), { waitUntil: 'networkidle' });
     await page.locator('[data-malla-embed-plan="o"]').click();
     const mobilePlanO = await waitForEmbeddedMalla(page, 'o', 'light');
     if (mobilePlanO.cardCount < 55) pushFailure('mobile embedded malla did not load Plan O');

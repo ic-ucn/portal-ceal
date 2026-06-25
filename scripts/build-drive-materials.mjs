@@ -57,6 +57,8 @@ function cleanTitle(name = '') {
 function normalizeSpanish(value = '') {
   return String(value)
     .normalize('NFC')
+    .replace(/&deg;?/giu, '°')
+    .replace(/&ordm;?/giu, '°')
     .replace(/Mec\S*nica/giu, 'Mecánica')
     .replace(/Ayudanti\S*a(s)?/giu, 'Ayudantía$1')
     .replace(/FundaçÃO/giu, 'Fundación')
@@ -74,8 +76,15 @@ function normalizeSpanish(value = '') {
     .replace(/\bCalculo\b/giu, 'Cálculo')
     .replace(/\bAnalisis\b/giu, 'Análisis')
     .replace(/\bSismico\b/giu, 'Sísmico')
+    .replace(/\bSismologia\b/giu, 'Sismología')
     .replace(/\bDiseno\b/giu, 'Diseño')
+    .replace(/\bResolucion\b/giu, 'Resolución')
+    .replace(/\bCorreccion\b/giu, 'Corrección')
     .replace(/\bConstruccion\b/giu, 'Construcción')
+    .replace(/\bReduccion\b/giu, 'Reducción')
+    .replace(/\bMetodologica\b/giu, 'Metodológica')
+    .replace(/\bMedicion\b/giu, 'Medición')
+    .replace(/\bCertificacion\b/giu, 'Certificación')
     .replace(/\bPublicas\b/giu, 'Públicas');
 }
 
@@ -212,8 +221,14 @@ function loadExistingMaterials(outputPath) {
 }
 
 function normalizeExistingRow(row) {
+  const type = normalizeMaterialType(row.type);
+  const courseName = titleCase(row.courseName || '');
+  const year = inferTitleYear(row.title) || row.year;
   return {
     ...row,
+    title: improveMaterialTitle(row.title, { type, courseName, year, format: row.format }),
+    type,
+    courseName,
     size: String(row.size || '') === '-1 B' ? 'Drive' : row.size
   };
 }
@@ -235,18 +250,131 @@ function mergeMaterials(generated, existing, options = {}) {
 
 function inferType(row, item) {
   const type = String(row.material_type || '').trim();
-  if (type && type !== 'Otro') return normalizeSpanish(type);
+  if (type && type !== 'Otro') return normalizeMaterialType(type);
   const text = `${row.path || ''} ${item.Name || ''}`.toLowerCase();
-  if (text.includes('ayudant')) return 'Ayudantía';
-  if (text.includes('prueba') || text.includes('control') || text.includes('examen')) return 'Prueba';
-  if (text.includes('taller')) return 'Taller';
-  if (text.includes('apunte') || text.includes('clase')) return 'Apunte';
-  if (text.includes('formulario')) return 'Formulario';
-  if (text.includes('norma') || text.includes('nch') || text.includes('ridaa')) return 'Norma';
-  if (text.includes('presentacion') || text.includes('presentación')) return 'PPT';
-  if (text.includes('ejercicio')) return 'Ejercicios';
-  if (text.includes('informe')) return 'Informe';
-  return inferFormat(row, item) === 'PDF' ? 'PDF' : 'Material';
+  if (text.includes('ayudant')) return normalizeMaterialType('Ayudantía');
+  if (text.includes('prueba') || text.includes('control') || text.includes('examen')) return normalizeMaterialType('Prueba');
+  if (text.includes('taller')) return normalizeMaterialType('Taller');
+  if (text.includes('apunte') || text.includes('clase')) return normalizeMaterialType('Apunte');
+  if (text.includes('formulario')) return normalizeMaterialType('Formulario');
+  if (text.includes('norma') || text.includes('nch') || text.includes('ridaa')) return normalizeMaterialType('Norma');
+  if (text.includes('presentacion') || text.includes('presentación')) return normalizeMaterialType('PPT');
+  if (text.includes('ejercicio')) return normalizeMaterialType('Ejercicios');
+  if (text.includes('informe')) return normalizeMaterialType('Informe');
+  return normalizeMaterialType(inferFormat(row, item) === 'PDF' ? 'PDF' : 'Material');
+}
+
+function normalizeMaterialType(type = '') {
+  const normalized = normalizeSpanish(type).replace(/\s+/g, ' ').trim();
+  if (/pauta|resoluci[oó]n|soluci[oó]n/i.test(normalized)) return 'Pauta/Resolución';
+  if (/norma|manual/i.test(normalized)) return 'Manual/Norma';
+  if (/presentaci[oó]n|ppt/i.test(normalized)) return 'PPT';
+  if (/pdf/i.test(normalized)) return 'Material';
+  return normalized || 'Material';
+}
+
+function typeLabel(type = '') {
+  const normalized = normalizeMaterialType(type);
+  if (normalized === 'Pauta/Resolución') return 'Pauta';
+  if (normalized === 'Manual/Norma') return 'Norma';
+  if (normalized === 'PPT') return 'Presentación';
+  if (normalized === 'Ejercicios') return 'Ejercicios';
+  return normalized || 'Material';
+}
+
+function plainTitle(value = '') {
+  return normalizeSpanish(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function inferTitleYear(value = '') {
+  const title = String(value || '');
+  const direct = title.match(/\b(20\d{2})\b/);
+  if (direct) return Number(direct[1]);
+  const compactDate = title.match(/\b(\d{2})(0[1-9]|1[0-2])([0-3]\d)\b/);
+  if (compactDate) {
+    const year = Number(compactDate[1]);
+    return year <= 35 ? 2000 + year : 1900 + year;
+  }
+  return 0;
+}
+
+function courseInTitle(title = '', courseName = '') {
+  const titlePlain = plainTitle(title);
+  const coursePlain = plainTitle(courseName);
+  if (!coursePlain) return false;
+  if (titlePlain.includes(coursePlain)) return true;
+  const significant = coursePlain.split(' ').filter((word) => word.length > 4);
+  return significant.length >= 2 && significant.every((word) => titlePlain.includes(word));
+}
+
+function materialTitleWithCourse(label, courseName, detail = '', year = 0) {
+  const prefix = detail ? `${label} ${detail}` : label;
+  const yearSuffix = year ? ` (${year})` : '';
+  return titleCase(`${prefix}: ${courseName}${yearSuffix}`);
+}
+
+function extractShortAssessmentDetail(title = '') {
+  const text = normalizeSpanish(title).replace(/\s+/g, ' ').trim();
+  const control = text.match(/\b(?:c|control)\s*0*(\d+)\b/i);
+  if (control) return `Control ${Number(control[1])}`;
+  const prueba = text.match(/\b(?:p|prueba)\s*0*(\d+)\b/i);
+  if (prueba) return `Prueba ${Number(prueba[1])}`;
+  const clase = text.match(/\bclase\s*0*(\d+)\b/i);
+  if (clase) return `Clase ${Number(clase[1])}`;
+  const taller = text.match(/\btaller\s*0*(\d+)\b/i);
+  if (taller) return `Taller ${Number(taller[1])}`;
+  if (/final/i.test(text)) return 'Final';
+  if (/recup|recuperativo/i.test(text)) return 'Recuperativo';
+  if (/cuestionario/i.test(text)) return 'Cuestionario';
+  return '';
+}
+
+function improveMaterialTitle(rawTitle = '', meta = {}) {
+  const courseName = titleCase(meta.courseName || '');
+  const type = normalizeMaterialType(meta.type);
+  const label = typeLabel(type);
+  const year = inferTitleYear(rawTitle) || Number(meta.year || 0) || 0;
+  let title = titleCase(cleanTitle(rawTitle))
+    .replace(/^Copia de\s+/i, '')
+    .replace(/^Copy of\s+/i, '')
+    .replace(/\s*\((\d+)\)\s*$/i, '')
+    .replace(/\s+\.$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const plain = plainTitle(title);
+  const detail = extractShortAssessmentDetail(title);
+  const isPureNumber = /^\d{5,}$/.test(plain);
+  const isWhatsappDoc = /^doc\s*20\d{6}\s*wa\d+/i.test(plain);
+  const isNewDoc = /^(newdoc|documento|archivo|material|videos?)$/i.test(plain);
+  const isShortCode = /^(p|c|e)\s*\d+$/i.test(plain) || /^(da|dae|ci)\s*\d{4,}/i.test(plain);
+  const isGenericOnly = /^(gu[ií]a|prueba|control|taller|clase|presentaci[oó]n|ppt|apunte)(\s+\d+)?$/i.test(plain);
+
+  if (courseName && (isPureNumber || isWhatsappDoc || isNewDoc || isShortCode || isGenericOnly)) {
+    return materialTitleWithCourse(label, courseName, detail, year);
+  }
+
+  if (courseName && /^cross$/i.test(plain)) {
+    return materialTitleWithCourse(label, courseName, 'Método Cross', year);
+  }
+
+  if (courseName && /^(da|dae)\s+\d{6}/i.test(plain)) {
+    return materialTitleWithCourse(label, courseName, detail, year);
+  }
+
+  if (courseName && detail && !courseInTitle(title, courseName) && /^(pauta|prueba|control|taller|clase|apunte|gu[ií]a|enunciado|presentaci[oó]n|ppt)\b/i.test(plain)) {
+    return materialTitleWithCourse(label, courseName, detail, year);
+  }
+
+  if (courseName && !courseInTitle(title, courseName) && title.split(/\s+/).length <= 3 && /^(pauta|prueba|control|tarea|taller|clase|gu[ií]a|apunte|enunciado)\b/i.test(plain)) {
+    return materialTitleWithCourse(label, courseName, detail, year);
+  }
+
+  return title || materialTitleWithCourse(label, courseName || 'Ingeniería Civil', '', year);
 }
 
 function courseFallback(row, item) {
@@ -350,7 +478,7 @@ function buildMaterials(importDir) {
       const courseCode = official.visibleCode || official.code;
       const format = inferFormat(row, row);
       const year = inferYear(row, row);
-      const title = titleCase(cleanTitle(row.name));
+      const title = improveMaterialTitle(row.name, { type, courseName, year, format, path: row.path });
       return {
         id: `drive-${slug(publishedId || publishedItem?.ID || row.drive_id || row.path) || index}`,
         title,

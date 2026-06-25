@@ -25,7 +25,9 @@ const publicPortalUrl = (process.env.PORTAL_PUBLIC_URL || '').replace(/\/$/, '')
 const calendarClientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || googleClientId;
 const calendarClientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '';
 const calendarRedirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || '';
-const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'biblioteca.ceicucn@gmail.com').toLowerCase();
+const legacyCalendarAccount = 'biblioteca.ceicucn@gmail.com';
+const configuredCalendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
+const calendarAccount = configuredCalendarAccount === legacyCalendarAccount ? 'jc.icivil.afta@ucn.cl' : configuredCalendarAccount;
 const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 const calendarScopes = [
   'https://www.googleapis.com/auth/calendar.events',
@@ -36,7 +38,8 @@ const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabaseStateTable = process.env.SUPABASE_STATE_TABLE || 'portal_state';
 const supabaseStateId = process.env.SUPABASE_STATE_ID || 'main';
-const useSupabaseState = Boolean(supabaseUrl && supabaseSecretKey);
+const stateBackend = String(process.env.PORTAL_STATE_BACKEND || '').trim().toLowerCase();
+const useSupabaseState = stateBackend !== 'local' && Boolean(supabaseUrl && supabaseSecretKey);
 
 const collectionMap = {
   communications: 'communications',
@@ -231,6 +234,12 @@ function ensureDbShape(db, seed) {
     tokens: null,
     updatedAt: null
   };
+  if (asText(db.data.integrations.googleCalendar.account).toLowerCase() === legacyCalendarAccount && calendarAccount !== legacyCalendarAccount) {
+    db.data.integrations.googleCalendar.account = calendarAccount;
+    db.data.integrations.googleCalendar.connected = false;
+    db.data.integrations.googleCalendar.tokens = null;
+    db.data.integrations.googleCalendar.updatedAt = new Date().toISOString();
+  }
   if ((db.data.cealMembers || []).length) db.data.users.ceal = publicMember(db.data.cealMembers[0]);
   db.data.saved ||= seed.data.saved || { resources: [], courses: [], reminders: [] };
   db.data.saved.resources ||= [];
@@ -276,6 +285,10 @@ function ensureDbShape(db, seed) {
   ].map(resource => canonicalizeResourceCourse(resource, officialCourses));
   db.data.resources = db.data.resources.filter(resource => !/demo|prueba funcional/i.test([resource.title, resource.origin, resource.description, resource.size].join(' ')));
   db.data.cases = db.data.cases.filter(item => !/demo|prueba avanzada/i.test([item.title, item.summary].join(' ')));
+  db.data.notifications = (db.data.notifications || []).map(item => ({
+    ...item,
+    route: item.route === '/contingencia' ? '/comunicados' : item.route
+  }));
   return db;
 }
 
@@ -838,7 +851,7 @@ function buildCealAssistantPrompt(db, body, member) {
 Tu funcion es transformar texto crudo entregado por integrantes CEAL en borradores publicables del portal.
 Contexto del portal:
 - Audiencia principal: estudiantes de Ingenieria Civil UCN.
-- Secciones actuales: Comunicados, Calendario, Contingencia del paro, Mallas y Material.
+- Secciones actuales: Comunicados, Calendario, Encuestas, Mallas y Material.
 - Tono: institucional, claro, directo, cercano, sobrio, sin emojis y sin exageraciones.
 - Fecha actual: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}.
 - Integrante solicitante: ${member.name || member.email} (${member.roleName || member.label || 'CEAL'}).
@@ -956,14 +969,20 @@ async function generateCealDraft(db, body, member) {
 function buildSurveyAssistantPrompt(body, member) {
   return `Eres el Asistente CEAL del Portal CEIC UCN.
 
-Transforma una instruccion en lenguaje natural en una encuesta o votacion lista para publicar.
+Transforma una instrucción en lenguaje natural en una encuesta o votación lista para publicar.
 
 Contexto:
-- Comunidad: estudiantes de Ingenieria Civil UCN.
-- El CEAL crea encuestas de opinion, formularios de levantamiento, votaciones de paro/toma/listas y consultas rapidas.
+- Comunidad: estudiantes de Ingeniería Civil UCN.
+- El CEAL crea encuestas de opinión, formularios de levantamiento, votaciones de paro/toma/listas y consultas rápidas.
 - Las votaciones son secretas por defecto.
+- Usa tono neutral, institucional y descriptivo. No uses lenguaje de campaña, presión, burla ni inclinación por una opción.
+- Para votaciones sobre paro, toma o continuidad de movilización, separa siempre:
+  1) preferencia principal (por ejemplo: Sí, No, Me abstengo);
+  2) disposición posterior frente a la decisión mayoritaria (por ejemplo: Sí, No, Depende de las condiciones);
+  3) comentario opcional si aporta contexto.
+- No mezcles en una misma opción "No" con "me sumo a la mayoría"; eso contamina la interpretación. Debe ir como pregunta separada.
 - No inventes candidatos, listas, horarios ni opciones si no aparecen en la instruccion.
-- Si faltan datos criticos, marca needsClarification=true y pregunta maximo 3 cosas.
+- Si faltan datos críticos, marca needsClarification=true y pregunta máximo 3 cosas.
 - Fecha actual: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}.
 - Solicitante: ${member.name || member.email}.
 
@@ -971,7 +990,7 @@ Entrada:
 ${JSON.stringify({
     rawText: body.rawText,
     requestedMode: body.mode || 'auto',
-    audience: 'Estudiantes de Ingenieria Civil UCN'
+    audience: 'Estudiantes de Ingeniería Civil UCN'
   }, null, 2)}
 
 Responde solamente JSON valido con esta forma:
@@ -979,10 +998,10 @@ Responde solamente JSON valido con esta forma:
   "needsClarification": boolean,
   "questions": ["pregunta concreta"],
   "survey": {
-    "title": "titulo corto",
-    "description": "descripcion breve para estudiantes",
+    "title": "título corto",
+    "description": "descripción breve para estudiantes",
     "mode": "encuesta|votacion",
-    "audience": "Estudiantes de Ingenieria Civil UCN",
+    "audience": "Estudiantes de Ingeniería Civil UCN",
     "secret": boolean,
     "allowMultipleResponses": false,
     "status": "draft",
@@ -991,7 +1010,7 @@ Responde solamente JSON valido con esta forma:
         "label": "pregunta",
         "type": "single|multiple|text|rating",
         "required": true,
-        "options": ["opcion 1", "opcion 2"]
+        "options": ["opción 1", "opción 2"]
       }
     ]
   },
@@ -1248,6 +1267,21 @@ function patchItem(items, id, patch) {
   if (!item) return null;
   Object.assign(item, patch, { updatedAt: new Date().toISOString() });
   return item;
+}
+
+function resolveLegacyItem(collectionName, collection, id) {
+  const direct = collection.find(entry => entry.id === id);
+  if (direct) return direct;
+  if (collectionName === 'communications' && id === 'com-001') {
+    return collection.find(entry => entry.id === 'com-paro-005') || collection[0] || null;
+  }
+  if (collectionName === 'agreements' && id === 'agr-003') {
+    return collection.find(entry => entry.id === 'agr-paro-003') || collection[0] || null;
+  }
+  if (collectionName === 'resources' && /^mat-\d{3}$/.test(id || '')) {
+    return collection.find(entry => entry.status === 'pendienteRevision') || collection[0] || null;
+  }
+  return null;
 }
 
 function countDb(db) {
@@ -1618,7 +1652,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET') {
     if (!id) return sendJson(res, 200, { ok: true, items: collectionName === 'surveys' ? collection.map(publicSurvey) : collection });
-    const item = collection.find(entry => entry.id === id);
+    const item = resolveLegacyItem(collectionName, collection, id);
     return item ? sendJson(res, 200, { ok: true, item: collectionName === 'surveys' ? publicSurvey(item) : item }) : sendError(res, 404, 'item not found');
   }
 
@@ -1686,7 +1720,7 @@ async function handleApi(req, res, url) {
       requireFields(body, ['title', 'summary']);
       created = {
         id: nextNumericId(collection, 'agr-'),
-        number: asText(body.number, `Contingencia N ${String(collection.length + 1).padStart(2, '0')}/2026`),
+        number: asText(body.number, `Seguimiento N ${String(collection.length + 1).padStart(2, '0')}/2026`),
         status: asText(body.status, 'enSeguimiento'),
         date: body.date || new Date().toISOString(),
         origin: asText(body.origin, 'Gestión CEAL'),
@@ -1744,7 +1778,8 @@ async function handleApi(req, res, url) {
         patch.questions = questions;
       }
     }
-    const item = patchItem(collection, id, patch);
+    const target = resolveLegacyItem(collectionName, collection, id);
+    const item = target ? patchItem(collection, target.id, patch) : null;
     if (!item) return sendError(res, 404, 'item not found');
     if (collectionName === 'cases' && (body.response || body.note || body.status)) {
       item.history ||= [];

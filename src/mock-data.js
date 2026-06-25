@@ -288,7 +288,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
 
   const agreements = [
     {
-      id: 'agr-paro-003', number: 'Contingencia N°03/2026', status: 'enSeguimiento', date: '2026-06-17T10:00:00', origin: 'Mesa de negociación y petitorio estudiantil', responsible: 'CEAL Ingeniería Civil UCN',
+      id: 'agr-paro-003', number: 'Seguimiento N°03/2026', status: 'enSeguimiento', date: '2026-06-17T10:00:00', origin: 'Mesa de negociación y petitorio estudiantil', responsible: 'CEAL Ingeniería Civil UCN',
       title: 'Negociación diaria y resguardo de recalendarización académica',
       summary: 'Se informa que la recalendarización académica ya fue planteada y que las mesas de trabajo sesionarán diariamente entre 10:00 y 17:00 para buscar respuestas concretas al petitorio.',
       currentState: 'En seguimiento. CEAL mantendrá informada a la carrera sobre avances, pleno eventual y respuestas de autoridad.',
@@ -306,7 +306,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       ]
     },
     {
-      id: 'agr-paro-002', number: 'Contingencia N°02/2026', status: 'actualizado', date: '2026-06-16T18:30:00', origin: 'Organización de toma universitaria', responsible: 'CEAL Ingeniería Civil UCN',
+      id: 'agr-paro-002', number: 'Seguimiento N°02/2026', status: 'actualizado', date: '2026-06-16T18:30:00', origin: 'Organización de toma universitaria', responsible: 'CEAL Ingeniería Civil UCN',
       title: 'Turnos de resguardo del departamento',
       summary: 'Se coordinan turnos de mañana, tarde y noche para resguardar el departamento durante la toma institucional.',
       currentState: 'Turnos abiertos para estudiantes que puedan apoyar presencialmente.',
@@ -323,7 +323,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       ]
     },
     {
-      id: 'agr-paro-001', number: 'Contingencia N°01/2026', status: 'publicado', date: '2026-06-15T15:30:00', origin: 'Pleno universitario', responsible: 'CEAL Ingeniería Civil UCN',
+      id: 'agr-paro-001', number: 'Seguimiento N°01/2026', status: 'publicado', date: '2026-06-15T15:30:00', origin: 'Pleno universitario', responsible: 'CEAL Ingeniería Civil UCN',
       title: 'Inicio de toma institucional e incorporación de Ingeniería Civil',
       summary: 'Tras el pleno universitario del lunes 15, Ingeniería Civil se suma oficialmente a la toma institucional y CEAL inicia coordinación de turnos e insumos.',
       currentState: 'Publicado e informado a la carrera mediante los canales oficiales.',
@@ -384,7 +384,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       contactName: 'Prof. Zelada',
       role: 'Jefe de Carrera IngenierÃ­a Civil UCN',
       email: 'jc.icivil.afta@ucn.cl',
-      authorizedEmails: ['jc.icivil.afta@ucn.cl', 'biblioteca.ceicucn@gmail.com'],
+      authorizedEmails: ['jc.icivil.afta@ucn.cl'],
       calendarUrl: '',
       bookingUrl: '',
       status: 'Horarios publicados',
@@ -400,13 +400,13 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
   const faqs = [
     { q: '¿Dónde reviso material por ramo?', a: 'En Material puedes buscar por ramo, código, tipo de recurso o semestre. Desde la malla también puedes abrir el material del ramo seleccionado.' },
     { q: '¿Dónde reviso mi malla?', a: 'En Mallas puedes alternar Plan O y Plan P, usar modo oscuro y abrir la vista foco para estudiar con más espacio.' },
-    { q: '¿Dónde veo la contingencia del paro?', a: 'En Contingencia del paro puedes revisar comunicados, acuerdos de seguimiento, compromisos y estado actual del proceso.' },
+    { q: '¿Dónde veo avisos sobre movilización o acuerdos?', a: 'En Comunicados puedes revisar avisos publicados por CEAL. En Calendario aparecen los acuerdos y seguimientos asociados cuando existan.' },
     { q: '¿Cómo encuentro mi malla?', a: 'En Mallas selecciona Plan O o Plan P. Puedes buscar ramos y revisar prerrequisitos.' },
     { q: '¿Cómo contacto al CEAL?', a: 'Revisa Comunicados para información oficial de contacto y canales activos del CEAL.' }
   ];
 
   const notifications = [
-    { id: 'not-001', title: 'Contingencia actualizada', detail: 'Nuevo comunicado sobre negociación, turnos y recalendarización.', date: 'Hoy, 10:00', unread: true, route: '/contingencia' },
+    { id: 'not-001', title: 'Comunicado actualizado', detail: 'Nuevo aviso sobre negociación, turnos y recalendarización.', date: 'Hoy, 10:00', unread: true, route: '/comunicados/com-paro-005' },
     { id: 'not-002', title: 'Calendario académico actualizado', detail: 'Fechas oficiales 2026 desde junio en adelante.', date: 'Hoy, 09:30', unread: true, route: '/calendario' },
     { id: 'not-003', title: 'Biblioteca disponible', detail: 'Material organizado por ramos reales de la malla.', date: 'Ayer, 18:40', unread: true, route: '/material' }
   ];
@@ -421,12 +421,12 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     pending: [
       { id: 'pend-001', type: 'mallas', title: 'Mallas en revisión', count: 2, detail: 'Planes y enlaces por confirmar' },
       { id: 'pend-002', type: 'material', title: 'Material por validar', count: 2, detail: 'Aportes estudiantiles pendientes' },
-      { id: 'pend-003', type: 'contingencia', title: 'Contingencia en seguimiento', count: 3, detail: 'Comunicados y compromisos activos' },
+      { id: 'pend-003', type: 'seguimiento', title: 'Acuerdos en seguimiento', count: 3, detail: 'Comunicados y compromisos activos' },
       { id: 'pend-004', type: 'calendario', title: 'Calendario oficial', count: 18, detail: 'Hitos académicos 2026 cargados' }
     ],
     changes: [
-      { title: 'Comunicado de contingencia', detail: 'Actualizado por Comunicaciones CEAL', date: 'Hoy, 10:00' },
-      { title: 'Contingencia N°03/2026', detail: 'Seguimiento actualizado por CEAL', date: 'Hoy, 09:45' },
+      { title: 'Comunicado académico', detail: 'Actualizado por Comunicaciones CEAL', date: 'Hoy, 10:00' },
+      { title: 'Seguimiento N°03/2026', detail: 'Seguimiento actualizado por CEAL', date: 'Hoy, 09:45' },
       { title: 'Calendario académico 2026', detail: 'Actualizado desde calendario DGPRE UCN', date: 'Hoy, 09:30' },
       { title: 'Material: guía de hormigón armado', detail: 'Validado por Docencia CEAL', date: '24 may, 12:10' }
     ],
@@ -436,7 +436,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       { name: 'Comunicaciones', detail: 'Publica y difunde información.', members: 2 },
       { name: 'Docencia', detail: 'Gestiona material y mallas.', members: 2 },
       { name: 'Bienestar', detail: 'Coordina apoyos y actividades.', members: 2 },
-      { name: 'Contingencia', detail: 'Ordena comunicados, compromisos y seguimiento del paro.', members: 3 }
+      { name: 'Seguimiento', detail: 'Ordena comunicados, compromisos y acuerdos.', members: 3 }
     ]
   };
 
