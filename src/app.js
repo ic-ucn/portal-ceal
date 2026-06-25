@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260622k';
-  const LOCAL_DATA_KEY = 'portal.data.v30';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260622k';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29'];
+  const DATA_CONTENT_VERSION = '20260625a';
+  const LOCAL_DATA_KEY = 'portal.data.v31';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625a';
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const API_BASE = !STATIC_MODE && (window.PORTAL_API_BASE || ((location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname)) ? '/api' : ''));
@@ -898,9 +898,9 @@
     const newMaterials = Data.resources.filter(r => r.status !== 'observado').length;
     const jefaturaAction = hasJefaturaAccess() ? access('users','Jefatura','Horarios de atención e información.','Ver','/jefatura') : '';
     return `${pageHead('Inicio', 'Resumen actualizado del portal académico')}
-      <section class="home-hero"><div class="card pad home-summary"><div class="row-between"><h2 class="card-title">Estado general</h2><span class="pill green">Portal actualizado</span></div><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Visibles')}</div></div>
+      <section class="home-hero"><div class="card pad home-summary"><h2 class="card-title">Estado general</h2><p class="muted">Revisa comunicados, fechas académicas, mallas, material nuevo y avance curricular.</p><div class="stat-grid compact">${stat('megaphone', unread, 'Comunicados', 'Nuevos')}${stat('calendar', Data.events.length, 'Fechas', 'Próximas')}${stat('grid', 2, 'Mallas', 'Planes')}${stat('book', newMaterials, 'Recursos', 'Disponibles')}</div></div>
       <section class="home-campus-feature"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><div class="row-between"><h2 class="card-title">Acciones frecuentes</h2><span class="pill blue">Accesos rápidos</span></div><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}${jefaturaAction}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}${jefaturaAction}${access('file','Contingencia del paro','Comunicados, compromisos y seguimiento.','Revisar','/contingencia','orange')}</div></div></section>
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
 
   }
