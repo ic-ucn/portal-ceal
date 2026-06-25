@@ -192,8 +192,7 @@ function isCleanMaterialRow(row, options = {}) {
   if (options.includeReview) {
     return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text);
   }
-  return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text)
-    && !/pauta|resuelt|resoluci[oó]n|soluci[oó]n|solucionario|respuesta/i.test(text);
+  return !/(^|[\s_.-])(metadata|manifest|capcut|desktop|json|cache|temp|tmp)([\s_.-]|$)/i.test(text);
 }
 
 function materialKey(row, options = {}) {
@@ -266,7 +265,7 @@ function inferType(row, item) {
 
 function normalizeMaterialType(type = '') {
   const normalized = normalizeSpanish(type).replace(/\s+/g, ' ').trim();
-  if (/pauta|resoluci[oó]n|soluci[oó]n/i.test(normalized)) return 'Pauta/Resolución';
+  if (/pauta|resoluci[oó]n|soluci[oó]n/i.test(normalized)) return 'Material resuelto';
   if (/norma|manual/i.test(normalized)) return 'Manual/Norma';
   if (/presentaci[oó]n|ppt/i.test(normalized)) return 'PPT';
   if (/pdf/i.test(normalized)) return 'Material';
@@ -275,7 +274,7 @@ function normalizeMaterialType(type = '') {
 
 function typeLabel(type = '') {
   const normalized = normalizeMaterialType(type);
-  if (normalized === 'Pauta/Resolución') return 'Pauta';
+  if (normalized === 'Material resuelto') return 'Material resuelto';
   if (normalized === 'Manual/Norma') return 'Norma';
   if (normalized === 'PPT') return 'Presentación';
   if (normalized === 'Ejercicios') return 'Ejercicios';
