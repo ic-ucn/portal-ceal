@@ -19,7 +19,7 @@ const googleClientId = process.env.PORTAL_GOOGLE_CLIENT_ID || '';
 const googleDomain = process.env.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
 const googleOAuthClient = new OAuth2Client(googleClientId || undefined);
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
-const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const geminiDailySoftLimit = Number(process.env.GEMINI_DAILY_SOFT_LIMIT || 50);
 const publicPortalUrl = (process.env.PORTAL_PUBLIC_URL || '').replace(/\/$/, '');
 const calendarClientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || googleClientId;
@@ -925,6 +925,31 @@ function normalizeAssistantResult(result) {
   };
 }
 
+async function geminiGenerateJson(promptText, temperature) {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const reqBody = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: promptText }] }],
+    generationConfig: { temperature, topP: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
+  });
+  let response;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: reqBody });
+    if (response.ok || (response.status !== 429 && response.status !== 503)) break;
+    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const raw = payload?.error?.message || `gemini api ${response.status}`;
+    const friendly = (response.status === 429 || response.status === 503 || /credit|quota|billing|depleted|demand|exhausted|overload/i.test(raw))
+      ? 'El asistente de IA está con mucha demanda en este momento. Espera unos segundos y vuelve a intentar.'
+      : 'El asistente de IA no pudo generar el contenido. Intenta nuevamente.';
+    const err = new Error(friendly);
+    err.statusCode = response.status;
+    throw err;
+  }
+  return payload;
+}
+
 async function generateCealDraft(db, body, member) {
   if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
     const err = new Error('El asistente de IA no está configurado en el servidor. Avisa a CEAL.');
@@ -944,29 +969,7 @@ async function generateCealDraft(db, body, member) {
   }
   assertAiQuota(db);
   const prompt = buildCealAssistantPrompt(db, body, member);
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.25,
-        topP: 0.9,
-        responseMimeType: 'application/json'
-      }
-    })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const raw = payload?.error?.message || `gemini api ${response.status}`;
-    const friendly = (response.status === 429 || /credit|quota|billing|depleted/i.test(raw))
-      ? 'El asistente de IA alcanzó su límite de uso por ahora. Intenta más tarde o avisa a CEAL.'
-      : 'El asistente de IA no pudo generar el contenido. Intenta nuevamente.';
-    const err = new Error(friendly);
-    err.statusCode = response.status;
-    throw err;
-  }
+  const payload = await geminiGenerateJson(prompt, 0.25);
   markAiUsage(db);
   const text = (payload.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('\n');
   return normalizeAssistantResult(parseGeminiJson(text));
@@ -1088,29 +1091,7 @@ async function generateSurveyDraft(db, body, member) {
     throw err;
   }
   assertAiQuota(db);
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildSurveyAssistantPrompt(body, member) }] }],
-      generationConfig: {
-        temperature: 0.2,
-        topP: 0.9,
-        responseMimeType: 'application/json'
-      }
-    })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const raw = payload?.error?.message || `gemini api ${response.status}`;
-    const friendly = (response.status === 429 || /credit|quota|billing|depleted/i.test(raw))
-      ? 'El asistente de IA alcanzó su límite de uso por ahora. Intenta más tarde o avisa a CEAL.'
-      : 'El asistente de IA no pudo generar el contenido. Intenta nuevamente.';
-    const err = new Error(friendly);
-    err.statusCode = response.status;
-    throw err;
-  }
+  const payload = await geminiGenerateJson(buildSurveyAssistantPrompt(body, member), 0.2);
   markAiUsage(db);
   const text = (payload.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('\n');
   return normalizeSurveyDraft(parseGeminiJson(text), body);
