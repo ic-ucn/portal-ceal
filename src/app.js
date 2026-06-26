@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260625w';
+  const DATA_CONTENT_VERSION = '20260625x';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625w';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625x';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -991,7 +991,7 @@
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
+      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -1767,7 +1767,9 @@
       ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('check')}</span><h3>Consulta cerrada</h3><p>Los resultados quedan disponibles para CEAL.</p></section>`
       : isGuest()
         ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Ingresa para responder</h3><p>El modo invitado permite revisar, pero no votar ni registrar respuestas.</p></section>`
-        : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label>${esc(q.label)}</label>${renderSurveyQuestionInput(q)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
+        : hasJefaturaAccess()
+          ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Solo lectura</h3><p>Como Jefatura puedes ver las encuestas y los datos publicados; la votación es solo para estudiantes.</p></section>`
+          : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label>${esc(q.label)}</label>${renderSurveyQuestionInput(q)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
     return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><p class="privacy-note compact">${icon('eye')} Resultados agregados. No se publica quién votó qué.</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
@@ -2288,6 +2290,7 @@
     }
     if (form.dataset.form === 'survey-response') {
       if (isGuest()) { readonlyToast(); return; }
+      if (hasJefaturaAccess()) { showToast('Jefatura puede ver las encuestas, pero la votación es solo para estudiantes', 'blue'); return; }
       if (!API_BASE) { showToast('Responder estará disponible cuando se active el registro de respuestas', 'blue'); return; }
       const survey = Data.surveys.find(s => s.id === form.dataset.surveyId);
       if (!survey) { showToast('Encuesta no encontrada', 'blue'); return; }

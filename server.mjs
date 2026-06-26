@@ -927,7 +927,7 @@ function normalizeAssistantResult(result) {
 
 async function generateCealDraft(db, body, member) {
   if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
-    const err = new Error('gemini api key not configured');
+    const err = new Error('El asistente de IA no está configurado en el servidor. Avisa a CEAL.');
     err.statusCode = 503;
     throw err;
   }
@@ -959,7 +959,11 @@ async function generateCealDraft(db, body, member) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const err = new Error(payload?.error?.message || `gemini api ${response.status}`);
+    const raw = payload?.error?.message || `gemini api ${response.status}`;
+    const friendly = (response.status === 429 || /credit|quota|billing|depleted/i.test(raw))
+      ? 'El asistente de IA alcanzó su límite de uso por ahora. Intenta más tarde o avisa a CEAL.'
+      : 'El asistente de IA no pudo generar el contenido. Intenta nuevamente.';
+    const err = new Error(friendly);
     err.statusCode = response.status;
     throw err;
   }
@@ -1068,7 +1072,7 @@ function normalizeSurveyDraft(result, body = {}) {
 
 async function generateSurveyDraft(db, body, member) {
   if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
-    const err = new Error('gemini api key not configured');
+    const err = new Error('El asistente de IA no está configurado en el servidor. Avisa a CEAL.');
     err.statusCode = 503;
     throw err;
   }
@@ -1099,7 +1103,11 @@ async function generateSurveyDraft(db, body, member) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const err = new Error(payload?.error?.message || `gemini api ${response.status}`);
+    const raw = payload?.error?.message || `gemini api ${response.status}`;
+    const friendly = (response.status === 429 || /credit|quota|billing|depleted/i.test(raw))
+      ? 'El asistente de IA alcanzó su límite de uso por ahora. Intenta más tarde o avisa a CEAL.'
+      : 'El asistente de IA no pudo generar el contenido. Intenta nuevamente.';
+    const err = new Error(friendly);
     err.statusCode = response.status;
     throw err;
   }
@@ -1623,6 +1631,9 @@ async function handleApi(req, res, url) {
     if (id && action === 'respond' && req.method === 'POST') {
       try {
         const session = requirePortalSession(req, db);
+        if (session.role === 'jefatura') {
+          return sendError(res, 403, 'jefatura can view surveys but cannot vote');
+        }
         if (!asText(session.email).toLowerCase().endsWith(`@${googleDomain}`)) {
           return sendError(res, 403, `only ${googleDomain} accounts can respond`);
         }
