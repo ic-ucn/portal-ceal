@@ -10,3 +10,7 @@ qa-report.json
 qa-screenshots/
 .DS_Store
 Thumbs.db
+
+# Datos personales (correos) - NUNCA al repo publico; se sube a Render como Secret File
+recipients.json
+.secrets/

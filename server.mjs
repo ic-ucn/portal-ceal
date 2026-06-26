@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { strToU8, zipSync } from 'fflate';
+import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
@@ -40,6 +41,17 @@ const supabaseStateTable = process.env.SUPABASE_STATE_TABLE || 'portal_state';
 const supabaseStateId = process.env.SUPABASE_STATE_ID || 'main';
 const stateBackend = String(process.env.PORTAL_STATE_BACKEND || '').trim().toLowerCase();
 const useSupabaseState = stateBackend !== 'local' && Boolean(supabaseUrl && supabaseSecretKey);
+
+// --- Correo de comunicados (envio opcional al publicar) ---
+const mailUser = (process.env.CEAL_MAIL_USER || '').trim();
+const mailPass = (process.env.CEAL_MAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+const mailFromName = process.env.CEAL_MAIL_FROM_NAME || 'CEIC Ingenieria Civil UCN';
+const mailHost = process.env.CEAL_MAIL_HOST || 'smtp.gmail.com';
+const mailPort = Number(process.env.CEAL_MAIL_PORT || 465);
+const mailBatchSize = Number(process.env.CEAL_MAIL_BATCH || 90);
+const mailTestMode = process.env.CEAL_MAIL_TEST_MODE === '1';
+const recipientsFile = process.env.RECIPIENTS_FILE || '/etc/secrets/recipients.json';
+const recipientsLocalFile = path.join(root, 'recipients.json');
 
 const collectionMap = {
   communications: 'communications',
@@ -1328,6 +1340,129 @@ function countDb(db) {
   };
 }
 
+// --- Envio de comunicados por correo ---
+const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+let recipientsCache = null;
+function loadRecipients() {
+  if (recipientsCache) return recipientsCache;
+  const clean = (arr) => [...new Set((Array.isArray(arr) ? arr : [])
+    .map(e => String(e || '').trim().toLowerCase())
+    .filter(e => EMAIL_RE.test(e)))];
+  const envTest = clean(String(process.env.CEAL_MAIL_TEST_RECIPIENTS || '').split(/[,\s;]+/));
+  for (const file of [recipientsFile, recipientsLocalFile]) {
+    try {
+      if (file && existsSync(file)) {
+        const data = JSON.parse(readFileSync(file, 'utf8'));
+        recipientsCache = {
+          students: clean(data.students),
+          professors: clean(data.professors),
+          test: [...new Set([...clean(data.test), ...envTest])]
+        };
+        return recipientsCache;
+      }
+    } catch (error) {
+      console.error('[mail] no se pudo leer recipients:', file, error.message);
+    }
+  }
+  recipientsCache = { students: [], professors: [], test: envTest };
+  return recipientsCache;
+}
+
+function mailMeta() {
+  const r = loadRecipients();
+  return {
+    configured: Boolean((mailUser && mailPass) || mailTestMode),
+    counts: { students: r.students.length, professors: r.professors.length, test: r.test.length }
+  };
+}
+
+let mailTransporter = null;
+function getMailTransporter() {
+  if (mailTestMode) return nodemailer.createTransport({ jsonTransport: true });
+  if (!mailUser || !mailPass) return null;
+  if (!mailTransporter) {
+    mailTransporter = nodemailer.createTransport({
+      host: mailHost,
+      port: mailPort,
+      secure: mailPort === 465,
+      auth: { user: mailUser, pass: mailPass }
+    });
+  }
+  return mailTransporter;
+}
+
+function chunkArray(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += Math.max(1, size)) out.push(arr.slice(i, i + Math.max(1, size)));
+  return out;
+}
+
+function communicationEmailContent(comm) {
+  const url = publicPortalUrl ? `${publicPortalUrl}/#/comunicados/${encodeURIComponent(comm.id)}` : '';
+  const title = asText(comm.title, 'Comunicado CEIC');
+  const summary = asText(comm.summary);
+  const bodyText = asText(comm.body);
+  const subject = `[CEIC] ${title}`.slice(0, 180);
+  const lines = [title, ''];
+  if (summary) lines.push(summary, '');
+  if (bodyText) lines.push(bodyText, '');
+  if (url) lines.push(`Ver en el portal: ${url}`, '');
+  lines.push('— CEIC Ingenieria Civil UCN', 'Este correo es informativo; no respondas a esta direccion.');
+  const text = lines.join('\n');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55">
+    <div style="background:#0d2747;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0"><strong style="font-size:15px">CEIC · Ingeniería Civil UCN</strong></div>
+    <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:20px">
+      <h2 style="margin:0 0 12px;color:#0d2747;font-size:19px">${esc(title)}</h2>
+      ${summary ? `<p style="margin:0 0 14px;color:#475569"><strong>${esc(summary)}</strong></p>` : ''}
+      ${bodyText ? `<div style="white-space:pre-wrap;margin:0 0 16px">${esc(bodyText)}</div>` : ''}
+      ${url ? `<p style="margin:18px 0 0"><a href="${esc(url)}" style="background:#126fe3;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:600">Ver en el portal</a></p>` : ''}
+      <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo informativo de CEIC Ingeniería Civil UCN. No respondas a esta dirección.</p>
+    </div>
+  </div>`;
+  return { subject, text, html };
+}
+
+async function sendCommunicationEmail(comm, groups) {
+  const recipients = loadRecipients();
+  const list = [];
+  if (groups.test) list.push(...recipients.test);
+  if (groups.students) list.push(...recipients.students);
+  if (groups.professors) list.push(...recipients.professors);
+  const bcc = [...new Set(list)];
+  if (!bcc.length) return { sent: false, reason: 'no-recipients', count: 0 };
+  const transporter = getMailTransporter();
+  if (!transporter) return { sent: false, reason: 'not-configured', count: bcc.length };
+
+  const from = mailUser || 'ceal.ingenieriacivil@ucn.cl';
+  const { subject, text, html } = communicationEmailContent(comm);
+  const batches = chunkArray(bcc, mailBatchSize);
+  let sentCount = 0;
+  const previews = [];
+  for (const batch of batches) {
+    const info = await transporter.sendMail({
+      from: `"${mailFromName}" <${from}>`,
+      to: from,
+      bcc: batch,
+      replyTo: from,
+      subject,
+      text,
+      html
+    });
+    sentCount += batch.length;
+    if (mailTestMode && info?.message) {
+      try { previews.push(JSON.parse(info.message.toString())); } catch {}
+    }
+  }
+  return {
+    sent: true,
+    count: sentCount,
+    batches: batches.length,
+    groups: { test: Boolean(groups.test), students: Boolean(groups.students), professors: Boolean(groups.professors) },
+    ...(previews.length ? { previews } : {})
+  };
+}
+
 const ALLOWED_ORIGINS = (process.env.PORTAL_ALLOWED_ORIGINS
   ? process.env.PORTAL_ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : ['https://ceicucn.cl', 'https://www.ceicucn.cl', 'https://ic-ucn.github.io', 'http://localhost:8080', 'http://localhost:18080', 'http://127.0.0.1:8080']);
@@ -1364,7 +1499,8 @@ async function handleApi(req, res, url) {
       meta: db.meta,
       data: publicData(db.data),
       curricula: db.curricula,
-      counts: countDb(db)
+      counts: countDb(db),
+      mail: mailMeta()
     });
   }
 
@@ -1814,10 +1950,20 @@ async function handleApi(req, res, url) {
     }
     collection.unshift(created);
     await writeDb(db);
+    let notifyResult = null;
     if (collectionName === 'communications') {
       generateCommunicationsDigest(db).then(changed => (changed ? writeDb(db) : null)).catch(() => {});
+      const notify = body.notify || {};
+      if (notify.test || notify.students || notify.professors) {
+        try {
+          requireCealSession(req, db);
+          notifyResult = await sendCommunicationEmail(created, { test: Boolean(notify.test), students: Boolean(notify.students), professors: Boolean(notify.professors) });
+        } catch (error) {
+          notifyResult = { sent: false, reason: error.statusCode === 401 || error.statusCode === 403 ? 'unauthorized' : 'error', error: error.message };
+        }
+      }
     }
-    return sendJson(res, 201, { ok: true, item: collectionName === 'surveys' ? publicSurvey(created) : created });
+    return sendJson(res, 201, { ok: true, item: collectionName === 'surveys' ? publicSurvey(created) : created, ...(notifyResult ? { notify: notifyResult } : {}) });
   }
 
   if (req.method === 'PATCH') {

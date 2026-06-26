@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626d';
+  const DATA_CONTENT_VERSION = '20260626f';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626d';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626f';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -53,6 +53,8 @@
     cealAssistantError: '',
     cealAssistantLoading: false,
     cealAssistantUsage: null,
+    mailMeta: null,
+    notifyGroups: { test: false, students: false, professors: false },
     surveyBuilderRequest: { rawText: '', mode: 'auto' },
     surveyBuilderResult: null,
     surveyBuilderError: '',
@@ -828,6 +830,7 @@
     try {
       const payload = await apiRequest('/bootstrap');
       if (payload.data) Object.assign(Data, payload.data);
+      if (payload.mail) state.mailMeta = payload.mail;
       if (payload.curricula) Object.assign(Curricula, payload.curricula);
       mergeDriveResources();
       ensureShape();
@@ -1893,8 +1896,30 @@
       ${draft ? `<div class="assistant-draft-grid">
         <div class="assistant-draft-main"><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${esc(draft.category)}</span><span class="pill gray">${esc(draft.audience)}</span><span class="pill gray">${esc(draft.suggestedPublishTiming)}</span></div><p class="assistant-summary">${esc(draft.summary)}</p><div class="assistant-draft-body"><p>${esc(draft.body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p></div></div>
         <aside class="assistant-notes">${notes.length ? `<h3 class="card-title">Notas editoriales</h3>${notes.map(n => `<p>${esc(n)}</p>`).join('')}` : '<h3 class="card-title">Notas editoriales</h3><p>Sin observaciones adicionales.</p>'}${flags.length ? `<div class="divider"></div><h3 class="card-title">Alertas</h3>${flags.map(f => `<p class="assistant-flag">${esc(f)}</p>`).join('')}` : ''}</aside>
-      </div><div class="hstack"><button class="btn primary" data-assistant-publish type="button">${icon('megaphone')} Publicar en comunicados</button><button class="btn secondary" data-assistant-copy type="button">Copiar texto</button></div>` : ''}
+      </div>${renderNotifyBlock()}<div class="hstack"><button class="btn primary" data-assistant-publish type="button">${icon('megaphone')} Publicar en comunicados</button><button class="btn secondary" data-assistant-copy type="button">Copiar texto</button></div>` : ''}
     </section>`;
+  }
+  function renderNotifyBlock() {
+    const meta = state.mailMeta;
+    const counts = meta?.counts || { students: 0, professors: 0, test: 0 };
+    const g = state.notifyGroups || { test: false, students: false, professors: false };
+    const selected = (g.test ? (counts.test || 0) : 0) + (g.students ? counts.students : 0) + (g.professors ? counts.professors : 0);
+    const configured = Boolean(meta?.configured);
+    const hint = !configured
+      ? `<p class="notify-hint warn">${icon('eye')} El envío por correo aún no está activo en el servidor. El comunicado se publicará igual.</p>`
+      : selected
+        ? `<p class="notify-hint">${icon('check')} Se enviará a <strong>${selected}</strong> ${selected === 1 ? 'persona' : 'personas'} con copia oculta (BCC), desde el correo del CEIC.</p>`
+        : `<p class="notify-hint muted">Opcional: marca a quién avisar por correo al publicar.</p>`;
+    return `<div class="notify-block">
+      <span class="kicker">${icon('megaphone')} Avisar por correo al publicar</span>
+      <div class="notify-options">
+        <label class="notify-opt is-test"><input type="checkbox" data-notify-group="test" ${g.test ? 'checked' : ''} /> <span>Test</span> <span class="notify-count">${counts.test || 0}</span></label>
+        <label class="notify-opt"><input type="checkbox" data-notify-group="students" ${g.students ? 'checked' : ''} /> <span>Alumnos</span> <span class="notify-count">${counts.students}</span></label>
+        <label class="notify-opt"><input type="checkbox" data-notify-group="professors" ${g.professors ? 'checked' : ''} /> <span>Profesores</span> <span class="notify-count">${counts.professors}</span></label>
+      </div>
+      ${g.test ? `<p class="notify-hint muted">Test envía solo a la lista de prueba (sin tocar Alumnos/Profesores). Úsalo para validar el envío real.</p>` : ''}
+      ${hint}
+    </div>`;
   }
 
   function renderManagement() {
@@ -2062,6 +2087,10 @@
       if (!hasCealAccess()) { readonlyToast(); return; }
       const draft = state.cealAssistantResult?.draft;
       if (!draft) { showToast('Primero genera un borrador', 'blue'); return; }
+      const notify = { ...state.notifyGroups };
+      const counts = state.mailMeta?.counts || { students: 0, professors: 0, test: 0 };
+      const recipientTotal = (notify.test ? (counts.test || 0) : 0) + (notify.students ? counts.students : 0) + (notify.professors ? counts.professors : 0);
+      if (recipientTotal > 0 && !window.confirm(`Se publicará el comunicado y se enviará por correo a ${recipientTotal} ${recipientTotal === 1 ? 'persona' : 'personas'}. ¿Continuar?`)) return;
       let item = {
         id: `com-ai-${Date.now()}`,
         title: draft.title,
@@ -2074,14 +2103,21 @@
         body: draft.body,
         related: []
       };
+      let notifyResult = null;
       try {
-        const payload = await apiRequest('/communications', { method: 'POST', body: JSON.stringify(item) });
+        const payload = await apiRequest('/communications', { method: 'POST', body: JSON.stringify({ ...item, notify }) });
         if (payload.item) item = payload.item;
+        notifyResult = payload.notify || null;
       } catch {}
       Data.communications = Data.communications.filter(c => c.id !== item.id);
       Data.communications.unshift(item);
+      state.notifyGroups = { test: false, students: false, professors: false };
       persistSnapshot();
-      showToast('Comunicado publicado');
+      if (notifyResult?.sent) showToast(`Comunicado publicado y enviado a ${notifyResult.count} ${notifyResult.count === 1 ? 'persona' : 'personas'}`);
+      else if (notifyResult && notifyResult.reason === 'not-configured') showToast('Comunicado publicado. El correo aún no está configurado en el servidor.', 'blue');
+      else if (notifyResult && notifyResult.reason === 'unauthorized') showToast('Comunicado publicado. No se envió correo: sesión sin permiso.', 'blue');
+      else if (notifyResult && !notifyResult.sent) showToast('Comunicado publicado, pero el envío de correo falló.', 'blue');
+      else showToast('Comunicado publicado');
       routeTo('/comunicados/' + item.id);
       return;
     }
@@ -2289,6 +2325,13 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    const notifyToggle = e.target.closest('[data-notify-group]');
+    if (notifyToggle) {
+      const key = notifyToggle.dataset.notifyGroup;
+      state.notifyGroups = { ...state.notifyGroups, [key]: e.target.checked };
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
     const draftSurvey = state.surveyBuilderResult?.survey || null;
     if (draftSurvey && e.target.matches('[data-survey-q-type]')) { const i = Number(e.target.dataset.surveyQType); const q = draftSurvey.questions?.[i]; if (q) { q.type = e.target.value; if (['single', 'multiple'].includes(q.type) && (!q.options || !q.options.length)) q.options = ['Opción 1', 'Opción 2']; } render({ transition: true, scope: 'panel' }); return; }
     if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
