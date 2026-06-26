@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626h';
+  const DATA_CONTENT_VERSION = '20260626i';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626h';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626i';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -283,6 +283,10 @@
   }
   function readonlyToast() { showToast('Inicia sesión para usar esta acción', 'blue'); }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
+  const PREF_DEFS = [['recordatorios', 'Recibir recordatorios'], ['soloPlan', 'Mostrar solo mi plan'], ['alertas', 'Alertas de comunicados'], ['compacto', 'Modo compacto']];
+  const PREF_DEFAULTS = { recordatorios: true, soloPlan: true, alertas: true, compacto: false };
+  function getPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem('portal.prefs') || '{}') }; } catch { return { ...PREF_DEFAULTS }; } }
+  function setPref(key, val) { const prefs = getPrefs(); prefs[key] = Boolean(val); try { localStorage.setItem('portal.prefs', JSON.stringify(prefs)); } catch {} document.body.classList.toggle('compact-mode', Boolean(prefs.compacto)); }
   function pruneStaleSnapshots() { try { STALE_DATA_KEYS.forEach(key => localStorage.removeItem(key)); } catch {} }
   function loadLocalSnapshot() {
     try {
@@ -822,6 +826,7 @@
     loadLocalSnapshot();
     mergeDriveResources();
     ensureShape();
+    document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
     await handleGoogleRedirectCallback();
     const shouldHoldInitialTop = state.user && getRoute().path === '/';
     render();
@@ -1730,10 +1735,16 @@
   function renderSurveys() {
     const surveys = [...(Data.surveys || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     const open = surveys.filter(s => s.status === 'open');
-    const cealAction = hasCealAccess() ? `<a class="btn primary" href="#/encuestas/nueva">${icon('check')} Crear encuesta o votación</a>` : '';
-    return `${pageHead('Encuestas y votaciones', 'Consultas internas con voto secreto y exportación a Excel', cealAction)}
-      <section class="card pad survey-hero"><div><span class="kicker">Participación estudiantil</span><h2 class="card-title">Consultas listas para aplicar</h2><p class="muted">CEAL puede convertir una instrucción en encuesta o votación, abrirla a estudiantes de Ingeniería Civil UCN y exportar resultados en XLSX.</p><p class="privacy-note">${icon('eye')} Las respuestas se informan como resultados agregados. No se publica quién votó qué; el acceso queda validado por CEAL/Jefatura.</p></div><div class="stat-grid compact">${stat('check', open.length, 'Activas', 'Abiertas')}${stat('file', surveys.length, 'Consultas', 'Totales')}${stat('eye', surveys.filter(s => s.secret !== false).length, 'Secretas', 'Sin correos')}</div></section>
-      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Activas</h2><span class="pill blue">${open.length}</span></div><div class="card-list">${open.map(surveyCard).join('') || renderEmpty('Sin consultas abiertas', 'Cuando CEAL abra una encuesta o votación aparecerá aquí.')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Historial</h2><span class="pill gray">${surveys.length}</span></div><div class="card-list">${surveys.map(surveyCard).join('') || renderEmpty('Sin consultas creadas', 'Usa el asistente para crear la primera.')}</div></section></div>`;
+    const past = surveys.filter(s => s.status !== 'open');
+    const isCeal = hasCealAccess();
+    const cealAction = isCeal ? `<a class="btn primary" href="#/encuestas/nueva">${icon('check')} Crear encuesta o votación</a>` : '';
+    const heroTitle = isCeal ? 'Consultas listas para aplicar' : 'Consultas abiertas para ti';
+    const heroDesc = isCeal
+      ? 'Convierte una instrucción en encuesta o votación, ábrela a estudiantes de Ingeniería Civil UCN y exporta los resultados en XLSX.'
+      : 'Participa en las consultas del CEIC. Tu voto es secreto y los resultados se informan de forma agregada.';
+    return `${pageHead('Encuestas y votaciones', isCeal ? 'Consultas internas con voto secreto y exportación a Excel' : 'Consultas del CEIC con voto secreto', cealAction)}
+      <section class="card pad survey-hero"><div><span class="kicker">Participación estudiantil</span><h2 class="card-title">${heroTitle}</h2><p class="muted">${heroDesc}</p><p class="privacy-note">${icon('eye')} Las respuestas se informan como resultados agregados. No se publica quién votó qué; el acceso queda validado por CEAL/Jefatura.</p></div><div class="stat-grid compact">${stat('check', open.length, 'Activas', 'Abiertas')}${stat('file', surveys.length, 'Consultas', 'Totales')}${stat('eye', surveys.filter(s => s.secret !== false).length, 'Secretas', 'Voto anónimo')}</div></section>
+      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Activas</h2><span class="pill blue">${open.length}</span></div><div class="card-list">${open.map(surveyCard).join('') || renderEmpty('Sin consultas abiertas', isCeal ? 'Cuando abras una encuesta o votación aparecerá aquí.' : 'Cuando el CEIC abra una consulta aparecerá aquí.')}</div></section><section class="card pad"><div class="row-between"><h2 class="card-title">${isCeal ? 'Historial' : 'Cerradas'}</h2><span class="pill gray">${past.length}</span></div><div class="card-list">${past.map(surveyCard).join('') || renderEmpty('Sin consultas cerradas', 'Las consultas finalizadas se listarán aquí.')}</div></section></div>`;
   }
   function renderSurveyBuilder() {
     const req = state.surveyBuilderRequest || {};
@@ -1977,7 +1988,7 @@
     const profileAction = hasJefaturaAccess()
       ? `<a class="btn secondary profile-primary-action" href="#/jefatura">${icon('users')} Ver jefatura</a>`
       : `<a class="btn secondary profile-primary-action" href="#/mallas">${icon('grid')} Ver mi malla</a>`;
-    return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${['Recibir recordatorios','Mostrar solo mi plan','Alertas de comunicados','Modo compacto'].map((p, i) => `<label class="link-card-row"><span><strong>${p}</strong><span>${i < 3 ? 'Activado' : 'Disponible'}</span></span><input type="checkbox" ${i < 3 ? 'checked' : ''} /></label>`).join('')}</section></div></div>`;
+    return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
   }
   function renderSearch(query) {
     const q = String(query || '').trim();
@@ -2353,6 +2364,12 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    const prefToggle = e.target.closest('[data-pref]');
+    if (prefToggle) {
+      setPref(prefToggle.dataset.pref, e.target.checked);
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
     const notifyToggle = e.target.closest('[data-notify-group]');
     if (notifyToggle) {
       const key = notifyToggle.dataset.notifyGroup;

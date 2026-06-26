@@ -366,6 +366,12 @@ body.theme-dark .notify-block { background: rgba(20, 43, 68, .5); }
 body.theme-dark .notify-count { background: rgba(143, 192, 255, .16); color: #8fc0ff; }
 body.theme-dark .notify-hint.warn { color: #fdba74; }
 
+/* Modo compacto (preferencia del perfil): densidad mayor, menos espacio en blanco. */
+body.compact-mode .card.pad { padding: 14px; }
+body.compact-mode .content { padding-top: 24px; }
+body.compact-mode .card-list { gap: 8px; }
+body.compact-mode .item-card { padding: 11px 12px; }
+
 .guest-login-card {
   width: 100%;
   margin-top: 16px;
