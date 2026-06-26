@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { promises as fs } from 'node:fs';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
@@ -1505,28 +1505,13 @@ async function handleApi(req, res, url) {
   }
 
   if (resource === 'health') {
-    // Diagnostico temporal de correo (sin exponer correos): rutas, nombres y booleanos.
-    let secretsDirFiles = [];
-    try {
-      const dir = path.dirname(recipientsFile);
-      if (existsSync(dir)) secretsDirFiles = readdirSync(dir);
-    } catch (error) { secretsDirFiles = [`(error: ${error.message})`]; }
     return sendJson(res, 200, {
       ok: true,
       service: 'portal-ceic-backend',
       storage: useSupabaseState ? 'supabase' : 'local-json',
       dbPath: useSupabaseState ? null : dbPath,
       counts: countDb(db),
-      mailDiag: {
-        userSet: Boolean(mailUser),
-        passSet: Boolean(mailPass),
-        recipientsFileEnv: process.env.RECIPIENTS_FILE || null,
-        recipientsFile,
-        recipientsFileExists: existsSync(recipientsFile),
-        recipientsLocalExists: existsSync(recipientsLocalFile),
-        secretsDirFiles,
-        counts: mailMeta().counts
-      }
+      mail: { configured: mailMeta().configured }
     });
   }
 
