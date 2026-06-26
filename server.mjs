@@ -874,8 +874,8 @@ ${recent}
 
 Reglas:
 - No inventes horarios, salas, responsables, links ni acuerdos si no aparecen en el texto.
-- Si faltan datos criticos para publicar, marca needsClarification=true y pregunta maximo 3 cosas concretas.
-- Si el texto ya es suficiente, entrega draft listo para revisar/publicar.
+- SIEMPRE entrega un draft listo para publicar a partir del texto entregado. NUNCA hagas preguntas ni pidas aclaraciones: needsClarification debe ser siempre false y questions vacio.
+- Si falta algun dato, redacta el comunicado solo con lo que hay, sin inventar ni dejar huecos evidentes.
 - El cuerpo debe quedar en texto plano con parrafos separados por salto de linea, no Markdown decorativo.
 - Si hay datos personales, acusaciones, informacion sensible o lenguaje riesgoso, agregalo en safetyFlags.
 - Si parece una fecha de calendario mas que comunicado, igual genera comunicado, pero sugiere category="Académico" o "CEAL" segun corresponda.
@@ -926,8 +926,9 @@ function parseGeminiJson(text) {
 function normalizeAssistantResult(result) {
   const draft = result?.draft && typeof result.draft === 'object' ? result.draft : null;
   return {
-    needsClarification: Boolean(result?.needsClarification),
-    questions: Array.isArray(result?.questions) ? result.questions.map(asText).filter(Boolean).slice(0, 3) : [],
+    // El asistente nunca pide aclaraciones: siempre entrega un borrador publicable.
+    needsClarification: false,
+    questions: [],
     draft: draft ? {
       title: asText(draft.title).slice(0, 120),
       category: ['Académico', 'Contingencia', 'Material', 'CEAL'].includes(asText(draft.category)) ? asText(draft.category) : 'CEAL',
@@ -1439,21 +1440,29 @@ async function sendCommunicationEmail(comm, groups) {
   const batches = chunkArray(bcc, mailBatchSize);
   let sentCount = 0;
   const previews = [];
+  console.log(`[mail] enviando comunicado "${comm.id}" a ${bcc.length} destinatarios (${batches.length} lote/s) desde ${from}`);
   for (const batch of batches) {
-    const info = await transporter.sendMail({
-      from: `"${mailFromName}" <${from}>`,
-      to: from,
-      bcc: batch,
-      replyTo: from,
-      subject,
-      text,
-      html
-    });
-    sentCount += batch.length;
-    if (mailTestMode && info?.message) {
-      try { previews.push(JSON.parse(info.message.toString())); } catch {}
+    try {
+      const info = await transporter.sendMail({
+        from: `"${mailFromName}" <${from}>`,
+        to: from,
+        bcc: batch,
+        replyTo: from,
+        subject,
+        text,
+        html
+      });
+      sentCount += batch.length;
+      console.log(`[mail] lote OK (${batch.length}) messageId=${info?.messageId || '-'} accepted=${(info?.accepted || []).length} rejected=${(info?.rejected || []).length}`);
+      if (mailTestMode && info?.message) {
+        try { previews.push(JSON.parse(info.message.toString())); } catch {}
+      }
+    } catch (error) {
+      console.error('[mail] ERROR al enviar lote:', error?.code || '', error?.responseCode || '', error?.message || error);
+      return { sent: false, reason: 'send-failed', count: sentCount, error: asText(error?.message || error).slice(0, 300), code: asText(error?.code || error?.responseCode || '') };
     }
   }
+  console.log(`[mail] envio completo: ${sentCount} destinatarios`);
   return {
     sent: true,
     count: sentCount,
@@ -1960,7 +1969,8 @@ async function handleApi(req, res, url) {
           requireCealSession(req, db);
           notifyResult = await sendCommunicationEmail(created, { test: Boolean(notify.test), students: Boolean(notify.students), professors: Boolean(notify.professors) });
         } catch (error) {
-          notifyResult = { sent: false, reason: error.statusCode === 401 || error.statusCode === 403 ? 'unauthorized' : 'error', error: error.message };
+          console.error('[mail] notify fallo:', error?.statusCode || '', error?.message || error);
+          notifyResult = { sent: false, reason: error.statusCode === 401 || error.statusCode === 403 ? 'unauthorized' : 'error', error: asText(error?.message || error).slice(0, 300) };
         }
       }
     }
@@ -2000,7 +2010,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'DELETE') {
     if (!id) return sendError(res, 400, 'id is required');
-    if (collectionName !== 'surveys') return sendError(res, 405, 'method not allowed');
+    if (!['surveys', 'communications'].includes(collectionName)) return sendError(res, 405, 'method not allowed');
     requireCealSession(req, db);
     const target = resolveLegacyItem(collectionName, collection, id);
     const index = target ? collection.findIndex(item => item.id === target.id) : -1;

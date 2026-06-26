@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626g';
+  const DATA_CONTENT_VERSION = '20260626h';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626g';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626h';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -1123,7 +1123,11 @@
       <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay más comunicados en esta categoría.</p>'}</div></main>
       <aside class="card pad comms-preview"><h2 class="card-title">Preguntas frecuentes</h2>${renderFAQ()}</aside></div>`;
   }
-  function commCard(c) { return `<a class="item-card" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`; }
+  function commCard(c, featured = false) {
+    const card = `<a class="item-card${featured ? ' is-featured' : ''}" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`;
+    if (!canPublishCommunications()) return card;
+    return `<div class="card-del-wrap">${card}<button class="card-del" type="button" data-comm-delete="${esc(c.id)}" data-comm-title="${esc(c.title || 'este comunicado')}" aria-label="Eliminar comunicado">${icon('x')}</button></div>`;
+  }
   function relatedLink(r) {
     const isAgreement = ['contingencia', 'acuerdo', 'seguimiento'].includes(plain(r.type));
     const href = isAgreement ? (r.id ? `/acuerdos/${encodeURIComponent(r.id)}` : '/calendario') : '/calendario';
@@ -1146,7 +1150,8 @@
     const c = findCommunicationById(id);
     if (!c) return renderNotFound('No encontramos el comunicado.');
     const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
-    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`, breadcrumb([['Inicio', '/'], ['Comunicados', '/comunicados'], [c.title]]))}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(relatedLink).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
+    const deleteAction = canPublishCommunications() ? `<button class="btn ghost danger-lite" data-comm-delete="${esc(c.id)}" data-comm-title="${esc(c.title || 'este comunicado')}">${icon('x')} Eliminar comunicado</button>` : '';
+    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`, breadcrumb([['Inicio', '/'], ['Comunicados', '/comunicados'], [c.title]]))}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button>${deleteAction}</div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(relatedLink).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
@@ -2115,8 +2120,9 @@
       persistSnapshot();
       if (notifyResult?.sent) showToast(`Comunicado publicado y enviado a ${notifyResult.count} ${notifyResult.count === 1 ? 'persona' : 'personas'}`);
       else if (notifyResult && notifyResult.reason === 'not-configured') showToast('Comunicado publicado. El correo aún no está configurado en el servidor.', 'blue');
-      else if (notifyResult && notifyResult.reason === 'unauthorized') showToast('Comunicado publicado. No se envió correo: sesión sin permiso.', 'blue');
-      else if (notifyResult && !notifyResult.sent) showToast('Comunicado publicado, pero el envío de correo falló.', 'blue');
+      else if (notifyResult && notifyResult.reason === 'unauthorized') showToast('Comunicado publicado. No se envió correo: sesión sin permiso (vuelve a iniciar sesión CEAL).', 'blue');
+      else if (notifyResult && notifyResult.reason === 'no-recipients') showToast('Comunicado publicado. No había destinatarios en el grupo elegido.', 'blue');
+      else if (notifyResult && !notifyResult.sent) showToast(`Comunicado publicado. Correo NO enviado: ${esc(notifyResult.error || notifyResult.reason || 'error')}`, 'blue');
       else showToast('Comunicado publicado');
       routeTo('/comunicados/' + item.id);
       return;
@@ -2242,6 +2248,28 @@
       persistSnapshot();
       showToast('Consulta eliminada', 'blue');
       if (getRoute().path.startsWith('/encuestas/')) { routeTo('/encuestas'); }
+      else { render({ transition: true, scope: 'panel' }); }
+      return;
+    }
+    const commDelete = e.target.closest('[data-comm-delete]');
+    if (commDelete) {
+      e.preventDefault();
+      if (!canPublishCommunications()) { readonlyToast(); return; }
+      const id = commDelete.dataset.commDelete;
+      const title = commDelete.dataset.commTitle || 'este comunicado';
+      const comm = Data.communications.find(c => c.id === id);
+      if (!comm) return;
+      if (!window.confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer.`)) return;
+      try {
+        await apiRequest(`/communications/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } catch (error) {
+        showToast(error.message || 'No se pudo eliminar el comunicado', 'blue');
+        return;
+      }
+      Data.communications = Data.communications.filter(c => c.id !== id);
+      persistSnapshot();
+      showToast('Comunicado eliminado', 'blue');
+      if (getRoute().path.startsWith('/comunicados/')) { routeTo('/comunicados'); }
       else { render({ transition: true, scope: 'panel' }); }
       return;
     }

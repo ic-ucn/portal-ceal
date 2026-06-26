@@ -2480,7 +2480,7 @@ body::before {
   color: #fff;
 }
 
-.comms-feed .item-card:first-of-type {
+.comms-feed .item-card.is-featured {
   border-color: #075ecb;
   box-shadow: 0 0 0 1px rgba(7,94,203,.12), var(--shadow-sm);
 }
@@ -3622,7 +3622,7 @@ body::before {
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 14px 38px rgba(7, 36, 74, .07);
 }
 
-.comms-feed > .item-card:first-of-type {
+.comms-feed .item-card.is-featured {
   padding: 18px;
   border-color: rgba(7, 94, 203, .24);
   background:
@@ -3630,7 +3630,7 @@ body::before {
     #fff;
 }
 
-.comms-feed > .item-card:first-of-type h3 {
+.comms-feed .item-card.is-featured h3 {
   font-size: 1.16rem;
 }
 
@@ -3932,10 +3932,13 @@ body::before {
   gap: 5px;
 }
 
-/* Eliminar consulta desde la tarjeta del listado (solo CEAL). */
-.survey-card-wrap { position: relative; }
-.survey-card-wrap .survey-card .row-between { padding-right: 34px; }
-.survey-card-del {
+/* Eliminar desde la tarjeta del listado (solo CEAL): encuestas y comunicados. */
+.survey-card-wrap,
+.card-del-wrap { position: relative; }
+.survey-card-wrap .survey-card .row-between,
+.card-del-wrap .item-card .row-between { padding-right: 34px; }
+.survey-card-del,
+.card-del {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -3952,13 +3955,16 @@ body::before {
   z-index: 2;
   transition: color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
 }
-.survey-card-del svg { width: 15px; height: 15px; }
-.survey-card-del:hover {
+.survey-card-del svg,
+.card-del svg { width: 15px; height: 15px; }
+.survey-card-del:hover,
+.card-del:hover {
   color: var(--red-600);
   background: var(--red-100);
   border-color: rgba(220, 38, 38, .3);
 }
-.survey-card-del:focus-visible {
+.survey-card-del:focus-visible,
+.card-del:focus-visible {
   outline: 2px solid var(--red-600);
   outline-offset: 2px;
 }
@@ -5327,7 +5333,7 @@ body.theme-dark .home-summary .stat-card {
 }
 
 /* Comunicado destacado: superficie oscura con acento azul (no una tarjeta clara). */
-body.theme-dark .comms-feed .item-card:first-of-type {
+body.theme-dark .comms-feed .item-card.is-featured {
   background: rgba(20, 43, 68, .55);
   border-color: rgba(112, 173, 255, .5);
   box-shadow: 0 0 0 1px rgba(112, 173, 255, .18);
