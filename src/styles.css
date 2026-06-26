@@ -5267,3 +5267,17 @@ body.theme-dark .home-summary .stat-card {
   border-color: rgba(255, 255, 255, .42);
   color: #fff;
 }
+
+/* ============================================================
+   FIX HOME — el campus es un ACENTO (banner delgado), no un hero
+   gigante que entierra el contenido util. Auditoria visual 2026.
+   ============================================================ */
+.home-hero .home-campus-feature { min-height: 0 !important; justify-content: flex-start !important; }
+.home-hero .home-campus-feature img {
+  height: clamp(140px, 15vw, 185px) !important;
+  max-height: 185px !important;
+  object-fit: cover !important;
+  object-position: center 34% !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--line);
+}
