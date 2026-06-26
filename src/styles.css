@@ -5302,3 +5302,29 @@ body.theme-dark .home-summary .stat-card {
 .home-digest p { margin: 0; color: var(--text); line-height: 1.55; }
 body.theme-dark .home-digest { border-left-color: var(--blue-500); }
 body.theme-dark .home-digest-head .kicker { color: #8fc0ff; }
+
+/* Editor de borrador de encuesta (creador con IA: editable + re-prompt). */
+.survey-editor-list { display: grid; gap: 14px; margin: 14px 0; }
+.survey-editor-q { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; background: var(--surface-soft); }
+.survey-editor-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.survey-editor-meta .select { max-width: 230px; }
+.survey-editor-options { display: grid; gap: 8px; }
+.survey-editor-opt { display: flex; gap: 8px; align-items: center; }
+.survey-editor-opt .input { flex: 1; }
+body.theme-dark .survey-editor-q { background: rgba(20, 43, 68, .5); }
+
+/* Hero del Inicio en 2 columnas: comunicados (izq) + campus (der), para que no se vea solo. */
+@media (min-width: 901px) {
+  .home-hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 18px; align-items: stretch; }
+  .home-hero .home-actions-panel { grid-column: 1 / -1; }
+  .home-hero .home-campus-feature { min-height: 0; align-self: center; }
+}
+.home-comms-brief { display: flex; flex-direction: column; gap: 4px; }
+.home-comms-brief .link-card-row { margin-top: 8px; }
+
+/* Colocación explícita del hero: comunicados (col1) | campus (col2), acciones abajo. */
+@media (min-width: 901px) {
+  .home-hero .home-comms-brief { grid-column: 1; grid-row: 1; }
+  .home-hero .home-campus-feature { grid-column: 2; grid-row: 1; min-height: 0; align-self: center; }
+  .home-hero .home-actions-panel { grid-column: 1 / -1; grid-row: 2; }
+}

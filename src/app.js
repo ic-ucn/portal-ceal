@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626a';
+  const DATA_CONTENT_VERSION = '20260626b';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626a';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626b';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -1037,7 +1037,7 @@
 
   function renderHome() {
     return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}
-      <section class="home-hero"><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
+      <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin comunicados por ahora.</p>'}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
       <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}</div></div></section>${renderHomeDigest()}
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
 
@@ -1736,7 +1736,7 @@
       : !sessionReady
         ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>La generación necesita sesión interna para validar acceso.</span></div>`
         : '';
-    const preview = result ? `<section class="card pad survey-preview"><div class="row-between"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(result.title)}</h2></div><span class="pill blue">${surveyModeLabel(result.mode)}</span></div><p class="muted">${esc(result.description)}</p><div class="detail-block"><div class="detail-row"><span>Audiencia</span><strong>${esc(result.audience || CEAL_ASSISTANT_AUDIENCE)}</strong></div><div class="detail-row"><span>Privacidad</span><strong>${result.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${(result.questions || []).length}</strong></div></div><div class="survey-question-list">${(result.questions || []).map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}</span><strong>${esc(q.label)}</strong><small>${esc(q.type)}${q.required ? ' - obligatoria' : ''}</small>${(q.options || []).length ? `<div class="quick-chip-row">${q.options.map(o => `<span class="filter-token">${esc(o)}</span>`).join('')}</div>` : ''}</div>`).join('')}</div><div class="hstack"><button class="btn primary" data-survey-create="open" type="button">${icon('check')} Crear y abrir</button><button class="btn secondary" data-survey-create="draft" type="button">Guardar borrador</button></div></section>` : `<section class="card pad assistant-empty"><span class="icon-wrap">${icon('sparkles')}</span><h3>Sin encuesta generada</h3><p>Describe la consulta en lenguaje natural. El asistente propondrá preguntas, opciones, tipo de respuesta y formato.</p></section>`;
+    const preview = result ? renderSurveyDraftEditor(result) : `<section class="card pad assistant-empty"><span class="icon-wrap">${icon('sparkles')}</span><h3>Sin encuesta generada</h3><p>Describe la consulta en lenguaje natural. El asistente propondrá preguntas, opciones, tipo de respuesta y formato.</p></section>`;
     return ensureCEAL(`${pageHead('Crear encuesta', 'De lenguaje natural a consulta lista para aplicar', `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="assistant-layout">
         <form class="card pad form" data-form="survey-ai">
@@ -1752,6 +1752,35 @@
         </form>
         <aside class="card pad assistant-side"><h2 class="card-title">Reglas aplicadas</h2><div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Voto secreto por defecto</strong><small>Se muestran cantidades agregadas; no se publica quién votó qué.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Acceso validado</strong><small>Solo Estudiantes de Ingeniería Civil UCN, con revisión CEAL/Jefatura.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('download')}</span><span><strong>XLSX real</strong><small>CEAL descarga resultados para análisis posterior.</small></span></div></aside>
       </div>${preview}`);
+  }
+  function renderSurveyDraftEditor(survey) {
+    const questions = survey.questions || [];
+    const typeOpts = [['single', 'Opción única'], ['multiple', 'Selección múltiple'], ['text', 'Respuesta abierta'], ['rating', 'Escala 1 a 5']];
+    return `<section class="card pad survey-editor">
+      <div class="row-between"><div><span class="kicker">Borrador editable</span><h2 class="card-title">Ajusta tu encuesta</h2></div><span class="pill blue">${surveyModeLabel(survey.mode)}</span></div>
+      <div class="form-field"><label>Título</label><input class="input" data-survey-edit="title" value="${esc(survey.title || '')}" /></div>
+      <div class="form-field"><label>Descripción</label><textarea class="textarea compact" data-survey-edit="description">${esc(survey.description || '')}</textarea></div>
+      <div class="survey-editor-list">${questions.map((q, i) => `
+        <div class="survey-editor-q">
+          <div class="row-between"><span class="kicker">Pregunta ${i + 1}</span><button class="icon-btn" type="button" data-survey-del-question="${i}" aria-label="Quitar pregunta">${icon('x')}</button></div>
+          <input class="input" data-survey-q-label="${i}" value="${esc(q.label || '')}" placeholder="Texto de la pregunta" />
+          <div class="survey-editor-meta">
+            <select class="select" data-survey-q-type="${i}">${typeOpts.map(([v, l]) => `<option value="${v}"${(q.type || 'single') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+            <label class="checkbox-row"><input type="checkbox" data-survey-q-required="${i}" ${q.required ? 'checked' : ''} /> Obligatoria</label>
+          </div>
+          ${['single', 'multiple'].includes(q.type) ? `<div class="survey-editor-options">${(q.options || []).map((opt, j) => `<div class="survey-editor-opt"><input class="input" data-survey-opt="${i}:${j}" value="${esc(opt)}" placeholder="Opción ${j + 1}" /><button class="icon-btn" type="button" data-survey-del-option="${i}:${j}" aria-label="Quitar opción">${icon('x')}</button></div>`).join('')}<button class="btn ghost sm" type="button" data-survey-add-option="${i}">+ Agregar opción</button></div>` : ''}
+        </div>`).join('')}</div>
+      <button class="btn secondary sm" type="button" data-survey-add-question>+ Agregar pregunta</button>
+      <div class="divider"></div>
+      <div class="form-field"><label>Ajustar con IA (lenguaje natural)</label><textarea class="textarea compact" data-survey-refine-input placeholder="Ej: agrega la opción Pizza, quita la pregunta 2, haz la primera de selección múltiple.">${esc(state.surveyRefineText || '')}</textarea></div>
+      <div class="hstack"><button class="btn secondary" type="button" data-survey-refine ${state.surveyBuilderLoading ? 'disabled' : ''}>${icon('sparkles')} ${state.surveyBuilderLoading ? 'Ajustando...' : 'Ajustar con IA'}</button></div>
+      <div class="divider"></div>
+      <div class="hstack"><button class="btn primary" data-survey-create="open" type="button">${icon('check')} Crear y abrir</button><button class="btn secondary" data-survey-create="draft" type="button">Guardar borrador</button></div>
+    </section>`;
+  }
+  function surveyDraftSurvey() {
+    if (state.surveyBuilderResult && !state.surveyBuilderResult.survey) state.surveyBuilderResult.survey = { title: '', description: '', mode: 'encuesta', questions: [] };
+    return state.surveyBuilderResult?.survey || null;
   }
   function renderSurveyQuestionInput(question) {
     const id = esc(question.id);
@@ -2072,6 +2101,51 @@
       }
       return;
     }
+    if (e.target.closest('[data-survey-add-question]')) {
+      const sv = surveyDraftSurvey();
+      if (sv) { sv.questions = sv.questions || []; sv.questions.push({ label: '', type: 'single', required: true, options: ['Opción 1', 'Opción 2'] }); render({ transition: true, scope: 'panel', resetScroll: false }); }
+      return;
+    }
+    const delQuestion = e.target.closest('[data-survey-del-question]');
+    if (delQuestion) {
+      const sv = state.surveyBuilderResult?.survey;
+      if (sv?.questions) { sv.questions.splice(Number(delQuestion.dataset.surveyDelQuestion), 1); render({ transition: true, scope: 'panel', resetScroll: false }); }
+      return;
+    }
+    const addOption = e.target.closest('[data-survey-add-option]');
+    if (addOption) {
+      const q = state.surveyBuilderResult?.survey?.questions?.[Number(addOption.dataset.surveyAddOption)];
+      if (q) { q.options = q.options || []; q.options.push('Nueva opción'); render({ transition: true, scope: 'panel', resetScroll: false }); }
+      return;
+    }
+    const delOption = e.target.closest('[data-survey-del-option]');
+    if (delOption) {
+      const [qi, oi] = delOption.dataset.surveyDelOption.split(':').map(Number);
+      const q = state.surveyBuilderResult?.survey?.questions?.[qi];
+      if (q?.options) { q.options.splice(oi, 1); render({ transition: true, scope: 'panel', resetScroll: false }); }
+      return;
+    }
+    if (e.target.closest('[data-survey-refine]')) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const sv = state.surveyBuilderResult?.survey;
+      const instruction = String(state.surveyRefineText || '').trim();
+      if (!sv) { showToast('Primero genera una encuesta', 'blue'); return; }
+      if (instruction.length < 4) { showToast('Escribe qué quieres ajustar', 'blue'); return; }
+      state.surveyBuilderLoading = true;
+      state.surveyBuilderError = '';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await surveyAssistantRequest({ rawText: instruction, mode: sv.mode || 'auto', audience: CEAL_ASSISTANT_AUDIENCE, currentSurvey: sv });
+        if (payload.result?.survey) { state.surveyBuilderResult = payload.result; state.surveyRefineText = ''; showToast('Encuesta ajustada', 'blue'); }
+        else { state.surveyBuilderError = 'No se pudo ajustar la encuesta.'; }
+      } catch (error) {
+        state.surveyBuilderError = error.message || 'No se pudo ajustar la encuesta.';
+      } finally {
+        state.surveyBuilderLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
     const createSurvey = e.target.closest('[data-survey-create]');
     if (createSurvey) {
       if (!hasCealAccess()) { readonlyToast(); return; }
@@ -2178,11 +2252,22 @@
     if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
   }
   function onInput(e) {
+    const draftSurvey = state.surveyBuilderResult?.survey || null;
+    if (draftSurvey) {
+      if (e.target.matches('[data-survey-edit="title"]')) { draftSurvey.title = e.target.value; return; }
+      if (e.target.matches('[data-survey-edit="description"]')) { draftSurvey.description = e.target.value; return; }
+      if (e.target.matches('[data-survey-q-label]')) { const i = Number(e.target.dataset.surveyQLabel); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].label = e.target.value; return; }
+      if (e.target.matches('[data-survey-opt]')) { const [i, j] = e.target.dataset.surveyOpt.split(':').map(Number); if (draftSurvey.questions?.[i]?.options) draftSurvey.questions[i].options[j] = e.target.value; return; }
+    }
+    if (e.target.matches('[data-survey-refine-input]')) { state.surveyRefineText = e.target.value; return; }
     if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; scheduleFilterRender(); }
     if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; scheduleFilterRender(); }
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    const draftSurvey = state.surveyBuilderResult?.survey || null;
+    if (draftSurvey && e.target.matches('[data-survey-q-type]')) { const i = Number(e.target.dataset.surveyQType); const q = draftSurvey.questions?.[i]; if (q) { q.type = e.target.value; if (['single', 'multiple'].includes(q.type) && (!q.options || !q.options.length)) q.options = ['Opción 1', 'Opción 2']; } render({ transition: true, scope: 'panel' }); return; }
+    if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
     if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }

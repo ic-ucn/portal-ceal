@@ -1030,12 +1030,14 @@ Reglas de calidad de las preguntas (MUY IMPORTANTE):
 - Incluye una opción "Otro" cuando aporte; las opciones deben ser distintas entre sí y cubrir las alternativas razonables.
 - El título debe ser claro, específico y bien redactado para el tema (ej: "Comida para el asado del CEAL"), sin palabras sueltas raras ni inventadas.
 - Genera solo las preguntas necesarias (entre 2 y 5), sin relleno.
+- Si "encuestaActual" NO es null, el usuario quiere MODIFICAR esa encuesta existente: interpreta "rawText" como la instruccion de ajuste (agregar/quitar/editar preguntas u opciones, cambiar tipo, etc.) y devuelve la encuesta COMPLETA ya modificada, conservando todo lo que no se pidio cambiar.
 
 Entrada:
 ${JSON.stringify({
     rawText: body.rawText,
     requestedMode: body.mode || 'auto',
-    audience: 'Estudiantes de Ingeniería Civil UCN'
+    audience: 'Estudiantes de Ingeniería Civil UCN',
+    encuestaActual: body.currentSurvey || null
   }, null, 2)}
 
 Responde solamente JSON valido con esta forma:
