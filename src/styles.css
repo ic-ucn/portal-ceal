@@ -3937,6 +3937,13 @@ body::before {
   accent-color: var(--blue-700);
 }
 
+/* Checkboxes/radios con el azul de marca (no el rojo del sistema).
+   --blue-600 se adapta a claro/oscuro. Cubre Preferencias del perfil, etc. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--blue-600);
+}
+
 .staff-profile-card {
   display: grid;
   gap: 16px;
@@ -5282,10 +5289,11 @@ body.theme-dark .home-summary .stat-card {
   border: 1px solid var(--line);
 }
 
-/* Banner campus: imagen COMPLETA (contain), tamaño decente, sin recorte. */
+/* Banner campus: imagen COMPLETA (contain), tamaño decente, sin recorte.
+   Escalado +30% (desktop y mobile) respecto del tamaño previo (150/18vw/215). */
 .home-hero .home-campus-feature img {
-  height: clamp(150px, 18vw, 215px) !important;
-  max-height: 215px !important;
+  height: clamp(195px, 23.4vw, 280px) !important;
+  max-height: 280px !important;
   width: auto !important;
   max-width: 100% !important;
   margin: 0 auto !important;
