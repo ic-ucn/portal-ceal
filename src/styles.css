@@ -5215,3 +5215,55 @@ body.theme-dark .btn.danger-lite {
     font-size: .7rem;
   }
 }
+
+/* ============================================================
+   CORRECCIONES DARK MODE — auditoria visual 2026 (final, gana en cascada)
+   ============================================================ */
+/* Barra inferior (mobile): los items inactivos heredaban texto oscuro (#273449)
+   sobre fondo oscuro -> casi invisibles. Existia override para .nav-item pero no para .bottom-item. */
+body.theme-dark .bottom-item { color: #c8daee; }
+body.theme-dark .bottom-item .icon { color: #c8daee; }
+
+/* Hero del Inicio: que el panel se distinga del fondo oscuro y los tiles sean legibles. */
+body.theme-dark .home-summary {
+  background: linear-gradient(135deg, rgba(18, 46, 82, .96), rgba(10, 63, 128, .55));
+  border: 1px solid rgba(112, 173, 255, .22);
+}
+body.theme-dark .home-summary .stat-card {
+  background: rgba(255, 255, 255, .05);
+  border-color: rgba(255, 255, 255, .12);
+}
+
+/* Comunicado destacado: superficie oscura con acento azul (no una tarjeta clara). */
+body.theme-dark .comms-feed .item-card:first-of-type {
+  background: rgba(20, 43, 68, .55);
+  border-color: rgba(112, 173, 255, .5);
+  box-shadow: 0 0 0 1px rgba(112, 173, 255, .18);
+}
+
+/* Refuerzo hero dark: panel y tiles claramente visibles (override del bloque anterior). */
+body.theme-dark .home-summary {
+  background: linear-gradient(135deg, rgba(28, 58, 99, .94), rgba(13, 74, 140, .58));
+  border: 1px solid rgba(122, 178, 255, .30);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .30);
+}
+body.theme-dark .home-summary .stat-card {
+  background: rgba(255, 255, 255, .09);
+  border-color: rgba(255, 255, 255, .18);
+}
+
+/* Boton de tema: ghost translucido sobre topbar/login navy (antes salia como bloque blanco). */
+.topbar .theme-toggle-btn,
+.mobile-header .theme-toggle-btn,
+.login-theme-toggle {
+  background: rgba(255, 255, 255, .08);
+  border-color: rgba(255, 255, 255, .26);
+  color: #fff;
+}
+.topbar .theme-toggle-btn:hover,
+.mobile-header .theme-toggle-btn:hover,
+.login-theme-toggle:hover {
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .42);
+  color: #fff;
+}
