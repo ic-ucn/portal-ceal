@@ -367,13 +367,15 @@ async function writeDb(next) {
 }
 
 function sendJson(res, status, body) {
-  res.writeHead(status, {
+  const headers = {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
-    'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization'
-  });
+    'access-control-allow-headers': 'content-type,authorization',
+    'vary': 'Origin'
+  };
+  if (res._corsOrigin) headers['access-control-allow-origin'] = res._corsOrigin;
+  res.writeHead(status, headers);
   res.end(JSON.stringify(body));
 }
 
@@ -1299,8 +1301,31 @@ function countDb(db) {
   };
 }
 
+const ALLOWED_ORIGINS = (process.env.PORTAL_ALLOWED_ORIGINS
+  ? process.env.PORTAL_ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : ['https://ceicucn.cl', 'https://www.ceicucn.cl', 'https://ic-ucn.github.io', 'http://localhost:8080', 'http://localhost:18080', 'http://127.0.0.1:8080']);
+function resolveCorsOrigin(origin) {
+  if (!origin) return null;
+  return ALLOWED_ORIGINS.includes(origin) ? origin : null;
+}
+const rateBuckets = new Map();
+function checkRateLimit(req, res) {
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  if (['::1', '127.0.0.1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) return true;
+  const now = Date.now();
+  const windowMs = 60000;
+  const max = Number(process.env.PORTAL_RATE_LIMIT || 120);
+  let bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.reset) { bucket = { count: 0, reset: now + windowMs }; rateBuckets.set(ip, bucket); }
+  bucket.count += 1;
+  if (rateBuckets.size > 5000) { for (const [k, v] of rateBuckets) { if (now > v.reset) rateBuckets.delete(k); } }
+  if (bucket.count > max) { sendError(res, 429, 'Demasiadas solicitudes. Intenta nuevamente en un momento.'); return false; }
+  return true;
+}
+
 async function handleApi(req, res, url) {
   if (req.method === 'OPTIONS') return sendJson(res, 204, {});
+  if (req.method !== 'GET' && !checkRateLimit(req, res)) return;
   const db = await loadDb();
   const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   const [resource, id] = parts;
@@ -1822,6 +1847,7 @@ async function serveStatic(req, res, url) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || `localhost:${port}`}`);
+  res._corsOrigin = resolveCorsOrigin(req.headers.origin);
   try {
     if (url.pathname.startsWith('/api')) {
       await handleApi(req, res, url);
@@ -1836,4 +1862,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`Portal CEIC / CEAL UCN listo en http://localhost:${port}`);
   console.log(`API local activa en http://localhost:${port}/api/health`);
+  if (!process.env.PORTAL_VOTE_SALT) {
+    console.warn('[seguridad] PORTAL_VOTE_SALT no está configurado: se usa un secreto de respaldo para el hash de votos. Define PORTAL_VOTE_SALT propio en producción.');
+  }
 });

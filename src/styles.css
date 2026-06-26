@@ -58,6 +58,12 @@
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Escala de espaciado (4/8) y tipográfica — auditoría 2026 */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --text-xs: 0.78rem; --text-sm: 0.86rem; --text-md: 0.95rem;
+  --text-lg: 1.12rem; --text-xl: 1.4rem; --text-2xl: 1.9rem;
+  --leading-tight: 1.25; --leading-normal: 1.5; --leading-relaxed: 1.7;
 }
 
 /* Operational finish pass */
@@ -1642,7 +1648,8 @@ button.course-link-card { width:100%; text-align:left; cursor:pointer; }
   --course-col-w: 178px;
 }
 
-* { letter-spacing: 0 !important; }
+/* (Eliminado el reset global `* { letter-spacing: 0 !important }`: aplanaba la
+   jerarquía tipográfica. El tracking deliberado vive al final del archivo.) */
 
 body {
   background:
@@ -4558,11 +4565,15 @@ body.theme-dark .filter-token {
   box-shadow: none;
 }
 
-body.theme-dark .quick-chip-row button.active,
+body.theme-dark .quick-chip-row button.active {
+  background: var(--blue-700);
+  color: #ffffff;
+  border-color: var(--blue-500);
+}
 body.theme-dark .filter-token:hover {
-  background: rgba(112, 173, 255, .24);
-  color: #f3f8ff;
-  border-color: rgba(143, 192, 255, .38);
+  background: rgba(112, 173, 255, .28);
+  color: #ffffff;
+  border-color: rgba(143, 192, 255, .5);
 }
 
 body.theme-dark .quick-chip-row button small,
@@ -4628,3 +4639,269 @@ body.theme-dark .calendar-agenda-row:hover {
     border-top: 1px solid var(--line);
   }
 }
+
+/* ============================================================
+   MODO DIOS — Accesibilidad y jerarquía (auditoría 2026)
+   Reglas al final del archivo: ganan por orden de cascada.
+   ============================================================ */
+:root { --focus: #267eea; }
+body.theme-dark { --focus: #7fb4ff; }
+
+/* WCAG 2.4.7 — Foco visible de teclado (reemplaza los outline:0).
+   :focus-visible solo aparece con teclado, no con mouse. */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+.nav-item:focus-visible,
+.bottom-nav a:focus-visible,
+[tabindex]:focus-visible,
+.course-card:focus-visible,
+.chip-btn:focus-visible,
+[role="button"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.global-search:focus-within { box-shadow: 0 0 0 2px var(--focus); border-radius: 10px; }
+
+/* Jerarquía tipográfica deliberada (antes aplanada por el reset global). */
+.page-title,
+.login-brand h1,
+.login-form h1,
+.login-form h2,
+.home-summary h2,
+.home-plan h2,
+.section-title,
+.card-title,
+.stat-card strong { letter-spacing: -0.012em; }
+.eyebrow,
+.overline,
+.data-table th { letter-spacing: 0.04em; }
+
+/* Lector de pantalla: oculto visualmente pero accesible. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+
+/* Skip-link: visible solo al enfocar con teclado. */
+.skip-link {
+  position: fixed;
+  top: 10px; left: 10px;
+  z-index: 200;
+  transform: translateY(-180%);
+  background: var(--navy-900);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: .9rem;
+  box-shadow: var(--shadow-panel);
+  transition: transform .18s var(--ease-out);
+}
+.skip-link:focus { transform: translateY(0); outline: 2px solid var(--focus); outline-offset: 2px; }
+#main-content { scroll-margin-top: 92px; }
+#main-content:focus { outline: none; }
+
+/* Banner de sin conexión. */
+.offline-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 150;
+  text-align: center;
+  background: var(--orange-600);
+  color: #fff;
+  font-size: .85rem;
+  font-weight: 650;
+  padding: 7px 14px;
+}
+
+/* Toast accesible (role=status/alert, descartable, color por tipo). */
+.toast {
+  position: fixed;
+  right: 24px; bottom: 24px;
+  z-index: 180;
+  display: flex; align-items: center; gap: 12px;
+  max-width: min(380px, calc(100vw - 32px));
+  padding: 13px 14px 13px 16px;
+  border-radius: 12px;
+  background: var(--navy-900);
+  color: #fff;
+  box-shadow: var(--shadow-panel);
+  animation: toast-in .22s var(--ease-out);
+}
+.toast .toast-msg { font-size: .92rem; font-weight: 600; line-height: 1.35; }
+.toast .toast-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green-600); flex: none; }
+.toast.toast-blue .toast-dot { background: var(--blue-500); }
+.toast.toast-orange { background: #7c2d12; }
+.toast.toast-orange .toast-dot { background: var(--orange-500); }
+.toast.toast-red { background: #7f1d1d; }
+.toast.toast-red .toast-dot { background: #f87171; }
+.toast .toast-close {
+  flex: none;
+  display: inline-grid; place-items: center;
+  width: 28px; height: 28px;
+  border: 0; border-radius: 8px;
+  background: rgba(255, 255, 255, .12);
+  color: #fff; cursor: pointer;
+  transition: background .15s ease;
+}
+.toast .toast-close:hover { background: rgba(255, 255, 255, .22); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 760px) {
+  .toast { left: 16px; right: 16px; bottom: calc(var(--bottom-nav-h, 74px) + 16px); max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .skip-link { transition: none; }
+}
+
+/* Validación inline (al salir del campo). */
+.input.is-invalid,
+.select.is-invalid,
+.textarea.is-invalid,
+input.is-invalid,
+select.is-invalid,
+textarea.is-invalid {
+  border-color: var(--red-600);
+  box-shadow: 0 0 0 1px var(--red-600);
+}
+.field-error {
+  margin: 6px 0 0;
+  color: var(--red-600);
+  font-size: .8rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+body.theme-dark .field-error { color: #fca5a5; }
+
+/* Breadcrumbs (migas de navegación en vistas de detalle). */
+.breadcrumb { margin: 0 0 8px; }
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; }
+.breadcrumb li { display: inline-flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--text-muted); }
+.breadcrumb li:not(:last-child)::after { content: "/"; color: var(--slate-400); }
+.breadcrumb a { color: var(--blue-700); text-decoration: none; font-weight: 600; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb [aria-current="page"] { color: var(--text-muted); font-weight: 600; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.theme-dark .breadcrumb a { color: #8fc0ff; }
+
+/* Skeleton / shimmer para carga percibida (Drive preview y futuros listados). */
+@keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.skeleton,
+.resource-preview-frame {
+  background-image: linear-gradient(100deg, rgba(148, 163, 184, .10) 30%, rgba(148, 163, 184, .22) 50%, rgba(148, 163, 184, .10) 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton { border-radius: 8px; min-height: 14px; }
+.skeleton-line { height: 12px; margin: 8px 0; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .resource-preview-frame { animation: none; }
+}
+
+/* ============================================================
+   REFINAMIENTO VISUAL — auditoría 2026 (pasada final; gana en cascada)
+   Eleva jerarquía, profundidad y microinteracciones sin tocar estructura.
+   ============================================================ */
+
+/* Tipografía con más jerarquía */
+.page-title { font-size: clamp(1.95rem, 1.4rem + 1.7vw, 2.55rem); font-weight: 800; line-height: 1.06; }
+.page-subtitle { font-size: 1.02rem; line-height: 1.5; }
+.section-title { font-weight: 760; }
+.card-title { font-weight: 740; }
+.eyebrow, .kicker { font-weight: 800; }
+
+/* Tarjetas con más profundidad */
+.card { border-radius: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 12px 30px rgba(15, 23, 42, .07); }
+@media (min-width: 980px) { .card.pad { padding: 22px; } }
+
+/* Microinteracción: hover lift en tarjetas accionables */
+.item-card,
+.link-card-row,
+a.management-card,
+.feed-row,
+.quick-access a,
+.access-card,
+.result-row { transition: transform .18s var(--ease-out), box-shadow .18s var(--ease-out), border-color .18s var(--ease-out); }
+.item-card:hover,
+.link-card-row:hover,
+a.management-card:hover,
+.feed-row:hover,
+.quick-access a:hover,
+.access-card:hover,
+.result-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, .11);
+  border-color: var(--blue-500);
+}
+
+/* Estadísticas: número protagonista */
+.stat-card { border-radius: 16px; }
+.stat-card strong { font-size: 1.75rem; font-weight: 800; line-height: 1; }
+.stat-card .icon-box { background: var(--blue-100); color: var(--blue-700); }
+
+/* Botón primario con relieve */
+.btn { transition: transform .15s var(--ease-out), box-shadow .15s var(--ease-out), background .15s ease, border-color .15s ease; }
+.btn.primary {
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-700));
+  border-color: var(--blue-700);
+  box-shadow: 0 8px 20px rgba(7, 94, 203, .24);
+}
+.btn.primary:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(7, 94, 203, .30); }
+
+/* Navegación activa con barra de acento */
+.nav-item { position: relative; }
+.nav-item.active { font-weight: 750; }
+.nav-item.active::before {
+  content: ""; position: absolute; left: 0; top: 9px; bottom: 9px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--blue-600);
+}
+.bottom-item.active { font-weight: 700; }
+
+/* Ajustes del refinamiento en dark */
+body.theme-dark .stat-card .icon-box { background: rgba(112, 173, 255, .16); color: #cfe0ff; }
+body.theme-dark .item-card:hover,
+body.theme-dark .link-card-row:hover,
+body.theme-dark a.management-card:hover,
+body.theme-dark .feed-row:hover {
+  border-color: var(--blue-500);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, .38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item-card, .link-card-row, a.management-card, .feed-row, .quick-access a, .access-card, .result-row, .btn, .btn.primary { transition: none; }
+  .item-card:hover, .link-card-row:hover, a.management-card:hover, .feed-row:hover, .btn.primary:hover { transform: none; }
+}
+
+/* Hero del Inicio: panel "Vista rápida" como tarjeta navy con degradado y tiles de vidrio */
+/* Hero del Inicio: panel azul SUAVE cohesivo con el tema claro (no una isla oscura). */
+body:not(.theme-dark) .home-summary {
+  background: linear-gradient(135deg, #f1f7ff 0%, #e6f0fb 100%);
+  border: 1px solid #d7e6f7;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .07);
+}
+body:not(.theme-dark) .home-summary .stat-card {
+  background: #fff;
+  border: 1px solid #dce8f5;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
+}
+/* En modo oscuro el hero usa su propia variante (coherente con el resto oscuro). */
+body.theme-dark .home-summary {
+  background: linear-gradient(135deg, rgba(13, 31, 53, .96), rgba(7, 54, 111, .55));
+  border: 1px solid var(--line);
+}
+.home-summary .stat-card strong { color: var(--navy-950); }
+.home-summary .stat-card .icon-box { background: var(--blue-100); color: var(--blue-700); }
+
+/* Iconos de acciones con chip tintado (cohesión con el acento) */
+.access-card .icon-box { background: var(--blue-100); color: var(--blue-700); }
+body.theme-dark .access-card .icon-box { background: rgba(112, 173, 255, .16); color: #cfe0ff; }
+
+/* El acento lateral azul->naranja era para el hero blanco viejo; sobre el navy sobra. */
+.home-summary::before { display: none; }

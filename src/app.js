@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260625p';
+  const DATA_CONTENT_VERSION = '20260625t';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625p';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260625t';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -20,8 +20,10 @@
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
-  const initialPortalDark = localStorage.getItem(PORTAL_THEME_KEY) === 'dark'
-    || (!localStorage.getItem(PORTAL_THEME_KEY) && localStorage.getItem('portal.malla.embedDark') === '1');
+  const storedTheme = localStorage.getItem(PORTAL_THEME_KEY);
+  const prefersDarkOS = (() => { try { return Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); } catch { return false; } })();
+  const initialPortalDark = storedTheme === 'dark'
+    || (!storedTheme && (localStorage.getItem('portal.malla.embedDark') === '1' || prefersDarkOS));
   let dataMode = API_BASE ? 'backend' : 'static';
   let hasRendered = false;
   let lastRenderedRouteKey = '';
@@ -68,7 +70,8 @@
     mallaFocus: localStorage.getItem('portal.malla.focus') === '1',
     loginMemberId: null,
     authMessage: '',
-    toast: null
+    toast: null,
+    offline: typeof navigator !== 'undefined' && navigator.onLine === false
   };
   applyPortalTheme();
 
@@ -333,7 +336,35 @@
       .join('');
   }
   function badge(key, label) { const [text, color] = Status[key] || [label || key, 'gray']; return `<span class="status-chip ${color}">${esc(label || text)}</span>`; }
-  function showToast(message, type = 'green') { state.toast = { message, type }; render(); setTimeout(() => { state.toast = null; render(); }, 2200); }
+  function ensureLiveRegion() {
+    let el = document.getElementById('portal-live');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'portal-live';
+      el.className = 'sr-only';
+      el.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  let toastTimer = null;
+  function showToast(message, type = 'green') {
+    if (toastTimer) clearTimeout(toastTimer);
+    state.toast = { message, type };
+    const isError = type === 'red' || type === 'orange';
+    const live = ensureLiveRegion();
+    live.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    live.textContent = '';
+    setTimeout(() => { live.textContent = message; }, 60);
+    render();
+    toastTimer = setTimeout(() => { toastTimer = null; state.toast = null; render(); }, isError ? 6000 : 4200);
+  }
+  function renderToast() {
+    const t = state.toast;
+    if (!t) return '';
+    const isError = t.type === 'red' || t.type === 'orange';
+    return `<div class="toast toast-${esc(t.type)}" role="${isError ? 'alert' : 'status'}"><span class="toast-dot" aria-hidden="true"></span><span class="toast-msg">${esc(t.message)}</span><button class="toast-close" type="button" data-dismiss-toast aria-label="Cerrar aviso">${icon('x')}</button></div>`;
+  }
   function getUnreadCount() { return Data.notifications.filter(n => n.unread).length; }
   function planLabel(plan) { return plan === 'planO' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025'; }
   function planShort(plan) { return plan === 'planO' ? 'Plan O' : 'Plan P'; }
@@ -487,12 +518,23 @@
     }
     return btoa(unescape(encodeURIComponent(text)));
   }
+  let sessionExpiredHandled = false;
+  function handleSessionExpired() {
+    if (sessionExpiredHandled || !state.user || state.user.role === 'guest') return;
+    sessionExpiredHandled = true;
+    try { localStorage.removeItem('portal.session'); } catch {}
+    state.user = null;
+    showToast('Tu sesión expiró. Vuelve a ingresar.', 'orange');
+    routeTo('/login');
+    setTimeout(() => { sessionExpiredHandled = false; }, 1500);
+  }
   async function apiRequest(path, options = {}) {
     if (!API_BASE) throw new Error('api unavailable');
     const headers = { 'content-type': 'application/json', ...(options.headers || {}) };
     if (state.user?.sessionToken && !headers.Authorization) headers.Authorization = `Bearer ${state.user.sessionToken}`;
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     const payload = await res.json().catch(() => ({}));
+    if (res.status === 401 && state.user?.sessionToken) handleSessionExpired();
     if (!res.ok || payload.ok === false) throw new Error(payload.error || `api ${res.status}`);
     return payload;
   }
@@ -817,8 +859,14 @@
     if (itemPath === '/') return path === '/';
     return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
   }
-  function pageHead(title, subtitle = '', actions = '') {
-    return `<div class="page-head"><div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
+  function pageHead(title, subtitle = '', actions = '', crumbs = '') {
+    return `<div class="page-head"><div>${crumbs || ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
+  }
+  function breadcrumb(items) {
+    return `<nav class="breadcrumb" aria-label="Ruta de navegación"><ol>${items.map((it, i) => {
+      const isLast = i === items.length - 1;
+      return `<li>${isLast || !it[1] ? `<span aria-current="page">${esc(it[0])}</span>` : `<a href="#${it[1]}">${esc(it[0])}</a>`}</li>`;
+    }).join('')}</ol></nav>`;
   }
   function stat(ico, num, label, sub = '') {
     return `<div class="stat-card"><span class="icon-box">${icon(ico)}</span><span class="stat-copy"><strong>${esc(num)}</strong><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
@@ -942,14 +990,14 @@
     const accountLabel = 'Mi cuenta';
     const isMallaRoute = path === '/mallas';
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''} ${isMallaRoute && state.mallaFocus ? 'malla-focus-mode' : ''}`.trim();
-    const nav = navItems().map(([href, ico, label]) => `<a class="nav-item ${isActive(path, href) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
+    const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => `<a class="bottom-item ${isActive(path, href) || (href === '/mas' && ['/comunicados','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))) ? 'active' : ''}" href="#${href}">${icon(ico)}<span>${label}</span></a>`).join('');
-    return `<div class="${shellClass}"><aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav">${nav}</nav></aside>
+      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/comunicados','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
+    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
-      <section class="content ${isMallaRoute ? 'content-mallas' : ''}">${content}</section><nav class="bottom-nav">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.notificationsOpen ? renderNotificationPopover() : ''}${state.toast ? `<div class="notification-popover" style="top:auto;right:28px;bottom:28px;width:340px"><header><strong>${esc(state.toast.message)}</strong><span class="status-chip ${state.toast.type}">Listo</span></header></div>` : ''}</div>`;
+      <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
   }
   function renderPage(path, query) {
     if (path === '/') return renderHome();
@@ -1095,7 +1143,7 @@
     const c = findCommunicationById(id);
     if (!c) return renderNotFound('No encontramos el comunicado.');
     const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
-    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`)}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(relatedLink).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
+    return `${pageHead(c.title, `${c.category} - ${fmtDate(c.date)}, ${fmtTime(c.date)}`, `<a class="btn secondary" href="#/comunicados">Volver</a>`, breadcrumb([['Inicio', '/'], ['Comunicados', '/comunicados'], [c.title]]))}<div class="split"><article class="card pad"><div class="hstack">${badge('blue', c.category)}${c.pinned ? badge('orange','Fijado') : ''}</div><p class="communication-body">${esc(c.body)}</p><div class="detail-block"><div class="detail-row"><span>Fuente</span><strong>${esc(c.source)}</strong></div><div class="detail-row"><span>Publicado</span><strong>${fmtDate(c.date)}, ${fmtTime(c.date)}</strong></div></div><div class="hstack">${markAction}<button class="btn secondary" data-copy-link>Copiar enlace</button></div></article><aside class="card pad"><h2 class="card-title">Relacionado</h2>${(c.related || []).map(relatedLink).join('') || '<p class="small muted">Sin vínculos relacionados.</p>'}<div class="divider"></div>${renderFAQ()}</aside></div>`;
   }
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
@@ -1115,7 +1163,7 @@
     const a = findAgreementById(id);
     if (!a) return renderNotFound('No encontramos el acuerdo.');
     const downloadAction = isGuest() ? '' : `<button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button>`;
-    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver al calendario</a>`)}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
+    return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver al calendario</a>`, breadcrumb([['Inicio', '/'], ['Calendario', '/calendario'], [a.number || a.title]]))}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
   }
 
   function renderMaterial() {
@@ -1129,6 +1177,8 @@
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
+    const typeCounts = {};
+    Data.resources.forEach(r => { if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1; });
     const quickTypes = ['Guía', 'Prueba', 'Apunte', 'PPT', 'Resumen'].filter(type => types.includes(type));
     if (state.materialType !== 'all' && types.includes(state.materialType) && !quickTypes.includes(state.materialType)) quickTypes.unshift(state.materialType);
     const quickCourses = courseFacets
@@ -1150,7 +1200,7 @@
       : '';
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
-      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)}</button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
+      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
   }
   function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
   function renderResourcePreview(r) {
@@ -1879,13 +1929,14 @@
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
   function renderMore() { const items = navItems().filter(([href]) => !['/','/calendario','/mallas','/material'].includes(href)); const accountLabel = 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesión</strong></span>${icon('arrow')}</button></div></section>`; }
-  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('')}</section>`; }
+  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.length ? Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('') : renderEmpty('Sin notificaciones', 'Cuando haya novedades del portal aparecerán aquí.', '', 'bell')}</section>`; }
   function renderNotificationPopover() { return `<aside class="notification-popover"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications>${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${n.route}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
-  function renderEmpty(title, desc) { return `<div class="empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(title)}</h3><p>${esc(desc)}</p></div>`; }
+  function renderEmpty(title, desc, action = '', ico = 'search') { return `<div class="empty-state"><span class="icon-wrap">${icon(ico)}</span><h3>${esc(title)}</h3>${desc ? `<p>${esc(desc)}</p>` : ''}${action || ''}</div>`; }
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    if (e.target.closest('[data-dismiss-toast]')) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
     if (e.target.closest('[data-portal-theme-toggle]')) {
       setPortalTheme(!state.portalDark);
       return;
@@ -2134,11 +2185,42 @@
     if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
+  function onFocusOut(e) {
+    const field = e.target;
+    if (!(field instanceof HTMLElement) || !field.matches('input, select, textarea')) return;
+    if (typeof field.checkValidity !== 'function') return;
+    const form = field.closest('[data-form]');
+    if (!form) return;
+    const wrap = field.closest('.field') || field.parentElement;
+    let msg = wrap && wrap.querySelector(':scope > .field-error');
+    if (field.value && !field.checkValidity()) {
+      field.classList.add('is-invalid');
+      field.setAttribute('aria-invalid', 'true');
+      if (wrap) {
+        if (!msg) { msg = document.createElement('p'); msg.className = 'field-error'; msg.setAttribute('role', 'alert'); wrap.appendChild(msg); }
+        msg.textContent = field.validationMessage;
+      }
+    } else {
+      field.classList.remove('is-invalid');
+      field.removeAttribute('aria-invalid');
+      if (msg) msg.remove();
+    }
+  }
   function onKeydown(e) {
-    if (e.key === 'Escape' && state.mallaFocus && getRoute().path === '/mallas') {
-      state.mallaFocus = false;
-      localStorage.setItem('portal.malla.focus', '0');
-      render({ transition: true, scope: 'panel' });
+    if (e.key === 'Escape') {
+      if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
+      if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
+      if (state.mallaFocus && getRoute().path === '/mallas') {
+        state.mallaFocus = false;
+        localStorage.setItem('portal.malla.focus', '0');
+        render({ transition: true, scope: 'panel' });
+        return;
+      }
+      if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
+    }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof HTMLElement && e.target.matches('[role="button"]:not(button):not(a), [tabindex="0"][data-keyactivate]')) {
+      e.preventDefault();
+      e.target.click();
     }
   }
   async function onSubmit(e) {
@@ -2150,8 +2232,13 @@
     if (!form) return;
     e.preventDefault();
     if (!form.checkValidity()) { form.reportValidity(); return; }
+    if (form.dataset.submitting === '1') return;
     const fd = new FormData(form);
     if (isGuest() && ['upload-material', 'edit-content', 'new-agreement'].includes(form.dataset.form)) { readonlyToast(); return; }
+    const submitBtn = form.querySelector('button[type="submit"], [type="submit"], button:not([type])');
+    const aiForm = form.dataset.form === 'ceal-assistant' || form.dataset.form === 'survey-ai';
+    if (!aiForm && submitBtn) { form.dataset.submitting = '1'; submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
+    try {
     if (form.dataset.form === 'ceal-assistant') {
       if (!hasCealAccess()) { readonlyToast(); return; }
       const request = {
@@ -2249,13 +2336,19 @@
       try { const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
       Data.agreements.unshift(item); persistSnapshot(); showToast('Seguimiento creado'); routeTo('/acuerdos/' + item.id); return;
     }
+    } finally {
+      if (!aiForm && submitBtn) { form.dataset.submitting = ''; submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); }
+    }
   }
 
   window.addEventListener('hashchange', () => render({ transition: true, scope: 'route' }));
+  window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
+  window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', onKeydown);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
+  document.addEventListener('focusout', onFocusOut);
   document.addEventListener('submit', onSubmit);
   boot();
 })();
