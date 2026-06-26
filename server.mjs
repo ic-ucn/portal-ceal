@@ -868,6 +868,11 @@ Reglas:
 - Si hay datos personales, acusaciones, informacion sensible o lenguaje riesgoso, agregalo en safetyFlags.
 - Si parece una fecha de calendario mas que comunicado, igual genera comunicado, pero sugiere category="Académico" o "CEAL" segun corresponda.
 
+Calidad del borrador (importante):
+- El cuerpo debe ser un comunicado completo y bien redactado: contexto breve, informacion clave y, si corresponde, proximos pasos o a quien contactar. Claro y conciso, sin relleno ni frases vacias.
+- El resumen debe ser UNA sola frase informativa y especifica (que ocurre + cuando/quien si aplica), no generica.
+- El titulo debe ser especifico y descriptivo del tema, bien redactado.
+
 Entrada del CEAL:
 ${JSON.stringify({
     intent: body.intent || 'comunicado',
@@ -950,6 +955,28 @@ async function geminiGenerateJson(promptText, temperature) {
   return payload;
 }
 
+async function generateCommunicationsDigest(db) {
+  try {
+    if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) return false;
+    const items = (db.data.communications || []).slice(0, 5);
+    if (!items.length) return false;
+    const list = items.map(c => `- ${asText(c.title)} (${asText(c.category)}): ${asText(c.summary)}`).join('\n');
+    const prompt = `Eres el Asistente CEAL del Portal CEIC UCN. Resume en 1 o 2 frases breves, claras y neutrales lo mas importante de estos comunicados recientes, para mostrarlo en la portada a estudiantes de Ingenieria Civil UCN. No inventes datos ni agregues opiniones. Devuelve SOLO JSON {"resumen":"..."}.
+
+Comunicados recientes:
+${list}`;
+    const payload = await geminiGenerateJson(prompt, 0.3);
+    const text = (payload.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('\n');
+    const parsed = parseGeminiJson(text);
+    const resumen = asText(parsed?.resumen).slice(0, 400);
+    if (!resumen) return false;
+    db.data.aiCommunicationsDigest = { text: resumen, generatedAt: new Date().toISOString(), count: items.length };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function generateCealDraft(db, body, member) {
   if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
     const err = new Error('El asistente de IA no está configurado en el servidor. Avisa a CEAL.');
@@ -995,6 +1022,15 @@ Contexto:
 - Fecha actual: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}.
 - Solicitante: ${member.name || member.email}.
 
+Reglas de calidad de las preguntas (MUY IMPORTANTE):
+- Cada opción debe RESPONDER directamente la pregunta. Nunca uses "Sí"/"No" como opciones, salvo que la pregunta sea literalmente de sí/no.
+- En preguntas de selección (single/multiple) genera entre 3 y 6 opciones CONCRETAS y relevantes al tema. Ej: para "¿Qué comida prefieres para el asado?" las opciones deben ser tipos de comida ("Carne/parrilla", "Pollo", "Vegetariano/vegano", "Completos", "Otro"), NUNCA "Sí/No".
+- Usa type "text" para respuestas abiertas (restricciones alimentarias, comentarios, sugerencias, montos, fechas libres).
+- Usa type "rating" solo para valorar del 1 al 5.
+- Incluye una opción "Otro" cuando aporte; las opciones deben ser distintas entre sí y cubrir las alternativas razonables.
+- El título debe ser claro, específico y bien redactado para el tema (ej: "Comida para el asado del CEAL"), sin palabras sueltas raras ni inventadas.
+- Genera solo las preguntas necesarias (entre 2 y 5), sin relleno.
+
 Entrada:
 ${JSON.stringify({
     rawText: body.rawText,
@@ -1019,7 +1055,7 @@ Responde solamente JSON valido con esta forma:
         "label": "pregunta",
         "type": "single|multiple|text|rating",
         "required": true,
-        "options": ["opción 1", "opción 2"]
+        "options": ["Carne / parrilla", "Pollo", "Vegetariano / vegano", "Otro"]
       }
     ]
   },
@@ -1776,6 +1812,9 @@ async function handleApi(req, res, url) {
     }
     collection.unshift(created);
     await writeDb(db);
+    if (collectionName === 'communications') {
+      generateCommunicationsDigest(db).then(changed => (changed ? writeDb(db) : null)).catch(() => {});
+    }
     return sendJson(res, 201, { ok: true, item: collectionName === 'surveys' ? publicSurvey(created) : created });
   }
 

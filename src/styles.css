@@ -5281,3 +5281,24 @@ body.theme-dark .home-summary .stat-card {
   border-radius: 16px !important;
   border: 1px solid var(--line);
 }
+
+/* Banner campus: imagen COMPLETA (contain), tamaño decente, sin recorte. */
+.home-hero .home-campus-feature img {
+  height: clamp(150px, 18vw, 215px) !important;
+  max-height: 215px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 14px !important;
+  border: 0 !important;
+}
+
+/* Resumen IA de comunicados en el Inicio. */
+.home-digest { margin-top: 18px; border-left: 3px solid var(--blue-600); }
+.home-digest-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.home-digest-head .kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--blue-700); }
+.home-digest p { margin: 0; color: var(--text); line-height: 1.55; }
+body.theme-dark .home-digest { border-left-color: var(--blue-500); }
+body.theme-dark .home-digest-head .kicker { color: #8fc0ff; }
