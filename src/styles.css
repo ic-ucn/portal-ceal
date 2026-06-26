@@ -4905,3 +4905,59 @@ body.theme-dark .access-card .icon-box { background: rgba(112, 173, 255, .16); c
 
 /* El acento lateral azul->naranja era para el hero blanco viejo; sobre el navy sobra. */
 .home-summary::before { display: none; }
+
+.home-hero {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.home-campus-feature {
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(390px, 44vw, 680px);
+  padding: clamp(8px, 1.6vw, 24px) 0;
+}
+
+.home-campus-feature img {
+  width: min(100%, 1180px);
+  height: clamp(390px, 44vw, 680px);
+  max-height: calc(100vh - 190px);
+  margin-inline: auto;
+  object-fit: cover;
+  object-position: center 58%;
+}
+
+.home-actions-panel {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 920px) {
+  .home-hero {
+    gap: 14px;
+  }
+
+  .home-campus-feature {
+    min-height: clamp(258px, 70vw, 318px);
+    padding: 2px 0;
+  }
+
+  .home-campus-feature img {
+    width: min(100%, 520px);
+    height: clamp(258px, 70vw, 318px);
+    max-height: none;
+    object-fit: contain;
+    object-position: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-campus-feature {
+    min-height: clamp(238px, 76vw, 306px);
+  }
+
+  .home-campus-feature img {
+    width: min(100%, 430px);
+    height: clamp(238px, 76vw, 306px);
+  }
+}
