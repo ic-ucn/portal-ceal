@@ -37,6 +37,12 @@ Also verify the current local app in browser at desktop and mobile widths:
 - material upload with a real file and download
 - case creation and CEAL response/update
 
+## Publishing
+
+- After user-facing changes, update `https://ceicucn.cl` by committing the scoped changes and pushing `main` to `origin`.
+- When `src/app.js` or `src/styles.css` changes, bump the static asset query string in `index.html` so GitHub Pages/CDN does not serve stale files.
+- After pushing, verify production with a cache-busted load of `https://ceicucn.cl` at desktop and mobile widths.
+
 ## Design Constraints
 
 - Keep the interface quiet, academic, direct and practical.
