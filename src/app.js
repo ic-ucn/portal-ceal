@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626f';
+  const DATA_CONTENT_VERSION = '20260626g';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626f';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626g';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -850,7 +850,6 @@
       ['/material', 'book', 'Material']
     ];
     if (hasCealAccess()) {
-      items.push(['/asistente', 'sparkles', 'Asistente CEAL']);
       items.push(['/gestion', 'settings', 'Gestión']);
     }
     if (hasJefaturaAccess()) items.push(['/jefatura', 'users', 'Jefatura']);
@@ -994,7 +993,7 @@
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/perfil','/buscar','/notificaciones','/asistente'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
+      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
@@ -1007,6 +1006,7 @@
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/notificaciones') return renderNotificationsPage();
     if (path === '/comunicados') return renderCommunications();
+    if (path === '/comunicados/nuevo') return renderCealAssistant();
     if (path.startsWith('/comunicados/')) return renderCommunicationDetail(path.split('/')[2]);
     if (path === '/calendario') return renderCalendar();
     if (path === '/encuestas') return renderSurveys();
@@ -1117,7 +1117,7 @@
     const q = plain(state.communicationQuery);
     const items = Data.communications.filter(c => (state.communicationCategory === 'Todas' || plain(c.category) === plain(state.communicationCategory)) && (!q || plain([c.title, c.summary, c.category, c.source].join(' ')).includes(q)));
     const selected = items[0];
-    const createAction = canPublishCommunications() ? `<a class="btn primary" href="#/asistente">${icon('megaphone')} Crear comunicado</a>` : '';
+    const createAction = canPublishCommunications() ? `<a class="btn primary" href="#/comunicados/nuevo">${icon('megaphone')} Crear comunicado</a>` : '';
     return `${pageHead('Comunicados', 'Avisos, respuestas y actualizaciones de la carrera', createAction)}
       <div class="comms-layout"><aside class="card pad comms-filters"><div class="form-field"><label>Buscar comunicados</label><input class="input" data-com-search value="${esc(state.communicationQuery)}" placeholder="Buscar comunicado" /></div><h2 class="card-title">Categorías</h2><div class="comms-category-list">${cats.map(c => `<button class="chip-btn ${state.communicationCategory === c ? 'active' : ''}" data-com-category="${esc(c)}">${esc(c)}</button>`).join('')}</div></aside>
       <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay más comunicados en esta categoría.</p>'}</div></main>
@@ -1857,7 +1857,7 @@
       : !sessionReady
         ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>El asistente necesita una sesión interna nueva para validar el acceso.</span></div>`
         : '';
-    return ensureCEAL(`${pageHead('Asistente CEAL', 'Convierte texto crudo en comunicado revisable para el portal', `<span class="pill blue">Gemini ${esc(state.cealAssistantLoading ? 'trabajando' : 'listo')}</span>${usage}`)}
+    return ensureCEAL(`${pageHead('Crear comunicado', 'Redáctalo con ayuda, elige audiencia y publícalo (con envío por correo opcional)', `<a class="btn secondary" href="#/comunicados">${icon('arrow')} Volver a comunicados</a><span class="pill blue">Gemini ${esc(state.cealAssistantLoading ? 'trabajando' : 'listo')}</span>${usage}`)}
       <div class="assistant-layout">
         <form class="card pad ceal-assistant-form" data-form="ceal-assistant">
           <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
@@ -1926,7 +1926,7 @@
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
     const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
     const modules = [
-      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/asistente'],
+      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/comunicados/nuevo'],
       ['edit:calendario','calendar','Editar calendario','Gestiona fechas académicas oficiales.','/calendario'],
       ['upload:acuerdos','file','Registrar seguimiento','Registra acuerdos y compromisos.','/gestion/acuerdos/nuevo'],
       ['validate:material','book','Validar material','Aprueba recursos enviados.', firstMaterial ? '/gestion/material/' + firstMaterial + '/validar' : '/material'],
