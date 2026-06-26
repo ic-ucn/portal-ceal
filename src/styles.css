@@ -3878,6 +3878,37 @@ body::before {
   gap: 5px;
 }
 
+/* Eliminar consulta desde la tarjeta del listado (solo CEAL). */
+.survey-card-wrap { position: relative; }
+.survey-card-wrap .survey-card .row-between { padding-right: 34px; }
+.survey-card-del {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--slate-500);
+  cursor: pointer;
+  z-index: 2;
+  transition: color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+}
+.survey-card-del svg { width: 15px; height: 15px; }
+.survey-card-del:hover {
+  color: var(--red-600);
+  background: var(--red-100);
+  border-color: rgba(220, 38, 38, .3);
+}
+.survey-card-del:focus-visible {
+  outline: 2px solid var(--red-600);
+  outline-offset: 2px;
+}
+
 .survey-question-list {
   display: grid;
   gap: 12px;

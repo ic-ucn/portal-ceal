@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626c';
+  const DATA_CONTENT_VERSION = '20260626d';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626c';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626d';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -1715,7 +1715,9 @@
   }
   function surveyCard(survey) {
     const count = Number(survey.responseCount || survey.responses?.length || 0);
-    return `<a class="item-card survey-card" href="#/encuestas/${esc(survey.id)}"><div class="row-between"><span class="pill blue">${surveyModeLabel(survey.mode)}</span>${surveyBadge(survey)}</div><h3>${esc(survey.title)}</h3><p>${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="survey-meta-row"><span>${icon('users')} ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}</span><span>${icon('check')} ${count} respuestas</span><span>${survey.secret !== false ? `${icon('eye')} voto secreto` : `${icon('eye')} identificada`}</span></div></a>`;
+    const card = `<a class="item-card survey-card" href="#/encuestas/${esc(survey.id)}"><div class="row-between"><span class="pill blue">${surveyModeLabel(survey.mode)}</span>${surveyBadge(survey)}</div><h3>${esc(survey.title)}</h3><p>${esc(survey.description || 'Consulta preparada por CEAL.')}</p><div class="survey-meta-row"><span>${icon('users')} ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}</span><span>${icon('check')} ${count} respuestas</span><span>${survey.secret !== false ? `${icon('eye')} voto secreto` : `${icon('eye')} identificada`}</span></div></a>`;
+    if (!hasCealAccess()) return card;
+    return `<div class="survey-card-wrap">${card}<button class="survey-card-del" type="button" data-survey-delete="${esc(survey.id)}" data-survey-title="${esc(survey.title || 'esta consulta')}" aria-label="Eliminar consulta">${icon('x')}</button></div>`;
   }
   function renderSurveys() {
     const surveys = [...(Data.surveys || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -1796,7 +1798,7 @@
     if (!survey) return renderNotFound('No encontramos la encuesta solicitada.');
     const questions = survey.questions || [];
     const count = Number(survey.responseCount || survey.responses?.length || 0);
-    const cealControls = hasCealAccess() ? `<div class="vstack"><button class="btn primary" data-survey-export="${esc(survey.id)}">${icon('download')} Exportar XLSX</button>${survey.status !== 'open' ? `<button class="btn secondary" data-survey-status="open" data-survey-id="${esc(survey.id)}">Abrir consulta</button>` : `<button class="btn secondary" data-survey-status="closed" data-survey-id="${esc(survey.id)}">Cerrar consulta</button>`}</div>` : '';
+    const cealControls = hasCealAccess() ? `<div class="vstack"><button class="btn primary" data-survey-export="${esc(survey.id)}">${icon('download')} Exportar XLSX</button>${survey.status !== 'open' ? `<button class="btn secondary" data-survey-status="open" data-survey-id="${esc(survey.id)}">Abrir consulta</button>` : `<button class="btn secondary" data-survey-status="closed" data-survey-id="${esc(survey.id)}">Cerrar consulta</button>`}<button class="btn ghost danger-lite" data-survey-delete="${esc(survey.id)}" data-survey-title="${esc(survey.title || 'esta consulta')}">${icon('x')} Eliminar consulta</button></div>` : '';
     const responseArea = survey.status !== 'open'
       ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('check')}</span><h3>Consulta cerrada</h3><p>Los resultados quedan disponibles para CEAL.</p></section>`
       : isGuest()
@@ -2183,6 +2185,28 @@
       persistSnapshot();
       showToast(nextStatus === 'open' ? 'Consulta abierta' : 'Consulta cerrada', 'blue');
       render({ transition: true, scope: 'panel' });
+      return;
+    }
+    const surveyDelete = e.target.closest('[data-survey-delete]');
+    if (surveyDelete) {
+      e.preventDefault();
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      const id = surveyDelete.dataset.surveyDelete;
+      const title = surveyDelete.dataset.surveyTitle || 'esta consulta';
+      const survey = Data.surveys.find(s => s.id === id);
+      if (!survey) return;
+      if (!window.confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer y borra también sus respuestas.`)) return;
+      try {
+        await apiRequest(`/surveys/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } catch (error) {
+        showToast(error.message || 'No se pudo eliminar la consulta', 'blue');
+        return;
+      }
+      Data.surveys = Data.surveys.filter(s => s.id !== id);
+      persistSnapshot();
+      showToast('Consulta eliminada', 'blue');
+      if (getRoute().path.startsWith('/encuestas/')) { routeTo('/encuestas'); }
+      else { render({ transition: true, scope: 'panel' }); }
       return;
     }
     const surveyExport = e.target.closest('[data-survey-export]');

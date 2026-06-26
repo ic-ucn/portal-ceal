@@ -1851,6 +1851,18 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true, item: collectionName === 'surveys' ? publicSurvey(item) : item });
   }
 
+  if (req.method === 'DELETE') {
+    if (!id) return sendError(res, 400, 'id is required');
+    if (collectionName !== 'surveys') return sendError(res, 405, 'method not allowed');
+    requireCealSession(req, db);
+    const target = resolveLegacyItem(collectionName, collection, id);
+    const index = target ? collection.findIndex(item => item.id === target.id) : -1;
+    if (index === -1) return sendError(res, 404, 'item not found');
+    const [removed] = collection.splice(index, 1);
+    await writeDb(db);
+    return sendJson(res, 200, { ok: true, id: removed.id });
+  }
+
   return sendError(res, 405, 'method not allowed');
 }
 
