@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626j';
+  const DATA_CONTENT_VERSION = '20260626k';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626j';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626k';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -1842,7 +1842,7 @@
       return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
     }
     if (!status.configured) {
-      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conexión pendiente</h2><p class="small muted">La agenda de ${esc(account)} aún no está habilitada para crear horarios desde el portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('settings')}</span><span><strong>Revisión requerida</strong><small>Jefatura podrá conectarla cuando esté disponible.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>Google Calendar</small></span></div></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda · opcional</span><h2 class="card-title">Horarios desde Google Calendar</h2><p class="small muted">Los horarios de atención se muestran a la izquierda. De forma opcional, Jefatura podrá conectar su Google Calendar para publicarlos y actualizarlos automáticamente.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Horarios publicados</strong><small>Ya visibles para estudiantes.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Sincronización automática</strong><small>Próximamente con Google Calendar.</small></span></div></aside>`;
     }
     if (status.connected) {
       return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Google Calendar conectado</h2><p class="small muted">La agenda de ${esc(account)} está autorizada para crear eventos desde el portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Conexión activa</strong><small>${status.connectedAt ? fmtDate(status.connectedAt) : 'Lista para usar'}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span></div><button class="btn secondary" data-calendar-disconnect type="button">${icon('x')} Desconectar Calendar</button></aside>`;
@@ -1856,7 +1856,9 @@
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
     const calendarButton = status.connected
       ? `<span class="pill green">Agenda conectada</span>`
-      : `<span class="pill orange">Agenda no conectada</span>`;
+      : status.configured
+        ? `<span class="pill orange">Agenda no conectada</span>`
+        : '';
     const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver agenda pública</a>` : '';
     const actions = `${calendarButton}${bookingButton}`;
     return `${pageHead('Jefatura de carrera', 'Horarios de atención e información oficial')}
@@ -1963,7 +1965,7 @@
         <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Seguimientos', 'Activos')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
         <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
         <div class="management-content-grid">
-          <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/gestion/comunicados/com-paro-005/editar">Editar destacado</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/comunicados/nuevo">${icon('megaphone')} Crear</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
