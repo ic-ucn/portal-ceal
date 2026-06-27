@@ -135,7 +135,9 @@ for (const profile of data.staffProfiles) {
   const authorized = [profile.email, ...(profile.authorizedEmails || [])].filter(Boolean);
   const authorizedSet = new Set(authorized.map((email) => email.toLowerCase()));
   assert(authorized.includes('jc.icivil.afta@ucn.cl'), 'Jefatura should authorize the official career-head email');
-  assert(authorizedSet.size === 1 && authorizedSet.has('jc.icivil.afta@ucn.cl'), 'Jefatura should only authorize the official career-head email');
+  // jc real + stand-in aprobado (biblioteca) mientras se prueba la agenda antes de conectar el jc real.
+  const allowedJefatura = new Set(['jc.icivil.afta@ucn.cl', 'biblioteca.ceicucn@gmail.com']);
+  assert([...authorizedSet].every((email) => allowedJefatura.has(email)), 'Jefatura should only authorize the official career-head email or the approved stand-in');
   for (const email of authorized) assert(!cealEmailSet.has(email), `Jefatura should not authorize CEAL email ${email}`);
 }
 

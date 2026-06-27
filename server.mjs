@@ -26,9 +26,9 @@ const publicPortalUrl = (process.env.PORTAL_PUBLIC_URL || '').replace(/\/$/, '')
 const calendarClientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || googleClientId;
 const calendarClientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '';
 const calendarRedirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || '';
-const legacyCalendarAccount = 'biblioteca.ceicucn@gmail.com';
-const configuredCalendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
-const calendarAccount = configuredCalendarAccount === legacyCalendarAccount ? 'jc.icivil.afta@ucn.cl' : configuredCalendarAccount;
+// Cuenta de agenda configurable por env (por defecto el jefe real; se puede usar
+// biblioteca.ceicucn@gmail.com como stand-in mientras se prueba antes de conectar el real).
+const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
 const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 const calendarScopes = [
   'https://www.googleapis.com/auth/calendar.events',
@@ -251,7 +251,9 @@ function ensureDbShape(db, seed) {
     tokens: null,
     updatedAt: null
   };
-  if (asText(db.data.integrations.googleCalendar.account).toLowerCase() === legacyCalendarAccount && calendarAccount !== legacyCalendarAccount) {
+  // Si cambia la cuenta de agenda configurada (p. ej. stand-in biblioteca <-> jc real),
+  // se resetea la conexion para forzar reconectar con la cuenta correcta.
+  if (asText(db.data.integrations.googleCalendar.account).toLowerCase() !== calendarAccount) {
     db.data.integrations.googleCalendar.account = calendarAccount;
     db.data.integrations.googleCalendar.connected = false;
     db.data.integrations.googleCalendar.tokens = null;
