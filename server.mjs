@@ -1355,6 +1355,7 @@ function loadRecipients() {
     .map(e => String(e || '').trim().toLowerCase())
     .filter(e => EMAIL_RE.test(e)))];
   const envTest = clean(String(process.env.CEAL_MAIL_TEST_RECIPIENTS || '').split(/[,\s;]+/));
+  const envCeal = clean(String(process.env.CEAL_MAIL_CEAL_RECIPIENTS || '').split(/[,\s;]+/));
   for (const file of [recipientsFile, recipientsLocalFile]) {
     try {
       if (file && existsSync(file)) {
@@ -1362,7 +1363,8 @@ function loadRecipients() {
         recipientsCache = {
           students: clean(data.students),
           professors: clean(data.professors),
-          test: [...new Set([...clean(data.test), ...envTest])]
+          test: [...new Set([...clean(data.test), ...envTest])],
+          ceal: [...new Set([...clean(data.ceal), ...envCeal])]
         };
         return recipientsCache;
       }
@@ -1370,7 +1372,7 @@ function loadRecipients() {
       console.error('[mail] no se pudo leer recipients:', file, error.message);
     }
   }
-  recipientsCache = { students: [], professors: [], test: envTest };
+  recipientsCache = { students: [], professors: [], test: envTest, ceal: envCeal };
   return recipientsCache;
 }
 
@@ -1379,7 +1381,7 @@ function mailMeta() {
   return {
     configured: Boolean(gmailConfigured || (mailUser && mailPass) || mailTestMode),
     transport: gmailConfigured ? 'gmail-api' : (mailUser && mailPass) ? 'smtp' : mailTestMode ? 'test' : 'none',
-    counts: { students: r.students.length, professors: r.professors.length, test: r.test.length }
+    counts: { students: r.students.length, professors: r.professors.length, test: r.test.length, ceal: r.ceal.length }
   };
 }
 
@@ -1501,6 +1503,7 @@ async function sendCommunicationEmail(comm, groups) {
   const recipients = loadRecipients();
   const list = [];
   if (groups.test) list.push(...recipients.test);
+  if (groups.ceal) list.push(...recipients.ceal);
   if (groups.students) list.push(...recipients.students);
   if (groups.professors) list.push(...recipients.professors);
   const bcc = [...new Set(list)];
@@ -1525,7 +1528,7 @@ async function sendCommunicationEmail(comm, groups) {
       }
     }
     console.log(`[mail] (gmail-api) envio completo: ${sentCount} destinatarios`);
-    return { sent: true, count: sentCount, batches: batches.length, via: 'gmail-api', groups: { test: Boolean(groups.test), students: Boolean(groups.students), professors: Boolean(groups.professors) } };
+    return { sent: true, count: sentCount, batches: batches.length, via: 'gmail-api', groups: { test: Boolean(groups.test), ceal: Boolean(groups.ceal), students: Boolean(groups.students), professors: Boolean(groups.professors) } };
   }
 
   // Fallback: SMTP (suele estar bloqueado en Render).
@@ -1559,7 +1562,7 @@ async function sendCommunicationEmail(comm, groups) {
     sent: true,
     count: sentCount,
     batches: batches.length,
-    groups: { test: Boolean(groups.test), students: Boolean(groups.students), professors: Boolean(groups.professors) },
+    groups: { test: Boolean(groups.test), ceal: Boolean(groups.ceal), students: Boolean(groups.students), professors: Boolean(groups.professors) },
     ...(previews.length ? { previews } : {})
   };
 }
@@ -2056,10 +2059,10 @@ async function handleApi(req, res, url) {
     if (collectionName === 'communications') {
       generateCommunicationsDigest(db).then(changed => (changed ? writeDb(db) : null)).catch(() => {});
       const notify = body.notify || {};
-      if (notify.test || notify.students || notify.professors) {
+      if (notify.test || notify.ceal || notify.students || notify.professors) {
         try {
           requireCealSession(req, db);
-          notifyResult = await sendCommunicationEmail(created, { test: Boolean(notify.test), students: Boolean(notify.students), professors: Boolean(notify.professors) });
+          notifyResult = await sendCommunicationEmail(created, { test: Boolean(notify.test), ceal: Boolean(notify.ceal), students: Boolean(notify.students), professors: Boolean(notify.professors) });
         } catch (error) {
           console.error('[mail] notify fallo:', error?.statusCode || '', error?.message || error);
           notifyResult = { sent: false, reason: error.statusCode === 401 || error.statusCode === 403 ? 'unauthorized' : 'error', error: asText(error?.message || error).slice(0, 300) };

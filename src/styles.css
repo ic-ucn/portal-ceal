@@ -346,6 +346,10 @@
 .notify-opt.is-test .notify-count { background: rgba(217, 119, 6, .14); color: #b45309; }
 .notify-opt.is-test input { accent-color: #d97706; }
 body.theme-dark .notify-opt.is-test .notify-count { background: rgba(251, 146, 60, .18); color: #fdba74; }
+.notify-opt.is-ceal { border-style: dashed; border-color: rgba(13, 148, 136, .5); }
+.notify-opt.is-ceal .notify-count { background: rgba(13, 148, 136, .14); color: #0f766e; }
+.notify-opt.is-ceal input { accent-color: #0d9488; }
+body.theme-dark .notify-opt.is-ceal .notify-count { background: rgba(45, 212, 191, .18); color: #5eead4; }
 .notify-count {
   display: inline-flex;
   align-items: center;

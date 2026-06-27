@@ -110,11 +110,13 @@ const students = [...new Set([...a.students, ...b.students])].sort();
 const professors = [...new Set([...a.professors, ...b.professors])].sort()
   .filter(e => !e.endsWith('@alumnos.ucn.cl'));
 
-// Lista de prueba: se pasa por env CEAL_TEST_RECIPIENTS (coma-separada) para no
+// Listas pequenas (prueba y directiva CEAL): por env, coma-separadas, para no
 // dejar correos personales hardcodeados en este script (el repo es publico).
 const EMAIL_OK = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
-const test = [...new Set(String(process.env.CEAL_TEST_RECIPIENTS || '')
+const parseList = (raw) => [...new Set(String(raw || '')
   .split(/[,\s;]+/).map(e => e.trim().toLowerCase()).filter(e => EMAIL_OK.test(e)))];
+const test = parseList(process.env.CEAL_TEST_RECIPIENTS);
+const ceal = parseList(process.env.CEAL_RECIPIENTS);
 
 const payload = {
   generatedAt: new Date().toISOString(),
@@ -122,7 +124,8 @@ const payload = {
   students,
   professors,
   test,
-  counts: { students: students.length, professors: professors.length, test: test.length }
+  ceal,
+  counts: { students: students.length, professors: professors.length, test: test.length, ceal: ceal.length }
 };
 
 writeFileSync(outFile, JSON.stringify(payload, null, 2) + '\n', 'utf8');
@@ -130,3 +133,4 @@ console.log(`recipients.json -> ${outFile}`);
 console.log(`  alumnos: ${students.length}`);
 console.log(`  profes:  ${professors.length}`);
 console.log(`  test:    ${test.length}`);
+console.log(`  ceal:    ${ceal.length}`);

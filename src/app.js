@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626k';
+  const DATA_CONTENT_VERSION = '20260626l';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626k';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626l';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -54,7 +54,7 @@
     cealAssistantLoading: false,
     cealAssistantUsage: null,
     mailMeta: null,
-    notifyGroups: { test: false, students: false, professors: false },
+    notifyGroups: { test: false, ceal: false, students: false, professors: false },
     surveyBuilderRequest: { rawText: '', mode: 'auto' },
     surveyBuilderResult: null,
     surveyBuilderError: '',
@@ -1920,9 +1920,9 @@
   }
   function renderNotifyBlock() {
     const meta = state.mailMeta;
-    const counts = meta?.counts || { students: 0, professors: 0, test: 0 };
-    const g = state.notifyGroups || { test: false, students: false, professors: false };
-    const selected = (g.test ? (counts.test || 0) : 0) + (g.students ? counts.students : 0) + (g.professors ? counts.professors : 0);
+    const counts = meta?.counts || { students: 0, professors: 0, test: 0, ceal: 0 };
+    const g = state.notifyGroups || { test: false, ceal: false, students: false, professors: false };
+    const selected = (g.test ? (counts.test || 0) : 0) + (g.ceal ? (counts.ceal || 0) : 0) + (g.students ? counts.students : 0) + (g.professors ? counts.professors : 0);
     const configured = Boolean(meta?.configured);
     const hint = !configured
       ? `<p class="notify-hint warn">${icon('eye')} El envío por correo aún no está activo en el servidor. El comunicado se publicará igual.</p>`
@@ -1933,10 +1933,11 @@
       <span class="kicker">${icon('megaphone')} Avisar por correo al publicar</span>
       <div class="notify-options">
         <label class="notify-opt is-test"><input type="checkbox" data-notify-group="test" ${g.test ? 'checked' : ''} /> <span>Test</span> <span class="notify-count">${counts.test || 0}</span></label>
+        <label class="notify-opt is-ceal"><input type="checkbox" data-notify-group="ceal" ${g.ceal ? 'checked' : ''} /> <span>CEAL</span> <span class="notify-count">${counts.ceal || 0}</span></label>
         <label class="notify-opt"><input type="checkbox" data-notify-group="students" ${g.students ? 'checked' : ''} /> <span>Alumnos</span> <span class="notify-count">${counts.students}</span></label>
         <label class="notify-opt"><input type="checkbox" data-notify-group="professors" ${g.professors ? 'checked' : ''} /> <span>Profesores</span> <span class="notify-count">${counts.professors}</span></label>
       </div>
-      ${g.test ? `<p class="notify-hint muted">Test envía solo a la lista de prueba (sin tocar Alumnos/Profesores). Úsalo para validar el envío real.</p>` : ''}
+      ${g.test || g.ceal ? `<p class="notify-hint muted">${[g.test ? 'Test' : '', g.ceal ? 'CEAL' : ''].filter(Boolean).join(' y ')} envía solo a esa lista interna (sin tocar Alumnos/Profesores). Úsalo para validar antes.</p>` : ''}
       ${hint}
     </div>`;
   }
@@ -2107,8 +2108,8 @@
       const draft = state.cealAssistantResult?.draft;
       if (!draft) { showToast('Primero genera un borrador', 'blue'); return; }
       const notify = { ...state.notifyGroups };
-      const counts = state.mailMeta?.counts || { students: 0, professors: 0, test: 0 };
-      const recipientTotal = (notify.test ? (counts.test || 0) : 0) + (notify.students ? counts.students : 0) + (notify.professors ? counts.professors : 0);
+      const counts = state.mailMeta?.counts || { students: 0, professors: 0, test: 0, ceal: 0 };
+      const recipientTotal = (notify.test ? (counts.test || 0) : 0) + (notify.ceal ? (counts.ceal || 0) : 0) + (notify.students ? counts.students : 0) + (notify.professors ? counts.professors : 0);
       if (recipientTotal > 0 && !window.confirm(`Se publicará el comunicado y se enviará por correo a ${recipientTotal} ${recipientTotal === 1 ? 'persona' : 'personas'}. ¿Continuar?`)) return;
       let item = {
         id: `com-ai-${Date.now()}`,
@@ -2130,7 +2131,7 @@
       } catch {}
       Data.communications = Data.communications.filter(c => c.id !== item.id);
       Data.communications.unshift(item);
-      state.notifyGroups = { test: false, students: false, professors: false };
+      state.notifyGroups = { test: false, ceal: false, students: false, professors: false };
       persistSnapshot();
       if (notifyResult?.sent) showToast(`Comunicado publicado y enviado a ${notifyResult.count} ${notifyResult.count === 1 ? 'persona' : 'personas'}`);
       else if (notifyResult && notifyResult.reason === 'not-configured') showToast('Comunicado publicado. El correo aún no está configurado en el servidor.', 'blue');
