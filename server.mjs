@@ -52,6 +52,11 @@ const mailBatchSize = Number(process.env.CEAL_MAIL_BATCH || 90);
 const mailTestMode = process.env.CEAL_MAIL_TEST_MODE === '1';
 const recipientsFile = process.env.RECIPIENTS_FILE || '/etc/secrets/recipients.json';
 const recipientsLocalFile = path.join(root, 'recipients.json');
+// Gmail API (HTTPS) — alternativa al SMTP, que muchos hosts (Render) bloquean.
+const gmailClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
+const gmailClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
+const gmailRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
+const gmailConfigured = Boolean(gmailClientId && gmailClientSecret && gmailRefreshToken);
 
 const collectionMap = {
   communications: 'communications',
@@ -1372,7 +1377,8 @@ function loadRecipients() {
 function mailMeta() {
   const r = loadRecipients();
   return {
-    configured: Boolean((mailUser && mailPass) || mailTestMode),
+    configured: Boolean(gmailConfigured || (mailUser && mailPass) || mailTestMode),
+    transport: gmailConfigured ? 'gmail-api' : (mailUser && mailPass) ? 'smtp' : mailTestMode ? 'test' : 'none',
     counts: { students: r.students.length, professors: r.professors.length, test: r.test.length }
   };
 }
@@ -1393,6 +1399,70 @@ function getMailTransporter() {
     });
   }
   return mailTransporter;
+}
+
+// --- Gmail API (HTTPS, sin SMTP) ---
+let gmailOAuthClient = null;
+function getGmailOAuthClient() {
+  if (!gmailConfigured) return null;
+  if (!gmailOAuthClient) {
+    gmailOAuthClient = new OAuth2Client(gmailClientId, gmailClientSecret);
+    gmailOAuthClient.setCredentials({ refresh_token: gmailRefreshToken });
+  }
+  return gmailOAuthClient;
+}
+
+function encodeMimeWord(text) {
+  // RFC 2047 para asuntos/nombres con acentos.
+  const value = String(text || '');
+  if (/^[\x20-\x7E]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
+}
+
+function buildRawEmail({ fromName, fromEmail, to, bcc, replyTo, subject, text, html }) {
+  const boundary = `b_${crypto.randomBytes(12).toString('hex')}`;
+  const headers = [
+    `From: ${encodeMimeWord(fromName)} <${fromEmail}>`,
+    `To: ${to}`,
+    bcc && bcc.length ? `Bcc: ${bcc.join(', ')}` : '',
+    replyTo ? `Reply-To: ${replyTo}` : '',
+    `Subject: ${encodeMimeWord(subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`
+  ].filter(Boolean).join('\r\n');
+  const body = [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(text || '', 'utf8').toString('base64'),
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(html || '', 'utf8').toString('base64'),
+    `--${boundary}--`,
+    ''
+  ].join('\r\n');
+  return Buffer.from(`${headers}\r\n\r\n${body}`, 'utf8').toString('base64url');
+}
+
+async function sendViaGmailApi({ fromEmail, fromName, bcc, replyTo, subject, text, html }) {
+  const client = getGmailOAuthClient();
+  const tokenResp = await client.getAccessToken();
+  const accessToken = typeof tokenResp === 'string' ? tokenResp : tokenResp?.token;
+  if (!accessToken) throw new Error('no se pudo obtener access token de Gmail');
+  const raw = buildRawEmail({ fromName, fromEmail, to: fromEmail, bcc, replyTo, subject, text, html });
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ raw })
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`gmail api ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  return res.json();
 }
 
 function chunkArray(arr, size) {
@@ -1435,15 +1505,34 @@ async function sendCommunicationEmail(comm, groups) {
   if (groups.professors) list.push(...recipients.professors);
   const bcc = [...new Set(list)];
   if (!bcc.length) return { sent: false, reason: 'no-recipients', count: 0 };
-  const transporter = getMailTransporter();
-  if (!transporter) return { sent: false, reason: 'not-configured', count: bcc.length };
 
   const from = mailUser || 'ceal.ingenieriacivil@ucn.cl';
   const { subject, text, html } = communicationEmailContent(comm);
   const batches = chunkArray(bcc, mailBatchSize);
   let sentCount = 0;
+
+  // Camino preferido: Gmail API por HTTPS (no usa SMTP, no lo bloquea Render).
+  if (gmailConfigured) {
+    console.log(`[mail] (gmail-api) enviando "${comm.id}" a ${bcc.length} destinatarios (${batches.length} lote/s) desde ${from}`);
+    for (const batch of batches) {
+      try {
+        const info = await sendViaGmailApi({ fromEmail: from, fromName: mailFromName, bcc: batch, replyTo: from, subject, text, html });
+        sentCount += batch.length;
+        console.log(`[mail] (gmail-api) lote OK (${batch.length}) id=${info?.id || '-'}`);
+      } catch (error) {
+        console.error('[mail] (gmail-api) ERROR:', error?.message || error);
+        return { sent: false, reason: 'send-failed', count: sentCount, error: asText(error?.message || error).slice(0, 300) };
+      }
+    }
+    console.log(`[mail] (gmail-api) envio completo: ${sentCount} destinatarios`);
+    return { sent: true, count: sentCount, batches: batches.length, via: 'gmail-api', groups: { test: Boolean(groups.test), students: Boolean(groups.students), professors: Boolean(groups.professors) } };
+  }
+
+  // Fallback: SMTP (suele estar bloqueado en Render).
+  const transporter = getMailTransporter();
+  if (!transporter) return { sent: false, reason: 'not-configured', count: bcc.length };
   const previews = [];
-  console.log(`[mail] enviando comunicado "${comm.id}" a ${bcc.length} destinatarios (${batches.length} lote/s) desde ${from}`);
+  console.log(`[mail] (smtp) enviando comunicado "${comm.id}" a ${bcc.length} destinatarios (${batches.length} lote/s) desde ${from}`);
   for (const batch of batches) {
     try {
       const info = await transporter.sendMail({
