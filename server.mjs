@@ -1176,7 +1176,8 @@ function publicIntegrationData(data = {}) {
 }
 
 function publicData(data = {}) {
-  const { sessions, aiUsage, aiDrafts, integrations, ...safe } = data;
+  // appointments se excluye: contiene correos/motivos personales y el bootstrap es publico.
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
@@ -1833,6 +1834,18 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, { ok: true, busy: data.calendars?.[calendarId]?.busy || [] });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'calendar freebusy failed');
+      }
+    }
+
+    if (id === 'appointments' && req.method === 'GET') {
+      try {
+        const session = requirePortalSession(req, db);
+        const all = db.data.appointments || [];
+        const isJefatura = session.role === 'jefatura' && session.accessMode === 'jefatura';
+        const mine = isJefatura ? all : all.filter(a => asText(a.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
+        return sendJson(res, 200, { ok: true, items: mine, scope: isJefatura ? 'all' : 'mine' });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'appointments list failed');
       }
     }
 

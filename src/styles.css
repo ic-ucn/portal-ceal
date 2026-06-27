@@ -4055,6 +4055,33 @@ input[type="radio"] {
   color: var(--slate-600);
 }
 
+/* Agendamiento de atención con jefatura */
+.booking-panel .kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--blue-700); }
+.booking-slots { display: grid; gap: 12px; margin: 14px 0 4px; max-height: 360px; overflow-y: auto; }
+.booking-day { display: grid; gap: 6px; }
+.booking-day-label { font-size: .8rem; font-weight: 700; color: var(--slate-600); }
+.booking-slot-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.booking-slot {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-weight: 600;
+  font-size: .86rem;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+}
+.booking-slot:hover { border-color: rgba(18, 111, 227, .5); }
+.booking-slot.active { background: var(--blue-600); border-color: var(--blue-600); color: #fff; }
+.booking-confirm { margin-top: 6px; }
+.appt-list { display: grid; gap: 8px; margin-top: 10px; }
+.appt-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.appt-main { display: grid; gap: 2px; }
+.appt-main small { color: var(--slate-600); font-size: .8rem; }
+body.theme-dark .booking-slot { background: rgba(20, 43, 68, .5); }
+body.theme-dark .booking-slot.active { background: var(--blue-600); color: #06203b; }
+
 @media (min-width: 1181px) {
   .academic-calendar-card .day-cell {
     min-height: 116px;

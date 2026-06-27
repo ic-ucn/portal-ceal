@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626n';
+  const DATA_CONTENT_VERSION = '20260626o';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626n';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626o';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -62,6 +62,14 @@
     calendarStatus: null,
     calendarStatusLoading: false,
     calendarStatusError: '',
+    staffBusy: null,
+    staffBusyLoading: false,
+    staffBusyError: '',
+    myAppointments: null,
+    myApptsLoading: false,
+    bookingSlotKey: null,
+    bookingReason: '',
+    bookingSubmitting: false,
     openFAQ: null,
     notificationsOpen: false,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
@@ -854,7 +862,7 @@
     if (hasCealAccess()) {
       items.push(['/gestion', 'settings', 'Gestión']);
     }
-    if (hasJefaturaAccess()) items.push(['/jefatura', 'users', 'Jefatura']);
+    if (!isGuest()) items.push(['/jefatura', 'users', 'Jefatura']);
     return items;
   }
   function isActive(path, itemPath) {
@@ -947,17 +955,44 @@
     hydrateCalendarStatus();
   }
   async function hydrateCalendarStatus() {
-    if (getRoute().path !== '/jefatura' || !hasJefaturaAccess() || !API_BASE || state.calendarStatus || state.calendarStatusLoading || state.calendarStatusError) return;
-    state.calendarStatusLoading = true;
-    state.calendarStatusError = '';
-    try {
-      const payload = await calendarStatusRequest();
-      state.calendarStatus = payload.status || null;
-    } catch (error) {
-      state.calendarStatusError = error.message || 'No se pudo revisar Calendar.';
-    } finally {
-      state.calendarStatusLoading = false;
-      render({ transition: false, scope: 'panel', resetScroll: false });
+    if (getRoute().path !== '/jefatura' || isGuest() || !state.user || !API_BASE) return;
+    if (!state.calendarStatus && !state.calendarStatusLoading && !state.calendarStatusError) {
+      state.calendarStatusLoading = true;
+      state.calendarStatusError = '';
+      try {
+        const payload = await calendarStatusRequest();
+        state.calendarStatus = payload.status || null;
+      } catch (error) {
+        state.calendarStatusError = error.message || 'No se pudo revisar Calendar.';
+      } finally {
+        state.calendarStatusLoading = false;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    if (state.myAppointments === null && !state.myApptsLoading) {
+      state.myApptsLoading = true;
+      try {
+        const payload = await apiRequest('/calendar/appointments');
+        state.myAppointments = Array.isArray(payload.items) ? payload.items : [];
+      } catch { state.myAppointments = []; }
+      finally { state.myApptsLoading = false; render({ transition: false, scope: 'panel', resetScroll: false }); }
+      return;
+    }
+    if (state.calendarStatus?.connected && state.staffBusy === null && !state.staffBusyLoading && !state.staffBusyError) {
+      state.staffBusyLoading = true;
+      try {
+        const now = new Date();
+        const timeMax = new Date(now.getTime() + (BOOKING_DAYS_AHEAD + 1) * 86400000);
+        const payload = await apiRequest('/calendar/freebusy', { method: 'POST', body: JSON.stringify({ timeMin: now.toISOString(), timeMax: timeMax.toISOString() }) });
+        state.staffBusy = Array.isArray(payload.busy) ? payload.busy : [];
+      } catch (error) {
+        state.staffBusyError = error.message || 'No se pudo revisar disponibilidad.';
+        state.staffBusy = [];
+      } finally {
+        state.staffBusyLoading = false;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }
     }
   }
   function renderLogin() {
@@ -1014,7 +1049,7 @@
     if (path === '/encuestas') return renderSurveys();
     if (path === '/encuestas/nueva') return renderSurveyBuilder();
     if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
-    if (path === '/jefatura') return hasJefaturaAccess() ? renderStaffAdvising() : renderNotFound('Esta sección está disponible solo para Jefatura de carrera.');
+    if (path === '/jefatura') return isGuest() ? renderNotFound('Inicia sesión para ver la atención de Jefatura.') : renderStaffAdvising();
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
@@ -1825,6 +1860,50 @@
     return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><p class="privacy-note compact">${icon('eye')} Resultados agregados. No se publica quién votó qué.</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
+  const WEEKDAY_ES = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+  const BOOKING_DAYS_AHEAD = 21;
+  const BOOKING_SLOT_MINUTES = 30;
+  function parseOfficeHours(officeHours) {
+    return (officeHours || []).map(oh => {
+      const weekday = WEEKDAY_ES[plain(oh.day || '').trim()];
+      const m = String(oh.time || '').match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
+      if (weekday === undefined || !m) return null;
+      return { weekday, startH: +m[1], startM: +m[2], endH: +m[3], endM: +m[4], mode: oh.mode || '', place: oh.place || '' };
+    }).filter(Boolean);
+  }
+  function generateBookingSlots(officeHours, now = new Date()) {
+    const avail = parseOfficeHours(officeHours);
+    if (!avail.length) return [];
+    const slots = [];
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    for (let d = 0; d <= BOOKING_DAYS_AHEAD; d++) {
+      const date = new Date(base.getFullYear(), base.getMonth(), base.getDate() + d);
+      for (const a of avail.filter(x => x.weekday === date.getDay())) {
+        let cur = new Date(date.getFullYear(), date.getMonth(), date.getDate(), a.startH, a.startM);
+        const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), a.endH, a.endM);
+        while (cur.getTime() + BOOKING_SLOT_MINUTES * 60000 <= end.getTime()) {
+          const slotEnd = new Date(cur.getTime() + BOOKING_SLOT_MINUTES * 60000);
+          if (cur.getTime() > now.getTime() + 60 * 60000) slots.push({ start: new Date(cur), end: slotEnd, mode: a.mode, place: a.place });
+          cur = slotEnd;
+        }
+      }
+    }
+    return slots;
+  }
+  function slotOverlapsBusy(slot, busy) {
+    return (busy || []).some(b => {
+      const bs = new Date(b.start).getTime();
+      const be = new Date(b.end).getTime();
+      return Number.isFinite(bs) && Number.isFinite(be) && slot.start.getTime() < be && slot.end.getTime() > bs;
+    });
+  }
+  function slotKey(slot) { return `${slot.start.toISOString()}|${slot.end.toISOString()}`; }
+  function fmtSlotDayLabel(date) {
+    const s = date.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function fmtSlotTime(date) { return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }); }
+
   function renderStaffCalendarPanel(profile = {}) {
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
     const account = status.account || profile.email || 'jc.icivil.afta@ucn.cl';
@@ -1845,20 +1924,52 @@
     }
     return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo institucional.</p></aside>`;
   }
+  function renderBookingPanel(profile) {
+    const status = state.calendarStatus || {};
+    const contactEmail = profile.email || 'jc.icivil.afta@ucn.cl';
+    if (!API_BASE) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Agenda no disponible</h2><p class="small muted">El agendamiento se activará cuando el servicio esté listo.</p></aside>`;
+    if (!state.calendarStatus && state.calendarStatusLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Cargando disponibilidad…</h2></aside>`;
+    if (!status.connected) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Agendamiento no disponible aún</h2><p class="small muted">La jefatura todavía no habilitó la agenda en línea. Puedes escribir a <strong>${esc(contactEmail)}</strong> o revisar los horarios de atención a la izquierda.</p></aside>`;
+    if (state.staffBusy === null && state.staffBusyLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Buscando horas libres…</h2></aside>`;
+    const slots = generateBookingSlots(profile.officeHours).filter(s => !slotOverlapsBusy(s, state.staffBusy || []));
+    if (!slots.length) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Sin horas disponibles</h2><p class="small muted">No hay cupos libres en las próximas semanas. Vuelve a revisar más adelante o escribe a <strong>${esc(contactEmail)}</strong>.</p></aside>`;
+    const byDay = new Map();
+    slots.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
+    const selected = slots.find(s => slotKey(s) === state.bookingSlotKey);
+    const slotsHtml = [...byDay.entries()].slice(0, 8).map(([day, list]) => `<div class="booking-day"><span class="booking-day-label">${esc(day)}</span><div class="booking-slot-row">${list.map(s => `<button type="button" class="booking-slot ${slotKey(s) === state.bookingSlotKey ? 'active' : ''}" data-book-slot="${esc(slotKey(s))}">${fmtSlotTime(s.start)}</button>`).join('')}</div></div>`).join('');
+    const confirmBlock = selected
+      ? `<div class="booking-confirm"><div class="divider"></div><p class="small"><strong>${esc(fmtSlotDayLabel(selected.start))}</strong> · ${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)}${selected.mode ? ` · ${esc(selected.mode)}` : ''}${selected.place ? ` · ${esc(selected.place)}` : ''}</p><div class="form-field"><label>Motivo (breve)</label><textarea class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-book-submit ${state.bookingSubmitting ? 'disabled' : ''}>${state.bookingSubmitting ? 'Solicitando…' : 'Solicitar esta hora'}</button><p class="small muted">Recibirás una invitación por correo. La hora queda sujeta a confirmación de jefatura.</p></div>`
+      : `<p class="small muted" style="margin-top:10px">Elige una hora para solicitar tu atención.</p>`;
+    return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Solicita una hora</h2><p class="small muted">Horas libres según el calendario de jefatura.</p>${state.staffBusyError ? `<p class="form-alert">${esc(state.staffBusyError)}</p>` : ''}<div class="booking-slots">${slotsHtml}</div>${confirmBlock}</aside>`;
+  }
+  function renderAppointmentsList(isJefatura) {
+    const items = state.myAppointments;
+    if (!Array.isArray(items) || !items.length) return '';
+    const rows = items.slice(0, 10).map(a => {
+      const start = new Date(a.start);
+      const valid = !Number.isNaN(start.getTime());
+      const when = valid ? `${fmtSlotDayLabel(start)} · ${fmtSlotTime(start)}` : 'Hora por confirmar';
+      const who = isJefatura && a.requesterEmail ? `<small>${esc(a.requesterEmail)}</small>` : '';
+      const reason = a.reason ? `<small>${esc(a.reason)}</small>` : '';
+      const link = a.googleEventLink ? `<a class="link" href="${esc(a.googleEventLink)}" target="_blank" rel="noopener">Ver en Calendar ${icon('arrow')}</a>` : '';
+      return `<div class="appt-row"><span class="appt-main"><strong>${esc(when)}</strong>${who}${reason}</span><span class="hstack">${badge('blue', a.status || 'solicitada')}${link}</span></div>`;
+    }).join('');
+    return `<section class="card pad" style="margin-top:18px"><h2 class="card-title">${isJefatura ? 'Solicitudes recibidas' : 'Tus solicitudes'}</h2><div class="appt-list">${rows}</div></section>`;
+  }
   function renderStaffAdvising() {
     const profile = (Data.staffProfiles || [])[0] || {};
     const hours = profile.officeHours || [];
     const contactEmail = profile.email || 'jc.icivil.afta@ucn.cl';
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
-    const calendarButton = status.connected
-      ? `<span class="pill green">Agenda conectada</span>`
-      : status.configured
-        ? `<span class="pill orange">Agenda no conectada</span>`
-        : '';
-    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Ver agenda pública</a>` : '';
+    const isJefatura = hasJefaturaAccess();
+    const calendarButton = isJefatura
+      ? (status.connected ? `<span class="pill green">Agenda conectada</span>` : status.configured ? `<span class="pill orange">Agenda no conectada</span>` : '')
+      : '';
+    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Agenda pública</a>` : '';
     const actions = `${calendarButton}${bookingButton}`;
-    return `${pageHead('Jefatura de carrera', 'Horarios de atención e información oficial')}
-      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p><div class="hstack">${actions}</div><div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${renderStaffCalendarPanel(profile)}</div>`;
+    const rightPanel = isJefatura ? renderStaffCalendarPanel(profile) : renderBookingPanel(profile);
+    return `${pageHead('Jefatura de carrera', isJefatura ? 'Horarios de atención y solicitudes recibidas' : 'Horarios de atención y agendamiento')}
+      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p>${actions.trim() ? `<div class="hstack">${actions}</div>` : ''}<div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${rightPanel}</div>${renderAppointmentsList(isJefatura)}`;
   }
 
   function renderCealAssistant() {
@@ -2062,6 +2173,34 @@
         state.calendarStatusError = error.message || 'No se pudo desconectar Calendar.';
       } finally {
         state.calendarStatusLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    const bookSlot = e.target.closest('[data-book-slot]');
+    if (bookSlot) {
+      state.bookingSlotKey = state.bookingSlotKey === bookSlot.dataset.bookSlot ? null : bookSlot.dataset.bookSlot;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    if (e.target.closest('[data-book-submit]')) {
+      if (isGuest()) { readonlyToast(); return; }
+      const profile = (Data.staffProfiles || [])[0] || {};
+      const slot = generateBookingSlots(profile.officeHours).find(s => slotKey(s) === state.bookingSlotKey);
+      if (!slot) { showToast('Elige una hora primero', 'blue'); return; }
+      state.bookingSubmitting = true;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await apiRequest('/calendar/appointments', { method: 'POST', body: JSON.stringify({ start: slot.start.toISOString(), end: slot.end.toISOString(), reason: state.bookingReason || '', name: state.user?.name || '' }) });
+        if (payload.item) { state.myAppointments = [payload.item, ...(state.myAppointments || [])]; }
+        state.bookingSlotKey = null;
+        state.bookingReason = '';
+        state.staffBusy = null; // refrescar disponibilidad
+        showToast('Solicitud de hora enviada. Revisa tu correo.', 'blue');
+      } catch (error) {
+        showToast(error.message || 'No se pudo solicitar la hora', 'blue');
+      } finally {
+        state.bookingSubmitting = false;
         render({ transition: true, scope: 'panel', resetScroll: false });
       }
       return;
@@ -2352,6 +2491,7 @@
       if (e.target.matches('[data-survey-opt]')) { const [i, j] = e.target.dataset.surveyOpt.split(':').map(Number); if (draftSurvey.questions?.[i]?.options) draftSurvey.questions[i].options[j] = e.target.value; return; }
     }
     if (e.target.matches('[data-survey-refine-input]')) { state.surveyRefineText = e.target.value; return; }
+    if (e.target.matches('[data-booking-reason]')) { state.bookingReason = e.target.value; return; }
     if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; scheduleFilterRender(); }
     if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; scheduleFilterRender(); }
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
