@@ -1386,7 +1386,10 @@ function getMailTransporter() {
       host: mailHost,
       port: mailPort,
       secure: mailPort === 465,
-      auth: { user: mailUser, pass: mailPass }
+      auth: { user: mailUser, pass: mailPass },
+      connectionTimeout: 12000,
+      greetingTimeout: 12000,
+      socketTimeout: 15000
     });
   }
   return mailTransporter;
