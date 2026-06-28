@@ -237,6 +237,12 @@
   color: var(--slate-600);
   line-height: 1.45;
 }
+body.theme-dark .assistant-rule {
+  background: rgba(20, 43, 68, .55);
+  border-color: rgba(112, 173, 255, .16);
+}
+.form-grid.tri { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .form-grid.tri { grid-template-columns: 1fr; } }
 
 .assistant-empty,
 .assistant-preview {
@@ -568,14 +574,15 @@ img { max-width: 100%; display: block; }
   overflow-anchor: none;
 }
 
-#app[data-motion-scope="route"] .content > *,
-#app[data-motion-scope="panel"] .content > * {
+/* La animación de entrada solo en cambios de PÁGINA (route). Las actualizaciones
+   in-page (filtros, selección, generar) no re-animan: se sienten instantáneas, sin "flash". */
+#app[data-motion-scope="route"] .content > * {
   animation: portal-panel-in var(--motion-base) var(--ease-out) both;
 }
 
 @keyframes portal-panel-in {
-  from { opacity: 0; transform: translateY(6px) scale(.995); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4959,6 +4966,20 @@ a.management-card:hover,
 
 /* Botón primario con relieve */
 .btn { transition: transform .15s var(--ease-out), box-shadow .15s var(--ease-out), background .15s ease, border-color .15s ease; }
+.btn[aria-busy="true"], .btn:disabled { cursor: default; }
+.btn-spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin .6s linear infinite;
+  vertical-align: -2px;
+  opacity: .85;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn-spinner { animation-duration: 1.2s; } }
 .btn.primary {
   background: linear-gradient(135deg, var(--blue-600), var(--blue-700));
   border-color: var(--blue-700);

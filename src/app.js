@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626p';
+  const DATA_CONTENT_VERSION = '20260626q';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626p';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626q';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -287,6 +287,12 @@
     return 'Estudiante';
   }
   function readonlyToast() { showToast('Inicia sesión para usar esta acción', 'blue'); }
+  function setButtonBusy(btn, label) {
+    if (!btn) return;
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = `<span class="btn-spinner"></span>${label ? `<span>${esc(label)}</span>` : ''}`;
+  }
   function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
   const PREF_DEFS = [['recordatorios', 'Recibir recordatorios'], ['soloPlan', 'Mostrar solo mi plan'], ['alertas', 'Alertas de comunicados'], ['compacto', 'Modo compacto']];
   const PREF_DEFAULTS = { recordatorios: true, soloPlan: true, alertas: true, compacto: false };
@@ -1989,9 +1995,10 @@
           <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
           ${status}${state.cealAssistantError ? `<p class="form-alert">${esc(state.cealAssistantError)}</p>` : ''}
           <div class="form-field"><label>Texto recibido</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
-          <div class="form-grid">
+          <div class="form-grid tri">
             <div class="form-field"><label>Categoría sugerida</label><select class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
             <div class="form-field"><label>Urgencia</label><select class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
+            <div class="form-field"><label>Longitud</label><select class="select" name="length">${[['auto', 'Automática'], ['conciso', 'Conciso'], ['detallado', 'Detallado']].map(([value, label]) => `<option value="${value}"${(req.length || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
           </div>
           <div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div>
           <div class="form-field"><label>Contexto adicional</label><textarea class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
@@ -2326,7 +2333,7 @@
       if (instruction.length < 4) { showToast('Escribe qué quieres ajustar', 'blue'); return; }
       state.surveyBuilderLoading = true;
       state.surveyBuilderError = '';
-      render({ transition: true, scope: 'panel', resetScroll: false });
+      setButtonBusy(e.target.closest('[data-survey-refine]'), 'Ajustando…');
       try {
         const payload = await surveyAssistantRequest({ rawText: instruction, mode: sv.mode || 'auto', audience: CEAL_ASSISTANT_AUDIENCE, currentSurvey: sv });
         if (payload.result?.survey) { state.surveyBuilderResult = payload.result; state.surveyRefineText = ''; showToast('Encuesta ajustada', 'blue'); }
@@ -2335,7 +2342,7 @@
         state.surveyBuilderError = error.message || 'No se pudo ajustar la encuesta.';
       } finally {
         state.surveyBuilderLoading = false;
-        render({ transition: true, scope: 'panel', resetScroll: false });
+        render({ transition: false, scope: 'panel', resetScroll: false });
       }
       return;
     }
@@ -2573,23 +2580,24 @@
         category: String(fd.get('category') || 'Auto'),
         audience: CEAL_ASSISTANT_AUDIENCE,
         urgency: String(fd.get('urgency') || 'normal'),
+        length: String(fd.get('length') || 'auto'),
         extraContext: String(fd.get('extraContext') || '').trim()
       };
       state.cealAssistantRequest = request;
       state.cealAssistantResult = null;
       state.cealAssistantError = '';
       state.cealAssistantLoading = true;
-      render({ transition: true, scope: 'panel', resetScroll: false });
+      setButtonBusy(submitBtn, 'Generando…');
       try {
         const payload = await cealAssistantRequest(request);
         state.cealAssistantResult = payload.result;
         state.cealAssistantUsage = payload.usage || null;
-        showToast(payload.result?.needsClarification ? 'El asistente necesita aclaraciones' : 'Borrador generado', 'blue');
+        showToast('Borrador generado', 'blue');
       } catch (error) {
         state.cealAssistantError = error.message || 'No se pudo generar el borrador.';
       } finally {
         state.cealAssistantLoading = false;
-        render({ transition: true, scope: 'panel', resetScroll: false });
+        render({ transition: false, scope: 'panel', resetScroll: false });
       }
       return;
     }
@@ -2604,7 +2612,7 @@
       state.surveyBuilderResult = null;
       state.surveyBuilderError = '';
       state.surveyBuilderLoading = true;
-      render({ transition: true, scope: 'panel', resetScroll: false });
+      setButtonBusy(submitBtn, 'Generando…');
       try {
         const payload = await surveyAssistantRequest(request);
         state.surveyBuilderResult = payload.result;
@@ -2613,7 +2621,7 @@
         state.surveyBuilderError = error.message || 'No se pudo generar la encuesta.';
       } finally {
         state.surveyBuilderLoading = false;
-        render({ transition: true, scope: 'panel', resetScroll: false });
+        render({ transition: false, scope: 'panel', resetScroll: false });
       }
       return;
     }

@@ -892,6 +892,11 @@ Calidad del borrador (importante):
 - El resumen debe ser UNA sola frase informativa y especifica (que ocurre + cuando/quien si aplica), no generica.
 - El titulo debe ser especifico y descriptivo del tema, bien redactado.
 
+Longitud del cuerpo (campo "length"):
+- "auto": elige el largo adecuado segun el contenido (breve para un aviso simple; mas extenso si requiere contexto).
+- "conciso": comunicado MUY breve y directo, 1 parrafo corto (2 a 4 frases). Solo lo esencial, sin contexto extra ni relleno. Es el texto que lee el estudiante; que sea facil de leer rapido.
+- "detallado": comunicado completo con contexto, detalles relevantes y proximos pasos.
+
 Entrada del CEAL:
 ${JSON.stringify({
     intent: body.intent || 'comunicado',
@@ -899,6 +904,7 @@ ${JSON.stringify({
     categoryHint: body.category || 'Auto',
     audience: body.audience || 'Estudiantes de Ingenieria Civil UCN',
     urgency: body.urgency || 'normal',
+    length: ['auto', 'conciso', 'detallado'].includes(String(body.length)) ? body.length : 'auto',
     extraContext: body.extraContext || ''
   }, null, 2)}
 
