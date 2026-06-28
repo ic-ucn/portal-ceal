@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626r';
+  const DATA_CONTENT_VERSION = '20260626s';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626r';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626s';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -23,6 +23,9 @@
   // Por defecto SIEMPRE modo claro; solo queda oscuro si el usuario lo eligió explícitamente.
   const initialPortalDark = localStorage.getItem(PORTAL_THEME_KEY) === 'dark';
   let dataMode = API_BASE ? 'backend' : 'static';
+  // false hasta que el primer /bootstrap termina (exito o error). Evita mostrar
+  // "no existe" en detalles abiertos por enlace directo mientras llegan los datos.
+  let dataReady = !API_BASE;
   let hasRendered = false;
   let lastRenderedRouteKey = '';
   let pendingScrollReset = false;
@@ -852,8 +855,8 @@
       ensureShape();
       dataMode = 'backend';
       persistSnapshot();
-      renderDataRefresh();
     } catch { dataMode = 'static'; }
+    finally { dataReady = true; renderDataRefresh(); }
   }
 
   function navItems() {
@@ -1191,6 +1194,7 @@
   }
   function renderCommunicationDetail(id) {
     const c = findCommunicationById(id);
+    if (!c && !dataReady) return renderLoading('Comunicado', 'Abriendo el comunicado…');
     if (!c) return renderNotFound('No encontramos el comunicado.');
     const markAction = isGuest() ? '' : `<button class="btn primary" data-mark-read="${esc(c.id)}">Marcar como leído</button>`;
     const deleteAction = canPublishCommunications() ? `<button class="btn ghost danger-lite" data-comm-delete="${esc(c.id)}" data-comm-title="${esc(c.title || 'este comunicado')}">${icon('x')} Eliminar comunicado</button>` : '';
@@ -1212,6 +1216,7 @@
   function renderAgreementSummary(a) { return `<div class="row-between"><div><span class="kicker">Detalle de seguimiento</span><h2 class="card-title">${esc(a.number || a.title)}</h2>${a.number && a.title ? `<p class="muted">${esc(a.title)}</p>` : ''}</div>${badge(a.status)}</div><div class="detail-block"><div class="detail-row"><span>Origen</span><strong>${esc(a.origin)}</strong></div><div class="detail-row"><span>Fecha</span><strong>${fmtDate(a.date)}</strong></div><div class="detail-row"><span>Responsable</span><strong>${esc(a.responsible)}</strong></div></div><div class="grid two"><div><h3 class="card-title">Resumen</h3><p class="small muted">${esc(a.summary)}</p></div><div><h3 class="card-title">Estado actual</h3><p class="small muted">${esc(a.currentState)}</p></div></div>`; }
   function renderAgreementDetail(id) {
     const a = findAgreementById(id);
+    if (!a && !dataReady) return renderLoading('Seguimiento', 'Abriendo el seguimiento…');
     if (!a) return renderNotFound('No encontramos el acuerdo.');
     const downloadAction = isGuest() ? '' : `<button class="btn primary full" data-download-agreement="${esc(a.id)}">Descargar ficha</button>`;
     return `${pageHead(a.number || a.title, `${fmtDate(a.date)} - ${a.origin}`, `<a class="btn secondary" href="#/calendario">Volver al calendario</a>`, breadcrumb([['Inicio', '/'], ['Calendario', '/calendario'], [a.number || a.title]]))}<div class="split wide"><section class="card pad">${renderAgreementSummary(a)}<div class="detail-block"><h3 class="card-title">Compromisos</h3>${(a.commitments || []).map(commitRow).join('') || '<p class="small muted">Sin compromisos registrados.</p>'}</div><div class="detail-block"><h3 class="card-title">Historial</h3>${timeline(a.history || [])}</div></section><aside class="card pad"><h2 class="card-title">Documentos asociados</h2>${(a.documents || []).map(d => `<div class="link-card-row"><span><strong>${esc(d.name)}</strong><span>${esc(d.type)} - ${esc(d.size)}</span></span>${icon('file')}</div>`).join('') || '<p class="small muted">Sin documentos asociados.</p>'}<div class="divider"></div>${downloadAction}<button class="btn secondary full" data-copy-link>Copiar enlace</button></aside></div>`;
@@ -1277,6 +1282,7 @@
   function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
   function renderMaterialDetailPage(id) {
     const r = findResourceById(id);
+    if (!r && !dataReady) return renderLoading('Material', 'Abriendo el recurso…');
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
     const rPlan = Curricula[r.plan] ? r.plan : findCoursePlanForCode(r.courseCode);
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
@@ -1852,6 +1858,7 @@
   }
   function renderSurveyDetail(id) {
     const survey = (Data.surveys || []).find(item => item.id === id);
+    if (!survey && !dataReady) return renderLoading('Consulta', 'Abriendo la consulta…');
     if (!survey) return renderNotFound('No encontramos la encuesta solicitada.');
     const questions = survey.questions || [];
     const count = Number(survey.responseCount || survey.responses?.length || 0);
@@ -2123,6 +2130,7 @@
   function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.length ? Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('') : renderEmpty('Sin notificaciones', 'Cuando haya novedades del portal aparecerán aquí.', '', 'bell')}</section>`; }
   function renderNotificationPopover() { return `<aside class="notification-popover"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications>${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${n.route}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
+  function renderLoading(title = 'Cargando', desc = 'Un momento, estamos cargando el contenido.') { return `${pageHead(esc(title), 'Cargando…')}<section class="card pad empty-state loading-state"><span class="btn-spinner" style="width:28px;height:28px;border-width:3px;color:var(--blue-600)"></span><h3>${esc(title)}</h3><p>${esc(desc)}</p></section>`; }
   function renderEmpty(title, desc, action = '', ico = 'search') { return `<div class="empty-state"><span class="icon-wrap">${icon(ico)}</span><h3>${esc(title)}</h3>${desc ? `<p>${esc(desc)}</p>` : ''}${action || ''}</div>`; }
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
