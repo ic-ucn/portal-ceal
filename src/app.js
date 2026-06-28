@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626q';
+  const DATA_CONTENT_VERSION = '20260626r';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626q';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626r';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -1091,7 +1091,7 @@
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
     if (!d || !d.text) return '';
-    return `<section class="card pad home-digest"><div class="home-digest-head"><span class="kicker">${icon('sparkles')} Resumen de comunicados</span><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div><p>${esc(d.text)}</p></section>`;
+    return `<section class="card pad home-digest"><div class="home-digest-head"><span class="kicker">Resumen de comunicados</span><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div><p>${esc(d.text)}</p></section>`;
   }
   function access(ico, title, desc, action, href, tone = '') { return `<a class="access-card" href="#${href}"><span class="icon-box ${tone}">${icon(ico)}</span><span class="access-copy"><strong>${esc(title)}</strong><span>${esc(desc)}</span><em>${esc(action)} ${icon('arrow')}</em></span></a>`; }
   function newsRow(ico, title, desc, href, date) { return `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<span><strong>${esc(title)}</strong><span>${esc(desc || '')}</span></span></span><span class="small muted">${fmtDate(date)}</span></a>`; }
@@ -1989,7 +1989,7 @@
       : !sessionReady
         ? `<div class="google-auth-note"><strong>Vuelve a iniciar sesión CEAL</strong><span>El asistente necesita una sesión interna nueva para validar el acceso.</span></div>`
         : '';
-    return ensureCEAL(`${pageHead('Crear comunicado', 'Redáctalo con ayuda, elige audiencia y publícalo (con envío por correo opcional)', `<a class="btn secondary" href="#/comunicados">${icon('arrow')} Volver a comunicados</a><span class="pill blue">Gemini ${esc(state.cealAssistantLoading ? 'trabajando' : 'listo')}</span>${usage}`)}
+    return ensureCEAL(`${pageHead('Crear comunicado', 'Redáctalo con ayuda, elige audiencia y publícalo (con envío por correo opcional)', `<a class="btn secondary" href="#/comunicados">${icon('arrow')} Volver a comunicados</a><span class="pill blue">Asistente ${esc(state.cealAssistantLoading ? 'trabajando' : 'listo')}</span>${usage}`)}
       <div class="assistant-layout">
         <form class="card pad ceal-assistant-form" data-form="ceal-assistant">
           <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>

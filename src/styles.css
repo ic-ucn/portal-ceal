@@ -5384,19 +5384,28 @@ body.theme-dark .home-summary .stat-card {
   border-color: rgba(255, 255, 255, .18);
 }
 
-/* Boton de tema: ghost translucido sobre topbar/login navy (antes salia como bloque blanco). */
+/* Boton de tema en topbar/mobile (fondo CLARO): claramente visible con acento azul. */
 .topbar .theme-toggle-btn,
-.mobile-header .theme-toggle-btn,
-.login-theme-toggle {
-  background: rgba(255, 255, 255, .08);
-  border-color: rgba(255, 255, 255, .26);
-  color: #fff;
+.mobile-header .theme-toggle-btn {
+  background: #fff;
+  border-color: rgba(18, 111, 227, .32);
+  color: var(--blue-700);
 }
 .topbar .theme-toggle-btn:hover,
-.mobile-header .theme-toggle-btn:hover,
+.mobile-header .theme-toggle-btn:hover {
+  background: #eef6ff;
+  border-color: rgba(18, 111, 227, .55);
+  color: var(--blue-700);
+}
+/* Login (fondo navy): ghost translucido. */
+.login-theme-toggle {
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .3);
+  color: #fff;
+}
 .login-theme-toggle:hover {
-  background: rgba(255, 255, 255, .16);
-  border-color: rgba(255, 255, 255, .42);
+  background: rgba(255, 255, 255, .18);
+  border-color: rgba(255, 255, 255, .45);
   color: #fff;
 }
 

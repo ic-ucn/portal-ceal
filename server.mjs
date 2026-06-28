@@ -308,6 +308,17 @@ function ensureDbShape(db, seed) {
     ...item,
     route: item.route === '/contingencia' ? '/comunicados' : item.route
   }));
+  // Limpieza unica SOLO en produccion: quita el contenido de maqueta (comunicados,
+  // casos, acuerdos y notificaciones demo) para partir con datos reales. La semilla se
+  // mantiene para dev/QA; este flag evita re-ejecutar y no toca contenido real futuro.
+  db.meta ||= {};
+  if (useSupabaseState && !db.meta.demoContentClean) {
+    db.data.communications = [];
+    db.data.cases = [];
+    db.data.agreements = [];
+    db.data.notifications = [];
+    db.meta.demoContentClean = true;
+  }
   return db;
 }
 
