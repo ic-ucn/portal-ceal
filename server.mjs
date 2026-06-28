@@ -894,6 +894,7 @@ Reglas:
 - No inventes horarios, salas, responsables, links ni acuerdos si no aparecen en el texto.
 - SIEMPRE entrega un draft listo para publicar a partir del texto entregado. NUNCA hagas preguntas ni pidas aclaraciones: needsClarification debe ser siempre false y questions vacio.
 - Si falta algun dato, redacta el comunicado solo con lo que hay, sin inventar ni dejar huecos evidentes.
+- Si viene un ARCHIVO adjunto (imagen, PDF o texto), usalo como fuente/contexto principal: extrae de ahi la informacion clave (fechas, motivos, instrucciones) y redacta el comunicado en base a su contenido junto con el texto recibido.
 - El cuerpo debe quedar en texto plano con parrafos separados por salto de linea, no Markdown decorativo.
 - Si hay datos personales, acusaciones, informacion sensible o lenguaje riesgoso, agregalo en safetyFlags.
 - Si parece una fecha de calendario mas que comunicado, igual genera comunicado, pero sugiere category="Académico" o "CEAL" segun corresponda.
@@ -967,10 +968,11 @@ function normalizeAssistantResult(result) {
   };
 }
 
-async function geminiGenerateJson(promptText, temperature) {
+async function geminiGenerateJson(promptText, temperature, extraParts = []) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const parts = [{ text: promptText }, ...(Array.isArray(extraParts) ? extraParts : [])];
   const reqBody = JSON.stringify({
-    contents: [{ role: 'user', parts: [{ text: promptText }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: { temperature, topP: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
   });
   let response;
@@ -1014,6 +1016,26 @@ ${list}`;
   }
 }
 
+const ATTACHMENT_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain'];
+function buildAttachmentPart(attachment) {
+  if (!attachment || typeof attachment !== 'object') return null;
+  const mime = asText(attachment.mimeType).toLowerCase().split(';')[0].trim();
+  if (!ATTACHMENT_MIME.includes(mime)) {
+    const err = new Error('Tipo de archivo no soportado. Usa PDF, imagen (PNG/JPG) o texto.');
+    err.statusCode = 415;
+    throw err;
+  }
+  const data = asText(attachment.data).replace(/^data:[^,]*,/, '').replace(/\s/g, '');
+  if (!data) return null;
+  // Limite ~6 MB de archivo (base64 ~8 MB).
+  if (data.length > 8_400_000) {
+    const err = new Error('El archivo es muy grande (máx 6 MB).');
+    err.statusCode = 413;
+    throw err;
+  }
+  return { inline_data: { mime_type: mime, data } };
+}
+
 async function generateCealDraft(db, body, member) {
   if (!geminiApiKey || geminiApiKey.includes('pega_aqui')) {
     const err = new Error('El asistente de IA no está configurado en el servidor. Avisa a CEAL.');
@@ -1021,8 +1043,9 @@ async function generateCealDraft(db, body, member) {
     throw err;
   }
   const rawText = asText(body.rawText);
-  if (rawText.length < 20) {
-    const err = new Error('raw text is too short');
+  const attachmentPart = buildAttachmentPart(body.attachment);
+  if (rawText.length < 20 && !attachmentPart) {
+    const err = new Error('Escribe un texto (o adjunta un archivo de contexto).');
     err.statusCode = 422;
     throw err;
   }
@@ -1033,7 +1056,7 @@ async function generateCealDraft(db, body, member) {
   }
   assertAiQuota(db);
   const prompt = buildCealAssistantPrompt(db, body, member);
-  const payload = await geminiGenerateJson(prompt, 0.25);
+  const payload = await geminiGenerateJson(prompt, 0.25, attachmentPart ? [attachmentPart] : []);
   markAiUsage(db);
   const text = (payload.candidates?.[0]?.content?.parts || []).map(part => part.text || '').join('\n');
   return normalizeAssistantResult(parseGeminiJson(text));

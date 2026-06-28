@@ -2,9 +2,9 @@
   const app = document.getElementById('app');
   const Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626s';
+  const DATA_CONTENT_VERSION = '20260626t';
   const LOCAL_DATA_KEY = 'portal.data.v46';
-  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626s';
+  const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626t';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
@@ -56,6 +56,7 @@
     cealAssistantError: '',
     cealAssistantLoading: false,
     cealAssistantUsage: null,
+    cealAttachment: null,
     mailMeta: null,
     notifyGroups: { test: false, ceal: false, students: false, professors: false },
     surveyBuilderRequest: { rawText: '', mode: 'auto' },
@@ -2001,7 +2002,7 @@
         <form class="card pad ceal-assistant-form" data-form="ceal-assistant">
           <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
           ${status}${state.cealAssistantError ? `<p class="form-alert">${esc(state.cealAssistantError)}</p>` : ''}
-          <div class="form-field"><label>Texto recibido</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
+          <div class="form-field"><label>Texto recibido</label><textarea class="textarea assistant-input" name="rawText" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
           <div class="form-grid tri">
             <div class="form-field"><label>Categoría sugerida</label><select class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
             <div class="form-field"><label>Urgencia</label><select class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
@@ -2009,6 +2010,9 @@
           </div>
           <div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div>
           <div class="form-field"><label>Contexto adicional</label><textarea class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
+          <div class="form-field"><label>Archivo de contexto (opcional)</label>${state.cealAttachment
+            ? `<div class="attach-chip"><span class="hstack">${icon('file')} ${esc(state.cealAttachment.name)}</span><button class="icon-btn" type="button" data-attach-remove aria-label="Quitar archivo">${icon('x')}</button></div>`
+            : `<label class="upload-zone compact">${icon('upload')}<strong>Adjuntar PDF, imagen o texto</strong><span class="help">La IA lo usará como fuente. Máx 6 MB.</span><input class="sr-only" type="file" data-attach-input accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" /></label>`}</div>
           <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.cealAssistantLoading ? '' : 'disabled'}>${state.cealAssistantLoading ? 'Generando...' : 'Generar borrador'}</button><button class="btn secondary" type="button" data-assistant-clear>Limpiar</button></div>
         </form>
         <aside class="card pad assistant-side">
@@ -2239,10 +2243,16 @@
     if (observe) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
     const publish = e.target.closest('[data-publish]');
     if (publish) { if (isGuest()) { readonlyToast(); return; } const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
+    if (e.target.closest('[data-attach-remove]')) {
+      state.cealAttachment = null;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
     if (e.target.closest('[data-assistant-clear]')) {
       state.cealAssistantRequest = { rawText: '', category: 'Auto', audience: CEAL_ASSISTANT_AUDIENCE, urgency: 'normal', extraContext: '' };
       state.cealAssistantResult = null;
       state.cealAssistantError = '';
+      state.cealAttachment = null;
       render({ transition: true, scope: 'panel' });
       return;
     }
@@ -2512,6 +2522,16 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    const attachInput = e.target.closest('[data-attach-input]');
+    if (attachInput && attachInput.files && attachInput.files[0]) {
+      const file = attachInput.files[0];
+      if (file.size > 6 * 1024 * 1024) { showToast('El archivo supera 6 MB', 'blue'); attachInput.value = ''; return; }
+      const reader = new FileReader();
+      reader.onload = () => { state.cealAttachment = { name: file.name, mimeType: file.type || 'application/octet-stream', data: String(reader.result || '') }; render({ transition: false, scope: 'panel', resetScroll: false }); };
+      reader.onerror = () => showToast('No se pudo leer el archivo', 'blue');
+      reader.readAsDataURL(file);
+      return;
+    }
     const prefToggle = e.target.closest('[data-pref]');
     if (prefToggle) {
       setPref(prefToggle.dataset.pref, e.target.checked);
@@ -2582,16 +2602,19 @@
     try {
     if (form.dataset.form === 'ceal-assistant') {
       if (!hasCealAccess()) { readonlyToast(); return; }
+      const rawText = String(fd.get('rawText') || '').trim();
+      if (rawText.length < 20 && !state.cealAttachment) { showToast('Escribe un texto (mín. 20 caracteres) o adjunta un archivo de contexto', 'blue'); return; }
       const request = {
         intent: 'comunicado',
-        rawText: String(fd.get('rawText') || '').trim(),
+        rawText,
         category: String(fd.get('category') || 'Auto'),
         audience: CEAL_ASSISTANT_AUDIENCE,
         urgency: String(fd.get('urgency') || 'normal'),
         length: String(fd.get('length') || 'auto'),
-        extraContext: String(fd.get('extraContext') || '').trim()
+        extraContext: String(fd.get('extraContext') || '').trim(),
+        attachment: state.cealAttachment || null
       };
-      state.cealAssistantRequest = request;
+      state.cealAssistantRequest = { ...request, attachment: undefined };
       state.cealAssistantResult = null;
       state.cealAssistantError = '';
       state.cealAssistantLoading = true;
@@ -2600,6 +2623,7 @@
         const payload = await cealAssistantRequest(request);
         state.cealAssistantResult = payload.result;
         state.cealAssistantUsage = payload.usage || null;
+        state.cealAttachment = null;
         showToast('Borrador generado', 'blue');
       } catch (error) {
         state.cealAssistantError = error.message || 'No se pudo generar el borrador.';

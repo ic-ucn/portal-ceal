@@ -884,6 +884,13 @@ img { max-width: 100%; display: block; }
   padding: 18px;
 }
 .upload-zone strong { display: block; color: var(--navy-950); margin-top: 8px; }
+.upload-zone.compact { min-height: 0; padding: 12px 14px; cursor: pointer; }
+.upload-zone.compact strong { margin-top: 6px; font-size: .9rem; }
+.upload-zone.compact:hover { border-color: rgba(18,111,227,.55); background: linear-gradient(180deg, rgba(18,111,227,.07), rgba(18,111,227,.03)); }
+.attach-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft, #f6f9ff); padding: 9px 10px 9px 13px; font-weight: 650; color: var(--text); }
+.attach-chip .hstack { gap: 8px; min-width: 0; }
+.attach-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.theme-dark .attach-chip { background: rgba(20, 43, 68, .5); }
 .checkbox-row { display: flex; gap: 10px; align-items: flex-start; color: var(--slate-700); font-size: .9rem; }
 .checkbox-row input { margin-top: 2px; }
 
