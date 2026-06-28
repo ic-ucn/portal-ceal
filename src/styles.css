@@ -4744,8 +4744,9 @@ body.theme-dark .calendar-agenda-row:hover {
 }
 
 @media (max-width: 920px) {
-  .mobile-theme-toggle span,
-  .theme-floating-toggle span {
+  /* Ocultar solo el TEXTO en mobile, no el icono (icon() lo envuelve en span.icon). */
+  .mobile-theme-toggle span:not(.icon),
+  .theme-floating-toggle span:not(.icon) {
     display: none;
   }
 
