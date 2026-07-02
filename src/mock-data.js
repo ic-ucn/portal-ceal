@@ -406,9 +406,9 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
   ];
 
   const notifications = [
-    { id: 'not-001', title: 'Comunicado actualizado', detail: 'Nuevo aviso sobre negociación, turnos y recalendarización.', date: 'Hoy, 10:00', unread: true, route: '/comunicados/com-paro-005' },
-    { id: 'not-002', title: 'Calendario académico actualizado', detail: 'Fechas oficiales 2026 desde junio en adelante.', date: 'Hoy, 09:30', unread: true, route: '/calendario' },
-    { id: 'not-003', title: 'Biblioteca disponible', detail: 'Material organizado por ramos reales de la malla.', date: 'Ayer, 18:40', unread: true, route: '/material' }
+    { id: 'not-001', title: 'Comunicado actualizado', detail: 'Nuevo aviso sobre negociación, turnos y recalendarización.', date: '17 jun, 10:00', unread: true, route: '/comunicados/com-paro-005' },
+    { id: 'not-002', title: 'Calendario académico actualizado', detail: 'Fechas oficiales 2026 desde junio en adelante.', date: '17 jun, 09:30', unread: true, route: '/calendario' },
+    { id: 'not-003', title: 'Biblioteca disponible', detail: 'Material organizado por ramos reales de la malla.', date: '16 jun, 18:40', unread: true, route: '/material' }
   ];
 
   const saved = {
@@ -425,9 +425,9 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       { id: 'pend-004', type: 'calendario', title: 'Calendario oficial', count: 18, detail: 'Hitos académicos 2026 cargados' }
     ],
     changes: [
-      { title: 'Comunicado académico', detail: 'Actualizado por Comunicaciones CEAL', date: 'Hoy, 10:00' },
-      { title: 'Seguimiento N°03/2026', detail: 'Seguimiento actualizado por CEAL', date: 'Hoy, 09:45' },
-      { title: 'Calendario académico 2026', detail: 'Actualizado desde calendario DGPRE UCN', date: 'Hoy, 09:30' },
+      { title: 'Comunicado académico', detail: 'Actualizado por Comunicaciones CEAL', date: '17 jun, 10:00' },
+      { title: 'Seguimiento N°03/2026', detail: 'Seguimiento actualizado por CEAL', date: '17 jun, 09:45' },
+      { title: 'Calendario académico 2026', detail: 'Actualizado desde calendario DGPRE UCN', date: '17 jun, 09:30' },
       { title: 'Material: guía de hormigón armado', detail: 'Validado por Docencia CEAL', date: '24 may, 12:10' }
     ],
     roles: [

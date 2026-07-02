@@ -47,7 +47,7 @@ function startServer() {
   rmSync(dbPath, { force: true });
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath, PORTAL_STATE_BACKEND: 'local' },
+    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath, PORTAL_STATE_BACKEND: 'local', QA_TEST_MODE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true
   });
@@ -64,48 +64,70 @@ async function importPlaywright() {
   }
 }
 
-async function loginStudent(page) {
+async function setupStudentSession() {
+  const res = await fetch(`${baseUrl}/api/auth/qa-session`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      role: 'student',
+      name: 'Estudiante CEIC UCN',
+      label: 'Estudiante',
+      plan: 'planP',
+      yearLabel: '4to año',
+      email: 'qa.estudiante@alumnos.ucn.cl'
+    })
+  });
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {}
+  if (!res.ok || !payload?.user?.sessionToken) {
+    fail(`could not create a real student session for QA (status ${res.status})`);
+  }
+  return payload.user;
+}
+
+async function loginStudent(page, studentUser) {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
-  await page.evaluate(() => {
+  await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
-    localStorage.setItem('portal.session', JSON.stringify({
-      id: 'qa-student',
-      name: 'Estudiante CEIC UCN',
-      initials: 'EC',
-      role: 'student',
-      label: 'Estudiante',
-      plan: 'planP',
-      yearLabel: '4to año',
-      email: 'qa.estudiante@alumnos.ucn.cl',
-      permissions: []
-    }));
-  });
+    localStorage.setItem('portal.session', JSON.stringify(user));
+  }, studentUser);
   await page.goto(appUrl('/'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
-async function loginCeal(page) {
+const QA_CEAL_MEMBER_ID = 'ceal-martina-briceno';
+const QA_CEAL_PASSWORD = 'QaPortal#2026';
+
+async function setupCealSession() {
+  const res = await fetch(`${baseUrl}/api/auth/setup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ memberId: QA_CEAL_MEMBER_ID, password: QA_CEAL_PASSWORD })
+  });
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {}
+  if (!res.ok || !payload?.user?.sessionToken) {
+    fail(`could not create a real CEAL session for QA (status ${res.status})`);
+  }
+  return payload.user;
+}
+
+async function loginCeal(page, cealUser) {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
-  await page.evaluate(() => {
+  await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
-    localStorage.setItem('portal.session', JSON.stringify({
-      id: 'qa-ceal',
-      name: 'CEAL UCN',
-      initials: 'CU',
-      role: 'ceal',
-      label: 'CEAL',
-      plan: 'planP',
-      yearLabel: 'Gestión 2026',
-      email: 'qa.ceal@alumnos.ucn.cl',
-      permissions: ['approve:content', 'manage:roles', 'publish:comunicados', 'upload:acuerdos', 'validate:material', 'edit:mallas', 'manage:forms']
-    }));
-  });
+    localStorage.setItem('portal.session', JSON.stringify(user));
+  }, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
@@ -166,8 +188,8 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   }
 }
 
-async function runPublicFlowTests(page) {
-  await loginStudent(page);
+async function runPublicFlowTests(page, studentUser) {
+  await loginStudent(page, studentUser);
 
   await page.goto(appUrl('/material'), { waitUntil: 'networkidle' });
   await page.locator('[data-material-search]').fill('estatica');
@@ -214,8 +236,8 @@ async function runPublicFlowTests(page) {
   report.flows.push('course detail routes to filtered material');
 }
 
-async function runCealFlowTests(page) {
-  await loginCeal(page);
+async function runCealFlowTests(page, cealUser) {
+  await loginCeal(page, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   if (!(await page.locator('text=Gestión de contenido').count())) fail('gestion dashboard missing content management section');
 
@@ -248,6 +270,8 @@ async function main() {
   const server = startServer();
   try {
     await waitForHealth();
+    const cealUser = await setupCealSession();
+    const studentUser = await setupStudentSession();
     const { chromium } = await importPlaywright();
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -260,8 +284,8 @@ async function main() {
     });
     page.on('pageerror', error => pushFailure(`page error: ${error.message}`));
 
-    await runPublicFlowTests(page);
-    await runCealFlowTests(page);
+    await runPublicFlowTests(page, studentUser);
+    await runCealFlowTests(page, cealUser);
 
     const studentRoutes = [
       ['/', 'inicio'],
@@ -280,13 +304,13 @@ async function main() {
       ['/perfil', 'perfil'],
       ['/mas', 'mas']
     ];
-    await loginStudent(page);
+    await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
       await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas'].includes(name));
     }
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await loginStudent(page);
+    await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
       await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas'].includes(name));
     }
@@ -296,7 +320,7 @@ async function main() {
     if (mobilePlanO.cardCount < 55) pushFailure('mobile embedded malla did not load Plan O');
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await loginCeal(page);
+    await loginCeal(page, cealUser);
     const cealRoutes = [
       ['/gestion', 'gestion'],
       ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],
