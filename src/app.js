@@ -1,11 +1,11 @@
 (() => {
   const app = document.getElementById('app');
-  const Data = window.PortalMock;
+  let Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260626u';
-  const LOCAL_DATA_KEY = 'portal.data.v46';
+  const DATA_CONTENT_VERSION = '20260702a';
+  const LOCAL_DATA_KEY = 'portal.data.v47';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45'];
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
@@ -20,8 +20,12 @@
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
-  // Por defecto SIEMPRE modo claro; solo queda oscuro si el usuario lo eligió explícitamente.
-  const initialPortalDark = localStorage.getItem(PORTAL_THEME_KEY) === 'dark';
+  // Si el usuario ya eligió tema, se respeta. Si nunca lo eligió (sin clave guardada),
+  // se sigue la preferencia del sistema operativo (prefers-color-scheme).
+  const storedPortalTheme = localStorage.getItem(PORTAL_THEME_KEY);
+  const initialPortalDark = storedPortalTheme
+    ? storedPortalTheme === 'dark'
+    : Boolean(window.matchMedia?.('(prefers-color-scheme: dark)').matches);
   let dataMode = API_BASE ? 'backend' : 'static';
   // false hasta que el primer /bootstrap termina (exito o error). Evita mostrar
   // "no existe" en detalles abiertos por enlace directo mientras llegan los datos.
@@ -32,6 +36,7 @@
   let scrollResetToken = 0;
   let pageTopHoldTimer = null;
   let filterRenderTimer = null;
+  let localWrites = 0;
 
   try {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -49,6 +54,7 @@
     materialQuery: '',
     materialType: 'all',
     materialCourse: 'all',
+    materialVisibleCount: 60,
     communicationCategory: 'Todas',
     communicationQuery: '',
     cealAssistantRequest: { rawText: '', category: 'Auto', audience: CEAL_ASSISTANT_AUDIENCE, urgency: 'normal', extraContext: '' },
@@ -94,11 +100,11 @@
     derivado: ['Derivado', 'purple'],
     cerrado: ['Cerrado', 'gray'],
     publicado: ['Publicado', 'green'],
-    actualizado: ['Actualizado', 'orange'],
+    actualizado: ['Actualizado', 'blue'],
     abierto: ['Abierto', 'green'],
     pendiente: ['Pendiente', 'orange'],
     completado: ['Completado', 'green'],
-    borrador: ['Borrador', 'blue'],
+    borrador: ['Borrador', 'gray'],
     pendienteRevision: ['Pendiente de revisión', 'orange'],
     validadoCeal: ['Validado CEAL', 'green'],
     aporteEstudiantil: ['Aporte estudiantil', 'blue'],
@@ -180,6 +186,7 @@
   };
 
   function ensureShape() {
+    if (!Data || typeof Data !== 'object') { Data = window.PortalMock = {}; }
     Data.cealMembers ||= [];
     Data.saved ||= { resources: [], courses: [], reminders: [] };
     Data.saved.resources ||= [];
@@ -224,6 +231,8 @@
   }
   function plain(v) { return tx(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function esc(v) { return tx(v).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
+  function safeUrl(u) { try { return ['http:', 'https:'].includes(new URL(String(u)).protocol) ? String(u) : ''; } catch { return ''; } }
+  function safeDecode(s) { try { return decodeURIComponent(s); } catch { return null; } }
   function icon(name, extra = '') { return `<span class="icon ${extra}">${ICONS[name] || ICONS.file}</span>`; }
   function applyPortalTheme() {
     const dark = Boolean(state.portalDark);
@@ -297,7 +306,15 @@
     btn.setAttribute('aria-busy', 'true');
     btn.innerHTML = `<span class="btn-spinner"></span>${label ? `<span>${esc(label)}</span>` : ''}`;
   }
-  function persistSnapshot() { try { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: Data })); } catch {} }
+  function persistSnapshot() {
+    localWrites += 1;
+    try {
+      const snapshotData = { ...Data, resources: (Data.resources || []).filter(r => !(r && (r.source === 'drive' || String(r.id).startsWith('drive-')))) };
+      localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify({ version: DATA_CONTENT_VERSION, data: snapshotData }));
+    } catch (err) {
+      console.warn('No se pudo guardar el snapshot local', err);
+    }
+  }
   const PREF_DEFS = [['recordatorios', 'Recibir recordatorios'], ['soloPlan', 'Mostrar solo mi plan'], ['alertas', 'Alertas de comunicados'], ['compacto', 'Modo compacto']];
   const PREF_DEFAULTS = { recordatorios: true, soloPlan: true, alertas: true, compacto: false };
   function getPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem('portal.prefs') || '{}') }; } catch { return { ...PREF_DEFAULTS }; } }
@@ -355,6 +372,14 @@
       .join('');
   }
   function badge(key, label) { const [text, color] = Status[key] || [label || key, 'gray']; return `<span class="status-chip ${color}">${esc(label || text)}</span>`; }
+  function resourceFormatClass(format) {
+    const f = plain(format || '');
+    if (f.includes('pdf')) return 'fmt-pdf';
+    if (f.includes('ppt')) return 'fmt-ppt';
+    if (f.includes('doc')) return 'fmt-doc';
+    if (/(jpg|jpeg|png|gif|img)/.test(f)) return 'fmt-img';
+    return '';
+  }
   function ensureLiveRegion() {
     let el = document.getElementById('portal-live');
     if (!el) {
@@ -378,11 +403,16 @@
     render();
     toastTimer = setTimeout(() => { toastTimer = null; state.toast = null; render(); }, isError ? 6000 : 4200);
   }
+  function toastVariantIcon(type) {
+    if (type === 'green') return icon('check', 'toast-icon-glyph');
+    if (type === 'red' || type === 'orange') return '<span class="toast-icon-glyph" aria-hidden="true">!</span>';
+    return '<span class="toast-icon-glyph" aria-hidden="true">i</span>';
+  }
   function renderToast() {
     const t = state.toast;
     if (!t) return '';
     const isError = t.type === 'red' || t.type === 'orange';
-    return `<div class="toast toast-${esc(t.type)}" role="${isError ? 'alert' : 'status'}"><span class="toast-dot" aria-hidden="true"></span><span class="toast-msg">${esc(t.message)}</span><button class="toast-close" type="button" data-dismiss-toast aria-label="Cerrar aviso">${icon('x')}</button></div>`;
+    return `<div class="toast toast-${esc(t.type)}" role="${isError ? 'alert' : 'status'}"><span class="toast-dot" aria-hidden="true"></span><span class="toast-icon" aria-hidden="true">${toastVariantIcon(t.type)}</span><span class="toast-msg">${esc(t.message)}</span><button class="toast-close" type="button" data-dismiss-toast aria-label="Cerrar aviso">${icon('x')}</button></div>`;
   }
   function getUnreadCount() { return Data.notifications.filter(n => n.unread).length; }
   function planLabel(plan) { return plan === 'planO' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025'; }
@@ -390,15 +420,29 @@
   function getCourses(plan = state.activePlan) { return Curricula[plan]?.subjects || []; }
   function getPlanData(plan = state.activePlan) { return Curricula[plan] || Curricula.planP; }
   function allOfficialCourses() { return ['planP', 'planO'].flatMap(plan => (Curricula[plan]?.subjects || []).map(course => ({ plan, course }))); }
+  let courseIndexCache = null;
+  function courseIndex() {
+    if (!courseIndexCache) {
+      const byCode = new Map();
+      const byName = new Map();
+      for (const entry of allOfficialCourses()) {
+        byCode.set(entry.course.code, entry);
+        if (entry.course.visibleCode) byCode.set(entry.course.visibleCode, entry);
+        byName.set(plain(entry.course.name), entry);
+      }
+      courseIndexCache = { byCode, byName };
+    }
+    return courseIndexCache;
+  }
   function officialCourseByCode(code) {
     const normalized = String(code || '').trim();
     if (!normalized) return null;
-    return allOfficialCourses().find(({ course }) => course.code === normalized || course.visibleCode === normalized) || null;
+    return courseIndex().byCode.get(normalized) || null;
   }
   function officialCourseByName(name) {
     const normalized = plain(name);
     if (!normalized) return null;
-    return allOfficialCourses().find(({ course }) => plain(course.name) === normalized) || null;
+    return courseIndex().byName.get(normalized) || null;
   }
   function canonicalizeResourceCourse(resource) {
     const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
@@ -547,13 +591,32 @@
     routeTo('/login');
     setTimeout(() => { sessionExpiredHandled = false; }, 1500);
   }
+  async function fetchWithTimeout(url, options = {}, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('El servidor está tardando en responder (puede estar despertando). Inténtalo de nuevo en un momento.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   async function apiRequest(path, options = {}) {
     if (!API_BASE) throw new Error('api unavailable');
     const headers = { 'content-type': 'application/json', ...(options.headers || {}) };
     if (state.user?.sessionToken && !headers.Authorization) headers.Authorization = `Bearer ${state.user.sessionToken}`;
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    const res = await fetchWithTimeout(`${API_BASE}${path}`, { ...options, headers }, 45000);
     const payload = await res.json().catch(() => ({}));
-    if (res.status === 401 && state.user?.sessionToken) handleSessionExpired();
+    if (res.status === 401 && state.user?.sessionToken) {
+      handleSessionExpired();
+      const err = new Error('session-expired');
+      err.isSessionExpired = true;
+      throw err;
+    }
     if (!res.ok || payload.ok === false) throw new Error(payload.error || `api ${res.status}`);
     return payload;
   }
@@ -562,8 +625,14 @@
     if (!endpoint) throw new Error('Asistente IA no disponible.');
     const headers = { 'content-type': 'application/json' };
     if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
-    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const res = await fetchWithTimeout(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) }, 90000);
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && state.user?.sessionToken) {
+      handleSessionExpired();
+      const err = new Error('session-expired');
+      err.isSessionExpired = true;
+      throw err;
+    }
     if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
     return data;
   }
@@ -572,8 +641,14 @@
     if (!endpoint) throw new Error('Asistente IA no disponible.');
     const headers = { 'content-type': 'application/json' };
     if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
-    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const res = await fetchWithTimeout(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) }, 90000);
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && state.user?.sessionToken) {
+      handleSessionExpired();
+      const err = new Error('session-expired');
+      err.isSessionExpired = true;
+      throw err;
+    }
     if (!res.ok || data.ok === false) throw new Error(data.error || `ai ${res.status}`);
     return data;
   }
@@ -709,7 +784,7 @@
       const user = await loginGoogle(stored.role || 'student', credential);
       state.authMessage = '';
       saveSession(user);
-      history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+      history.replaceState(null, '', `${location.pathname}${location.search}#${consumePostLoginRoute()}`);
       pendingScrollReset = true;
       holdPageTop(1600);
       return true;
@@ -747,7 +822,9 @@
   }
   function downloadResource(resource) {
     if (resource.externalUrl) {
-      window.open(resource.externalUrl, '_blank', 'noopener');
+      const url = safeUrl(resource.externalUrl);
+      if (!url) { showToast('Enlace no disponible', 'orange'); return; }
+      window.open(url, '_blank', 'noopener');
       return;
     }
     if (resource.fileDataUrl) {
@@ -837,18 +914,32 @@
     }, 800);
   }
 
-  async function boot() {
-    loadLocalSnapshot();
-    mergeDriveResources();
-    ensureShape();
-    document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
-    await handleGoogleRedirectCallback();
-    const shouldHoldInitialTop = state.user && getRoute().path === '/';
-    render();
-    if (shouldHoldInitialTop) holdPageTop(1400);
-    if (!API_BASE) return;
+  function renderBootError() {
+    try {
+      app.innerHTML = '<div class="boot-error"><h1>No se pudo cargar el portal</h1><p>Recarga la página para reintentar.</p><button onclick="location.reload()">Reintentar</button></div>';
+    } catch {}
+  }
+  let hashRecoveryDone = false;
+  function safeRender(options) {
+    try {
+      render(options);
+    } catch (err) {
+      console.error(err);
+      if (!hashRecoveryDone) {
+        hashRecoveryDone = true;
+        try { if (window.location.hash !== '#/') window.location.hash = '#/'; } catch {}
+        setTimeout(() => { hashRecoveryDone = false; }, 1500);
+      }
+    }
+  }
+  async function runBootstrap(allowRetry = true) {
+    const writesAtStart = localWrites;
     try {
       const payload = await apiRequest('/bootstrap');
+      if (localWrites > writesAtStart) {
+        if (allowRetry) setTimeout(() => { runBootstrap(false); }, 3000);
+        return;
+      }
       if (payload.data) Object.assign(Data, payload.data);
       if (payload.mail) state.mailMeta = payload.mail;
       if (payload.curricula) Object.assign(Curricula, payload.curricula);
@@ -858,6 +949,24 @@
       persistSnapshot();
     } catch { dataMode = 'static'; }
     finally { dataReady = true; renderDataRefresh(); }
+  }
+  async function boot() {
+    try {
+      loadLocalSnapshot();
+      mergeDriveResources();
+      ensureShape();
+      document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
+      await handleGoogleRedirectCallback();
+      const shouldHoldInitialTop = state.user && getRoute().path === '/';
+      safeRender();
+      if (shouldHoldInitialTop) holdPageTop(1400);
+    } catch (err) {
+      console.error(err);
+      renderBootError();
+      return;
+    }
+    if (!API_BASE) return;
+    await runBootstrap();
   }
 
   function navItems() {
@@ -891,10 +1000,25 @@
   function stat(ico, num, label, sub = '') {
     return `<div class="stat-card"><span class="icon-box">${icon(ico)}</span><span class="stat-copy"><strong>${esc(num)}</strong><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>`;
   }
+  function summaryStat(ico, value, label, href) {
+    return `<a class="summary-stat" href="#${href}"><span class="icon-box">${icon(ico)}</span><span class="summary-stat-copy"><strong>${esc(value)}</strong><span>${esc(label)}</span></span></a>`;
+  }
+  function savePostLoginRoute() {
+    const raw = window.location.hash.replace(/^#/, '');
+    if (!raw || raw === '/' || raw.startsWith('/login')) return;
+    try { sessionStorage.setItem('portal.postLoginRoute', raw); } catch {}
+  }
+  function consumePostLoginRoute() {
+    try {
+      const saved = sessionStorage.getItem('portal.postLoginRoute');
+      sessionStorage.removeItem('portal.postLoginRoute');
+      return saved && !saved.startsWith('/login') ? saved : '/';
+    } catch { return '/'; }
+  }
   function paint() {
     applyPortalTheme();
     const { path, query } = getRoute();
-    if (!state.user && path !== '/login') return routeTo('/login');
+    if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && path === '/contingencia') return routeTo('/comunicados');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
@@ -998,7 +1122,7 @@
         state.staffBusy = Array.isArray(payload.busy) ? payload.busy : [];
       } catch (error) {
         state.staffBusyError = error.message || 'No se pudo revisar disponibilidad.';
-        state.staffBusy = [];
+        state.staffBusy = null;
       } finally {
         state.staffBusyLoading = false;
         render({ transition: false, scope: 'panel', resetScroll: false });
@@ -1043,7 +1167,7 @@
       .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
-      <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications>${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil">${icon('user')}</a></div></header>
+      <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
   }
   function renderPage(path, query) {
@@ -1069,27 +1193,40 @@
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
       if (query.course) {
-        const courseCode = decodeURIComponent(String(query.course));
-        const course = findCourse(state.activePlan, courseCode) || findCourse(findCoursePlanForCode(courseCode), courseCode);
-        state.materialCourse = course?.name || 'all';
-        state.materialQuery = course?.name || courseCode;
-        state.selectedResourceId = null;
+        const courseCode = safeDecode(String(query.course));
+        if (courseCode !== null) {
+          const course = findCourse(state.activePlan, courseCode) || findCourse(findCoursePlanForCode(courseCode), courseCode);
+          state.materialCourse = course?.name || 'all';
+          state.materialQuery = course?.name || courseCode;
+          state.selectedResourceId = null;
+        }
       }
       return renderMaterial();
     }
     if (path === '/material/subir') return renderUploadMaterial();
     if (path.startsWith('/material/')) return renderMaterialDetailPage(path.split('/')[2]);
     if (path === '/mallas') return renderMallas();
-    if (path.startsWith('/ramo/')) { const [, , plan, code] = path.split('/'); return renderCourseDetailPage(plan, decodeURIComponent(code)); }
+    if (path.startsWith('/ramo/')) {
+      const [, , plan, code] = path.split('/');
+      const decodedCode = safeDecode(code);
+      if (decodedCode === null) return renderNotFound();
+      return renderCourseDetailPage(plan, decodedCode);
+    }
     if (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/')) return renderMaterial();
     return renderNotFound();
   }
 
   function renderHome() {
-    return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}
-      <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || '<p class="small muted">Sin comunicados por ahora.</p>'}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
+    const noDataYet = !dataReady && !Data.communications.length && !Data.events.length;
+    const homeUnreadComms = (Data.communications || []).filter(c => c.unread).length;
+    const homeNextEvent = (Data.events || []).find(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || new Date().toISOString().slice(0, 10)}T00:00:00`));
+    const homeActiveAgreements = (Data.agreements || []).filter(a => a.status !== 'publicado').length;
+    const homeResourceCount = (Data.resources || []).length;
+    const summaryStrip = `<div class="summary-strip">${summaryStat('megaphone', homeUnreadComms, 'Comunicados nuevos', '/comunicados')}${summaryStat('calendar', homeNextEvent ? fmtDate(homeNextEvent.date) : '—', 'Próxima fecha', '/calendario')}${summaryStat('file', homeActiveAgreements, 'Seguimientos activos', '/calendario')}${summaryStat('book', homeResourceCount, 'Recursos', '/material')}</div>`;
+    return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}${summaryStrip}
+      <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || (noDataYet ? skeletonList(3) : '<p class="small muted">Sin comunicados por ahora.</p>')}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
       <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}</div></div></section>${renderHomeDigest()}
-      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('')}</section></div>`;
+      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('') || (noDataYet ? skeletonList(3) : '')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('') || (noDataYet ? skeletonList(3) : '')}</section></div>`;
 
   }
   function renderHomeDigest() {
@@ -1164,14 +1301,15 @@
     const q = plain(state.communicationQuery);
     const items = Data.communications.filter(c => (state.communicationCategory === 'Todas' || plain(c.category) === plain(state.communicationCategory)) && (!q || plain([c.title, c.summary, c.category, c.source].join(' ')).includes(q)));
     const selected = items[0];
+    const noDataYet = !dataReady && !Data.communications.length;
     const createAction = canPublishCommunications() ? `<a class="btn primary" href="#/comunicados/nuevo">${icon('megaphone')} Crear comunicado</a>` : '';
     return `${pageHead('Comunicados', 'Avisos, respuestas y actualizaciones de la carrera', createAction)}
       <div class="comms-layout"><aside class="card pad comms-filters"><div class="form-field"><label>Buscar comunicados</label><input class="input" data-com-search value="${esc(state.communicationQuery)}" placeholder="Buscar comunicado" /></div><h2 class="card-title">Categorías</h2><div class="comms-category-list">${cats.map(c => `<button class="chip-btn ${state.communicationCategory === c ? 'active' : ''}" data-com-category="${esc(c)}">${esc(c)}</button>`).join('')}</div></aside>
-      <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.')}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || '<p class="small muted">No hay más comunicados en esta categoría.</p>'}</div></main>
+      <main class="card pad comms-feed"><div class="row-between"><h2 class="card-title">Comunicado destacado</h2><span class="pill gray">${items.length} visibles</span></div>${selected ? commCard(selected, true) : (noDataYet ? skeletonList(1) : renderEmpty('Sin comunicados visibles', 'Cambia los filtros para revisar otros avisos.'))}<div class="divider"></div><h2 class="card-title">Recientes</h2><div class="card-list">${items.slice(1).map(c => commCard(c)).join('') || (noDataYet ? skeletonList(2) : '<p class="small muted">No hay más comunicados en esta categoría.</p>')}</div></main>
       <aside class="card pad comms-preview"><h2 class="card-title">Preguntas frecuentes</h2>${renderFAQ()}</aside></div>`;
   }
   function commCard(c, featured = false) {
-    const card = `<a class="item-card${featured ? ' is-featured' : ''}" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`;
+    const card = `<a class="item-card${featured ? ' is-featured' : ''}${c.unread ? ' unread' : ''}" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`;
     if (!canPublishCommunications()) return card;
     return `<div class="card-del-wrap">${card}<button class="card-del" type="button" data-comm-delete="${esc(c.id)}" data-comm-title="${esc(c.title || 'este comunicado')}" aria-label="Eliminar comunicado">${icon('x')}</button></div>`;
   }
@@ -1210,7 +1348,7 @@
     const agreementAction = hasCealAccess() ? `<a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a>` : '';
     const agreementRows = Data.agreements.slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
     return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} fechas próximas</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Algunos hitos pueden ajustarse si la carrera informa cambios oficiales. CEAL actualizará esta vista cuando exista información confirmada.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></aside></div>`;
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} ${nextEvents.length === 1 ? 'fecha próxima' : 'fechas próximas'}</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Algunos hitos pueden ajustarse si la carrera informa cambios oficiales. CEAL actualizará esta vista cuando exista información confirmada.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></aside></div>`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
@@ -1256,10 +1394,16 @@
       ? `<div class="material-plan-note">${icon('grid')}<span>Plan P está incorporando material de forma progresiva. Cuando exista continuidad con Plan O, la biblioteca muestra recursos equivalentes por nombre de ramo.</span></div>`
       : '';
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
+    const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
+    const visible = items.slice(0, visibleCount);
+    const remaining = items.length - visible.length;
+    const showMore = remaining > 0 ? `<div class="material-show-more"><button class="btn secondary" type="button" data-material-more>Mostrar más (${remaining} restantes)</button></div>` : '';
+    const noDataYet = !dataReady && !Data.resources.length;
+    const appliedFilters = activeFilters.length ? `<div class="applied-filters active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} <span class="filter-chip-remove">${icon('x')}</span></button>`).join('')}<button class="btn ghost sm applied-filters-clear" data-material-clear="all" type="button">Limpiar todo</button></div>` : '';
     return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
-      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${activeFilters.length ? `<div class="active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} ${icon('x')}</button>`).join('')}</div>` : ''}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">${items.length} recursos encontrados</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${items.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${items.map(resourceCard).join('') || renderEmptyMaterial()}</div></section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : renderEmptyMaterial()}</aside></div>`;
+      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${appliedFilters}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">Mostrando ${visible.length} de ${items.length} recursos</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="icon-box sm ${resourceFormatClass(r.format)}">${icon('file')}</span><div><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></div></div></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : (noDataYet ? skeletonList(1) : renderEmptyMaterial())}</aside></div>`;
   }
-  function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
+  function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box ${resourceFormatClass(r.format)}">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
   function renderResourcePreview(r) {
     if (QA_MODE) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización omitida</h2><p class="small muted">La revisión automática usa los datos del recurso sin cargar servicios externos.</p></div></section>`;
@@ -1268,15 +1412,18 @@
     if (!previewUrl) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización no disponible</h2><p class="small muted">Este recurso no tiene enlace embebible. Usa el botón de apertura para revisar el archivo completo.</p></div></section>`;
     }
-    return `<section class="resource-preview-shell"><div class="resource-preview-head"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(r.title)}</h2></div><a class="btn secondary sm" href="${esc(r.externalUrl)}" target="_blank" rel="noopener">${icon('arrow')} Abrir en Drive</a></div><iframe class="resource-preview-frame" src="${esc(previewUrl)}" title="Vista previa de ${esc(r.title)}" loading="lazy" allow="autoplay"></iframe></section>`;
+    const previewExternalUrl = safeUrl(r.externalUrl);
+    const openInDriveLink = previewExternalUrl ? `<a class="btn secondary sm" href="${esc(previewExternalUrl)}" target="_blank" rel="noopener">${icon('arrow')} Abrir en Drive</a>` : '';
+    return `<section class="resource-preview-shell"><div class="resource-preview-head"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(r.title)}</h2></div>${openInDriveLink}</div><iframe class="resource-preview-frame" src="${esc(previewUrl)}" title="Vista previa de ${esc(r.title)}" loading="lazy" allow="autoplay"></iframe></section>`;
   }
   function renderResourceDetail(r, options = {}) {
-    const openAction = r.externalUrl
-      ? `<a class="btn primary" href="${esc(r.externalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
+    const detailExternalUrl = safeUrl(r.externalUrl);
+    const openAction = detailExternalUrl
+      ? `<a class="btn primary" href="${esc(detailExternalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
       : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
       ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
-      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button>${openAction}<button class="btn danger" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
     const closeControl = options.hideClose ? '' : `<button class="icon-btn" data-clear-panel>${icon('x')}</button>`;
     return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
@@ -1290,15 +1437,23 @@
   }
   function renderUploadMaterial() {
     if (isGuest()) return `${pageHead('Subir material', 'Modo invitado en solo lectura', `<a class="btn secondary" href="#/material">Volver</a>`)}<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Vista sin registros</h3><p>El modo invitado permite revisar contenido sin guardar actividad ni enviar aportes.</p><a class="btn primary" href="#/material">Volver a material</a></section>`;
-    return `${pageHead('Subir material', 'Comparte un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material"><div class="form-field"><label>Tipo de recurso</label><div class="segmented">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label>Título</label><input class="input" name="title" required minlength="6" /></div><div class="form-field"><label>Ramo</label><input class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label>Plan</label><select class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label>Año</label><select class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label>Descripción</label><textarea class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label>Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, PNG, JPG o ZIP</span><input class="sr-only" type="file" name="file" /></label></div><div class="form-field"><label>Fuente u origen</label><input class="input" name="origin" required /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit">Enviar a revisión</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form><aside class="card pad"><h2 class="card-title">Proceso</h2>${timeline([{ title:'Enviado', detail:'Recibimos el aporte.', at:new Date() }, { title:'Revisión CEAL', detail:'Se revisa formato y ramo asociado.', at:new Date() }, { title:'Publicado u observado', detail:'Queda disponible o con observaciones.', at:new Date() }])}</aside></div>`;
+    return `${pageHead('Subir material', 'Comparte un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material"><div class="form-field"><label id="f-upload-type-label">Tipo de recurso</label><div class="segmented" role="group" aria-labelledby="f-upload-type-label">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-title">Título</label><input id="f-upload-title" class="input" name="title" required minlength="6" /></div><div class="form-field"><label for="f-upload-course">Ramo</label><input id="f-upload-course" class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label for="f-upload-plan">Plan</label><select id="f-upload-plan" class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label for="f-upload-year">Año</label><select id="f-upload-year" class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label for="f-upload-description">Descripción</label><textarea id="f-upload-description" class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label for="f-upload-file">Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, PNG, JPG o ZIP</span><input id="f-upload-file" class="sr-only" type="file" name="file" accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.zip" /></label></div><div class="form-field"><label for="f-upload-origin">Fuente u origen</label><input id="f-upload-origin" class="input" name="origin" required /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit">Enviar a revisión</button></div></form><aside class="card pad"><h2 class="card-title">Proceso</h2>${timeline([{ title:'Enviado', detail:'Recibimos el aporte.', at:new Date() }, { title:'Revisión CEAL', detail:'Se revisa formato y ramo asociado.', at:new Date() }, { title:'Publicado u observado', detail:'Queda disponible o con observaciones.', at:new Date() }])}</aside></div>`;
   }
 
   function renderMallas() {
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
     const dark = state.portalDark;
+    const planKey = plan === 'o' ? 'planO' : 'planP';
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
     const accountLabel = 'Mi cuenta';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
+    const mallaTotalCourses = getCourses(planKey).length;
+    const mallaApprovedCourses = getCourses(planKey).filter(c => getProgress(planKey, c.code) === 'approved').length;
+    const mallaProgressMarkup = mallaTotalCourses
+      ? (mallaApprovedCourses
+        ? `<div class="malla-progress-wrap"><span class="malla-progress-label">${mallaApprovedCourses} de ${mallaTotalCourses} ramos</span><div class="progress malla-progress"><div class="progress-bar" style="width:${Math.round((mallaApprovedCourses / mallaTotalCourses) * 100)}%"></div></div></div>`
+        : `<span class="malla-progress-label">${mallaTotalCourses} ramos</span>`)
+      : '';
     return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
         <header class="malla-commandbar">
           <a class="malla-commandbar-title" href="#/" aria-label="Volver al inicio del portal">
@@ -1308,6 +1463,7 @@
               <small>${esc(planLabelText)}</small>
             </span>
           </a>
+          ${mallaProgressMarkup}
           <div class="malla-commandbar-actions">
             <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
               <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
@@ -1418,6 +1574,13 @@
         }
         window.__MC = { clearHighlight: clearHighlight, highlightChain: highlightChain, getDirectPrereqs: function(code){ return (byCode[code] && byCode[code].prereqs) || []; }, getDirectDependents: dependents };
         document.addEventListener('click', function(event){ var item = event.target.closest('.mc-card[data-mc-code]'); if (item) highlightChain(item.dataset.mcCode); });
+        document.addEventListener('keydown', function(event){
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          var item = event.target.closest && event.target.closest('.mc-card[data-mc-code]');
+          if (!item) return;
+          event.preventDefault();
+          highlightChain(item.dataset.mcCode);
+        });
       })();
     <\/script>`;
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
@@ -1806,14 +1969,14 @@
     return ensureCEAL(`${pageHead('Crear encuesta', 'De lenguaje natural a consulta lista para aplicar', `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="assistant-layout">
         <form class="card pad form" data-form="survey-ai">
-          <div class="row-between"><div><span class="kicker">Asistente de participacion</span><h2 class="card-title">Nueva consulta</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
+          <div class="row-between"><div><span class="kicker">Asistente de participación</span><h2 class="card-title">Nueva consulta</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
           ${status}${state.surveyBuilderError ? `<p class="form-alert">${esc(state.surveyBuilderError)}</p>` : ''}
           <div class="survey-preset-panel">
             <span class="kicker">Plantillas neutrales</span>
             <div class="quick-chip-row">${Object.entries(SurveyPresets).map(([key, preset]) => `<button class="chip-btn" type="button" data-survey-preset="${esc(key)}">${esc(preset.label)}</button>`).join('')}</div>
           </div>
-          <div class="form-field"><label>Qué necesitas preguntar</label><textarea class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Ejemplo: crear votación secreta sobre mantener paro, con opciones sí/no/abstención y espacio opcional de comentario.">${esc(req.rawText || '')}</textarea></div>
-          <div class="form-grid"><div class="form-field"><label>Formato</label><select class="select" name="mode">${[['auto','Automático'],['encuesta','Encuesta'],['votacion','Votación secreta']].map(([value, label]) => `<option value="${value}"${(req.mode || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div></div>
+          <div class="form-field"><label for="f-survey-rawtext">Qué necesitas preguntar</label><textarea id="f-survey-rawtext" class="textarea assistant-input" name="rawText" required minlength="20" placeholder="Ejemplo: crear votación secreta sobre mantener paro, con opciones sí/no/abstención y espacio opcional de comentario.">${esc(req.rawText || '')}</textarea></div>
+          <div class="form-grid"><div class="form-field"><label for="f-survey-mode">Formato</label><select id="f-survey-mode" class="select" name="mode">${[['auto','Automático'],['encuesta','Encuesta'],['votacion','Votación secreta']].map(([value, label]) => `<option value="${value}"${(req.mode || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="form-field"><label for="f-survey-audience">Audiencia</label><select id="f-survey-audience" class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div></div>
           <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.surveyBuilderLoading ? '' : 'disabled'}>${state.surveyBuilderLoading ? 'Generando...' : 'Generar encuesta'}</button><button class="btn secondary" data-survey-builder-clear type="button">Limpiar</button></div>
         </form>
         <aside class="card pad assistant-side"><h2 class="card-title">Reglas aplicadas</h2><div class="assistant-rule"><span class="icon-box">${icon('eye')}</span><span><strong>Voto secreto por defecto</strong><small>Se muestran cantidades agregadas; no se publica quién votó qué.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Acceso validado</strong><small>Solo Estudiantes de Ingeniería Civil UCN, con revisión CEAL/Jefatura.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('download')}</span><span><strong>XLSX real</strong><small>CEAL descarga resultados para análisis posterior.</small></span></div></aside>
@@ -1824,22 +1987,24 @@
     const typeOpts = [['single', 'Opción única'], ['multiple', 'Selección múltiple'], ['text', 'Respuesta abierta'], ['rating', 'Escala 1 a 5']];
     return `<section class="card pad survey-editor">
       <div class="row-between"><div><span class="kicker">Borrador editable</span><h2 class="card-title">Ajusta tu encuesta</h2></div><span class="pill blue">${surveyModeLabel(survey.mode)}</span></div>
-      <div class="form-field"><label>Título</label><input class="input" data-survey-edit="title" value="${esc(survey.title || '')}" /></div>
-      <div class="form-field"><label>Descripción</label><textarea class="textarea compact" data-survey-edit="description">${esc(survey.description || '')}</textarea></div>
+      <div class="form-field"><label for="f-survey-draft-title">Título</label><input id="f-survey-draft-title" class="input" data-survey-edit="title" value="${esc(survey.title || '')}" /></div>
+      <div class="form-field"><label for="f-survey-draft-description">Descripción</label><textarea id="f-survey-draft-description" class="textarea compact" data-survey-edit="description">${esc(survey.description || '')}</textarea></div>
       <div class="survey-editor-list">${questions.map((q, i) => `
         <div class="survey-editor-q">
-          <div class="row-between"><span class="kicker">Pregunta ${i + 1}</span><button class="icon-btn" type="button" data-survey-del-question="${i}" aria-label="Quitar pregunta">${icon('x')}</button></div>
-          <input class="input" data-survey-q-label="${i}" value="${esc(q.label || '')}" placeholder="Texto de la pregunta" />
+          <div class="row-between"><span class="kicker" id="f-survey-q-label-${i}-legend">Pregunta ${i + 1}</span><button class="icon-btn" type="button" data-survey-del-question="${i}" aria-label="Quitar pregunta">${icon('x')}</button></div>
+          <label class="sr-only" for="f-survey-q-label-${i}">Texto de la pregunta ${i + 1}</label>
+          <input id="f-survey-q-label-${i}" class="input" data-survey-q-label="${i}" value="${esc(q.label || '')}" placeholder="Texto de la pregunta" />
           <div class="survey-editor-meta">
-            <select class="select" data-survey-q-type="${i}">${typeOpts.map(([v, l]) => `<option value="${v}"${(q.type || 'single') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+            <label class="sr-only" for="f-survey-q-type-${i}">Tipo de respuesta de la pregunta ${i + 1}</label>
+            <select id="f-survey-q-type-${i}" class="select" data-survey-q-type="${i}">${typeOpts.map(([v, l]) => `<option value="${v}"${(q.type || 'single') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
             <label class="checkbox-row"><input type="checkbox" data-survey-q-required="${i}" ${q.required ? 'checked' : ''} /> Obligatoria</label>
           </div>
-          ${['single', 'multiple'].includes(q.type) ? `<div class="survey-editor-options">${(q.options || []).map((opt, j) => `<div class="survey-editor-opt"><input class="input" data-survey-opt="${i}:${j}" value="${esc(opt)}" placeholder="Opción ${j + 1}" /><button class="icon-btn" type="button" data-survey-del-option="${i}:${j}" aria-label="Quitar opción">${icon('x')}</button></div>`).join('')}<button class="btn ghost sm" type="button" data-survey-add-option="${i}">+ Agregar opción</button></div>` : ''}
+          ${['single', 'multiple'].includes(q.type) ? `<div class="survey-editor-options">${(q.options || []).map((opt, j) => `<div class="survey-editor-opt"><label class="sr-only" for="f-survey-opt-${i}-${j}">Opción ${j + 1} de la pregunta ${i + 1}</label><input id="f-survey-opt-${i}-${j}" class="input" data-survey-opt="${i}:${j}" value="${esc(opt)}" placeholder="Opción ${j + 1}" /><button class="icon-btn" type="button" data-survey-del-option="${i}:${j}" aria-label="Quitar opción">${icon('x')}</button></div>`).join('')}<button class="btn ghost sm" type="button" data-survey-add-option="${i}">+ Agregar opción</button></div>` : ''}
         </div>`).join('')}</div>
       <button class="btn secondary sm" type="button" data-survey-add-question>+ Agregar pregunta</button>
       <div class="divider"></div>
-      <div class="form-field"><label>Ajustar con IA (lenguaje natural)</label><textarea class="textarea compact" data-survey-refine-input placeholder="Ej: agrega la opción Pizza, quita la pregunta 2, haz la primera de selección múltiple.">${esc(state.surveyRefineText || '')}</textarea></div>
-      <div class="hstack"><button class="btn secondary" type="button" data-survey-refine ${state.surveyBuilderLoading ? 'disabled' : ''}>${icon('sparkles')} ${state.surveyBuilderLoading ? 'Ajustando...' : 'Ajustar con IA'}</button></div>
+      <div class="form-field"><label for="f-survey-refine">Ajustar con el asistente (lenguaje natural)</label><textarea id="f-survey-refine" class="textarea compact" data-survey-refine-input placeholder="Ej: agrega la opción Pizza, quita la pregunta 2, haz la primera de selección múltiple.">${esc(state.surveyRefineText || '')}</textarea></div>
+      <div class="hstack"><button class="btn secondary" type="button" data-survey-refine ${state.surveyBuilderLoading ? 'disabled' : ''}>${state.surveyBuilderLoading ? 'Ajustando...' : 'Ajustar con el asistente'}</button></div>
       <div class="divider"></div>
       <div class="hstack"><button class="btn primary" data-survey-create="open" type="button">${icon('check')} Crear y abrir</button><button class="btn secondary" data-survey-create="draft" type="button">Guardar borrador</button></div>
     </section>`;
@@ -1848,14 +2013,15 @@
     if (state.surveyBuilderResult && !state.surveyBuilderResult.survey) state.surveyBuilderResult.survey = { title: '', description: '', mode: 'encuesta', questions: [] };
     return state.surveyBuilderResult?.survey || null;
   }
-  function renderSurveyQuestionInput(question) {
+  function renderSurveyQuestionInput(question, groupLabelId) {
     const id = esc(question.id);
     const name = `survey-${id}`;
     const required = question.required ? 'required' : '';
-    if (question.type === 'text') return `<textarea class="textarea compact" name="${name}" ${required} placeholder="Escribe tu respuesta"></textarea>`;
-    if (question.type === 'rating') return `<div class="survey-option-grid">${[1, 2, 3, 4, 5].map(value => `<label class="survey-option"><input type="radio" name="${name}" value="${value}" ${required} /><span>${value}</span></label>`).join('')}</div>`;
-    if (question.type === 'multiple') return `<div class="survey-option-grid">${(question.options || []).map(option => `<label class="survey-option"><input type="checkbox" name="${name}" value="${esc(option)}" /><span>${esc(option)}</span></label>`).join('')}</div>`;
-    return `<div class="survey-option-grid">${(question.options || []).map(option => `<label class="survey-option"><input type="radio" name="${name}" value="${esc(option)}" ${required} /><span>${esc(option)}</span></label>`).join('')}</div>`;
+    const groupAttrs = groupLabelId ? ` role="group" aria-labelledby="${esc(groupLabelId)}"` : '';
+    if (question.type === 'text') return `<textarea id="f-survey-q-${id}" class="textarea compact" name="${name}" ${required} placeholder="Escribe tu respuesta"></textarea>`;
+    if (question.type === 'rating') return `<div class="survey-option-grid"${groupAttrs}>${[1, 2, 3, 4, 5].map(value => `<label class="survey-option"><input type="radio" name="${name}" value="${value}" ${required} /><span>${value}</span></label>`).join('')}</div>`;
+    if (question.type === 'multiple') return `<div class="survey-option-grid"${groupAttrs}>${(question.options || []).map(option => `<label class="survey-option"><input type="checkbox" name="${name}" value="${esc(option)}" /><span>${esc(option)}</span></label>`).join('')}</div>`;
+    return `<div class="survey-option-grid"${groupAttrs}>${(question.options || []).map(option => `<label class="survey-option"><input type="radio" name="${name}" value="${esc(option)}" ${required} /><span>${esc(option)}</span></label>`).join('')}</div>`;
   }
   function renderSurveyDetail(id) {
     const survey = (Data.surveys || []).find(item => item.id === id);
@@ -1870,7 +2036,7 @@
         ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Ingresa para responder</h3><p>El modo invitado permite revisar, pero no votar ni registrar respuestas.</p></section>`
         : hasJefaturaAccess()
           ? `<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Solo lectura</h3><p>Como Jefatura puedes ver las encuestas y los datos publicados; la votación es solo para estudiantes.</p></section>`
-          : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label>${esc(q.label)}</label>${renderSurveyQuestionInput(q)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
+          : `<form class="card pad form" data-form="survey-response" data-survey-id="${esc(survey.id)}">${questions.map((q, i) => `<div class="survey-question"><span class="kicker">Pregunta ${i + 1}${q.required ? ' - obligatoria' : ''}</span><label id="f-survey-q-label-${esc(q.id)}"${q.type === 'text' ? ` for="f-survey-q-${esc(q.id)}"` : ''}>${esc(q.label)}</label>${renderSurveyQuestionInput(q, `f-survey-q-label-${esc(q.id)}`)}</div>`).join('')}<button class="btn primary" type="submit">${icon('check')} Enviar respuesta</button></form>`;
     return `${pageHead(survey.title, `${surveyModeLabel(survey.mode)} - ${esc(survey.audience || CEAL_ASSISTANT_AUDIENCE)}`, `<a class="btn secondary" href="#/encuestas">Volver</a>`)}
       <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><p class="privacy-note compact">${icon('eye')} Resultados agregados. No se publica quién votó qué.</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
@@ -1945,6 +2111,7 @@
     if (!state.calendarStatus && state.calendarStatusLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Cargando disponibilidad…</h2></aside>`;
     if (!status.connected) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Agendamiento no disponible aún</h2><p class="small muted">La jefatura todavía no habilitó la agenda en línea. Puedes escribir a <strong>${esc(contactEmail)}</strong> o revisar los horarios de atención a la izquierda.</p></aside>`;
     if (state.staffBusy === null && state.staffBusyLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Buscando horas libres…</h2></aside>`;
+    if (state.staffBusy == null && state.staffBusyError) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">No pudimos verificar la disponibilidad</h2><p class="small muted">No pudimos verificar la disponibilidad. Reintenta en unos minutos.</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
     const slots = generateBookingSlots(profile.officeHours).filter(s => !slotOverlapsBusy(s, state.staffBusy || []));
     if (!slots.length) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Sin horas disponibles</h2><p class="small muted">No hay cupos libres en las próximas semanas. Vuelve a revisar más adelante o escribe a <strong>${esc(contactEmail)}</strong>.</p></aside>`;
     const byDay = new Map();
@@ -1952,7 +2119,7 @@
     const selected = slots.find(s => slotKey(s) === state.bookingSlotKey);
     const slotsHtml = [...byDay.entries()].slice(0, 8).map(([day, list]) => `<div class="booking-day"><span class="booking-day-label">${esc(day)}</span><div class="booking-slot-row">${list.map(s => `<button type="button" class="booking-slot ${slotKey(s) === state.bookingSlotKey ? 'active' : ''}" data-book-slot="${esc(slotKey(s))}">${fmtSlotTime(s.start)}</button>`).join('')}</div></div>`).join('');
     const confirmBlock = selected
-      ? `<div class="booking-confirm"><div class="divider"></div><p class="small"><strong>${esc(fmtSlotDayLabel(selected.start))}</strong> · ${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)}${selected.mode ? ` · ${esc(selected.mode)}` : ''}${selected.place ? ` · ${esc(selected.place)}` : ''}</p><div class="form-field"><label>Motivo (breve)</label><textarea class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-book-submit ${state.bookingSubmitting ? 'disabled' : ''}>${state.bookingSubmitting ? 'Solicitando…' : 'Solicitar esta hora'}</button><p class="small muted">Recibirás una invitación por correo. La hora queda sujeta a confirmación de jefatura.</p></div>`
+      ? `<div class="booking-confirm"><div class="divider"></div><p class="small"><strong>${esc(fmtSlotDayLabel(selected.start))}</strong> · ${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)}${selected.mode ? ` · ${esc(selected.mode)}` : ''}${selected.place ? ` · ${esc(selected.place)}` : ''}</p><div class="form-field"><label for="f-booking-reason">Motivo (breve)</label><textarea id="f-booking-reason" class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-book-submit ${state.bookingSubmitting ? 'disabled' : ''}>${state.bookingSubmitting ? 'Solicitando…' : 'Solicitar esta hora'}</button><p class="small muted">Recibirás una invitación por correo. La hora queda sujeta a confirmación de jefatura.</p></div>`
       : `<p class="small muted" style="margin-top:10px">Elige una hora para solicitar tu atención.</p>`;
     return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Solicita una hora</h2><p class="small muted">Horas libres según el calendario de jefatura.</p>${state.staffBusyError ? `<p class="form-alert">${esc(state.staffBusyError)}</p>` : ''}<div class="booking-slots">${slotsHtml}</div>${confirmBlock}</aside>`;
   }
@@ -1965,7 +2132,8 @@
       const when = valid ? `${fmtSlotDayLabel(start)} · ${fmtSlotTime(start)}` : 'Hora por confirmar';
       const who = isJefatura && a.requesterEmail ? `<small>${esc(a.requesterEmail)}</small>` : '';
       const reason = a.reason ? `<small>${esc(a.reason)}</small>` : '';
-      const link = a.googleEventLink ? `<a class="link" href="${esc(a.googleEventLink)}" target="_blank" rel="noopener">Ver en Calendar ${icon('arrow')}</a>` : '';
+      const safeEventLink = safeUrl(a.googleEventLink);
+      const link = safeEventLink ? `<a class="link" href="${esc(safeEventLink)}" target="_blank" rel="noopener">Ver en Calendar ${icon('arrow')}</a>` : '';
       return `<div class="appt-row"><span class="appt-main"><strong>${esc(when)}</strong>${who}${reason}</span><span class="hstack">${badge('blue', a.status || 'solicitada')}${link}</span></div>`;
     }).join('');
     return `<section class="card pad" style="margin-top:18px"><h2 class="card-title">${isJefatura ? 'Solicitudes recibidas' : 'Tus solicitudes'}</h2><div class="appt-list">${rows}</div></section>`;
@@ -1979,7 +2147,8 @@
     const calendarButton = isJefatura
       ? (status.connected ? `<span class="pill green">Agenda conectada</span>` : status.configured ? `<span class="pill orange">Agenda no conectada</span>` : '')
       : '';
-    const bookingButton = profile.bookingUrl ? `<a class="btn secondary" href="${esc(profile.bookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Agenda pública</a>` : '';
+    const safeBookingUrl = safeUrl(profile.bookingUrl);
+    const bookingButton = safeBookingUrl ? `<a class="btn secondary" href="${esc(safeBookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Agenda pública</a>` : '';
     const actions = `${calendarButton}${bookingButton}`;
     const rightPanel = isJefatura ? renderStaffCalendarPanel(profile) : renderBookingPanel(profile);
     return `${pageHead('Jefatura de carrera', isJefatura ? 'Horarios de atención y solicitudes recibidas' : 'Horarios de atención y agendamiento')}
@@ -2002,17 +2171,17 @@
         <form class="card pad ceal-assistant-form" data-form="ceal-assistant">
           <div class="row-between"><div><span class="kicker">Redacción asistida</span><h2 class="card-title">Nuevo borrador</h2></div><span class="icon-box blue">${icon('sparkles')}</span></div>
           ${status}${state.cealAssistantError ? `<p class="form-alert">${esc(state.cealAssistantError)}</p>` : ''}
-          <div class="form-field"><label>Texto recibido</label><textarea class="textarea assistant-input" name="rawText" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
+          <div class="form-field"><label for="f-ceal-rawtext">Texto recibido</label><textarea id="f-ceal-rawtext" class="textarea assistant-input" name="rawText" placeholder="Pega aquí el texto crudo, acuerdo, aviso o instrucción CEAL.">${esc(req.rawText || '')}</textarea></div>
           <div class="form-grid tri">
-            <div class="form-field"><label>Categoría sugerida</label><select class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
-            <div class="form-field"><label>Urgencia</label><select class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
-            <div class="form-field"><label>Longitud</label><select class="select" name="length">${[['auto', 'Automática'], ['conciso', 'Conciso'], ['detallado', 'Detallado']].map(([value, label]) => `<option value="${value}"${(req.length || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
+            <div class="form-field"><label for="f-ceal-category">Categoría sugerida</label><select id="f-ceal-category" class="select" name="category">${['Auto','Académico','Contingencia','Material','CEAL'].map(value => `<option value="${esc(value)}"${(req.category || 'Auto') === value ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></div>
+            <div class="form-field"><label for="f-ceal-urgency">Urgencia</label><select id="f-ceal-urgency" class="select" name="urgency">${['normal','alta'].map(value => `<option value="${esc(value)}"${(req.urgency || 'normal') === value ? ' selected' : ''}>${value === 'alta' ? 'Alta' : 'Normal'}</option>`).join('')}</select></div>
+            <div class="form-field"><label for="f-ceal-length">Longitud</label><select id="f-ceal-length" class="select" name="length">${[['auto', 'Automática'], ['conciso', 'Conciso'], ['detallado', 'Detallado']].map(([value, label]) => `<option value="${value}"${(req.length || 'auto') === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
           </div>
-          <div class="form-field"><label>Audiencia</label><select class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div>
-          <div class="form-field"><label>Contexto adicional</label><textarea class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
-          <div class="form-field"><label>Archivo de contexto (opcional)</label>${state.cealAttachment
+          <div class="form-field"><label for="f-ceal-audience">Audiencia</label><select id="f-ceal-audience" class="select" name="audience"><option value="${esc(CEAL_ASSISTANT_AUDIENCE)}" selected>${esc(CEAL_ASSISTANT_AUDIENCE)}</option></select></div>
+          <div class="form-field"><label for="f-ceal-extracontext">Contexto adicional</label><textarea id="f-ceal-extracontext" class="textarea compact" name="extraContext" placeholder="Opcional: fecha, responsable, canal oficial, qué evitar, o instrucción de tono.">${esc(req.extraContext || '')}</textarea></div>
+          <div class="form-field"><label for="f-ceal-attach">Archivo de contexto (opcional)</label>${state.cealAttachment
             ? `<div class="attach-chip"><span class="hstack">${icon('file')} ${esc(state.cealAttachment.name)}</span><button class="icon-btn" type="button" data-attach-remove aria-label="Quitar archivo">${icon('x')}</button></div>`
-            : `<label class="upload-zone compact">${icon('upload')}<strong>Adjuntar PDF, imagen o texto</strong><span class="help">La IA lo usará como fuente. Máx 6 MB.</span><input class="sr-only" type="file" data-attach-input accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" /></label>`}</div>
+            : `<label class="upload-zone compact">${icon('upload')}<strong>Adjuntar PDF, imagen o texto</strong><span class="help">La IA lo usará como fuente. Máx 6 MB.</span><input id="f-ceal-attach" class="sr-only" type="file" data-attach-input accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" /></label>`}</div>
           <div class="hstack"><button class="btn primary" type="submit" ${ready && !state.cealAssistantLoading ? '' : 'disabled'}>${state.cealAssistantLoading ? 'Generando...' : 'Generar borrador'}</button><button class="btn secondary" type="button" data-assistant-clear>Limpiar</button></div>
         </form>
         <aside class="card pad assistant-side">
@@ -2099,10 +2268,10 @@
   function ensureCEAL(content) { return hasCealAccess() ? content : `${pageHead('Sin permisos', 'Esta sección es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
   function renderEditor(id) {
     const c = Data.communications.find(x => x.id === id) || { ...(Data.communications[0] || {}), id: id || '' };
-    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label>Título</label><input class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label>Categoría</label><select class="select" name="category">${['Contingencia','Académico','Material','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label>Resumen</label><input class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label>Contenido</label><textarea class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
+    return `${pageHead('Editar comunicado', 'Actualiza contenido antes de publicar', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="editor-layout"><form class="card pad form" data-form="edit-content"><input type="hidden" name="id" value="${esc(c.id || '')}" /><div class="form-field"><label for="f-edit-title">Título</label><input id="f-edit-title" class="input" name="title" value="${esc(c.title || '')}" required /></div><div class="form-grid"><div class="form-field"><label for="f-edit-category">Categoría</label><select id="f-edit-category" class="select" name="category">${['Contingencia','Académico','Material','CEAL'].map(x => `<option ${plain(c.category) === plain(x) ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="form-field"><label for="f-edit-summary">Resumen</label><input id="f-edit-summary" class="input" name="summary" value="${esc(c.summary || '')}" required /></div></div><div class="form-field"><label for="f-edit-body">Contenido</label><textarea id="f-edit-body" class="textarea" name="body" required>${esc(c.body || '')}</textarea></div><div class="hstack"><button class="btn secondary" type="submit">Guardar borrador</button><button class="btn primary" type="button" data-publish>Publicar</button></div></form><aside class="card pad"><h2 class="card-title">Vista previa</h2>${c.id ? commCard(c) : '<p class="small muted">Completa el comunicado.</p>'}</aside></div>`;
   }
   function renderValidateMaterial(id) { const r = Data.resources.find(x => x.id === id) || Data.resources.find(x => x.status === 'pendienteRevision') || Data.resources[0]; return r ? `${pageHead('Validar material', `${r.title} - ${r.courseName}`, `<a class="btn secondary" href="#/gestion">Volver</a>`)}<div class="split"><section class="card pad">${renderResourceDetail(r)}</section><aside class="card pad"><h2 class="card-title">Revisión CEAL</h2><div class="form-field"><label>Observaciones</label><textarea class="textarea" placeholder="Agrega observaciones internas"></textarea></div><button class="btn primary full" data-approve-material="${esc(r.id)}">Validar y publicar</button><button class="btn danger full" data-observe-material="${esc(r.id)}">Marcar con observaciones</button></aside></div>` : renderNotFound(); }
-  function renderAgreementForm() { return `${pageHead('Nuevo seguimiento', 'Registra una decisión, avance o compromiso académico', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label>Título del seguimiento</label><input class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label>Origen</label><input class="input" name="origin" required placeholder="Pleno, mesa, comunicado" /></div><div class="form-field"><label>Estado inicial</label><select class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label>Resumen</label><textarea class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label>Responsable</label><input class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label>Próximo paso</label><input class="input" name="nextStep" required /></div></div><div class="form-field"><label>Compromiso inicial</label><input class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear seguimiento</button><button class="btn secondary" type="button" data-save-draft>Guardar borrador</button></div></form>`; }
+  function renderAgreementForm() { return `${pageHead('Nuevo seguimiento', 'Registra una decisión, avance o compromiso académico', `<a class="btn secondary" href="#/gestion">Volver</a>`)}<form class="card pad form" data-form="new-agreement"><div class="form-field"><label for="f-agreement-title">Título del seguimiento</label><input id="f-agreement-title" class="input" name="title" required /></div><div class="form-grid"><div class="form-field"><label for="f-agreement-origin">Origen</label><input id="f-agreement-origin" class="input" name="origin" required placeholder="Pleno, mesa, comunicado" /></div><div class="form-field"><label for="f-agreement-status">Estado inicial</label><select id="f-agreement-status" class="select" name="status"><option value="enSeguimiento">En seguimiento</option><option value="pendiente">Pendiente</option><option value="publicado">Publicado</option></select></div></div><div class="form-field"><label for="f-agreement-summary">Resumen</label><textarea id="f-agreement-summary" class="textarea" name="summary" required minlength="20"></textarea></div><div class="form-grid"><div class="form-field"><label for="f-agreement-responsible">Responsable</label><input id="f-agreement-responsible" class="input" name="responsible" value="${esc(state.user.label)}" required /></div><div class="form-field"><label for="f-agreement-nextstep">Próximo paso</label><input id="f-agreement-nextstep" class="input" name="nextStep" required /></div></div><div class="form-field"><label for="f-agreement-commitment">Compromiso inicial</label><input id="f-agreement-commitment" class="input" name="commitment" placeholder="Opcional" /></div><div class="hstack"><button class="btn primary" type="submit">Crear seguimiento</button></div></form>`; }
 
   function renderProfile() {
     const u = state.user;
@@ -2116,7 +2285,7 @@
     const profileAction = hasJefaturaAccess()
       ? `<a class="btn secondary profile-primary-action" href="#/jefatura">${icon('users')} Ver jefatura</a>`
       : `<a class="btn secondary profile-primary-action" href="#/mallas">${icon('grid')} Ver mi malla</a>`;
-    return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
+    return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
   }
   function renderSearch(query) {
     const q = String(query || '').trim();
@@ -2131,9 +2300,12 @@
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
   function renderMore() { const items = navItems().filter(([href]) => !['/','/comunicados','/mallas','/material'].includes(href)); const accountLabel = 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesión</strong></span>${icon('arrow')}</button></div></section>`; }
-  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.length ? Data.notifications.map(n => `<a class="link-card-row" href="#${n.route}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('') : renderEmpty('Sin notificaciones', 'Cuando haya novedades del portal aparecerán aquí.', '', 'bell')}</section>`; }
-  function renderNotificationPopover() { return `<aside class="notification-popover"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications>${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${n.route}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
+  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.length ? Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('') : renderEmpty('Sin notificaciones', 'Cuando haya novedades del portal aparecerán aquí.', '', 'bell')}</section>`; }
+  function renderNotificationPopover() { return `<aside class="notification-popover" role="dialog" aria-modal="true" aria-label="Notificaciones"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications aria-label="Cerrar notificaciones">${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${esc(n.route)}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
+  function skeletonList(n = 3) {
+    return `<div class="skeleton-list">${Array.from({ length: n }, () => `<div class="skeleton-card"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line" style="width:70%"></span></div>`).join('')}</div>`;
+  }
   function renderLoading(title = 'Cargando', desc = 'Un momento, estamos cargando el contenido.') { return `${pageHead(esc(title), 'Cargando…')}<section class="card pad empty-state loading-state"><span class="btn-spinner" style="width:28px;height:28px;border-width:3px;color:var(--blue-600)"></span><h3>${esc(title)}</h3><p>${esc(desc)}</p></section>`; }
   function renderEmpty(title, desc, action = '', ico = 'search') { return `<div class="empty-state"><span class="icon-wrap">${icon(ico)}</span><h3>${esc(title)}</h3>${desc ? `<p>${esc(desc)}</p>` : ''}${action || ''}</div>`; }
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
@@ -2147,19 +2319,37 @@
     const devLogin = e.target.closest('[data-dev-login]');
     if (devLogin && isLocalDevHost()) {
       saveSession(devSessionFor(devLogin.dataset.devLogin));
-      routeTo('/');
+      routeTo(consumePostLoginRoute());
       return;
     }
     const googleRedirect = e.target.closest('[data-google-redirect]');
     if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
     if (role) { routeTo('/login'); return; }
-    if (e.target.closest('[data-logout]')) { localStorage.removeItem('portal.session'); state.user = null; routeTo('/login'); return; }
-    if (e.target.closest('[data-toggle-notifications]')) { state.notificationsOpen = !state.notificationsOpen; render({ transition: true, scope: 'overlay' }); return; }
-    if (e.target.closest('[data-close-notifications]')) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
+    if (e.target.closest('[data-logout]')) {
+      if (API_BASE) apiRequest('/auth/logout', { method: 'POST' }).catch(() => {});
+      localStorage.removeItem('portal.session');
+      state.user = null;
+      routeTo('/login');
+      return;
+    }
+    if (e.target.closest('[data-toggle-notifications]')) {
+      state.notificationsOpen = !state.notificationsOpen;
+      render({ transition: true, scope: 'overlay' });
+      if (state.notificationsOpen) document.querySelector('.notification-popover [data-close-notifications]')?.focus();
+      return;
+    }
+    if (e.target.closest('[data-close-notifications]')) {
+      state.notificationsOpen = false;
+      render({ transition: true, scope: 'overlay' });
+      document.querySelector('[data-toggle-notifications]')?.focus();
+      return;
+    }
     if (e.target.closest('[data-calendar-refresh]')) {
       state.calendarStatus = null;
       state.calendarStatusError = '';
+      state.staffBusy = null;
+      state.staffBusyError = '';
       render({ transition: true, scope: 'panel', resetScroll: false });
       return;
     }
@@ -2217,7 +2407,8 @@
         state.staffBusy = null; // refrescar disponibilidad
         showToast('Solicitud de hora enviada. Revisa tu correo.', 'blue');
       } catch (error) {
-        showToast(error.message || 'No se pudo solicitar la hora', 'blue');
+        if (error && error.isSessionExpired) { /* toast ya mostrado por handleSessionExpired */ }
+        else showToast(error.message || 'No se pudo solicitar la hora', 'blue');
       } finally {
         state.bookingSubmitting = false;
         render({ transition: true, scope: 'panel', resetScroll: false });
@@ -2262,14 +2453,18 @@
       showToast('Borrador copiado', 'blue');
       return;
     }
-    if (e.target.closest('[data-assistant-publish]')) {
+    const assistantPublishBtn = e.target.closest('[data-assistant-publish]');
+    if (assistantPublishBtn) {
       if (!hasCealAccess()) { readonlyToast(); return; }
+      if (state.cealAssistantPublishing) return;
       const draft = state.cealAssistantResult?.draft;
       if (!draft) { showToast('Primero genera un borrador', 'blue'); return; }
       const notify = { ...state.notifyGroups };
       const counts = state.mailMeta?.counts || { students: 0, professors: 0, test: 0, ceal: 0 };
       const recipientTotal = (notify.test ? (counts.test || 0) : 0) + (notify.ceal ? (counts.ceal || 0) : 0) + (notify.students ? counts.students : 0) + (notify.professors ? counts.professors : 0);
       if (recipientTotal > 0 && !window.confirm(`Se publicará el comunicado y se enviará por correo a ${recipientTotal} ${recipientTotal === 1 ? 'persona' : 'personas'}. ¿Continuar?`)) return;
+      state.cealAssistantPublishing = true;
+      setButtonBusy(assistantPublishBtn, 'Publicando…');
       let item = {
         id: `com-ai-${Date.now()}`,
         title: draft.title,
@@ -2284,21 +2479,32 @@
       };
       let notifyResult = null;
       try {
-        const payload = await apiRequest('/communications', { method: 'POST', body: JSON.stringify({ ...item, notify }) });
-        if (payload.item) item = payload.item;
-        notifyResult = payload.notify || null;
-      } catch {}
-      Data.communications = Data.communications.filter(c => c.id !== item.id);
-      Data.communications.unshift(item);
-      state.notifyGroups = { test: false, ceal: false, students: false, professors: false };
-      persistSnapshot();
-      if (notifyResult?.sent) showToast(`Comunicado publicado y enviado a ${notifyResult.count} ${notifyResult.count === 1 ? 'persona' : 'personas'}`);
-      else if (notifyResult && notifyResult.reason === 'not-configured') showToast('Comunicado publicado. El correo aún no está configurado en el servidor.', 'blue');
-      else if (notifyResult && notifyResult.reason === 'unauthorized') showToast('Comunicado publicado. No se envió correo: sesión sin permiso (vuelve a iniciar sesión CEAL).', 'blue');
-      else if (notifyResult && notifyResult.reason === 'no-recipients') showToast('Comunicado publicado. No había destinatarios en el grupo elegido.', 'blue');
-      else if (notifyResult && !notifyResult.sent) showToast(`Comunicado publicado. Correo NO enviado: ${esc(notifyResult.error || notifyResult.reason || 'error')}`, 'blue');
-      else showToast('Comunicado publicado');
-      routeTo('/comunicados/' + item.id);
+        if (API_BASE) {
+          try {
+            const payload = await apiRequest('/communications', { method: 'POST', body: JSON.stringify({ ...item, notify }) });
+            if (payload.item) item = payload.item;
+            notifyResult = payload.notify || null;
+          } catch (err) {
+            if (err && err.isSessionExpired) return;
+            showToast('No se pudo publicar el comunicado. Inténtalo de nuevo.', 'red');
+            return;
+          }
+        }
+        Data.communications = Data.communications.filter(c => c.id !== item.id);
+        Data.communications.unshift(item);
+        state.notifyGroups = { test: false, ceal: false, students: false, professors: false };
+        persistSnapshot();
+        if (notifyResult?.sent) showToast(`Comunicado publicado y enviado a ${notifyResult.count} ${notifyResult.count === 1 ? 'persona' : 'personas'}`);
+        else if (notifyResult && notifyResult.reason === 'not-configured') showToast('Comunicado publicado. El correo aún no está configurado en el servidor.', 'blue');
+        else if (notifyResult && notifyResult.reason === 'unauthorized') showToast('Comunicado publicado. No se envió correo: sesión sin permiso (vuelve a iniciar sesión CEAL).', 'blue');
+        else if (notifyResult && notifyResult.reason === 'no-recipients') showToast('Comunicado publicado. No había destinatarios en el grupo elegido.', 'blue');
+        else if (notifyResult && !notifyResult.sent) showToast(`Comunicado publicado. Correo NO enviado: ${esc(notifyResult.error || notifyResult.reason || 'error')}`, 'blue');
+        else showToast('Comunicado publicado');
+        routeTo('/comunicados/' + item.id);
+      } finally {
+        state.cealAssistantPublishing = false;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }
       return;
     }
     if (e.target.closest('[data-survey-builder-clear]')) {
@@ -2357,7 +2563,7 @@
         if (payload.result?.survey) { state.surveyBuilderResult = payload.result; state.surveyRefineText = ''; showToast('Encuesta ajustada', 'blue'); }
         else { state.surveyBuilderError = 'No se pudo ajustar la encuesta.'; }
       } catch (error) {
-        state.surveyBuilderError = error.message || 'No se pudo ajustar la encuesta.';
+        if (!(error && error.isSessionExpired)) state.surveyBuilderError = error.message || 'No se pudo ajustar la encuesta.';
       } finally {
         state.surveyBuilderLoading = false;
         render({ transition: false, scope: 'panel', resetScroll: false });
@@ -2366,23 +2572,33 @@
     }
     const createSurvey = e.target.closest('[data-survey-create]');
     if (createSurvey) {
+      if (createSurvey.disabled) return;
       if (!hasCealAccess()) { readonlyToast(); return; }
       const survey = state.surveyBuilderResult?.survey;
       if (!survey) { showToast('Primero genera una encuesta', 'blue'); return; }
       const desiredStatus = createSurvey.dataset.surveyCreate === 'open' ? 'open' : 'draft';
-      let item = { ...survey, status: desiredStatus, audience: CEAL_ASSISTANT_AUDIENCE };
+      const originalLabel = createSurvey.innerHTML;
+      setButtonBusy(createSurvey, 'Creando…');
       try {
-        const payload = await apiRequest('/surveys', { method: 'POST', body: JSON.stringify(item) });
-        if (payload.item) item = payload.item;
-      } catch (error) {
-        showToast(error.message || 'No se pudo crear la encuesta', 'blue');
-        return;
+        let item = { ...survey, status: desiredStatus, audience: CEAL_ASSISTANT_AUDIENCE };
+        try {
+          const payload = await apiRequest('/surveys', { method: 'POST', body: JSON.stringify(item) });
+          if (payload.item) item = payload.item;
+        } catch (error) {
+          if (error && error.isSessionExpired) return;
+          showToast(error.message || 'No se pudo crear la encuesta', 'blue');
+          return;
+        }
+        Data.surveys = Data.surveys.filter(s => s.id !== item.id);
+        Data.surveys.unshift(item);
+        persistSnapshot();
+        showToast(desiredStatus === 'open' ? 'Encuesta abierta' : 'Borrador guardado');
+        routeTo('/encuestas/' + item.id);
+      } finally {
+        createSurvey.disabled = false;
+        createSurvey.removeAttribute('aria-busy');
+        createSurvey.innerHTML = originalLabel;
       }
-      Data.surveys = Data.surveys.filter(s => s.id !== item.id);
-      Data.surveys.unshift(item);
-      persistSnapshot();
-      showToast(desiredStatus === 'open' ? 'Encuesta abierta' : 'Borrador guardado');
-      routeTo('/encuestas/' + item.id);
       return;
     }
     const surveyStatusBtn = e.target.closest('[data-survey-status]');
@@ -2415,6 +2631,7 @@
       try {
         await apiRequest(`/surveys/${encodeURIComponent(id)}`, { method: 'DELETE' });
       } catch (error) {
+        if (error && error.isSessionExpired) return;
         showToast(error.message || 'No se pudo eliminar la consulta', 'blue');
         return;
       }
@@ -2437,6 +2654,7 @@
       try {
         await apiRequest(`/communications/${encodeURIComponent(id)}`, { method: 'DELETE' });
       } catch (error) {
+        if (error && error.isSessionExpired) return;
         showToast(error.message || 'No se pudo eliminar el comunicado', 'blue');
         return;
       }
@@ -2456,6 +2674,7 @@
         const headers = {};
         if (state.user?.sessionToken) headers.Authorization = `Bearer ${state.user.sessionToken}`;
         const res = await fetch(`${API_BASE}/surveys/${encodeURIComponent(id)}/export`, { headers });
+        if (res.status === 401 && state.user?.sessionToken) { handleSessionExpired(); return; }
         if (!res.ok) throw new Error(`export ${res.status}`);
         const blob = await res.blob();
         downloadBlob(`resultados-${slug(id)}.xlsx`, blob);
@@ -2481,9 +2700,9 @@
     const course = e.target.closest('[data-course]');
     if (course) { state.selectedCourse = { plan: course.dataset.coursePlan, code: course.dataset.course }; const c = findCourse(course.dataset.coursePlan, course.dataset.course); if (c) state.mobileSemester = c.semester; render({ transition: true, scope: 'panel' }); return; }
     const typeBtn = e.target.closest('[data-material-type]');
-    if (typeBtn) { state.materialType = typeBtn.dataset.materialType; render({ transition: true, scope: 'panel' }); return; }
+    if (typeBtn) { state.materialType = typeBtn.dataset.materialType; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const courseFilter = e.target.closest('[data-material-course]');
-    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
+    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const clearMaterial = e.target.closest('[data-material-clear]');
     if (clearMaterial) {
       const target = clearMaterial.dataset.materialClear;
@@ -2491,9 +2710,12 @@
       if (target === 'type' || target === 'all') state.materialType = 'all';
       if (target === 'course' || target === 'all') state.materialCourse = 'all';
       state.selectedResourceId = null;
+      state.materialVisibleCount = 60;
       render({ transition: true, scope: 'panel' });
       return;
     }
+    const materialMore = e.target.closest('[data-material-more]');
+    if (materialMore) { state.materialVisibleCount = (Number(state.materialVisibleCount) || 60) + 60; render({ scope: 'filter', preserveFocus: true }); return; }
     const resourceRow = e.target.closest('[data-resource-row]');
     if (resourceRow) { routeTo(`/material/${resourceRow.dataset.resourceRow}`); return; }
     const cat = e.target.closest('[data-com-category]');
@@ -2518,7 +2740,7 @@
     if (e.target.matches('[data-survey-refine-input]')) { state.surveyRefineText = e.target.value; return; }
     if (e.target.matches('[data-booking-reason]')) { state.bookingReason = e.target.value; return; }
     if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; scheduleFilterRender(); }
-    if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; scheduleFilterRender(); }
+    if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; scheduleFilterRender(); }
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
@@ -2548,8 +2770,8 @@
     const draftSurvey = state.surveyBuilderResult?.survey || null;
     if (draftSurvey && e.target.matches('[data-survey-q-type]')) { const i = Number(e.target.dataset.surveyQType); const q = draftSurvey.questions?.[i]; if (q) { q.type = e.target.value; if (['single', 'multiple'].includes(q.type) && (!q.options || !q.options.length)) q.options = ['Opción 1', 'Opción 2']; } render({ transition: true, scope: 'panel' }); return; }
     if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
-    if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
-    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
+    if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
+    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
   function onFocusOut(e) {
@@ -2565,17 +2787,20 @@
       field.setAttribute('aria-invalid', 'true');
       if (wrap) {
         if (!msg) { msg = document.createElement('p'); msg.className = 'field-error'; msg.setAttribute('role', 'alert'); wrap.appendChild(msg); }
+        if (!field.id) field.id = `f-auto-${Math.random().toString(36).slice(2, 9)}`;
+        msg.id = `${field.id}-error`;
         msg.textContent = field.validationMessage;
+        field.setAttribute('aria-describedby', msg.id);
       }
     } else {
       field.classList.remove('is-invalid');
       field.removeAttribute('aria-invalid');
-      if (msg) msg.remove();
+      if (msg) { field.removeAttribute('aria-describedby'); msg.remove(); }
     }
   }
   function onKeydown(e) {
     if (e.key === 'Escape') {
-      if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); return; }
+      if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); document.querySelector('[data-toggle-notifications]')?.focus(); return; }
       if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     }
@@ -2626,7 +2851,7 @@
         state.cealAttachment = null;
         showToast('Borrador generado', 'blue');
       } catch (error) {
-        state.cealAssistantError = error.message || 'No se pudo generar el borrador.';
+        if (!(error && error.isSessionExpired)) state.cealAssistantError = error.message || 'No se pudo generar el borrador.';
       } finally {
         state.cealAssistantLoading = false;
         render({ transition: false, scope: 'panel', resetScroll: false });
@@ -2650,7 +2875,7 @@
         state.surveyBuilderResult = payload.result;
         showToast('Encuesta generada', 'blue');
       } catch (error) {
-        state.surveyBuilderError = error.message || 'No se pudo generar la encuesta.';
+        if (!(error && error.isSessionExpired)) state.surveyBuilderError = error.message || 'No se pudo generar la encuesta.';
       } finally {
         state.surveyBuilderLoading = false;
         render({ transition: false, scope: 'panel', resetScroll: false });
@@ -2676,15 +2901,29 @@
         showToast('Respuesta registrada', 'blue');
         render({ transition: true, scope: 'panel' });
       } catch (error) {
+        if (error && error.isSessionExpired) return;
         showToast(error.message || 'No se pudo registrar la respuesta', 'blue');
       }
       return;
     }
     if (form.dataset.form === 'upload-material') {
       const file = form.elements.file?.files?.[0];
+      if (file && file.size > 1_000_000) {
+        showToast('El archivo supera 1 MB. Comprime el PDF o comparte un enlace de Drive en el campo de enlace.', 'orange');
+        return;
+      }
       const courseName = String(fd.get('course') || 'Ramo por asociar');
       let item = { id:`mat-${Date.now()}`, title:fd.get('title'), type:fd.get('type') || 'Apunte', courseCode:courseName, plan:fd.get('plan') || 'planP', courseName, semester:'-', year:fd.get('year') || '2026', format:file?.name?.split('.').pop()?.toUpperCase() || 'LINK', size:file ? humanSize(file.size) : 'Sin archivo', origin:fd.get('origin'), status:'pendienteRevision', uploadedBy:state.user.name, uploadedAt:new Date().toISOString().slice(0,10), description:fd.get('description'), fileName:file?.name || '', fileType:file?.type || '', fileDataUrl: await readFileDataUrl(file) };
-      try { const payload = await apiRequest('/materials', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
+      if (API_BASE) {
+        try {
+          const payload = await apiRequest('/materials', { method:'POST', body:JSON.stringify(item) });
+          if (payload.item) item = payload.item;
+        } catch (err) {
+          if (err && err.isSessionExpired) return;
+          showToast('No se pudo subir el material. Inténtalo de nuevo.', 'red');
+          return;
+        }
+      }
       Data.resources.unshift(item); persistSnapshot(); showToast('Material enviado a revisión'); routeTo('/material/' + item.id); return;
     }
     if (form.dataset.form === 'edit-content') {
@@ -2693,14 +2932,32 @@
       if (!item) { item = { id: id || `com-${Date.now()}`, date:new Date().toISOString(), source:'CEIC Ingeniería Civil UCN', unread:true, pinned:false, related:[] }; Data.communications.unshift(item); }
       Object.assign(item, { title:fd.get('title'), category:fd.get('category'), summary:fd.get('summary'), body:fd.get('body'), updatedAt:new Date().toISOString() });
       persistSnapshot();
-      apiRequest(`/communications/${encodeURIComponent(item.id)}`, { method:'PATCH', body:JSON.stringify(item) }).catch(() => {});
-      showToast('Comunicado guardado');
+      if (API_BASE) {
+        try {
+          await apiRequest(`/communications/${encodeURIComponent(item.id)}`, { method:'PATCH', body:JSON.stringify(item) });
+          showToast('Comunicado guardado');
+        } catch (err) {
+          if (err && err.isSessionExpired) return;
+          showToast('No se pudo guardar en el servidor. Cambios guardados solo en este dispositivo.', 'orange');
+        }
+      } else {
+        showToast('Comunicado guardado');
+      }
       routeTo('/comunicados/' + item.id);
       return;
     }
     if (form.dataset.form === 'new-agreement') {
-      let item = { id:`agr-${Date.now()}`, number:`Seguimiento N ${String(Data.agreements.length + 1).padStart(2,'0')}/2026`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Seguimiento creado', detail:'Registro creado desde Gestión CEAL.' }] };
-      try { const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) }); if (payload.item) item = payload.item; } catch {}
+      let item = { id:`agr-${Date.now()}`, number:`Seguimiento N°${String(Data.agreements.length + 1).padStart(2,'0')}/${new Date().getFullYear()}`, status:fd.get('status') || 'enSeguimiento', date:new Date().toISOString(), origin:fd.get('origin'), responsible:fd.get('responsible'), title:fd.get('title'), summary:fd.get('summary'), currentState:'Registrado en Gestión CEAL.', nextStep:fd.get('nextStep'), documents:[], commitments:fd.get('commitment') ? [{ title:fd.get('commitment'), responsible:fd.get('responsible'), due:new Date().toISOString().slice(0,10), status:'pendiente' }] : [], history:[{ at:new Date().toISOString(), title:'Seguimiento creado', detail:'Registro creado desde Gestión CEAL.' }] };
+      if (API_BASE) {
+        try {
+          const payload = await apiRequest('/agreements', { method:'POST', body:JSON.stringify(item) });
+          if (payload.item) item = payload.item;
+        } catch (err) {
+          if (err && err.isSessionExpired) return;
+          showToast('No se pudo crear el seguimiento. Inténtalo de nuevo.', 'red');
+          return;
+        }
+      }
       Data.agreements.unshift(item); persistSnapshot(); showToast('Seguimiento creado'); routeTo('/acuerdos/' + item.id); return;
     }
     } finally {
@@ -2708,14 +2965,15 @@
     }
   }
 
-  window.addEventListener('hashchange', () => render({ transition: true, scope: 'route' }));
+  window.addEventListener('hashchange', () => safeRender({ transition: true, scope: 'route' }));
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
+  window.addEventListener('storage', e => { if (e.key === 'portal.session' && !e.newValue && state.user) { state.user = null; routeTo('/login'); } });
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', onKeydown);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('focusout', onFocusOut);
   document.addEventListener('submit', onSubmit);
-  boot();
+  boot().catch(err => { console.error(err); });
 })();
