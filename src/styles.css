@@ -75,7 +75,7 @@
   --font-sans: "InterVariable", Inter, ui-sans-serif, system-ui, -apple-system,
                BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "FrauncesVariable", "Iowan Old Style", Georgia, "Times New Roman", serif;
-  --font-display: clamp(1.9rem, 1.4rem + 1.9vw, 2.6rem);
+  --font-display: clamp(2rem, 1.45rem + 2vw, 2.75rem);
   --font-title:   clamp(1.3rem, 1.18rem + .5vw, 1.55rem);
   --font-heading: 1.125rem;
   --font-md:      1rem;
@@ -5226,24 +5226,28 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
 
 @media (min-width: 980px) { .card.pad { padding: 24px; } }
 
-/* ---------- 2. SHELL DESKTOP — sidebar limpia, topbar aérea ---------- */
+/* ---------- 2. SHELL DESKTOP — sidebar navy institucional, topbar aérea ---------- */
+/* La sidebar es el ancla de identidad CEIC: navy profundo con glow azul
+   sutil arriba, navegación clara y barra activa naranja. */
 .sidebar {
-  background: var(--surface-base);
-  border-right: 1px solid var(--border-subtle);
+  background:
+    radial-gradient(26rem 20rem at 0% 0%, rgba(28, 108, 224, .22), transparent),
+    linear-gradient(180deg, #082848 0%, #061e3c 55%, #04162e 100%);
+  border-right: 0;
   box-shadow: none;
 }
 .sidebar-brand {
   height: var(--topbar-h);
   padding: 12px 18px;
   background: transparent;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, .09);
   border-right: 0;
 }
 .brand-mark {
   width: 42px;
   height: 42px;
-  background: var(--surface-tint);
-  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(255, 255, 255, .35);
 }
 .brand-copy strong {
   font-family: var(--font-serif);
@@ -5251,10 +5255,10 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
   font-optical-sizing: auto;
   font-size: 1.12rem;
   letter-spacing: -0.01em;
-  color: var(--brand-navy);
+  color: #fff;
 }
 .brand-copy span {
-  color: var(--text-tertiary);
+  color: rgba(214, 230, 250, .62);
   font-size: .6rem;
   font-weight: var(--weight-bold);
   letter-spacing: .12em;
@@ -5269,21 +5273,21 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
   min-height: 42px;
   border-radius: 10px;
   border-color: transparent;
-  color: var(--text-secondary);
+  color: #b7c9e4;
   font-weight: var(--weight-medium);
   font-size: .92rem;
 }
-.nav-item .icon { width: 20px; height: 20px; color: var(--text-tertiary); transition: color var(--dur-fast) var(--ease-standard); }
-.nav-item:hover { background: var(--surface-tint); color: var(--text-primary); }
-.nav-item:hover .icon { color: var(--brand-blue); }
+.nav-item .icon { width: 20px; height: 20px; color: #7e9cc6; transition: color var(--dur-fast) var(--ease-standard); }
+.nav-item:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+.nav-item:hover .icon { color: #cfe0ff; }
 .nav-item.active {
-  background: var(--brand-blue-soft);
+  background: rgba(255, 255, 255, .12);
   border-color: transparent;
   box-shadow: none;
-  color: var(--brand-navy-mid);
+  color: #fff;
   font-weight: var(--weight-semibold);
 }
-.nav-item.active .icon { color: var(--brand-blue); }
+.nav-item.active .icon { color: #9ec4ff; }
 .nav-item.active::before {
   content: "";
   position: absolute;
@@ -5295,9 +5299,10 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
   background: var(--accent);
 }
 .sidebar-user {
-  background: var(--surface-tint);
-  border-color: var(--border-subtle);
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .12);
   border-radius: var(--radius-lg);
+  color: #e6eefb;
 }
 
 .topbar {
@@ -5412,10 +5417,22 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
     linear-gradient(160deg, #041229 0%, #072142 55%, #05182f 100%);
 }
 .login-card {
+  position: relative;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, .1);
   box-shadow: 0 32px 80px -24px rgba(2, 12, 28, .55), 0 8px 24px -12px rgba(2, 12, 28, .4);
   overflow: hidden;
+}
+/* Firma de marca: línea de tensión cian → azul → naranja (puente del logo CEIC) */
+.login-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 2;
+  background: linear-gradient(90deg, var(--info-cyan), var(--brand-blue) 46%, var(--accent));
 }
 .login-form h1 { font-size: clamp(2rem, 1.5rem + 1.6vw, 2.5rem); color: var(--text-primary); }
 .google-login-card {
@@ -5595,9 +5612,10 @@ a.management-card:hover,
 .summary-stat .icon-box { display: none; }
 .summary-stat-copy { display: flex; flex-direction: column-reverse; gap: 6px; }
 .summary-stat-copy strong {
-  font-size: clamp(1.5rem, 1.3rem + .7vw, 1.9rem);
-  font-weight: var(--weight-bold);
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: clamp(1.65rem, 1.4rem + .85vw, 2.1rem);
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   white-space: nowrap;
@@ -5641,7 +5659,7 @@ body:not(.theme-dark) .home-summary .stat-card {
     display: grid;
     grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
     gap: 18px;
-    align-items: stretch;
+    align-items: center;
   }
   .home-hero .home-comms-brief { grid-column: 1; grid-row: 1; }
   .home-hero .home-campus-feature { grid-column: 2; grid-row: 1; min-height: 0; align-self: center; }
@@ -5829,25 +5847,27 @@ body:not(.theme-dark) .home-summary .stat-card {
 
 /* ---------- 13. DARK "NOCHE" — armonización de la capa de rediseño ---------- */
 body.theme-dark .sidebar {
-  background: rgba(10, 22, 40, .88);
-  border-right-color: var(--border-subtle);
+  background:
+    radial-gradient(26rem 20rem at 0% 0%, rgba(28, 108, 224, .14), transparent),
+    linear-gradient(180deg, #0a1a30 0%, #081426 60%, #060f1e 100%);
+  border-right: 1px solid var(--border-subtle);
 }
 body.theme-dark .sidebar-brand {
   background: transparent;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
   box-shadow: none;
 }
 body.theme-dark .brand-copy strong { color: var(--text-primary); }
-body.theme-dark .brand-mark { background: rgba(255, 255, 255, .06); border-color: var(--border-subtle); }
-body.theme-dark .nav-item { color: var(--text-secondary); }
-body.theme-dark .nav-item .icon { color: var(--text-tertiary); }
-body.theme-dark .nav-item:hover { background: rgba(94, 158, 255, .08); color: var(--text-primary); }
-body.theme-dark .nav-item:hover .icon { color: #8fc0ff; }
+body.theme-dark .brand-mark { background: rgba(255, 255, 255, .92); border-color: rgba(255, 255, 255, .3); }
+body.theme-dark .nav-item { color: #a9bcd8; }
+body.theme-dark .nav-item .icon { color: #6f8cb4; }
+body.theme-dark .nav-item:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+body.theme-dark .nav-item:hover .icon { color: #cfe0ff; }
 body.theme-dark .nav-item.active {
-  background: rgba(94, 158, 255, .14);
-  color: #dbe9ff;
+  background: rgba(94, 158, 255, .16);
+  color: #fff;
 }
-body.theme-dark .nav-item.active .icon { color: #8fc0ff; }
+body.theme-dark .nav-item.active .icon { color: #9ec4ff; }
 
 body.theme-dark .topbar {
   background: rgba(8, 18, 34, .82);
@@ -5964,6 +5984,13 @@ body.theme-dark .btn.primary {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
 }
 body.theme-dark .btn.primary:hover { background: linear-gradient(180deg, #3d88ef, #2870dc); }
+body.theme-dark .btn.secondary {
+  color: #cfe0ff;
+  border-color: rgba(148, 180, 225, .34);
+}
+body.theme-dark .btn.secondary:hover { color: #eaf2ff; border-color: rgba(148, 180, 225, .5); }
+body.theme-dark .btn.ghost { color: var(--text-secondary); }
+body.theme-dark .btn.ghost:hover { background: rgba(255, 255, 255, .07); color: var(--text-primary); }
 body.theme-dark .btn.danger-lite {
   color: #ffb4aa;
   background: rgba(127, 29, 29, .22);
@@ -5979,7 +6006,35 @@ body.theme-dark .home-digest-head .kicker { color: #8fc0ff; }
 body.theme-dark .survey-editor-q { background: rgba(20, 43, 68, .5); }
 body.theme-dark .login-card { border-color: rgba(148, 180, 225, .18); }
 
-/* ---------- 14. GARANTÍAS — targets táctiles y contraste (integradas) ---------- */
+/* ---------- 14. DETALLES DE MATERIALIDAD — selección y scrollbars ---------- */
+::selection { background: rgba(20, 101, 216, .22); color: inherit; }
+body.theme-dark ::selection { background: rgba(94, 158, 255, .38); }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(13, 38, 74, .22);
+  border-radius: var(--radius-full);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(13, 38, 74, .38);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+body.theme-dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 180, 225, .26);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+body.theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 180, 225, .42);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ---------- 15. GARANTÍAS — targets táctiles y contraste (integradas) ---------- */
 @media (max-width: 920px) {
   .malla-tool-btn { min-height: 44px; }
   .malla-commandbar .segmented button, .malla-plan-tabs button { min-height: 44px; }
