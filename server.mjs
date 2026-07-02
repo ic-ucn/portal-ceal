@@ -1585,6 +1585,73 @@ function communicationEmailContent(comm) {
   return { subject, text, html };
 }
 
+async function sendDirectEmail({ to, subject, text, html }) {
+  const from = mailUser || 'ceal.ingenieriacivil@ucn.cl';
+  if (gmailConfigured) {
+    const client = getGmailOAuthClient();
+    const tokenResp = await client.getAccessToken();
+    const accessToken = typeof tokenResp === 'string' ? tokenResp : tokenResp?.token;
+    if (!accessToken) throw new Error('no se pudo obtener access token de Gmail');
+    const raw = buildRawEmail({ fromName: mailFromName, fromEmail: from, to, replyTo: from, subject, text, html });
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ raw })
+    });
+    if (!res.ok) { const detail = await res.text().catch(() => ''); throw new Error(`gmail api ${res.status}: ${detail.slice(0, 200)}`); }
+    return res.json();
+  }
+  const transporter = getMailTransporter();
+  if (!transporter) throw new Error('correo no configurado');
+  return transporter.sendMail({ from: `${mailFromName} <${from}>`, to, subject, text, html });
+}
+
+function bookingWhenLabel(appt) {
+  try {
+    const start = new Date(appt.start);
+    const end = new Date(appt.end);
+    const day = start.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago' });
+    const t = (d) => d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
+    return `${day.charAt(0).toUpperCase() + day.slice(1)}, ${t(start)}–${t(end)}`;
+  } catch { return 'Fecha por confirmar'; }
+}
+
+function bookingEmailContent(type, appt, audience) {
+  const when = bookingWhenLabel(appt);
+  const student = asText(appt.studentName, 'Estudiante');
+  const mode = asText(appt.mode, 'Presencial');
+  const place = asText(appt.place, 'Departamento de Ingeniería Civil');
+  const reason = asText(appt.reason);
+  const jefaturaName = 'Jefatura de Carrera de Ingeniería Civil UCN';
+  let subject = '', heading = '', intro = '', tone = '#126fe3';
+  if (type === 'solicitada' && audience === 'staff') { subject = `Nueva solicitud de atención — ${student}`; heading = 'Nueva solicitud de atención'; intro = `${student} solicitó una hora de atención. Puedes confirmarla o rechazarla desde el portal.`; tone = '#c26a12'; }
+  else if (type === 'solicitada') { subject = 'Recibimos tu solicitud de hora con Jefatura'; heading = 'Solicitud recibida'; intro = `Hola ${student}, registramos tu solicitud de atención. Te avisaremos por correo cuando la Jefatura la confirme.`; tone = '#c26a12'; }
+  else if (type === 'confirmada') { subject = 'Tu hora con Jefatura fue confirmada'; heading = 'Atención confirmada'; intro = `Hola ${student}, tu hora de atención con la ${jefaturaName} quedó confirmada. Te esperamos.`; tone = '#1a7f45'; }
+  else if (type === 'rechazada') { subject = 'Tu solicitud de hora no pudo agendarse'; heading = 'Solicitud no agendada'; intro = `Hola ${student}, no fue posible agendar la hora solicitada. Puedes elegir otro horario disponible en el portal.`; tone = '#b42318'; }
+  else if (type === 'cancelada' && audience === 'staff') { subject = `Hora liberada — ${student}`; heading = 'Hora liberada'; intro = `${student} liberó su hora de atención; el cupo vuelve a quedar disponible.`; tone = '#5b6472'; }
+  else { subject = 'Tu hora con Jefatura fue cancelada'; heading = 'Hora cancelada'; intro = `Hola ${student}, tu hora de atención quedó cancelada y el cupo fue liberado.`; tone = '#5b6472'; }
+  const portalLink = publicPortalUrl ? `${publicPortalUrl}/#/${audience === 'staff' ? 'jefatura' : 'atencion'}` : '';
+  const rows = [['Fecha y hora', when], ['Modalidad', mode], ['Lugar', place]];
+  if (reason) rows.push(['Motivo', reason]);
+  if (appt.staffNote) rows.push(['Nota de Jefatura', asText(appt.staffNote)]);
+  const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const textLines = [heading, '', intro, '', ...rows.map(([k, v]) => `${k}: ${v}`), ''];
+  if (portalLink) textLines.push(`Ver en el portal: ${portalLink}`, '');
+  textLines.push('— CEIC · Ingeniería Civil UCN', 'Correo automático de la agenda de atención. No respondas a esta dirección.');
+  const text = textLines.join('\n');
+  const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55">
+    <div style="background:#0d2747;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0"><strong style="font-size:15px">CEIC · Ingeniería Civil UCN</strong><div style="opacity:.82;font-size:12px;margin-top:2px">Agenda de atención · Jefatura de carrera</div></div>
+    <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:20px">
+      <div style="display:inline-block;background:${tone};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;margin-bottom:14px">${escH(heading)}</div>
+      <p style="margin:0 0 16px;color:#334155">${escH(intro)}</p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 6px">${rows.map(([k, v]) => `<tr><td style="padding:7px 0;color:#94a3b8;font-size:13px;width:38%;vertical-align:top">${escH(k)}</td><td style="padding:7px 0;color:#1e293b;font-weight:600;font-size:14px">${escH(v)}</td></tr>`).join('')}</table>
+      ${portalLink ? `<p style="margin:18px 0 0"><a href="${escH(portalLink)}" style="background:#126fe3;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:600">Ver en el portal</a></p>` : ''}
+      <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo automático de la agenda de atención de CEIC Ingeniería Civil UCN. No respondas a esta dirección.</p>
+    </div>
+  </div>`;
+  return { subject, text, html };
+}
+
 async function sendCommunicationEmail(comm, groups) {
   const recipients = loadRecipients();
   const list = [];
@@ -2006,6 +2073,44 @@ async function handleApi(req, res, url) {
     }
 
     return sendError(res, 404, 'unknown calendar action');
+  }
+
+  if (resource === 'booking') {
+    if (id === 'notify' && req.method === 'POST') {
+      try {
+        const session = requirePortalSession(req, db);
+        const body = await readBody(req);
+        const type = asText(body.type);
+        const appt = body.appointment || {};
+        if (!['solicitada', 'confirmada', 'rechazada', 'cancelada'].includes(type)) {
+          return sendError(res, 422, 'invalid notification type');
+        }
+        // Allowlist de demo: solo se envía de verdad a la cuenta de la sesión, a
+        // Jefatura y al estudiante de prueba. Los estudiantes ficticios del seed se
+        // omiten para no escribir a terceros reales (regla de no enviar a alumnos).
+        const jefaturaEmail = 'biblioteca.ceicucn@gmail.com';
+        const sessionEmail = asText(session.email).toLowerCase();
+        const demoStudent = asText(process.env.BOOKING_DEMO_STUDENT || 'kevin.cortes@alumnos.ucn.cl').toLowerCase();
+        const safe = new Set([sessionEmail, jefaturaEmail, demoStudent].filter(Boolean));
+        const studentEmail = asText(appt.studentEmail).toLowerCase();
+        const targets = [];
+        if (studentEmail) targets.push({ audience: 'student', to: studentEmail });
+        if (type === 'solicitada' || type === 'cancelada') targets.push({ audience: 'staff', to: jefaturaEmail });
+        const results = [];
+        for (const t of targets) {
+          if (!safe.has(t.to)) { results.push({ to: t.to, sent: false, reason: 'not-in-demo-allowlist' }); continue; }
+          try {
+            const { subject, text, html } = bookingEmailContent(type, appt, t.audience);
+            await sendDirectEmail({ to: t.to, subject, text, html });
+            results.push({ to: t.to, sent: true });
+          } catch (err) { results.push({ to: t.to, sent: false, reason: (err && err.message) || 'send-failed' }); }
+        }
+        return sendJson(res, 200, { ok: true, results });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'booking notify failed');
+      }
+    }
+    return sendError(res, 404, 'unknown booking action');
   }
 
   if (resource === 'saved' && req.method === 'POST') {

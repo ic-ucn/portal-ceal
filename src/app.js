@@ -1189,8 +1189,8 @@
     if (path === '/encuestas') return renderSurveys();
     if (path === '/encuestas/nueva') return renderSurveyBuilder();
     if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
-    if (path === '/jefatura') return hasJefaturaAccess() ? renderStaffAdvising() : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
-    if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderStaffAdvising();
+    if (path === '/jefatura') return hasJefaturaAccess() ? renderBookingPage(true) : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
+    if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderBookingPage(false);
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
@@ -2091,6 +2091,178 @@
   }
   function fmtSlotTime(date) { return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }); }
 
+  // ---- Modo demo de agendamiento: store local con data cargada, funciona sin
+  // Google Calendar. Cuando la agenda real se conecte, el flujo real toma el mando. ----
+  const DEMO_JEFATURA_EMAIL = 'biblioteca.ceicucn@gmail.com';
+  const BOOKING_STORE_KEY = 'portal.booking.v1';
+  const APPT_STATUS = { solicitada: ['Solicitada', 'orange'], confirmada: ['Confirmada', 'green'], rechazada: ['Rechazada', 'red'], cancelada: ['Cancelada', 'gray'] };
+  const APPT_ACTIVE = new Set(['solicitada', 'confirmada']);
+  function bookingDemoActive() { return !state.calendarStatus?.connected; }
+  function bookingStoreDefault() { return { appointments: [], closedSlots: [], seeded: false }; }
+  function readBookingStore() {
+    try { const raw = JSON.parse(localStorage.getItem(BOOKING_STORE_KEY) || 'null'); if (raw && typeof raw === 'object') return { ...bookingStoreDefault(), ...raw }; } catch {}
+    return bookingStoreDefault();
+  }
+  function writeBookingStore(store) { try { localStorage.setItem(BOOKING_STORE_KEY, JSON.stringify(store)); } catch {} }
+  async function notifyBookingEmail(type, appt) {
+    if (!API_BASE) return;
+    try {
+      await apiRequest('/booking/notify', { method: 'POST', body: JSON.stringify({ type, appointment: { studentEmail: appt.studentEmail, studentName: appt.studentName, start: appt.start, end: appt.end, mode: appt.mode, place: appt.place, reason: appt.reason, staffNote: appt.staffNote || '' } }) });
+    } catch (error) { console.warn('No se pudo enviar la notificación de agenda', error); }
+  }
+  function apptSlotKey(a) { return `${a.start}|${a.end}`; }
+  function demoAllSlots(profile) { return generateBookingSlots(profile.officeHours || []); }
+  function demoAvailableSlots(profile, store) {
+    const taken = new Set(store.appointments.filter(a => APPT_ACTIVE.has(a.status)).map(apptSlotKey));
+    const closed = new Set(store.closedSlots || []);
+    return demoAllSlots(profile).filter(s => { const k = slotKey(s); return !taken.has(k) && !closed.has(k); });
+  }
+  function seedBookingStore(profile) {
+    const store = readBookingStore();
+    if (store.seeded) return store;
+    const slots = demoAllSlots(profile);
+    const stamp = (slot, over) => ({ id: `apt-seed-${over.who}`, studentEmail: over.email, studentName: over.name, start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: over.reason, status: over.status, staffNote: over.note || '', createdAt: new Date(slot.start.getTime() - 86400000).toISOString() });
+    const appts = [];
+    const seedPlan = [
+      { i: 1, who: 'kevin', email: 'kevin.cortes@alumnos.ucn.cl', name: 'Kevin Cortés', reason: 'Consulta sobre inscripción de ramos del próximo semestre', status: 'confirmada', note: '' },
+      { i: 2, who: 'valentina', email: 'valentina.rojas@alumnos.ucn.cl', name: 'Valentina Rojas', reason: 'Revisión de convalidación de asignaturas de intercambio', status: 'solicitada', note: '' },
+      { i: 4, who: 'diego', email: 'diego.munoz@alumnos.ucn.cl', name: 'Diego Muñoz', reason: 'Situación de tercera matrícula en Cálculo III', status: 'solicitada', note: '' },
+      { i: 5, who: 'javiera', email: 'javiera.soto@alumnos.ucn.cl', name: 'Javiera Soto', reason: 'Consulta por inicio de práctica profesional', status: 'confirmada', note: 'Traer carta de la empresa.' }
+    ];
+    for (const p of seedPlan) { const slot = slots[p.i]; if (slot) appts.push(stamp(slot, p)); }
+    store.appointments = appts;
+    store.seeded = true;
+    writeBookingStore(store);
+    return store;
+  }
+  function bookingUserEmail() { return String(state.user?.email || '').toLowerCase(); }
+  function myDemoAppointments(store) { const me = bookingUserEmail(); return store.appointments.filter(a => String(a.studentEmail).toLowerCase() === me).sort((x, y) => new Date(x.start) - new Date(y.start)); }
+  function nameInitials(name) { return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?'; }
+  function dayHead(label) { const parts = label.split(' '); return `<div class="booking-col-head"><strong>${esc(parts[0])}</strong><span>${esc(parts.slice(1).join(' '))}</span></div>`; }
+  function slotModeIcon(mode) { return /video|mixto|online/i.test(mode || '') ? 'calendar' : 'user'; }
+
+  function bookingHeroCard(profile, opts = {}) {
+    const hours = profile.officeHours || [];
+    const email = opts.staff ? (profile.email || 'jc.icivil.afta@ucn.cl') : (profile.email || 'jc.icivil.afta@ucn.cl');
+    const hoursHtml = hours.map(h => `<div class="staff-hour-row"><span><strong>${esc(h.day)}</strong><small>${esc(h.mode)} · ${esc(h.place)}</small></span><strong>${esc(h.time)}</strong></div>`).join('');
+    return `<section class="card pad staff-hero">
+      <div class="staff-hero-top"><span class="avatar big blue">${nameInitials(profile.contactName || 'Prof. Zelada')}</span><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div></div>
+      <div class="staff-hero-meta">${icon('user')}<span>${esc(email)}</span></div>
+      <div class="divider"></div>
+      <h3 class="card-title sm">Horarios de atención</h3>
+      <div class="staff-hours-list">${hoursHtml || '<p class="small muted">Sin horarios publicados.</p>'}</div>
+    </section>`;
+  }
+  function bookingKpi(ico, value, label, color) {
+    return `<div class="booking-kpi kpi-${color}"><span class="booking-kpi-ico">${icon(ico)}</span><div class="booking-kpi-copy"><span class="booking-kpi-val">${value}</span><span class="booking-kpi-label">${esc(label)}</span></div></div>`;
+  }
+  function renderStudentCalendar(slots) {
+    if (!slots.length) return `<div class="booking-empty">${icon('calendar')}<div><strong>No hay horas libres por ahora</strong><p class="small muted">Todas las horas de las próximas semanas están tomadas. Vuelve a revisar más adelante.</p></div></div>`;
+    const byDay = new Map();
+    slots.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
+    const cols = [...byDay.entries()].slice(0, 6).map(([day, list]) => {
+      const chips = list.map(s => { const k = slotKey(s); const on = k === state.bookingSlotKey; return `<button type="button" class="slot-chip ${on ? 'is-selected' : ''}" data-book-slot="${esc(k)}"><span class="slot-chip-time">${fmtSlotTime(s.start)}</span><span class="slot-chip-mode">${icon(slotModeIcon(s.mode))}${esc((s.mode || 'Presencial').split(' ')[0])}</span></button>`; }).join('');
+      return `<div class="booking-col">${dayHead(day)}<div class="booking-col-slots">${chips}</div></div>`;
+    }).join('');
+    return `<div class="booking-calendar">${cols}</div>`;
+  }
+  function renderMyHours(mine) {
+    if (!mine.length) return '';
+    const now = Date.now();
+    const rows = mine.filter(a => new Date(a.end).getTime() > now || APPT_ACTIVE.has(a.status)).map(a => {
+      const start = new Date(a.start);
+      const [label, color] = APPT_STATUS[a.status] || [a.status, 'gray'];
+      const actions = APPT_ACTIVE.has(a.status) ? `<button class="btn ghost sm" type="button" data-demo-cancel="${esc(a.id)}">${icon('x')} Soltar hora</button>` : '';
+      return `<div class="appt-card">
+        <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
+        <div class="appt-card-body"><div class="row-between"><strong>${esc(a.mode || 'Presencial')}</strong><span class="status-chip ${color}">${esc(label)}</span></div><p class="small muted">${esc(a.reason || 'Sin motivo indicado')}</p>${a.staffNote ? `<p class="small booking-note">${icon('bell')} <span>${esc(a.staffNote)}</span></p>` : ''}</div>
+        <div class="appt-card-actions">${actions}</div>
+      </div>`;
+    }).join('');
+    return `<section class="card pad booking-mine"><div class="row-between"><h2 class="card-title">Mis horas</h2></div><div class="appt-card-list">${rows}</div></section>`;
+  }
+  function renderDemoStudent(profile, store) {
+    const avail = demoAvailableSlots(profile, store);
+    const mine = myDemoAppointments(store);
+    const selected = avail.find(s => slotKey(s) === state.bookingSlotKey);
+    const confirmBlock = selected
+      ? `<div class="booking-confirm"><div class="booking-confirm-head">${icon('check')}<div><strong>${esc(fmtSlotDayLabel(selected.start))}</strong><span class="small muted">${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)} · ${esc(selected.mode || 'Presencial')} · ${esc(selected.place || '')}</span></div></div><div class="form-field"><label for="f-book-reason">Motivo de la atención</label><textarea id="f-book-reason" class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-demo-book ${state.bookingSubmitting ? 'aria-busy="true" disabled' : ''}>${state.bookingSubmitting ? '<span class="btn-spinner"></span><span>Reservando…</span>' : 'Reservar esta hora'}</button><p class="small muted">Recibirás un correo de confirmación. La hora queda sujeta a confirmación de Jefatura.</p></div>`
+      : `<p class="small muted booking-hint">${icon('clock')} Elige una hora disponible para reservar tu atención.</p>`;
+    return `${pageHead('Atención de Jefatura', 'Agenda una hora de atención con la Jefatura de carrera')}
+      <div class="split wide booking-layout">
+        <section class="card pad booking-picker">
+          <div class="row-between"><h2 class="card-title">Horas disponibles</h2><span class="pill blue">${avail.length} libres</span></div>
+          <p class="small muted">Selecciona el día y la hora que prefieras.</p>
+          ${renderStudentCalendar(avail)}
+          ${confirmBlock}
+        </section>
+        ${bookingHeroCard(profile)}
+      </div>
+      ${renderMyHours(mine)}`;
+  }
+  function renderRequestCard(a) {
+    const start = new Date(a.start);
+    return `<article class="request-card">
+      <div class="request-card-top"><span class="avatar sm">${nameInitials(a.studentName || a.studentEmail)}</span><div class="request-who"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail)}</span></div><span class="status-chip orange">Solicitada</span></div>
+      <div class="request-when">${icon('calendar')}<span>${esc(fmtSlotDayLabel(start))} · ${fmtSlotTime(start)}–${fmtSlotTime(new Date(a.end))} · ${esc(a.mode || 'Presencial')}</span></div>
+      <p class="request-reason">${esc(a.reason || 'Sin motivo indicado')}</p>
+      <div class="request-actions"><button class="btn primary sm" type="button" data-demo-confirm="${esc(a.id)}">${icon('check')} Confirmar</button><button class="btn ghost sm" type="button" data-demo-reject="${esc(a.id)}">${icon('x')} Rechazar</button></div>
+    </article>`;
+  }
+  function renderStaffApptRow(a) {
+    const start = new Date(a.start);
+    return `<div class="appt-card">
+      <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
+      <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
+      <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-demo-cancel="${esc(a.id)}">${icon('x')} Cancelar</button></div>
+    </div>`;
+  }
+  function renderStaffAvailability(profile, store) {
+    const all = demoAllSlots(profile);
+    if (!all.length) return `<p class="small muted">No hay horarios base configurados en el perfil.</p>`;
+    const closed = new Set(store.closedSlots || []);
+    const taken = new Set(store.appointments.filter(a => APPT_ACTIVE.has(a.status)).map(apptSlotKey));
+    const byDay = new Map();
+    all.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
+    const cols = [...byDay.entries()].slice(0, 6).map(([day, list]) => {
+      const chips = list.map(s => {
+        const k = slotKey(s);
+        if (taken.has(k)) return `<span class="slot-chip is-taken" title="Reservada por un estudiante">${fmtSlotTime(s.start)}</span>`;
+        if (closed.has(k)) return `<button type="button" class="slot-chip is-closed" data-demo-open="${esc(k)}" title="Cerrada — clic para reabrir">${fmtSlotTime(s.start)}</button>`;
+        return `<button type="button" class="slot-chip is-open" data-demo-close="${esc(k)}" title="Disponible — clic para cerrar">${fmtSlotTime(s.start)}</button>`;
+      }).join('');
+      return `<div class="booking-col">${dayHead(day)}<div class="booking-col-slots">${chips}</div></div>`;
+    }).join('');
+    return `<div class="booking-legend"><span><i class="dot open"></i> Disponible</span><span><i class="dot closed"></i> Cerrada</span><span><i class="dot taken"></i> Reservada</span></div><div class="booking-calendar">${cols}</div>`;
+  }
+  function renderDemoStaff(profile, store) {
+    const appts = store.appointments.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+    const now = Date.now();
+    const pending = appts.filter(a => a.status === 'solicitada');
+    const confirmed = appts.filter(a => a.status === 'confirmada' && new Date(a.end).getTime() > now);
+    const weekEnd = now + 7 * 86400000;
+    const thisWeek = appts.filter(a => APPT_ACTIVE.has(a.status) && new Date(a.start).getTime() <= weekEnd && new Date(a.end).getTime() > now);
+    const kpis = `<div class="booking-kpis">${bookingKpi('bell', pending.length, 'Solicitudes por revisar', pending.length ? 'orange' : 'gray')}${bookingKpi('check', confirmed.length, 'Confirmadas próximas', 'green')}${bookingKpi('clock', thisWeek.length, 'Atenciones esta semana', 'blue')}</div>`;
+    const inbox = pending.length ? pending.map(renderRequestCard).join('') : renderEmpty('Sin solicitudes pendientes', 'Cuando un estudiante reserve una hora aparecerá aquí para confirmarla.', '', 'check');
+    const agenda = confirmed.length ? confirmed.map(renderStaffApptRow).join('') : `<p class="small muted">No hay atenciones confirmadas próximas.</p>`;
+    return `${pageHead('Jefatura de carrera', 'Solicitudes de atención y gestión de tu agenda')}
+      ${kpis}
+      <div class="split wide">
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Solicitudes por revisar</h2>${pending.length ? `<span class="pill orange">${pending.length}</span>` : ''}</div><div class="request-list">${inbox}</div></section>
+        <aside class="booking-aside"><section class="card pad"><h2 class="card-title">Próximas atenciones</h2><div class="appt-card-list">${agenda}</div></section>${bookingHeroCard(profile, { staff: true })}</aside>
+      </div>
+      <section class="card pad"><div class="row-between"><h2 class="card-title">Disponibilidad de la semana</h2><span class="small muted">Cierra o reabre horas para tus estudiantes</span></div>${renderStaffAvailability(profile, store)}</section>
+      <details class="card pad booking-gcal"><summary><strong>Conectar Google Calendar (opcional)</strong> — sincroniza estas horas con tu agenda real</summary><div class="booking-gcal-body">${renderStaffCalendarPanel(profile)}</div></details>`;
+  }
+  function renderBookingPage(forStaff) {
+    const profile = (Data.staffProfiles || [])[0] || {};
+    if (bookingDemoActive()) {
+      const store = seedBookingStore(profile);
+      return forStaff ? renderDemoStaff(profile, store) : renderDemoStudent(profile, store);
+    }
+    return renderStaffAdvising();
+  }
+
   function renderStaffCalendarPanel(profile = {}) {
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
     const account = status.account || profile.email || 'jc.icivil.afta@ucn.cl';
@@ -2396,6 +2568,82 @@
     const bookSlot = e.target.closest('[data-book-slot]');
     if (bookSlot) {
       state.bookingSlotKey = state.bookingSlotKey === bookSlot.dataset.bookSlot ? null : bookSlot.dataset.bookSlot;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    if (e.target.closest('[data-demo-book]')) {
+      if (isGuest()) { readonlyToast(); return; }
+      const profile = (Data.staffProfiles || [])[0] || {};
+      const store = readBookingStore();
+      const slot = demoAvailableSlots(profile, store).find(s => slotKey(s) === state.bookingSlotKey);
+      if (!slot) { showToast('Elige una hora disponible primero', 'blue'); return; }
+      state.bookingSubmitting = true;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason || '', status: 'solicitada', staffNote: '', createdAt: new Date().toISOString() };
+      store.appointments.unshift(appt);
+      writeBookingStore(store);
+      state.bookingSlotKey = null;
+      state.bookingReason = '';
+      await notifyBookingEmail('solicitada', appt);
+      state.bookingSubmitting = false;
+      showToast('Hora reservada. Te enviamos un correo de confirmación.', 'green');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const demoCancel = e.target.closest('[data-demo-cancel]');
+    if (demoCancel) {
+      if (isGuest()) { readonlyToast(); return; }
+      const store = readBookingStore();
+      const appt = store.appointments.find(a => a.id === demoCancel.dataset.demoCancel);
+      if (!appt || !APPT_ACTIVE.has(appt.status)) return;
+      appt.status = 'cancelada';
+      writeBookingStore(store);
+      await notifyBookingEmail('cancelada', appt);
+      showToast('Hora liberada. Avisamos por correo.', 'blue');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const demoConfirm = e.target.closest('[data-demo-confirm]');
+    if (demoConfirm) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const store = readBookingStore();
+      const appt = store.appointments.find(a => a.id === demoConfirm.dataset.demoConfirm);
+      if (!appt) return;
+      appt.status = 'confirmada';
+      writeBookingStore(store);
+      await notifyBookingEmail('confirmada', appt);
+      showToast('Atención confirmada. Avisamos al estudiante.', 'green');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const demoReject = e.target.closest('[data-demo-reject]');
+    if (demoReject) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const store = readBookingStore();
+      const appt = store.appointments.find(a => a.id === demoReject.dataset.demoReject);
+      if (!appt) return;
+      appt.status = 'rechazada';
+      writeBookingStore(store);
+      await notifyBookingEmail('rechazada', appt);
+      showToast('Solicitud rechazada. Avisamos al estudiante.', 'blue');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const demoClose = e.target.closest('[data-demo-close]');
+    if (demoClose) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const store = readBookingStore();
+      const k = demoClose.dataset.demoClose;
+      if (!(store.closedSlots || []).includes(k)) { store.closedSlots = [...(store.closedSlots || []), k]; writeBookingStore(store); }
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const demoOpen = e.target.closest('[data-demo-open]');
+    if (demoOpen) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const store = readBookingStore();
+      store.closedSlots = (store.closedSlots || []).filter(x => x !== demoOpen.dataset.demoOpen);
+      writeBookingStore(store);
       render({ transition: false, scope: 'panel', resetScroll: false });
       return;
     }

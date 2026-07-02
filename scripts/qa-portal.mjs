@@ -301,6 +301,7 @@ async function main() {
       ['/apoyo', 'apoyo'],
       ['/ayudantias/ay-001', 'ayudantia-detalle'],
       ['/tramites/proc-001', 'tramite-detalle'],
+      ['/atencion', 'atencion'],
       ['/perfil', 'perfil'],
       ['/mas', 'mas']
     ];

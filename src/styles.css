@@ -6081,6 +6081,110 @@ body.theme-dark .input, body.theme-dark .select, body.theme-dark .textarea {
 }
 
 /* ============================================================
+   AGENDA DE ATENCIÓN — sistema de toma de horas (estudiante + jefatura).
+   Usa tokens semánticos, por lo que el modo oscuro se resuelve solo.
+   ============================================================ */
+.booking-layout { align-items: start; }
+.booking-picker { display: flex; flex-direction: column; gap: 4px; }
+
+.booking-calendar { display: flex; gap: 12px; overflow-x: auto; padding: 14px 2px 6px; scroll-snap-type: x proximity; }
+.booking-col { flex: 0 0 128px; min-width: 128px; scroll-snap-align: start; }
+.booking-col-head { display: flex; flex-direction: column; gap: 1px; padding: 0 2px 8px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 10px; }
+.booking-col-head strong { font-size: .92rem; color: var(--text-primary); text-transform: capitalize; }
+.booking-col-head span { font-size: .74rem; color: var(--text-tertiary); }
+.booking-col-slots { display: flex; flex-direction: column; gap: 7px; }
+
+.slot-chip {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 100%; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border-interactive); background: var(--surface-base);
+  color: var(--text-primary); font-weight: 600; font-size: .86rem; line-height: 1.1;
+  transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.slot-chip:hover { border-color: var(--brand-blue); background: var(--brand-blue-softer); transform: translateY(-1px); }
+.slot-chip-time { font-size: .92rem; }
+.slot-chip-mode { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 600; color: var(--text-tertiary); text-transform: capitalize; }
+.slot-chip-mode .icon { width: 12px; height: 12px; }
+.slot-chip.is-selected { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; box-shadow: 0 4px 12px -4px rgba(18,111,227,.5); }
+.slot-chip.is-selected .slot-chip-mode { color: rgba(255,255,255,.85); }
+
+.slot-chip.is-open, .slot-chip.is-closed, .slot-chip.is-taken { flex-direction: row; align-items: center; justify-content: center; }
+.slot-chip.is-open { color: var(--success-text); border-color: var(--success-soft); background: var(--success-soft); }
+.slot-chip.is-open:hover { border-color: var(--success); }
+.slot-chip.is-closed { color: var(--text-tertiary); border-style: dashed; background: var(--surface-sunken); text-decoration: line-through; }
+.slot-chip.is-taken { color: var(--brand-blue-text); background: var(--brand-blue-soft); border-color: transparent; cursor: default; }
+.booking-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; font-size: .78rem; color: var(--text-secondary); }
+.booking-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.booking-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.booking-legend .dot.open { background: var(--success); }
+.booking-legend .dot.closed { background: var(--text-tertiary); }
+.booking-legend .dot.taken { background: var(--brand-blue); }
+
+.booking-confirm { margin-top: 14px; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--surface-soft); }
+.booking-confirm-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.booking-confirm-head .icon { width: 20px; height: 20px; color: var(--success); flex: none; }
+.booking-confirm-head strong { display: block; text-transform: capitalize; }
+.booking-hint { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; }
+.booking-hint .icon { width: 16px; height: 16px; }
+.booking-empty { display: flex; align-items: center; gap: 14px; padding: 22px; margin: 14px 0; border-radius: var(--radius-md); border: 1px dashed var(--border-interactive); background: var(--surface-soft); }
+.booking-empty .icon { width: 30px; height: 30px; color: var(--text-tertiary); flex: none; }
+
+.staff-hero .staff-hero-top { display: flex; gap: 14px; align-items: center; }
+.staff-hero .avatar.big { width: 56px; height: 56px; font-size: 1.15rem; border-radius: 16px; }
+.avatar.blue { background: linear-gradient(135deg, var(--brand-blue), var(--brand-blue-strong)); }
+.staff-hero-meta { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-secondary); font-size: .86rem; word-break: break-all; }
+.staff-hero-meta .icon { width: 16px; height: 16px; flex: none; }
+.card-title.sm { font-size: .95rem; }
+
+.booking-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.booking-kpi { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: var(--radius-lg); border: 1px solid var(--border-subtle); background: var(--surface-base); box-shadow: var(--shadow-xs); }
+.booking-kpi-ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+.booking-kpi-ico .icon { width: 20px; height: 20px; }
+.booking-kpi-copy { display: flex; flex-direction: column; }
+.booking-kpi-val { font-size: 1.5rem; font-weight: 700; line-height: 1.1; color: var(--text-primary); }
+.booking-kpi-label { font-size: .8rem; color: var(--text-secondary); }
+.booking-kpi.kpi-orange .booking-kpi-ico { background: var(--accent-soft); color: var(--accent-text); }
+.booking-kpi.kpi-green .booking-kpi-ico { background: var(--success-soft); color: var(--success-text); }
+.booking-kpi.kpi-blue .booking-kpi-ico { background: var(--brand-blue-soft); color: var(--brand-blue-text); }
+.booking-kpi.kpi-gray .booking-kpi-ico { background: var(--surface-sunken); color: var(--text-tertiary); }
+
+.request-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.request-card { padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-subtle); background: var(--surface-base); box-shadow: var(--shadow-xs); }
+.request-card-top { display: flex; align-items: center; gap: 10px; }
+.request-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.request-who strong { color: var(--text-primary); }
+.request-who .small { word-break: break-all; }
+.request-when { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; font-size: .86rem; color: var(--text-secondary); }
+.request-when .icon { width: 16px; height: 16px; flex: none; color: var(--brand-blue); }
+.request-reason { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--surface-soft); color: var(--text-secondary); font-size: .88rem; border-left: 3px solid var(--border-interactive); }
+.request-actions { display: flex; gap: 8px; }
+
+.appt-card-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.appt-card { display: flex; gap: 14px; align-items: stretch; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--surface-base); }
+.appt-card-when { flex: 0 0 92px; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding-right: 14px; border-right: 1px solid var(--border-subtle); }
+.appt-card-when .appt-day { font-weight: 700; text-transform: capitalize; font-size: .9rem; color: var(--text-primary); }
+.appt-card-when .appt-date { font-size: .74rem; color: var(--text-tertiary); text-transform: capitalize; }
+.appt-card-when .appt-time { font-size: .95rem; font-weight: 700; color: var(--brand-blue-text); margin-top: 3px; }
+.appt-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.appt-card-actions { display: flex; align-items: center; }
+.booking-note { display: inline-flex; align-items: flex-start; gap: 6px; margin: 2px 0 0; color: var(--accent-text); }
+.booking-note .icon { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+
+.booking-aside, .stack-gap { display: flex; flex-direction: column; gap: 18px; }
+
+.booking-gcal { margin-top: 18px; }
+.booking-gcal summary { cursor: pointer; font-size: .9rem; color: var(--text-secondary); }
+.booking-gcal summary strong { color: var(--text-primary); }
+.booking-gcal-body { margin-top: 12px; }
+
+@media (max-width: 720px) {
+  .booking-kpis { grid-template-columns: 1fr; }
+  .appt-card-when { flex-basis: 78px; }
+  .booking-col { flex-basis: 116px; min-width: 116px; }
+  .request-actions { flex-wrap: wrap; }
+}
+
+/* ============================================================
    MOTION — prefers-reduced-motion (§7): bloque único, fusiona los 5
    bloques dispersos que existían antes (rutas, toasts, skeletons,
    spinner, cards/botones). Nada de motion queda fuera de aquí.
