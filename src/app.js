@@ -981,7 +981,11 @@
     if (hasCealAccess()) {
       items.push(['/gestion', 'settings', 'Gestión']);
     }
-    if (!isGuest()) items.push(['/jefatura', 'users', 'Jefatura']);
+    if (hasJefaturaAccess()) {
+      items.push(['/jefatura', 'users', 'Jefatura']);
+    } else if (!isGuest()) {
+      items.push(['/atencion', 'users', 'Atención']);
+    }
     return items;
   }
   function isActive(path, itemPath) {
@@ -1089,7 +1093,9 @@
     hydrateCalendarStatus();
   }
   async function hydrateCalendarStatus() {
-    if (getRoute().path !== '/jefatura' || isGuest() || !state.user || !API_BASE) return;
+    const route = getRoute().path;
+    const canHydrate = (route === '/jefatura' && hasJefaturaAccess()) || (route === '/atencion' && !isGuest());
+    if (!canHydrate || !API_BASE) return;
     if (!state.calendarStatus && !state.calendarStatusLoading && !state.calendarStatusError) {
       state.calendarStatusLoading = true;
       state.calendarStatusError = '';
@@ -1164,7 +1170,7 @@
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
     const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
+      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/atencion','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
@@ -1183,7 +1189,8 @@
     if (path === '/encuestas') return renderSurveys();
     if (path === '/encuestas/nueva') return renderSurveyBuilder();
     if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
-    if (path === '/jefatura') return isGuest() ? renderNotFound('Inicia sesión para ver la atención de Jefatura.') : renderStaffAdvising();
+    if (path === '/jefatura') return hasJefaturaAccess() ? renderStaffAdvising() : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
+    if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderStaffAdvising();
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
@@ -2151,7 +2158,7 @@
     const bookingButton = safeBookingUrl ? `<a class="btn secondary" href="${esc(safeBookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Agenda pública</a>` : '';
     const actions = `${calendarButton}${bookingButton}`;
     const rightPanel = isJefatura ? renderStaffCalendarPanel(profile) : renderBookingPanel(profile);
-    return `${pageHead('Jefatura de carrera', isJefatura ? 'Horarios de atención y solicitudes recibidas' : 'Horarios de atención y agendamiento')}
+    return `${pageHead(isJefatura ? 'Jefatura de carrera' : 'Atención de Jefatura', isJefatura ? 'Horarios de atención y solicitudes recibidas' : 'Agenda una hora de atención con la Jefatura de carrera')}
       <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p>${actions.trim() ? `<div class="hstack">${actions}</div>` : ''}<div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${rightPanel}</div>${renderAppointmentsList(isJefatura)}`;
   }
 

@@ -1972,8 +1972,10 @@ async function handleApi(req, res, url) {
     if (id === 'appointments' && req.method === 'POST') {
       try {
         const session = requirePortalSession(req, db);
-        if (!asText(session.email).toLowerCase().endsWith(`@${googleDomain}`) && session.role !== 'jefatura') {
-          return sendError(res, 403, `only ${googleDomain} accounts can request appointments`);
+        const emailAllowed = asText(session.email).toLowerCase().endsWith(`@${googleDomain}`);
+        const roleAllowed = session.role === 'jefatura' || session.role === 'ceal';
+        if (!emailAllowed && !roleAllowed) {
+          return sendError(res, 403, `only ${googleDomain} or CEAL accounts can request appointments`);
         }
         const body = await readBody(req);
         const event = calendarEventPayload(body, session);

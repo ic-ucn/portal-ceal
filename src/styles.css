@@ -5498,6 +5498,39 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
 }
 .btn.danger-lite:hover { background: rgba(254, 226, 226, .9); border-color: rgba(220, 38, 38, .32); }
 
+/* Estados cargando / deshabilitado — declarados después de las variantes para
+   ganar por orden de cascada sobre .btn.primary/.secondary/... y sus :hover/:active
+   de igual especificidad. Garantizan contraste de texto y spinner (claro y oscuro). */
+.btn.primary[aria-busy="true"],
+.btn.danger[aria-busy="true"] {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+  cursor: progress;
+}
+.btn.primary[aria-busy="true"] { background: var(--brand-blue); }
+.btn.danger[aria-busy="true"] { background: var(--danger); }
+.btn.secondary[aria-busy="true"],
+.btn.ghost[aria-busy="true"] {
+  color: var(--brand-blue-text);
+  box-shadow: none;
+  transform: none;
+  cursor: progress;
+}
+/* Deshabilitado real (sin cargar): apagado pero legible; evita el texto gris
+   sobre el azul/rojo de las variantes de fondo sólido. */
+.btn.primary:disabled:not([aria-busy="true"]),
+.btn.danger:disabled:not([aria-busy="true"]) {
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+.btn[aria-busy="true"] .btn-spinner { opacity: 1; }
+
 .btn-spinner {
   display: inline-block;
   width: 15px;
