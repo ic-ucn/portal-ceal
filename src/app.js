@@ -82,6 +82,18 @@
     bookingSubmitting: false,
     openFAQ: null,
     notificationsOpen: false,
+    menuOpen: false,
+    reservations: null,
+    reservationsLoading: false,
+    reservationsError: '',
+    reservationSchedule: null,
+    reservationPayment: null,
+    rsvTable: 'tacataca',
+    rsvDate: null,
+    rsvBlock: null,
+    rsvSubmitting: false,
+    rsvActionBusy: '',
+    rsvJustCreated: null,
     mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
     portalDark: initialPortalDark,
     mallaEmbedDark: initialPortalDark,
@@ -182,6 +194,10 @@
     bookmark: '<svg viewBox="0 0 24 24"><path d="M19 21 12 16 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
     more: '<svg viewBox="0 0 24 24"><path d="M12 12h.01"/><path d="M19 12h.01"/><path d="M5 12h.01"/></svg>',
+    menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>',
+    pingpong: '<svg viewBox="0 0 24 24"><ellipse cx="11" cy="9" rx="6.2" ry="6.8"/><path d="M11 15.8V21"/><path d="M8 21h6"/><circle cx="19.5" cy="16.5" r="1.9"/></svg>',
+    wallet: '<svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4"/><path d="M4 5v14a2 2 0 0 0 2 2h14V7"/><path d="M16 13h.01"/></svg>',
+    copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
     sparkles: '<svg viewBox="0 0 24 24"><path d="M12 3 10.2 8.2 5 10l5.2 1.8L12 17l1.8-5.2L19 10l-5.2-1.8Z"/><path d="M19 14.5 18 17l-2.5 1 2.5 1 1 2.5 1-2.5 2.5-1-2.5-1Z"/><path d="M5 3.5 4.4 5 3 5.6 4.4 6.2 5 7.5 5.6 6.2 7 5.6 5.6 5Z"/></svg>'
   };
 
@@ -240,18 +256,51 @@
     document.body?.classList.toggle('theme-dark', dark);
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   }
-  function setPortalTheme(dark, options = {}) {
+  function setPortalTheme(dark) {
     state.portalDark = Boolean(dark);
     state.mallaEmbedDark = state.portalDark;
     localStorage.setItem(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
     localStorage.setItem('portal.malla.embedDark', state.portalDark ? '1' : '0');
+    // Cambio de tema SIN re-render: así la vista actual (scroll, malla abierta,
+    // formularios a medio llenar) no se pierde. Solo se actualizan clases y
+    // los botones de toggle existentes, y el iframe de mallas cambia en vivo.
     applyPortalTheme();
-    render({ transition: true, scope: options.scope || 'theme', resetScroll: false });
+    refreshThemeToggles();
+    syncMallaEmbedTheme();
+  }
+  function themeToggleMarkup(dark) {
+    return `${icon(dark ? 'sun' : 'moon')}<span>${dark ? 'Claro' : 'Oscuro'}</span>`;
   }
   function themeToggleButton(extraClass = '', extraAttrs = '') {
     const dark = Boolean(state.portalDark);
-    const label = dark ? 'Claro' : 'Oscuro';
-    return `<button class="theme-toggle-btn ${extraClass} ${dark ? 'active' : ''}" type="button" data-portal-theme-toggle ${extraAttrs} aria-pressed="${dark ? 'true' : 'false'}" aria-label="Cambiar a modo ${dark ? 'claro' : 'oscuro'}">${icon(dark ? 'sun' : 'moon')}<span>${label}</span></button>`;
+    return `<button class="theme-toggle-btn ${extraClass} ${dark ? 'active' : ''}" type="button" data-portal-theme-toggle ${extraAttrs} aria-pressed="${dark ? 'true' : 'false'}" aria-label="Cambiar a modo ${dark ? 'claro' : 'oscuro'}">${themeToggleMarkup(dark)}</button>`;
+  }
+  function refreshThemeToggles() {
+    const dark = Boolean(state.portalDark);
+    document.querySelectorAll('[data-portal-theme-toggle]').forEach(btn => {
+      btn.classList.toggle('active', dark);
+      btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      btn.setAttribute('aria-label', `Cambiar a modo ${dark ? 'claro' : 'oscuro'}`);
+      btn.innerHTML = themeToggleMarkup(dark);
+    });
+  }
+  function syncMallaEmbedTheme() {
+    const dark = Boolean(state.portalDark);
+    const workspace = app.querySelector('.malla-workspace');
+    if (workspace) {
+      workspace.classList.toggle('is-dark', dark);
+      workspace.classList.toggle('is-light', !dark);
+    }
+    const frame = app.querySelector('[data-malla-frame]');
+    if (!frame) return;
+    frame.dataset.theme = dark ? 'dark' : 'light';
+    try {
+      const doc = frame.contentDocument;
+      if (doc?.documentElement) {
+        doc.documentElement.classList.toggle('mc-light', !dark);
+        try { localStorage.setItem('mc-theme', dark ? 'dark' : 'light'); } catch {}
+      }
+    } catch {}
   }
   function routeTo(path, holdTop = false) {
     pendingScrollReset = true;
@@ -414,7 +463,35 @@
     const isError = t.type === 'red' || t.type === 'orange';
     return `<div class="toast toast-${esc(t.type)}" role="${isError ? 'alert' : 'status'}"><span class="toast-dot" aria-hidden="true"></span><span class="toast-icon" aria-hidden="true">${toastVariantIcon(t.type)}</span><span class="toast-msg">${esc(t.message)}</span><button class="toast-close" type="button" data-dismiss-toast aria-label="Cerrar aviso">${icon('x')}</button></div>`;
   }
-  function getUnreadCount() { return Data.notifications.filter(n => n.unread).length; }
+  // Notificaciones: SOLO para estudiantes y SOLO derivadas de contenido real
+  // nuevo (comunicados sin leer y encuestas/votaciones abiertas sin responder).
+  const READ_COMMS_KEY = 'portal.comms.read';
+  const ANSWERED_SURVEYS_KEY = 'portal.surveys.answered';
+  function readIdSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
+  function addToIdSet(key, id) { const set = readIdSet(key); set.add(id); try { localStorage.setItem(key, JSON.stringify([...set].slice(-400))); } catch {} }
+  function markCommRead(id) { addToIdSet(READ_COMMS_KEY, id); }
+  function markSurveyAnswered(id) { addToIdSet(ANSWERED_SURVEYS_KEY, id); }
+  function isCommUnread(c) { return Boolean(c?.unread) && !readIdSet(READ_COMMS_KEY).has(c.id); }
+  function studentNotifications() {
+    if (!canSeeNotifications()) return [];
+    const comms = (Data.communications || []).filter(isCommUnread).slice(0, 12).map(c => ({
+      id: `ntf-com-${c.id}`,
+      title: c.title,
+      detail: `Nuevo comunicado · ${c.category || 'CEIC'}`,
+      date: c.date,
+      route: `/comunicados/${c.id}`
+    }));
+    const answered = readIdSet(ANSWERED_SURVEYS_KEY);
+    const surveys = (Data.surveys || []).filter(s => s.status === 'open' && !answered.has(s.id)).slice(0, 8).map(s => ({
+      id: `ntf-enc-${s.id}`,
+      title: s.title,
+      detail: s.mode === 'votacion' ? 'Nueva votación abierta' : 'Nueva encuesta abierta',
+      date: s.updatedAt || s.createdAt,
+      route: `/encuestas/${s.id}`
+    }));
+    return [...comms, ...surveys].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }
+  function getUnreadCount() { return studentNotifications().length; }
   function planLabel(plan) { return plan === 'planO' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025'; }
   function planShort(plan) { return plan === 'planO' ? 'Plan O' : 'Plan P'; }
   function getCourses(plan = state.activePlan) { return Curricula[plan]?.subjects || []; }
@@ -978,6 +1055,7 @@
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
+    if (!isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
     if (hasCealAccess()) {
       items.push(['/gestion', 'settings', 'Gestión']);
     }
@@ -1025,6 +1103,7 @@
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && path === '/contingencia') return routeTo('/comunicados');
+    if (state.user && path === '/mas') return routeTo('/reservas');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
     if (state.user && path.startsWith('/gestion') && !hasCealAccess()) return routeTo('/');
@@ -1034,6 +1113,7 @@
   function render(options = {}) {
     const opts = options instanceof Event ? { transition: true, scope: 'route' } : options;
     const routeKey = window.location.hash || '#/';
+    if (hasRendered && routeKey !== lastRenderedRouteKey) { state.menuOpen = false; state.notificationsOpen = false; }
     const scope = opts.scope === 'route' && routeKey.startsWith('#/perfil') ? 'profile' : (opts.scope || 'state');
     const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
     const focusState = opts.preserveFocus ? captureInputFocus() : null;
@@ -1091,6 +1171,7 @@
   function afterRender() {
     hydrateMallaEmbed();
     hydrateCalendarStatus();
+    hydrateReservations();
   }
   async function hydrateCalendarStatus() {
     const route = getRoute().path;
@@ -1141,7 +1222,7 @@
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
     const devAccess = isLocalDevHost() ? `<div class="dev-login-panel"><span class="kicker">Ingreso rapido</span><div class="quick-chip-row"><button class="chip-btn" type="button" data-dev-login="student">Estudiante</button><button class="chip-btn" type="button" data-dev-login="ceal">CEAL</button><button class="chip-btn" type="button" data-dev-login="jefatura">Jefatura</button></div></div>` : '';
     return `<main class="login-shell">${themeToggleButton('login-theme-toggle')}<section class="login-card" aria-label="Ingreso al portal">
-      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /></div></div>
+      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><span class="login-wordmark" role="img" aria-label="CEIC UCN"><strong>CEIC UCN</strong><small>Ingeniería Civil · Universidad Católica del Norte</small></span></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @alumnos.ucn.cl.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
@@ -1162,29 +1243,59 @@
         </div>${devAccess}
       </div></section></main>`;
   }
+  function canSeeNotifications() { return state.user?.role === 'student'; }
+  function notificationBell(extraClass = '') {
+    if (!canSeeNotifications()) return '';
+    const count = getUnreadCount();
+    return `<button class="icon-btn ${extraClass}" data-toggle-notifications aria-label="Notificaciones${count ? ` (${count} nuevas)` : ''}">${icon('bell')}${count ? `<span class="badge-count">${count}</span>` : ''}</button>`;
+  }
   function renderShell(content, path) {
-    const user = state.user;
     const accountLabel = 'Mi cuenta';
     const isMallaRoute = path === '/mallas';
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/mas', 'more', 'Más']]
-      .map(([href, ico, label]) => { const on = isActive(path, href) || (href === '/mas' && ['/calendario','/acuerdos','/encuestas','/jefatura','/atencion','/perfil','/buscar','/notificaciones'].some(p => path.startsWith(p))); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
+    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/reservas', 'pingpong', 'Reservas']]
+      .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
-      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
-      <header class="mobile-header"><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC / CEAL UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<button class="icon-btn" data-toggle-notifications aria-label="Notificaciones">${icon('bell')}<span class="badge-count">${getUnreadCount()}</span></button><a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
-      <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
+      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${notificationBell()}<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
+      <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${notificationBell()}<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
+      <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
+  }
+  function renderMobileMenu(path) {
+    const u = state.user || {};
+    const items = navItems().map(([href, ico, label]) => {
+      const on = isActive(path, href);
+      return `<a class="menu-sheet-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span>${icon('arrow', 'menu-item-arrow')}</a>`;
+    }).join('');
+    return `<div class="menu-sheet-backdrop" data-close-menu></div>
+      <aside class="menu-sheet" role="dialog" aria-modal="true" aria-label="Menú del portal">
+        <header class="menu-sheet-head">
+          <a class="menu-sheet-user" href="#/perfil"><span class="avatar">${esc(u.initials || 'IN')}</span><span class="menu-sheet-user-copy"><strong>${esc(u.name || 'Invitado')}</strong><small>${esc(accountRoleLabel(u) || 'Portal CEIC')}</small></span></a>
+          <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
+        </header>
+        <nav class="menu-sheet-nav" aria-label="Todas las secciones">${items}
+          <a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>
+        </nav>
+        <footer class="menu-sheet-foot">
+          ${themeToggleButton('menu-theme-toggle')}
+          <button class="menu-sheet-logout" type="button" data-logout>${icon('x')}<span>Cerrar sesión</span></button>
+        </footer>
+      </aside>`;
   }
   function renderPage(path, query) {
     if (path === '/') return renderHome();
-    if (path === '/mas') return renderMore();
+    if (path === '/reservas') return isGuest() ? renderNotFound('Inicia sesión para reservar taca-taca o ping-pong.') : renderReservations();
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/notificaciones') return renderNotificationsPage();
     if (path === '/comunicados') return renderCommunications();
     if (path === '/comunicados/nuevo') return renderCealAssistant();
-    if (path.startsWith('/comunicados/')) return renderCommunicationDetail(path.split('/')[2]);
+    if (path.startsWith('/comunicados/')) {
+      const commId = path.split('/')[2];
+      if (commId) markCommRead(commId);
+      return renderCommunicationDetail(commId);
+    }
     if (path === '/calendario') return renderCalendar();
     if (path === '/encuestas') return renderSurveys();
     if (path === '/encuestas/nueva') return renderSurveyBuilder();
@@ -1225,7 +1336,7 @@
 
   function renderHome() {
     const noDataYet = !dataReady && !Data.communications.length && !Data.events.length;
-    const homeUnreadComms = (Data.communications || []).filter(c => c.unread).length;
+    const homeUnreadComms = (Data.communications || []).filter(isCommUnread).length;
     const homeNextEvent = (Data.events || []).find(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || new Date().toISOString().slice(0, 10)}T00:00:00`));
     const homeActiveAgreements = (Data.agreements || []).filter(a => a.status !== 'publicado').length;
     const homeResourceCount = (Data.resources || []).length;
@@ -1316,7 +1427,7 @@
       <aside class="card pad comms-preview"><h2 class="card-title">Preguntas frecuentes</h2>${renderFAQ()}</aside></div>`;
   }
   function commCard(c, featured = false) {
-    const card = `<a class="item-card${featured ? ' is-featured' : ''}${c.unread ? ' unread' : ''}" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`;
+    const card = `<a class="item-card${featured ? ' is-featured' : ''}${isCommUnread(c) ? ' unread' : ''}" href="#/comunicados/${c.id}"><div class="row-between"><span class="pill blue">${esc(c.category)}</span><span class="small muted">${fmtDate(c.date)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><span class="link">Leer comunicado ${icon('arrow')}</span></a>`;
     if (!canPublishCommunications()) return card;
     return `<div class="card-del-wrap">${card}<button class="card-del" type="button" data-comm-delete="${esc(c.id)}" data-comm-title="${esc(c.title || 'este comunicado')}" aria-label="Eliminar comunicado">${icon('x')}</button></div>`;
   }
@@ -1504,20 +1615,26 @@
     if (!frame) return;
     const wrap = frame.closest('[data-malla-frame-wrap]');
     const plan = frame.dataset.plan === 'o' ? 'o' : 'p';
-    const theme = frame.dataset.theme === 'dark' ? 'dark' : 'light';
-    const loadKey = `${plan}:${theme}`;
+    // La clave de carga depende SOLO del plan: el tema se conmuta en vivo
+    // dentro del iframe (clase mc-light) sin recargarlo ni perder la posición.
+    // El tema se lee AL RESOLVER el fetch (no al iniciarlo): si el usuario
+    // alterna el tema mientras la malla externa aún descarga, el srcdoc debe
+    // llegar con el tema vigente.
+    const loadKey = plan;
+    if (frame.dataset.loadKey === loadKey && frame.srcdoc) return;
     frame.dataset.loadKey = loadKey;
+    const currentTheme = () => (state.portalDark ? 'dark' : 'light');
     wrap?.classList.remove('is-loaded', 'is-fallback');
     const markLoaded = () => wrap?.classList.add('is-loaded');
     frame.addEventListener('load', markLoaded, { once: true });
     try {
       const html = await getMallaEmbedHtml(plan);
       if (!app.contains(frame) || frame.dataset.loadKey !== loadKey) return;
-      frame.srcdoc = buildMallaSrcdoc(html, plan, theme);
+      frame.srcdoc = buildMallaSrcdoc(html, plan, currentTheme());
     } catch {
       if (!app.contains(frame) || frame.dataset.loadKey !== loadKey) return;
       wrap?.classList.add('is-fallback');
-      frame.srcdoc = buildLocalMallaSrcdoc(plan, theme);
+      frame.srcdoc = buildLocalMallaSrcdoc(plan, currentTheme());
     }
   }
   function safeJsonForScript(value) {
@@ -1602,7 +1719,9 @@
       .replace(/<\/body>/i, `${guidance}</body>`);
   }
   function mallaEmbedThemeStyles(theme, plan) {
-    const isDark = theme === 'dark';
+    // Estilos DUALES: claro y oscuro conviven seleccionados por la clase
+    // `mc-light` del <html> del iframe. Así el toggle de tema del portal cambia
+    // la malla en vivo (sin recargar el iframe ni perder scroll/selección).
     const planAccent = plan === 'o' ? '#126fe3' : '#0891b2';
     return `
       :root {
@@ -1612,8 +1731,7 @@
         --mc-transition-slide: 220ms cubic-bezier(0,0,0.2,1);
         --mc-font-card-name: .72rem;
       }
-      ${isDark ? `
-      html:not(.mc-light), :root {
+      html:not(.mc-light) {
         color-scheme: dark;
         --mc-bg-base:#061b34; --mc-bg-surface:#092747; --mc-bg-elevated:#123a64; --mc-bg-hover:#174b7d;
         --mc-text-primary:#f8fafc; --mc-text-secondary:#d7e2ee; --mc-text-muted:#8fa6c1;
@@ -1623,8 +1741,16 @@
         --mc-area-general:#22c55e; --mc-area-general-bg:rgba(34,197,94,.15);
         --mc-area-proyecto:#22d3ee; --mc-area-proyecto-bg:rgba(34,211,238,.14);
         --mc-area-electivo:#cbd5e1; --mc-area-electivo-bg:rgba(203,213,225,.14);
-      }` : `
-      html.mc-light, :root {
+        --mc-line:rgba(215,226,238,.12); --mc-line-strong:rgba(215,226,238,.14);
+        --mc-panel-bg:rgba(9,39,71,.94); --mc-header-bg:rgba(9,39,71,.92);
+        --mc-body-bg:linear-gradient(180deg,#061b34 0%,#08213f 100%);
+        --mc-header-shadow:rgba(0,0,0,.18); --mc-card-glow:rgba(0,0,0,.12);
+        --mc-scrollbar:#28547f; --mc-hint-line:rgba(215,226,238,.12);
+        --mc-bg:#061b34; --mc-text:#f8fafc; --mc-muted:#8fa6c1;
+        --mc-panel:#092747; --mc-border:rgba(215,226,238,.14);
+        --mc-card-bg:#0b2c50; --mc-card-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 22px rgba(0,0,0,.14);
+      }
+      html.mc-light {
         color-scheme: light;
         --mc-bg-base:#f5f8fc; --mc-bg-surface:#ffffff; --mc-bg-elevated:#edf4fb; --mc-bg-hover:#e8f2ff;
         --mc-text-primary:#041f3d; --mc-text-secondary:#334155; --mc-text-muted:#64748b;
@@ -1634,25 +1760,34 @@
         --mc-area-general:#16a34a; --mc-area-general-bg:rgba(22,163,74,.10);
         --mc-area-proyecto:#0891b2; --mc-area-proyecto-bg:rgba(8,145,178,.11);
         --mc-area-electivo:#475569; --mc-area-electivo-bg:rgba(71,85,105,.10);
-      }`}
+        --mc-line:rgba(191,208,227,.82); --mc-line-strong:rgba(191,208,227,.82);
+        --mc-panel-bg:rgba(255,255,255,.96); --mc-header-bg:rgba(255,255,255,.92);
+        --mc-body-bg:linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%);
+        --mc-header-shadow:rgba(15,23,42,.06); --mc-card-glow:rgba(15,23,42,.05);
+        --mc-scrollbar:#bfd0e3; --mc-hint-line:rgba(191,208,227,.7);
+        --mc-bg:#f5f8fc; --mc-text:#041f3d; --mc-muted:#64748b;
+        --mc-panel:#ffffff; --mc-border:rgba(191,208,227,.82);
+        --mc-card-bg:#ffffff; --mc-card-shadow:0 1px 2px rgba(15,23,42,.05), 0 10px 22px rgba(15,23,42,.05);
+      }
       body {
         min-height: 100vh;
-        background: ${isDark ? 'linear-gradient(180deg,#061b34 0%,#08213f 100%)' : 'linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%)'} !important;
+        background: var(--mc-body-bg) !important;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        transition: background 220ms ease;
       }
       .mc-header {
-        background: ${isDark ? 'rgba(9,39,71,.92)' : 'rgba(255,255,255,.92)'} !important;
-        border-bottom-color: ${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.82)'} !important;
-        box-shadow: 0 10px 30px ${isDark ? 'rgba(0,0,0,.18)' : 'rgba(15,23,42,.06)'} !important;
+        background: var(--mc-header-bg) !important;
+        border-bottom-color: var(--mc-line) !important;
+        box-shadow: 0 10px 30px var(--mc-header-shadow) !important;
       }
       .mc-header__title h1 { color: var(--mc-text-primary); letter-spacing:0 !important; }
       .mc-header__subtitle { color: var(--mc-text-secondary); }
-      .mc-header__hint { color: var(--mc-text-muted); border-color:${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.7)'}; }
+      .mc-header__hint { color: var(--mc-text-muted); border-color: var(--mc-hint-line); }
       .mc-theme-toggle { display:none !important; }
       .mc-card {
         border-radius: 8px !important;
-        border-color: ${isDark ? 'rgba(215,226,238,.12)' : 'rgba(191,208,227,.82)'} !important;
-        box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px ${isDark ? 'rgba(0,0,0,.12)' : 'rgba(15,23,42,.05)'} !important;
+        border-color: var(--mc-line) !important;
+        box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px var(--mc-card-glow) !important;
       }
       .mc-card:hover { transform: translateY(-1px); }
       .mc-card--highlight-self { box-shadow:0 0 0 2px ${planAccent},0 0 0 5px rgba(249,115,22,.28),0 16px 38px rgba(15,23,42,.18) !important; }
@@ -1661,15 +1796,15 @@
       .mc-search__inner,
       .mc-tooltip,
       .mc-modal {
-        background: ${isDark ? 'rgba(9,39,71,.94)' : 'rgba(255,255,255,.96)'} !important;
-        border-color: ${isDark ? 'rgba(215,226,238,.14)' : 'rgba(191,208,227,.82)'} !important;
+        background: var(--mc-panel-bg) !important;
+        border-color: var(--mc-line-strong) !important;
       }
       .mc-zoom-btn,
       .mc-search__close,
       .mc-modal__close {
         border-radius: 8px !important;
       }
-      .mc-grid::-webkit-scrollbar-thumb { background:${isDark ? '#28547f' : '#bfd0e3'}; }
+      .mc-grid::-webkit-scrollbar-thumb { background: var(--mc-scrollbar); }
       .mc-portal-scroll-hint {
         position: fixed;
         left: 50%;
@@ -1681,11 +1816,11 @@
         min-height: 34px;
         max-width: calc(100vw - 24px);
         padding: 7px 12px;
-        border: 1px solid ${isDark ? 'rgba(215,226,238,.18)' : 'rgba(191,208,227,.95)'};
+        border: 1px solid var(--mc-line-strong);
         border-radius: 999px;
-        background: ${isDark ? 'rgba(9,39,71,.9)' : 'rgba(255,255,255,.94)'};
-        color: ${isDark ? '#d7e2ee' : '#17365f'};
-        box-shadow: 0 10px 30px ${isDark ? 'rgba(0,0,0,.24)' : 'rgba(15,23,42,.12)'};
+        background: var(--mc-panel-bg);
+        color: var(--mc-text-secondary);
+        box-shadow: 0 10px 30px var(--mc-header-shadow);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         font-size: .72rem;
@@ -2141,6 +2276,344 @@
   function dayHead(label) { const parts = label.split(' '); return `<div class="booking-col-head"><strong>${esc(parts[0])}</strong><span>${esc(parts.slice(1).join(' '))}</span></div>`; }
   function slotModeIcon(mode) { return /video|mixto|online/i.test(mode || '') ? 'calendar' : 'user'; }
 
+  // ============================================================
+  // RESERVAS DE MESAS (taca-taca / ping-pong) — flujo acordado con
+  // tesorería CEAL: preconfirmada -> pago $1.000 -> confirmación manual.
+  // Con backend usa /api/reservations (cross-device + correos);
+  // sin backend cae a localStorage para mantener el portal utilizable.
+  // ============================================================
+  const RESERVATION_STORE_KEY = 'portal.reservas.v1';
+  const RSV_TABLES = {
+    tacataca: { label: 'Taca-taca', place: 'Sala de estar Ingeniería Civil' },
+    pingpong: { label: 'Mesa de ping-pong', place: 'Sala de estar Ingeniería Civil' }
+  };
+  const RSV_BLOCKS = ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'];
+  const RSV_BLOCK_MINUTES = 30;
+  const RSV_STATUS = {
+    preconfirmada: ['Preconfirmada', 'orange'],
+    pagoAvisado: ['Pago avisado', 'blue'],
+    confirmada: ['Confirmada', 'green'],
+    liberada: ['Liberada', 'gray'],
+    rechazada: ['No confirmada', 'red'],
+    cancelada: ['Cancelada', 'gray']
+  };
+  const RSV_ACTIVE = new Set(['preconfirmada', 'pagoAvisado', 'confirmada']);
+  const RSV_PAYMENT = {
+    amount: '$1.000',
+    holder: 'Belén Alessandra Astudillo Díaz',
+    rut: '21.010.841-6',
+    bank: 'Mercado Pago',
+    accountType: 'Cuenta Vista',
+    accountNumber: '1062801369',
+    email: 'belen.astu24@gmail.com',
+    note: 'El pago se recibe temporalmente en la cuenta de la tesorera del CEAL para la administración de los fondos del centro de estudiantes.'
+  };
+  const RSV_AGREED_COPY = 'Tu reserva quedó preconfirmada. Para confirmar el bloque, realiza el pago de $1.000 mediante transferencia a la cuenta indicada o paga presencialmente antes del turno. Una vez verificado el pago, tu reserva quedará confirmada. Si el pago no se confirma hasta 2 horas antes del horario reservado, el bloque será liberado automáticamente.';
+
+  function rsvPaymentData() { return state.reservationPayment || RSV_PAYMENT; }
+  function rsvBlocks() { return state.reservationSchedule?.blocks || RSV_BLOCKS; }
+  function rsvTables() {
+    const remote = state.reservationSchedule?.tables;
+    return remote && Object.keys(remote).length ? remote : RSV_TABLES;
+  }
+  function rsvDateKey(d) { return d.toLocaleDateString('en-CA'); }
+  function rsvStartFrom(date, block) { return new Date(`${date}T${block}:00`); }
+  function rsvEndFrom(date, block) { return new Date(rsvStartFrom(date, block).getTime() + RSV_BLOCK_MINUTES * 60000); }
+  function rsvExpiryMs(rsv) {
+    if (rsv.expiresAt) return new Date(rsv.expiresAt).getTime();
+    const startMs = new Date(rsv.start).getTime();
+    const created = new Date(rsv.createdAt || 0).getTime();
+    const twoBefore = startMs - 2 * 3600000;
+    return twoBefore >= created ? twoBefore : startMs;
+  }
+  function rsvDays() {
+    const days = [];
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    while (days.length < 6) {
+      const dow = cursor.getDay();
+      if (dow !== 0 && dow !== 6) days.push(rsvDateKey(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }
+  function rsvDayLabel(date) {
+    const label = new Date(`${date}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\.,?/g, '');
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  function rsvLongLabel(rsv) {
+    const start = new Date(rsv.start);
+    const day = start.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    return `${day.charAt(0).toUpperCase() + day.slice(1)} · ${fmtSlotTime(start)}–${fmtSlotTime(new Date(rsv.end))}`;
+  }
+  function rsvStoreDefault() { return { items: [] }; }
+  function readRsvStore() {
+    try { const raw = JSON.parse(localStorage.getItem(RESERVATION_STORE_KEY) || 'null'); if (raw && typeof raw === 'object' && Array.isArray(raw.items)) return raw; } catch {}
+    return rsvStoreDefault();
+  }
+  function writeRsvStore(store) { try { localStorage.setItem(RESERVATION_STORE_KEY, JSON.stringify(store)); } catch {} }
+  function expireRsvItems(items) {
+    const now = Date.now();
+    let changed = false;
+    for (const rsv of items) {
+      if (!['preconfirmada', 'pagoAvisado'].includes(rsv.status)) continue;
+      if (rsvExpiryMs(rsv) <= now) {
+        rsv.status = 'liberada';
+        rsv.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  function rsvUsingApi() {
+    // Solo consulta el backend con una sesión que el backend reconoce; las
+    // sesiones locales de desarrollo usan el store local (evita 401 -> logout).
+    return Boolean(API_BASE) && Boolean(state.user?.sessionToken) && state.user.authProvider !== 'local-dev';
+  }
+  function reservationItems() {
+    if (rsvUsingApi()) return Array.isArray(state.reservations) ? state.reservations : [];
+    const store = readRsvStore();
+    if (expireRsvItems(store.items)) writeRsvStore(store);
+    const me = bookingUserEmail();
+    return store.items.map(rsv => (String(rsv.studentEmail || '').toLowerCase() === me ? { ...rsv, mine: true } : rsv));
+  }
+  function rsvAdminItems() {
+    if (rsvUsingApi()) return Array.isArray(state.reservations) ? state.reservations : [];
+    const store = readRsvStore();
+    if (expireRsvItems(store.items)) writeRsvStore(store);
+    return store.items;
+  }
+  function rsvIsMine(rsv) { return Boolean(rsv.mine) || (Boolean(rsv.studentEmail) && String(rsv.studentEmail).toLowerCase() === bookingUserEmail()); }
+  function myReservations() { return reservationItems().filter(rsvIsMine).sort((a, b) => new Date(a.start) - new Date(b.start)); }
+  async function hydrateReservations() {
+    const route = getRoute().path;
+    const wants = route === '/reservas' || (route === '/gestion' && hasCealAccess());
+    if (!wants || !rsvUsingApi() || isGuest() || !state.user) return;
+    if (state.reservations !== null || state.reservationsLoading) return;
+    state.reservationsLoading = true;
+    state.reservationsError = '';
+    try {
+      const payload = await apiRequest('/reservations');
+      state.reservations = Array.isArray(payload.items) ? payload.items : [];
+      if (payload.schedule) state.reservationSchedule = payload.schedule;
+      if (payload.payment) state.reservationPayment = payload.payment;
+    } catch (error) {
+      state.reservations = [];
+      state.reservationsError = error.isSessionExpired ? '' : (error.message || 'No se pudieron cargar las reservas.');
+    } finally {
+      state.reservationsLoading = false;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+    }
+  }
+  async function refreshReservationsSilently() {
+    if (!rsvUsingApi()) return;
+    try {
+      const payload = await apiRequest('/reservations');
+      state.reservations = Array.isArray(payload.items) ? payload.items : state.reservations;
+    } catch {}
+  }
+  async function reservationAction(action, data = {}) {
+    if (rsvUsingApi()) {
+      let payload;
+      if (action === 'create') payload = await apiRequest('/reservations', { method: 'POST', body: JSON.stringify({ table: data.table, date: data.date, block: data.block }) });
+      else payload = await apiRequest(`/reservations/${encodeURIComponent(data.id)}/${action === 'pay' ? 'pay' : action}`, { method: 'POST', body: JSON.stringify(action === 'pay' ? { method: data.method } : { note: data.note || '' }) });
+      await refreshReservationsSilently();
+      return payload.item;
+    }
+    const store = readRsvStore();
+    expireRsvItems(store.items);
+    const nowIso = new Date().toISOString();
+    if (action === 'create') {
+      const { table, date, block } = data;
+      const start = rsvStartFrom(date, block);
+      if (!rsvTables()[table] || !rsvBlocks().includes(block) || Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) throw new Error('Elige un bloque válido.');
+      if (store.items.some(rsv => RSV_ACTIVE.has(rsv.status) && rsv.table === table && rsv.date === date && rsv.block === block)) throw new Error('Ese bloque ya está reservado.');
+      const mineActive = store.items.filter(rsv => RSV_ACTIVE.has(rsv.status) && String(rsv.studentEmail).toLowerCase() === bookingUserEmail());
+      if (mineActive.length >= 2) throw new Error('Ya tienes 2 reservas activas.');
+      if (mineActive.some(rsv => rsv.table === table && rsv.date === date)) throw new Error('Ya tienes una reserva de esta mesa ese día.');
+      const created = {
+        id: `rsv-${Date.now()}`,
+        table, date, block,
+        start: start.toISOString(),
+        end: rsvEndFrom(date, block).toISOString(),
+        studentEmail: bookingUserEmail(),
+        studentName: state.user?.name || 'Estudiante',
+        status: 'preconfirmada',
+        payMethod: null,
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      created.expiresAt = new Date(rsvExpiryMs(created)).toISOString();
+      store.items.unshift(created);
+      writeRsvStore(store);
+      return { ...created, mine: true };
+    }
+    const rsv = store.items.find(item => item.id === data.id);
+    if (!rsv) throw new Error('No encontramos la reserva.');
+    if (action === 'pay') {
+      rsv.payMethod = data.method === 'presencial' ? 'presencial' : 'transferencia';
+      rsv.status = 'pagoAvisado';
+    } else if (action === 'cancel') {
+      rsv.status = 'cancelada';
+    } else if (action === 'confirm') {
+      rsv.status = 'confirmada';
+    } else if (action === 'reject') {
+      rsv.status = 'rechazada';
+    }
+    rsv.updatedAt = nowIso;
+    writeRsvStore(store);
+    return { ...rsv };
+  }
+  function rsvPayRows() {
+    const pay = rsvPaymentData();
+    return [
+      ['Titular', pay.holder],
+      ['RUT', pay.rut],
+      ['Entidad', `${pay.bank} · ${pay.accountType}`],
+      ['N° de cuenta', pay.accountNumber],
+      ['Correo', pay.email]
+    ];
+  }
+  function rsvPayClipboard() {
+    const pay = rsvPaymentData();
+    return `${pay.holder}\nRUT ${pay.rut}\n${pay.bank} · ${pay.accountType}\nCuenta ${pay.accountNumber}\n${pay.email}\nMonto: ${pay.amount || '$1.000'}`;
+  }
+  function rsvStatusChip(status) { const [label, color] = RSV_STATUS[status] || [status, 'gray']; return `<span class="status-chip ${color}">${esc(label)}</span>`; }
+  function rsvDeadlineLabel(rsv) {
+    const expiry = new Date(rsvExpiryMs(rsv));
+    if (Number.isNaN(expiry.getTime())) return '';
+    const sameDay = rsvDateKey(expiry) === rsvDateKey(new Date());
+    const day = sameDay ? 'hoy' : expiry.toLocaleDateString('es-CL', { weekday: 'long' });
+    return `Confirma antes de las ${fmtSlotTime(expiry)} ${day === 'hoy' ? 'de hoy' : `del ${day}`}`;
+  }
+  function renderRsvPaymentCard(rsv) {
+    const pay = rsvPaymentData();
+    const rows = rsvPayRows().map(([k, v]) => `<div class="rsv-pay-row"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
+    const busyPay = state.rsvActionBusy === `pay:${rsv.id}`;
+    return `<section class="card pad rsv-pay-card" aria-label="Confirma tu reserva">
+      <div class="rsv-pay-head"><span class="rsv-pay-ico">${icon('wallet')}</span><div><span class="kicker">Paso 2 · Pago</span><h2 class="card-title">Confirma tu bloque</h2></div>${rsvStatusChip(rsv.status)}</div>
+      <p class="rsv-pay-copy">${esc(RSV_AGREED_COPY)}</p>
+      <div class="rsv-pay-summary">${icon('pingpong')}<strong>${esc(rsvTables()[rsv.table]?.label || 'Mesa')}</strong><span>${esc(rsvLongLabel(rsv))}</span></div>
+      <div class="rsv-pay-data">
+        <div class="rsv-pay-data-head"><strong>Datos para transferir</strong><button class="btn ghost sm" type="button" data-rsv-copy-pay>${icon('copy')} Copiar</button></div>
+        ${rows}
+        <div class="rsv-pay-row rsv-pay-amount"><span>Monto</span><strong>${esc(pay.amount || '$1.000')}</strong></div>
+      </div>
+      <div class="rsv-pay-actions">
+        <button class="btn primary" type="button" data-rsv-pay="${esc(rsv.id)}" data-rsv-method="transferencia" ${busyPay ? 'aria-busy="true" disabled' : ''}>${busyPay ? '<span class="btn-spinner"></span><span>Avisando…</span>' : `${icon('check')} Ya transferí`}</button>
+        <button class="btn secondary" type="button" data-rsv-pay="${esc(rsv.id)}" data-rsv-method="presencial" ${busyPay ? 'disabled' : ''}>Pagaré presencial</button>
+      </div>
+      <p class="small muted rsv-pay-note">${esc(pay.note || RSV_PAYMENT.note)}</p>
+    </section>`;
+  }
+  function renderMyReservations() {
+    const mine = myReservations().filter(rsv => RSV_ACTIVE.has(rsv.status) || new Date(rsv.end).getTime() > Date.now() - 86400000);
+    if (!mine.length) return '';
+    const rows = mine.map(rsv => {
+      const busyCancel = state.rsvActionBusy === `cancel:${rsv.id}`;
+      const payButtons = rsv.status === 'preconfirmada'
+        ? `<button class="btn primary sm" type="button" data-rsv-pay="${esc(rsv.id)}" data-rsv-method="transferencia">${icon('check')} Ya transferí</button><button class="btn secondary sm" type="button" data-rsv-pay="${esc(rsv.id)}" data-rsv-method="presencial">Presencial</button>`
+        : '';
+      const cancelBtn = RSV_ACTIVE.has(rsv.status)
+        ? `<button class="btn ghost sm" type="button" data-rsv-cancel="${esc(rsv.id)}" ${busyCancel ? 'aria-busy="true" disabled' : ''}>${icon('x')} Cancelar</button>`
+        : '';
+      const deadline = ['preconfirmada', 'pagoAvisado'].includes(rsv.status) ? `<p class="small rsv-deadline">${icon('clock')} ${esc(rsvDeadlineLabel(rsv))}</p>` : '';
+      const waiting = rsv.status === 'pagoAvisado' ? `<p class="small muted">Aviso recibido (${rsv.payMethod === 'presencial' ? 'pago presencial' : 'transferencia'}). La tesorería CEAL verificará y confirmará tu bloque.</p>` : '';
+      return `<article class="rsv-card">
+        <div class="rsv-card-ico">${icon('pingpong')}</div>
+        <div class="rsv-card-body">
+          <div class="rsv-card-top"><strong>${esc(rsvTables()[rsv.table]?.label || 'Mesa')}</strong>${rsvStatusChip(rsv.status)}</div>
+          <span class="rsv-card-when">${esc(rsvLongLabel(rsv))}</span>
+          ${deadline}${waiting}
+          <div class="rsv-card-actions">${payButtons}${cancelBtn}</div>
+        </div>
+      </article>`;
+    }).join('');
+    return `<section class="card pad rsv-mine"><div class="row-between"><h2 class="card-title">Mis reservas</h2></div><div class="rsv-card-list">${rows}</div></section>`;
+  }
+  function renderReservations() {
+    const tables = rsvTables();
+    const days = rsvDays();
+    if (!state.rsvDate || !days.includes(state.rsvDate)) state.rsvDate = days[0];
+    if (!tables[state.rsvTable]) state.rsvTable = Object.keys(tables)[0];
+    const items = reservationItems();
+    const loading = rsvUsingApi() && state.reservations === null;
+    const takenMap = new Map();
+    items.forEach(rsv => { if (RSV_ACTIVE.has(rsv.status)) takenMap.set(`${rsv.table}|${rsv.date}|${rsv.block}`, rsv); });
+    const now = Date.now();
+    const tableTabs = Object.entries(tables).map(([key, t]) => `<button type="button" class="rsv-table-tab ${state.rsvTable === key ? 'active' : ''}" data-rsv-table="${esc(key)}">${icon('pingpong')}<span>${esc(t.label)}</span></button>`).join('');
+    const dayChips = days.map(d => `<button type="button" class="rsv-day-chip ${state.rsvDate === d ? 'active' : ''}" data-rsv-date="${esc(d)}">${esc(rsvDayLabel(d))}</button>`).join('');
+    const blocks = rsvBlocks().map(block => {
+      const key = `${state.rsvTable}|${state.rsvDate}|${block}`;
+      const taken = takenMap.get(key);
+      const past = rsvStartFrom(state.rsvDate, block).getTime() <= now;
+      const mine = taken && rsvIsMine(taken);
+      const selected = state.rsvBlock === block && !taken && !past;
+      if (mine) return `<span class="rsv-block is-mine" title="Tu reserva">${esc(block)}<small>Tuyo</small></span>`;
+      if (taken) return `<span class="rsv-block is-taken">${esc(block)}<small>Ocupado</small></span>`;
+      if (past) return `<span class="rsv-block is-past">${esc(block)}</span>`;
+      return `<button type="button" class="rsv-block ${selected ? 'is-selected' : ''}" data-rsv-block="${esc(block)}">${esc(block)}</button>`;
+    }).join('');
+    const selectedValid = state.rsvBlock && !takenMap.get(`${state.rsvTable}|${state.rsvDate}|${state.rsvBlock}`) && rsvStartFrom(state.rsvDate, state.rsvBlock).getTime() > now;
+    const confirmBlock = selectedValid
+      ? `<div class="rsv-confirm">
+          <div class="rsv-confirm-copy">${icon('check')}<div><strong>${esc(tables[state.rsvTable].label)} · ${esc(rsvDayLabel(state.rsvDate))} · ${esc(state.rsvBlock)}</strong><span class="small muted">Bloque de 30 minutos · ${esc(rsvPaymentData().amount || '$1.000')} · ${esc(tables[state.rsvTable].place || 'Sala de estar')}</span></div></div>
+          <button class="btn primary" type="button" data-rsv-create ${state.rsvSubmitting ? 'aria-busy="true" disabled' : ''}>${state.rsvSubmitting ? '<span class="btn-spinner"></span><span>Reservando…</span>' : 'Reservar este bloque'}</button>
+        </div>`
+      : `<p class="small muted rsv-hint">${icon('clock')} Elige un bloque libre para reservar.</p>`;
+    const mine = myReservations();
+    const focusPay = mine.find(rsv => rsv.id === state.rsvJustCreated && rsv.status === 'preconfirmada') || mine.find(rsv => rsv.status === 'preconfirmada');
+    const errorNote = state.reservationsError ? `<p class="form-alert">${esc(state.reservationsError)}</p>` : '';
+    const loadingNote = loading ? `<div class="rsv-loading"><span class="btn-spinner"></span><span>Cargando disponibilidad…</span></div>` : '';
+    return `${pageHead('Reservas', 'Taca-taca y mesa de ping-pong · Sala de estar Ingeniería Civil')}
+      <section class="card pad rsv-booker" aria-label="Reservar un bloque">
+        <div class="rsv-step-head"><span class="kicker">Paso 1 · Elige tu bloque</span></div>
+        ${errorNote}${loadingNote}
+        <div class="rsv-table-tabs" role="tablist" aria-label="Elegir mesa">${tableTabs}</div>
+        <div class="rsv-day-row" aria-label="Elegir día">${dayChips}</div>
+        <div class="rsv-block-grid" aria-label="Bloques de 30 minutos">${blocks}</div>
+        ${confirmBlock}
+      </section>
+      ${focusPay ? renderRsvPaymentCard(focusPay) : ''}
+      ${renderMyReservations()}
+      <section class="card pad rsv-rules">
+        <h2 class="card-title">Cómo funciona</h2>
+        <div class="rsv-rule">${icon('clock')}<span>Bloques de 30 minutos, de lunes a viernes entre ${esc(rsvBlocks()[0])} y ${esc(rsvBlocks()[rsvBlocks().length - 1])} h.</span></div>
+        <div class="rsv-rule">${icon('wallet')}<span>Cada bloque cuesta ${esc(rsvPaymentData().amount || '$1.000')}: por transferencia o pagando presencial antes del turno.</span></div>
+        <div class="rsv-rule">${icon('check')}<span>La tesorería CEAL verifica el pago y confirma tu reserva. Recibirás un correo en cada paso.</span></div>
+        <div class="rsv-rule">${icon('bell')}<span>Si el pago no se confirma 2 horas antes del bloque, el cupo se libera automáticamente.</span></div>
+        <p class="small muted">${esc(rsvPaymentData().note || RSV_PAYMENT.note)}</p>
+      </section>`;
+  }
+  function renderReservationAdminPanel() {
+    const items = rsvAdminItems();
+    const loading = rsvUsingApi() && state.reservations === null;
+    const pending = items.filter(rsv => ['preconfirmada', 'pagoAvisado'].includes(rsv.status)).sort((a, b) => new Date(a.start) - new Date(b.start));
+    const upcoming = items.filter(rsv => rsv.status === 'confirmada' && new Date(rsv.end).getTime() > Date.now()).sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 6);
+    const payLabel = rsv => rsv.status !== 'pagoAvisado' ? '<span class="pill gray">Sin aviso de pago</span>' : rsv.payMethod === 'presencial' ? '<span class="pill blue">Pagará presencial</span>' : '<span class="pill blue">Transferencia avisada</span>';
+    const pendingRows = pending.map(rsv => {
+      const busyC = state.rsvActionBusy === `confirm:${rsv.id}`;
+      const busyR = state.rsvActionBusy === `reject:${rsv.id}`;
+      return `<article class="rsv-admin-card">
+        <div class="rsv-admin-top"><span class="avatar sm">${esc(nameInitials(rsv.studentName || rsv.studentEmail || '?'))}</span><div class="rsv-admin-who"><strong>${esc(rsv.studentName || 'Estudiante')}</strong><span class="small muted">${esc(rsv.studentEmail || '')}</span></div>${rsvStatusChip(rsv.status)}</div>
+        <div class="rsv-admin-meta">${icon('pingpong')}<span><strong>${esc(rsvTables()[rsv.table]?.label || 'Mesa')}</strong> · ${esc(rsvLongLabel(rsv))}</span></div>
+        <div class="rsv-admin-meta-row">${payLabel(rsv)}<span class="small muted">${esc(rsvDeadlineLabel(rsv))}</span></div>
+        <div class="rsv-admin-actions">
+          <button class="btn primary sm" type="button" data-rsv-confirm="${esc(rsv.id)}" ${busyC ? 'aria-busy="true" disabled' : ''}>${busyC ? '<span class="btn-spinner"></span><span>Confirmando…</span>' : `${icon('check')} Confirmar pago`}</button>
+          <button class="btn ghost sm" type="button" data-rsv-reject="${esc(rsv.id)}" ${busyR ? 'aria-busy="true" disabled' : ''}>${icon('x')} Rechazar</button>
+        </div>
+      </article>`;
+    }).join('');
+    const upcomingRows = upcoming.map(rsv => `<div class="rsv-upcoming-row"><span>${icon('pingpong')}</span><div><strong>${esc(rsvTables()[rsv.table]?.label || 'Mesa')}</strong><span class="small muted">${esc(rsvLongLabel(rsv))} · ${esc(rsv.studentName || '')}</span></div><button class="btn ghost sm" type="button" data-rsv-cancel="${esc(rsv.id)}" aria-label="Cancelar reserva">${icon('x')}</button></div>`).join('');
+    return `<section class="card pad rsv-admin" aria-label="Reservas de mesas">
+      <div class="row-between"><h2 class="card-title">Reservas de taca-taca y ping-pong</h2>${pending.length ? `<span class="pill orange">${pending.length} por confirmar</span>` : '<span class="pill gray">Al día</span>'}</div>
+      <p class="small muted">Confirma cada reserva cuando verifiques la transferencia en la cuenta de la tesorería (${esc(rsvPaymentData().email || RSV_PAYMENT.email)}) o cuando el pago sea presencial.</p>
+      ${loading ? `<div class="rsv-loading"><span class="btn-spinner"></span><span>Cargando reservas…</span></div>` : ''}
+      <div class="rsv-admin-list">${pendingRows || renderEmpty('Sin reservas por confirmar', 'Cuando alguien reserve y avise su pago aparecerá aquí.', '', 'check')}</div>
+      ${upcoming.length ? `<div class="divider"></div><h3 class="card-title sm">Próximas confirmadas</h3><div class="rsv-upcoming-list">${upcomingRows}</div>` : ''}
+    </section>`;
+  }
+
   function bookingHeroCard(profile, opts = {}) {
     const hours = profile.officeHours || [];
     const email = opts.staff ? (profile.email || 'jc.icivil.afta@ucn.cl') : (profile.email || 'jc.icivil.afta@ucn.cl');
@@ -2416,30 +2889,32 @@
 
   function renderManagement() {
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
-    const firstMaterial = pendingMaterial[0]?.id || Data.resources[0]?.id || '';
-    const modules = [
-      ['publish:comunicados','megaphone','Publicar comunicado','Redacta y publica avisos.','/comunicados/nuevo'],
-      ['edit:calendario','calendar','Editar calendario','Gestiona fechas académicas oficiales.','/calendario'],
-      ['upload:acuerdos','file','Registrar seguimiento','Registra acuerdos y compromisos.','/gestion/acuerdos/nuevo'],
-      ['validate:material','book','Validar material','Aprueba recursos enviados.', firstMaterial ? '/gestion/material/' + firstMaterial + '/validar' : '/material'],
-      ['edit:mallas','grid','Actualizar mallas','Revisa enlaces y fichas de ramos.','/mallas'],
-      ['manage:roles','users','Panel común CEAL','Acceso compartido para la directiva.','/gestion']
+    const pendingReservations = rsvAdminItems().filter(rsv => ['preconfirmada', 'pagoAvisado'].includes(rsv.status));
+    const openSurveys = (Data.surveys || []).filter(s => s.status === 'open');
+    const actions = [
+      ['megaphone', 'Publicar comunicado', 'Redacta con ayuda del asistente y avisa por correo.', '/comunicados/nuevo'],
+      ['check', 'Crear encuesta o votación', 'Consulta a estudiantes con resultados agregados.', '/encuestas/nueva'],
+      ['file', 'Registrar seguimiento', 'Acta de acuerdos y compromisos con la carrera.', '/gestion/acuerdos/nuevo'],
+      ['book', 'Validar material', pendingMaterial.length ? `${pendingMaterial.length} recurso${pendingMaterial.length === 1 ? '' : 's'} esperando revisión.` : 'No hay recursos pendientes.', pendingMaterial[0] ? `/gestion/material/${pendingMaterial[0].id}/validar` : '/material']
     ];
-    const visibleModules = modules.map(m => `<a class="management-card" href="#${m[4]}"><span class="icon-box">${icon(m[1])}</span><strong>${esc(m[2])}</strong><span>${esc(m[3])}</span><em>Disponible para CEAL</em></a>`).join('');
+    const actionCards = actions.map(([ico, title, desc, href]) => `<a class="management-card" href="#${href}"><span class="icon-box">${icon(ico)}</span><strong>${esc(title)}</strong><span>${esc(desc)}</span></a>`).join('');
     const communicationRows = Data.communications.slice(0, 5).map(c => `<a class="link-card-row" href="#/gestion/comunicados/${c.id}/editar"><span><strong>${esc(c.title)}</strong><span>${esc(c.category)} - ${fmtDate(c.date)}</span></span><span class="link">Editar ${icon('arrow')}</span></a>`).join('');
-    const materialRows = Data.resources.slice(0, 5).map(r => {
+    const materialRows = Data.resources.filter(r => r.status === 'pendienteRevision').concat(Data.resources.filter(r => r.status !== 'pendienteRevision')).slice(0, 5).map(r => {
       const href = r.status === 'pendienteRevision' ? `/gestion/material/${r.id}/validar` : `/material/${r.id}`;
       const action = r.status === 'pendienteRevision' ? 'Validar' : 'Ver';
       return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.title)}</strong><span>${esc(r.courseName)} - ${esc(r.type)}</span></span><span class="hstack">${badge(r.status)}<span class="link">${action} ${icon('arrow')}</span></span></a>`;
     }).join('');
     const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
-    return `${pageHead('Gestión CEAL', 'Panel común para administrar contenido, mallas y acuerdos', `<span class="pill blue">Acceso CEAL</span>`)}
+    const surveyRows = (Data.surveys || []).slice(0, 4).map(s => `<a class="link-card-row" href="#/encuestas/${s.id}"><span><strong>${esc(s.title)}</strong><span>${s.mode === 'votacion' ? 'Votación' : 'Encuesta'} · ${(s.responses?.length ?? s.responsesCount ?? 0)} respuestas</span></span>${badge(s.status === 'open' ? 'abierto' : s.status === 'closed' ? 'cerrado' : 'borrador', s.status === 'open' ? 'Abierta' : s.status === 'closed' ? 'Cerrada' : 'Borrador')}</a>`).join('');
+    return `${pageHead('Gestión CEAL', 'Lo pendiente primero: reservas, material y publicaciones del centro', `<span class="pill blue">Acceso CEAL</span>`)}
       <div class="vstack">
-        <section class="card pad"><div class="row-between"><h2 class="card-title">Tablero general</h2><span class="pill gray">Gestión activa</span></div><div class="stat-grid compact">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Editables')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Seguimientos', 'Activos')}${stat('grid', 2, 'Mallas', 'Activas')}</div></section>
-        <section class="card pad"><h2 class="card-title">Gestión de contenido</h2><div class="management-modules">${visibleModules}</div></section>
+        <div class="stat-grid compact management-kpis">${stat('pingpong', pendingReservations.length, 'Reservas', 'Por confirmar')}${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('check', openSurveys.length, 'Encuestas', 'Abiertas')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En curso')}</div>
+        ${renderReservationAdminPanel()}
+        <section class="card pad"><h2 class="card-title">Acciones del centro</h2><div class="management-modules">${actionCards}</div></section>
         <div class="management-content-grid">
           <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/comunicados/nuevo">${icon('megaphone')} Crear</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
+          <section class="card pad"><div class="row-between"><h2 class="card-title">Encuestas y votaciones</h2><a class="btn secondary sm" href="#/encuestas/nueva">Crear</a></div><div class="card-list">${surveyRows || '<p class="small muted">Aún no hay encuestas.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
       </div>`;
@@ -2478,9 +2953,18 @@
     return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas, comunicados y acuerdos')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
   function resultRow(ico, title, desc, route) { return `<a class="result-row" href="#${route}"><span class="icon-box">${icon(ico)}</span><span><strong>${esc(title)}</strong><p>${esc(desc)}</p></span><span class="link">Abrir ${icon('arrow')}</span></a>`; }
-  function renderMore() { const items = navItems().filter(([href]) => !['/','/comunicados','/mallas','/material'].includes(href)); const accountLabel = 'Mi cuenta'; return `${pageHead('Más', 'Accesos secundarios del portal')}<section class="card pad"><div class="card-list">${items.map(([href, ico, label]) => `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<strong>${label}</strong></span>${icon('arrow')}</a>`).join('')}<a class="link-card-row" href="#/perfil"><span class="hstack">${icon('user')}<strong>${accountLabel}</strong></span>${icon('arrow')}</a><button class="link-card-row" data-logout><span class="hstack">${icon('x')}<strong>Cerrar sesión</strong></span>${icon('arrow')}</button></div></section>`; }
-  function renderNotificationsPage() { return `${pageHead('Notificaciones', 'Actualizaciones relevantes del portal')}<section class="card pad">${Data.notifications.length ? Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${n.unread ? badge('orange','Nueva') : badge('gray','Leída')}</a>`).join('') : renderEmpty('Sin notificaciones', 'Cuando haya novedades del portal aparecerán aquí.', '', 'bell')}</section>`; }
-  function renderNotificationPopover() { return `<aside class="notification-popover" role="dialog" aria-modal="true" aria-label="Notificaciones"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications aria-label="Cerrar notificaciones">${icon('x')}</button></header>${Data.notifications.map(n => `<a class="not-row" href="#${esc(n.route)}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${esc(n.date)}</small></span></a>`).join('')}</aside>`; }
+  function renderNotificationsPage() {
+    if (!canSeeNotifications()) return renderNotFound('Las notificaciones están disponibles en el modo estudiante.');
+    const items = studentNotifications();
+    return `${pageHead('Notificaciones', 'Comunicados nuevos y encuestas abiertas')}<section class="card pad">${items.length ? items.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} · ${fmtDate(n.date)}</span></span>${badge('orange', 'Nueva')}</a>`).join('') : renderEmpty('Estás al día', 'Cuando haya un comunicado nuevo o se abra una encuesta aparecerá aquí.', '', 'bell')}</section>`;
+  }
+  function renderNotificationPopover() {
+    const items = studentNotifications();
+    const rows = items.length
+      ? items.map(n => `<a class="not-row" href="#${esc(n.route)}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${fmtDate(n.date)}</small></span></a>`).join('')
+      : `<div class="not-empty">${icon('check')}<span>Estás al día. Te avisaremos cuando haya un comunicado nuevo o una encuesta abierta.</span></div>`;
+    return `<aside class="notification-popover" role="dialog" aria-modal="true" aria-label="Notificaciones"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications aria-label="Cerrar notificaciones">${icon('x')}</button></header>${rows}</aside>`;
+  }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
   function skeletonList(n = 3) {
     return `<div class="skeleton-list">${Array.from({ length: n }, () => `<div class="skeleton-card"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line" style="width:70%"></span></div>`).join('')}</div>`;
@@ -2512,10 +2996,122 @@
       routeTo('/login');
       return;
     }
+    if (e.target.closest('[data-open-menu]')) {
+      state.menuOpen = true;
+      render({ transition: true, scope: 'overlay', resetScroll: false });
+      document.querySelector('.menu-sheet [data-close-menu]')?.focus();
+      return;
+    }
+    if (e.target.closest('[data-close-menu]')) {
+      state.menuOpen = false;
+      render({ transition: true, scope: 'overlay', resetScroll: false });
+      document.querySelector('[data-open-menu]')?.focus();
+      return;
+    }
     if (e.target.closest('[data-toggle-notifications]')) {
       state.notificationsOpen = !state.notificationsOpen;
       render({ transition: true, scope: 'overlay' });
       if (state.notificationsOpen) document.querySelector('.notification-popover [data-close-notifications]')?.focus();
+      return;
+    }
+    const rsvTableBtn = e.target.closest('[data-rsv-table]');
+    if (rsvTableBtn) { state.rsvTable = rsvTableBtn.dataset.rsvTable; state.rsvBlock = null; render({ transition: false, scope: 'panel', resetScroll: false }); return; }
+    const rsvDateBtn = e.target.closest('[data-rsv-date]');
+    if (rsvDateBtn) { state.rsvDate = rsvDateBtn.dataset.rsvDate; state.rsvBlock = null; render({ transition: false, scope: 'panel', resetScroll: false }); return; }
+    const rsvBlockBtn = e.target.closest('[data-rsv-block]');
+    if (rsvBlockBtn) { state.rsvBlock = state.rsvBlock === rsvBlockBtn.dataset.rsvBlock ? null : rsvBlockBtn.dataset.rsvBlock; render({ transition: false, scope: 'panel', resetScroll: false }); return; }
+    if (e.target.closest('[data-rsv-copy-pay]')) { copyText(rsvPayClipboard()).catch(() => {}); showToast('Datos de transferencia copiados', 'blue'); return; }
+    if (e.target.closest('[data-rsv-create]')) {
+      if (isGuest()) { readonlyToast(); return; }
+      if (state.rsvSubmitting) return;
+      const table = state.rsvTable, date = state.rsvDate, block = state.rsvBlock;
+      if (!table || !date || !block) { showToast('Elige un bloque libre primero', 'blue'); return; }
+      state.rsvSubmitting = true;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        const item = await reservationAction('create', { table, date, block });
+        state.rsvBlock = null;
+        state.rsvJustCreated = item?.id || null;
+        showToast('Reserva preconfirmada. Ahora realiza el pago para confirmarla.', 'green');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo crear la reserva', 'orange');
+      } finally {
+        state.rsvSubmitting = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    const rsvPayBtn = e.target.closest('[data-rsv-pay]');
+    if (rsvPayBtn) {
+      if (state.rsvActionBusy) return;
+      const id = rsvPayBtn.dataset.rsvPay;
+      const method = rsvPayBtn.dataset.rsvMethod === 'presencial' ? 'presencial' : 'transferencia';
+      state.rsvActionBusy = `pay:${id}`;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        await reservationAction('pay', { id, method });
+        showToast(method === 'presencial' ? 'Listo. Paga presencial antes del turno; la tesorería confirmará tu bloque.' : 'Aviso enviado. La tesorería verificará la transferencia y confirmará tu bloque.', 'green');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo avisar el pago', 'orange');
+      } finally {
+        state.rsvActionBusy = '';
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    const rsvCancelBtn = e.target.closest('[data-rsv-cancel]');
+    if (rsvCancelBtn) {
+      if (state.rsvActionBusy) return;
+      if (!window.confirm('¿Cancelar esta reserva? El bloque quedará disponible para otra persona.')) return;
+      const id = rsvCancelBtn.dataset.rsvCancel;
+      state.rsvActionBusy = `cancel:${id}`;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        await reservationAction('cancel', { id });
+        showToast('Reserva cancelada y bloque liberado.', 'blue');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo cancelar', 'orange');
+      } finally {
+        state.rsvActionBusy = '';
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    const rsvConfirmBtn = e.target.closest('[data-rsv-confirm]');
+    if (rsvConfirmBtn) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      if (state.rsvActionBusy) return;
+      const id = rsvConfirmBtn.dataset.rsvConfirm;
+      state.rsvActionBusy = `confirm:${id}`;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        await reservationAction('confirm', { id });
+        showToast('Pago confirmado. Avisamos por correo a quien reservó.', 'green');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo confirmar', 'orange');
+      } finally {
+        state.rsvActionBusy = '';
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    const rsvRejectBtn = e.target.closest('[data-rsv-reject]');
+    if (rsvRejectBtn) {
+      if (!hasCealAccess()) { readonlyToast(); return; }
+      if (state.rsvActionBusy) return;
+      if (!window.confirm('¿Rechazar esta reserva? Se liberará el bloque y avisaremos a quien reservó.')) return;
+      const id = rsvRejectBtn.dataset.rsvReject;
+      state.rsvActionBusy = `reject:${id}`;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      try {
+        await reservationAction('reject', { id });
+        showToast('Reserva rechazada y bloque liberado.', 'blue');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo rechazar', 'orange');
+      } finally {
+        state.rsvActionBusy = '';
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
       return;
     }
     if (e.target.closest('[data-close-notifications]')) {
@@ -2679,7 +3275,7 @@
     if (download) { const r = Data.resources.find(x => x.id === download.dataset.downloadResource); if (r) { downloadResource(r); showToast(r.externalUrl ? 'Abriendo material' : 'Descarga preparada', 'blue'); } return; }
     if (e.target.closest('[data-report-resource]')) { if (isGuest()) { readonlyToast(); return; } showToast('Reporte recibido para revisión CEAL', 'blue'); return; }
     const markRead = e.target.closest('[data-mark-read]');
-    if (markRead) { if (isGuest()) { readonlyToast(); return; } const c = Data.communications.find(x => x.id === markRead.dataset.markRead); if (c) c.unread = false; persistSnapshot(); showToast('Comunicado marcado como leído', 'blue'); return; }
+    if (markRead) { if (isGuest()) { readonlyToast(); return; } const c = Data.communications.find(x => x.id === markRead.dataset.markRead); if (c) { c.unread = false; markCommRead(c.id); } persistSnapshot(); showToast('Comunicado marcado como leído', 'blue'); return; }
     if (e.target.closest('[data-copy-link]')) { copyText(location.href).catch(() => {}); showToast('Enlace copiado', 'blue'); return; }
     const reminder = e.target.closest('[data-save-reminder]');
     if (reminder) { if (isGuest()) { readonlyToast(); return; } const id = reminder.dataset.saveReminder; if (!Data.saved.reminders.includes(id)) Data.saved.reminders.push(id); persistSnapshot(); apiRequest('/saved', { method:'POST', body:JSON.stringify({ kind:'reminders', id }) }).catch(() => {}); showToast('Recordatorio guardado', 'blue'); return; }
@@ -3055,6 +3651,7 @@
   }
   function onKeydown(e) {
     if (e.key === 'Escape') {
+      if (state.menuOpen) { state.menuOpen = false; render({ transition: true, scope: 'overlay', resetScroll: false }); document.querySelector('[data-open-menu]')?.focus(); return; }
       if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); document.querySelector('[data-toggle-notifications]')?.focus(); return; }
       if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
@@ -3152,6 +3749,7 @@
       try {
         const payload = await apiRequest(`/surveys/${encodeURIComponent(survey.id)}/respond`, { method: 'POST', body: JSON.stringify({ answers }) });
         Object.assign(survey, payload.item || {});
+        markSurveyAnswered(survey.id);
         persistSnapshot();
         showToast('Respuesta registrada', 'blue');
         render({ transition: true, scope: 'panel' });

@@ -176,8 +176,15 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   if (viewportName === 'mobile' && metrics.scrollWidth > metrics.innerWidth + 4) {
     pushFailure(`${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
   }
-  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none' || metrics.activeBottom < 1)) {
-    pushFailure(`${label}: bottom nav missing or inactive`);
+  // Rutas que pertenecen a una pestaña del dock: deben marcarla activa.
+  // Las rutas secundarias (calendario, perfil, atención…) viven en el menú
+  // lateral y no marcan pestaña, pero el dock siempre debe estar visible.
+  const tabbedRoutes = new Set(['inicio', 'comunicados', 'comunicado-detalle', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle', 'reservas']);
+  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none')) {
+    pushFailure(`${label}: bottom nav missing`);
+  }
+  if (viewportName === 'mobile' && tabbedRoutes.has(name) && metrics.activeBottom < 1) {
+    pushFailure(`${label}: bottom nav tab inactive`);
   }
   report.routes.push({ viewport: viewportName, route, name, title: metrics.title });
   if (screenshot) {
@@ -239,7 +246,8 @@ async function runPublicFlowTests(page, studentUser) {
 async function runCealFlowTests(page, cealUser) {
   await loginCeal(page, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
-  if (!(await page.locator('text=Gestión de contenido').count())) fail('gestion dashboard missing content management section');
+  if (!(await page.locator('text=Acciones del centro').count())) fail('gestion dashboard missing actions section');
+  if (!(await page.locator('text=Reservas de taca-taca y ping-pong').count())) fail('gestion dashboard missing reservations panel');
 
   await page.goto(appUrl('/gestion/acuerdos/nuevo'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
@@ -303,7 +311,7 @@ async function main() {
       ['/tramites/proc-001', 'tramite-detalle'],
       ['/atencion', 'atencion'],
       ['/perfil', 'perfil'],
-      ['/mas', 'mas']
+      ['/reservas', 'reservas']
     ];
     await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
