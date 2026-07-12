@@ -1,4 +1,4 @@
-// Mallas reales adaptadas desde los HTML originales entregados por el usuario.
+﻿// Mallas reales adaptadas desde los HTML originales entregados por el usuario.
 // Plan O: 61 asignaturas / 10 semestres.
 // Plan P: 64 asignaturas / 11 semestres.
 window.CURRICULA = {
@@ -955,7 +955,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0102",
@@ -968,7 +968,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0103",
@@ -981,7 +981,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0104",
@@ -994,7 +994,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DDOC-01184",
@@ -1007,7 +1007,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DATE-00015",
@@ -1020,7 +1020,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DDOC-00102",
@@ -1033,7 +1033,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0201",
@@ -1048,7 +1048,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0202",
@@ -1063,7 +1063,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0203",
@@ -1079,7 +1079,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0204",
@@ -1092,7 +1092,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DDOC-02184",
@@ -1107,7 +1107,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0206",
@@ -1122,7 +1122,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DDOC-02020",
@@ -1137,7 +1137,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0301",
@@ -1152,7 +1152,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0302",
@@ -1167,7 +1167,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0303",
@@ -1182,7 +1182,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0304",
@@ -1198,7 +1198,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0305",
@@ -1214,7 +1214,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0306",
@@ -1230,7 +1230,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DAMA-00312",
@@ -1245,7 +1245,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0402",
@@ -1261,7 +1261,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DAIQ-00600",
@@ -1277,7 +1277,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0404",
@@ -1292,7 +1292,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0405",
@@ -1307,7 +1307,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "UNFV-00002",
@@ -1322,7 +1322,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0407",
@@ -1335,7 +1335,7 @@ window.CURRICULA = {
         "prereqs": [],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0501",
@@ -1354,7 +1354,7 @@ window.CURRICULA = {
           "Nota 1: requiere Cálculo 1 aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "DAII-00600",
@@ -1372,7 +1372,7 @@ window.CURRICULA = {
           "Nota 1: requiere Cálculo 1 aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0503",
@@ -1389,7 +1389,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0504",
@@ -1405,7 +1405,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0505",
@@ -1420,7 +1420,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0506",
@@ -1435,7 +1435,7 @@ window.CURRICULA = {
           "Nota 3: requiere hasta IV semestre aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0601",
@@ -1453,7 +1453,7 @@ window.CURRICULA = {
           "Nota 4: requiere 120 SCT aprobados."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0602",
@@ -1471,7 +1471,7 @@ window.CURRICULA = {
           "Nota 4: requiere 120 SCT aprobados."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0603",
@@ -1486,7 +1486,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0604",
@@ -1502,7 +1502,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0605",
@@ -1518,7 +1518,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0606",
@@ -1534,7 +1534,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0701",
@@ -1552,7 +1552,7 @@ window.CURRICULA = {
           "Nota 5: requiere Máquinas y Equipos aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0702",
@@ -1569,7 +1569,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0703",
@@ -1584,7 +1584,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0704",
@@ -1599,7 +1599,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0705",
@@ -1630,7 +1630,7 @@ window.CURRICULA = {
           "Nota 2: requiere Introducción a la Programación aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "UNFV-00003",
@@ -1645,7 +1645,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0801",
@@ -1662,7 +1662,7 @@ window.CURRICULA = {
           "Nota 7: requiere Análisis Estructural aprobado."
         ],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0802",
@@ -1679,7 +1679,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0803",
@@ -1694,7 +1694,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0804",
@@ -1710,7 +1710,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0805",
@@ -1756,7 +1756,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0902",
@@ -1771,7 +1771,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0903",
@@ -1786,7 +1786,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-0904",
@@ -1897,7 +1897,7 @@ window.CURRICULA = {
         ],
         "requirements": [],
         "large": false,
-        "description": "Asignatura del Plan P 2025 de Ingeniería Civil UCN. Revisa esta tarjeta para ver prerequisitos directos, requisitos adicionales de la malla y los ramos que abre."
+        "description": ""
       },
       {
         "code": "P-1101",

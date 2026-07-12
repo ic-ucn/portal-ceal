@@ -575,6 +575,14 @@
   function getProgress(plan, code) { return Data.courseProgress?.[courseKey(plan, code)] || 'pending'; }
   function setProgress(plan, code, value) { Data.courseProgress ||= {}; Data.courseProgress[courseKey(plan, code)] = value; persistSnapshot(); }
   function getPrereqs(plan, course) { return (course.prereqs || []).map(code => findCourse(plan, code)).filter(Boolean); }
+  // Descripción REAL del ramo o cadena vacía: las plantillas genéricas
+  // ("Asignatura del Plan…", "Ficha curricular…") no se muestran nunca,
+  // aunque lleguen desde un catálogo antiguo del backend.
+  function courseDescription(course, plan) {
+    const raw = tx(course.description || getPlanData(plan).descriptions?.[course.code] || '').trim();
+    if (!raw || /^Asignatura del Plan|Revisa esta tarjeta|^Ficha curricular del ramo/i.test(raw)) return '';
+    return raw;
+  }
   function getSuccessors(plan, code) { return getCourses(plan).filter(c => (c.prereqs || []).includes(code)); }
   function getResourcesForCourse(plan, code) {
     const course = findCourse(plan, code);
@@ -2044,9 +2052,24 @@
         // La malla original abre su propio modal al tocar un ramo: ahí dentro
         // se inyecta el CTA de material (la barra flotante queda para el
         // fallback local, que no tiene modal).
+        // La malla original rellena la ficha con una descripción de plantilla
+        // ("Asignatura del Plan…"): si es esa, se elimina la sección completa
+        // (título "Descripción" + divisor + párrafo). Las reales se conservan.
+        function stripGenericModalDescription(overlay) {
+          var desc = overlay.querySelector('.mc-modal__description');
+          if (!desc) return;
+          var text = (desc.textContent || '').trim();
+          if (!/^Asignatura del Plan|Revisa esta tarjeta/i.test(text)) return;
+          var title = desc.previousElementSibling;
+          var divider = title && title.previousElementSibling;
+          if (title && /mc-modal__section-title/.test(title.className || '')) title.remove();
+          if (divider && divider.tagName === 'HR') divider.remove();
+          desc.remove();
+        }
         function injectModalCta() {
           var overlay = document.getElementById('mc-modal-overlay');
           if (!overlay || !overlay.classList.contains('mc-modal-overlay--visible')) return;
+          stripGenericModalDescription(overlay);
           var code = activeCode;
           if (!code) return;
           var host = overlay.querySelector('.mc-modal__content') || overlay.querySelector('.mc-modal') || overlay.firstElementChild;
@@ -2189,7 +2212,7 @@
       ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
       : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
     const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div><p class="small muted" style="line-height:1.6">${esc(course.description || getPlanData(plan).descriptions?.[course.code] || 'Ficha curricular del ramo.')}</p><div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${badge(getProgress(plan, c.code))}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
