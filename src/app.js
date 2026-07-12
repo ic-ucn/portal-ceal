@@ -1313,9 +1313,19 @@
       if (query.course) {
         const courseCode = safeDecode(String(query.course));
         if (courseCode !== null) {
-          const course = findCourse(state.activePlan, courseCode) || findCourse(findCoursePlanForCode(courseCode), courseCode);
-          state.materialCourse = course?.name || 'all';
-          state.materialQuery = course?.name || courseCode;
+          // Filtro ESTRICTO por ramo oficial: se fija el nombre canónico del
+          // curso (los recursos están canonicalizados a ese mismo nombre) y
+          // NO se usa búsqueda de texto, para que solo aparezca material que
+          // pertenece de verdad al ramo.
+          const match = officialCourseByCode(courseCode.trim());
+          if (match) {
+            state.materialCourse = titleCase(match.course.name);
+            state.materialQuery = '';
+            state.materialType = 'all';
+          } else {
+            state.materialCourse = 'all';
+            state.materialQuery = courseCode;
+          }
           state.selectedResourceId = null;
         }
       }
@@ -1483,7 +1493,9 @@
     Data.resources = sanitizeMaterialResources(Data.resources);
     const courseFacets = materialCourseFacets(Data.resources);
     const courses = courseFacets.map(item => item.label);
-    if (state.materialCourse !== 'all' && !courses.some(course => plain(course) === plain(state.materialCourse))) {
+    // Si el ramo filtrado es oficial se respeta aunque (aún) no tenga
+    // recursos: mejor un estado vacío honesto que mostrar material ajeno.
+    if (state.materialCourse !== 'all' && !courses.some(course => plain(course) === plain(state.materialCourse)) && !officialCourseByName(state.materialCourse)) {
       state.materialCourse = 'all';
     }
     const q = plain(state.materialQuery);
@@ -1707,10 +1719,20 @@
         });
       })();
     <\/script>`;
-    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
+    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${mallaMaterialPayload(plan)}${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
+  }
+  function mallaMaterialPayload(plan) {
+    const planKey = plan === 'o' ? 'planO' : 'planP';
+    const payload = {};
+    for (const course of getCourses(planKey)) {
+      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code };
+      payload[course.code] = entry;
+      if (course.visibleCode && course.visibleCode !== course.code) payload[course.visibleCode] = entry;
+    }
+    return `<script>window.__MC_MATERIAL = ${safeJsonForScript(payload)};<\/script>`;
   }
   function buildMallaSrcdoc(html, plan, theme) {
-    const bootstrap = `<base href="${MALLA_BASE_URL}"><script>try{localStorage.setItem('mc-theme','${theme}');}catch(e){}document.documentElement.classList.toggle('mc-light','${theme}'==='light');<\/script>`;
+    const bootstrap = `<base href="${MALLA_BASE_URL}"><script>try{localStorage.setItem('mc-theme','${theme}');}catch(e){}document.documentElement.classList.toggle('mc-light','${theme}'==='light');<\/script>${mallaMaterialPayload(plan)}`;
     const styles = `<style>${mallaEmbedThemeStyles(theme, plan)}</style>`;
     const guidance = mallaEmbedGuidanceScript();
     return html
@@ -1853,10 +1875,46 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .mc-portal-action {
+        position: fixed; left: 50%; bottom: 14px; z-index: 380;
+        transform: translate(-50%, 14px);
+        display: flex; align-items: center; gap: 10px;
+        max-width: calc(100vw - 20px);
+        padding: 7px 7px 7px 14px;
+        border: 1px solid var(--mc-line-strong);
+        border-radius: 999px;
+        background: var(--mc-panel-bg);
+        box-shadow: 0 14px 40px var(--mc-header-shadow);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        opacity: 0; pointer-events: none;
+        transition: opacity 160ms ease, transform 200ms cubic-bezier(0,0,.2,1);
+      }
+      .mc-portal-action.is-visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+      .mc-portal-action__name {
+        font-weight: 800; font-size: .78rem; color: var(--mc-text-primary);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44vw;
+      }
+      .mc-portal-action__btn {
+        border: 0; cursor: pointer; white-space: nowrap;
+        min-height: 36px; padding: 0 14px; border-radius: 999px;
+        background: linear-gradient(135deg, #2069e0, #0b7a9c);
+        color: #fff; font-weight: 700; font-size: .8rem;
+        font-family: inherit; line-height: 1;
+      }
+      .mc-portal-action__btn.is-ghost {
+        background: transparent;
+        color: var(--mc-text-secondary);
+        border: 1px solid var(--mc-line-strong);
+      }
+      .mc-portal-modal-cta { margin: 14px 0 4px; display: flex; }
+      .mc-portal-modal-cta .mc-portal-action__btn { width: 100%; min-height: 42px; font-size: .88rem; }
       @media (max-width: 640px) {
         .mc-header { height: 52px; padding: 0 10px; }
-        .mc-grid { min-height: calc(100vh - 52px); padding: 8px 8px 14px !important; }
+        .mc-grid { min-height: calc(100vh - 52px); padding: 8px 8px 74px !important; }
         .mc-footer { padding-bottom: 12px; }
+        .mc-portal-action { bottom: 12px; }
+        .mc-portal-scroll-hint--bottom { bottom: 78px; }
       }
       @media (min-width: 641px) {
         .mc-portal-scroll-hint { display:none !important; }
@@ -1949,6 +2007,82 @@
           var modal = document.getElementById('mc-modal-overlay');
           return modal && modal.classList.contains('mc-modal-overlay--visible');
         }
+        var MAT = window.__MC_MATERIAL || {};
+        var actionBar = null;
+        function ensureActionBar() {
+          if (actionBar) return actionBar;
+          actionBar = document.createElement('div');
+          actionBar.className = 'mc-portal-action';
+          actionBar.innerHTML = '<span class="mc-portal-action__name"></span><button type="button" class="mc-portal-action__btn"></button>';
+          actionBar.querySelector('.mc-portal-action__btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var code = actionBar.dataset.code;
+            if (!code) return;
+            var type = actionBar.dataset.kind === 'material' ? 'open-material' : 'open-course';
+            try { window.parent.postMessage({ __mcPortal: true, type: type, code: code }, '*'); } catch (err) {}
+          });
+          document.body.appendChild(actionBar);
+          return actionBar;
+        }
+        function updateActionBar() {
+          var bar = ensureActionBar();
+          var code = activeCode;
+          if (!code || isModalOpen()) { bar.classList.remove('is-visible'); bar.dataset.code = ''; return; }
+          var entry = MAT[code];
+          var cardEl = cardByCode(code);
+          var name = (entry && entry.name) || (cardEl ? ((cardEl.querySelector('.mc-card__title') || cardEl).textContent || '').trim().slice(0, 60) : code);
+          var hasMaterial = Boolean(entry && entry.n > 0);
+          bar.dataset.code = code;
+          bar.dataset.kind = hasMaterial ? 'material' : 'course';
+          bar.querySelector('.mc-portal-action__name').textContent = name;
+          var btn = bar.querySelector('.mc-portal-action__btn');
+          btn.textContent = hasMaterial ? 'Ver material · ' + entry.n : 'Ficha del ramo';
+          btn.classList.toggle('is-ghost', !hasMaterial);
+          bar.classList.add('is-visible');
+        }
+        // La malla original abre su propio modal al tocar un ramo: ahí dentro
+        // se inyecta el CTA de material (la barra flotante queda para el
+        // fallback local, que no tiene modal).
+        function injectModalCta() {
+          var overlay = document.getElementById('mc-modal-overlay');
+          if (!overlay || !overlay.classList.contains('mc-modal-overlay--visible')) return;
+          var code = activeCode;
+          if (!code) return;
+          var host = overlay.querySelector('.mc-modal__content') || overlay.querySelector('.mc-modal') || overlay.firstElementChild;
+          if (!host) return;
+          var entry = MAT[code];
+          var hasMaterial = Boolean(entry && entry.n > 0);
+          var cta = overlay.querySelector('.mc-portal-modal-cta');
+          if (!cta) {
+            cta = document.createElement('div');
+            cta.className = 'mc-portal-modal-cta';
+            cta.innerHTML = '<button type="button" class="mc-portal-action__btn"></button>';
+            cta.querySelector('button').addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!cta.dataset.code) return;
+              var type = cta.dataset.kind === 'material' ? 'open-material' : 'open-course';
+              try { window.parent.postMessage({ __mcPortal: true, type: type, code: cta.dataset.code }, '*'); } catch (err) {}
+            });
+            // Bajo el título y los chips del ramo: visible sin scrollear el modal.
+            var anchor = host.querySelector('.mc-modal__badges');
+            if (anchor && anchor.parentNode === host) host.insertBefore(cta, anchor.nextSibling);
+            else host.insertBefore(cta, host.firstChild);
+          }
+          cta.dataset.code = code;
+          cta.dataset.kind = hasMaterial ? 'material' : 'course';
+          var btn = cta.querySelector('button');
+          btn.textContent = hasMaterial ? 'Ver material del ramo · ' + entry.n : 'Ver ficha en el portal';
+          btn.classList.toggle('is-ghost', !hasMaterial);
+        }
+        var modalObserved = false;
+        function observeModal() {
+          var overlay = document.getElementById('mc-modal-overlay');
+          if (!overlay || modalObserved || typeof MutationObserver === 'undefined') return;
+          modalObserved = true;
+          new MutationObserver(function() { injectModalCta(); updateActionBar(); }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        }
         function updateHints() {
           if (!mq.matches || isModalOpen()) {
             hideHints();
@@ -2003,10 +2137,19 @@
             scrollToRelated(hint.classList.contains('mc-portal-scroll-hint--top') ? 'top' : 'bottom');
             return;
           }
+          if (e.target.closest?.('.mc-portal-action') || e.target.closest?.('.mc-portal-modal-cta')) return;
           var card = e.target.closest?.('.mc-card[data-mc-code]');
           if (card) activeCode = card.dataset.mcCode;
           else if (!e.target.closest?.('.mc-portal-scroll-hint') && !e.target.closest?.('.mc-peek')) activeCode = null;
-          setTimeout(updateHints, 90);
+          setTimeout(function() { updateHints(); updateActionBar(); observeModal(); injectModalCta(); }, 90);
+          setTimeout(injectModalCta, 380);
+        }, true);
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          var card = e.target.closest && e.target.closest('.mc-card[data-mc-code]');
+          if (!card) return;
+          activeCode = card.dataset.mcCode;
+          setTimeout(function() { updateHints(); updateActionBar(); }, 90);
         }, true);
         ['pointerdown', 'touchstart', 'touchend', 'mousedown'].forEach(function(type) {
           document.addEventListener(type, function(e) {
@@ -2020,14 +2163,14 @@
             setTimeout(updateHints, 120);
             return;
           }
-          setTimeout(updateHints, 120);
+          setTimeout(function() { updateHints(); updateActionBar(); }, 120);
         }, { passive: true });
         window.addEventListener('scroll', updateHints, { passive: true });
         var grid = document.getElementById('mc-grid');
         if (grid) grid.addEventListener('scroll', updateHints, { passive: true });
         if (mq.addEventListener) mq.addEventListener('change', updateHints);
         else if (mq.addListener) mq.addListener(updateHints);
-        setTimeout(updateHints, 400);
+        setTimeout(function() { updateHints(); updateActionBar(); observeModal(); }, 400);
       })();
     <\/script>`;
   }
@@ -3819,6 +3962,26 @@
   }
 
   window.addEventListener('hashchange', () => safeRender({ transition: true, scope: 'route' }));
+  // Mensajes del iframe de mallas: "Ver material" / "Ficha del ramo" desde la
+  // barra de acción. Solo se aceptan mensajes del iframe vigente y con la
+  // forma esperada; el código se resuelve contra el catálogo oficial.
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || data.__mcPortal !== true || !['open-material', 'open-course'].includes(data.type)) return;
+    const frame = app.querySelector('[data-malla-frame]');
+    if (!frame || event.source !== frame.contentWindow) return;
+    const code = String(data.code || '').trim().slice(0, 40);
+    if (!code) return;
+    const planKey = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
+    const inPlan = findCourse(planKey, code);
+    const match = inPlan ? { plan: planKey, course: inPlan } : officialCourseByCode(code);
+    if (!match) { showToast('No encontramos ese ramo en el catálogo oficial.', 'blue'); return; }
+    if (data.type === 'open-material') {
+      routeTo(`/material?course=${encodeURIComponent(match.course.visibleCode || match.course.code)}`);
+    } else {
+      routeTo(`/ramo/${match.plan}/${encodeURIComponent(match.course.code)}`);
+    }
+  });
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
   window.addEventListener('storage', e => { if (e.key === 'portal.session' && !e.newValue && state.user) { state.user = null; routeTo('/login'); } });
