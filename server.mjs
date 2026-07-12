@@ -263,7 +263,7 @@ function ensureDbShape(db, seed) {
   db.data.saved.resources ||= [];
   db.data.saved.courses ||= [];
   db.data.saved.reminders ||= [];
-  for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles']) {
+  for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles', 'reservations']) {
     db.data[key] ||= seed.data[key] || [];
   }
   const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'authorizedEmails', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
@@ -1259,8 +1259,8 @@ function publicIntegrationData(data = {}) {
 }
 
 function publicData(data = {}) {
-  // appointments se excluye: contiene correos/motivos personales y el bootstrap es publico.
-  const { sessions, aiUsage, aiDrafts, integrations, appointments, cealMembers, staffProfiles, ...safe } = data;
+  // appointments y reservations se excluyen: contienen correos/datos personales y el bootstrap es publico.
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, reservations, cealMembers, staffProfiles, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
@@ -1560,7 +1560,6 @@ function chunkArray(arr, size) {
 }
 
 function communicationEmailContent(comm) {
-  const url = publicPortalUrl ? `${publicPortalUrl}/#/comunicados/${encodeURIComponent(comm.id)}` : '';
   const title = asText(comm.title, 'Comunicado CEIC');
   const summary = asText(comm.summary);
   const bodyText = asText(comm.body);
@@ -1568,7 +1567,6 @@ function communicationEmailContent(comm) {
   const lines = [title, ''];
   if (summary) lines.push(summary, '');
   if (bodyText) lines.push(bodyText, '');
-  if (url) lines.push(`Ver en el portal: ${url}`, '');
   lines.push('— CEIC Ingenieria Civil UCN', 'Este correo es informativo; no respondas a esta direccion.');
   const text = lines.join('\n');
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1578,7 +1576,6 @@ function communicationEmailContent(comm) {
       <h2 style="margin:0 0 12px;color:#0d2747;font-size:19px">${esc(title)}</h2>
       ${summary ? `<p style="margin:0 0 14px;color:#475569"><strong>${esc(summary)}</strong></p>` : ''}
       ${bodyText ? `<div style="white-space:pre-wrap;margin:0 0 16px">${esc(bodyText)}</div>` : ''}
-      ${url ? `<p style="margin:18px 0 0"><a href="${esc(url)}" style="background:#126fe3;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:600">Ver en el portal</a></p>` : ''}
       <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo informativo de CEIC Ingeniería Civil UCN. No respondas a esta dirección.</p>
     </div>
   </div>`;
@@ -1630,13 +1627,11 @@ function bookingEmailContent(type, appt, audience) {
   else if (type === 'rechazada') { subject = 'Tu solicitud de hora no pudo agendarse'; heading = 'Solicitud no agendada'; intro = `Hola ${student}, no fue posible agendar la hora solicitada. Puedes elegir otro horario disponible en el portal.`; tone = '#b42318'; }
   else if (type === 'cancelada' && audience === 'staff') { subject = `Hora liberada — ${student}`; heading = 'Hora liberada'; intro = `${student} liberó su hora de atención; el cupo vuelve a quedar disponible.`; tone = '#5b6472'; }
   else { subject = 'Tu hora con Jefatura fue cancelada'; heading = 'Hora cancelada'; intro = `Hola ${student}, tu hora de atención quedó cancelada y el cupo fue liberado.`; tone = '#5b6472'; }
-  const portalLink = publicPortalUrl ? `${publicPortalUrl}/#/${audience === 'staff' ? 'jefatura' : 'atencion'}` : '';
   const rows = [['Fecha y hora', when], ['Modalidad', mode], ['Lugar', place]];
   if (reason) rows.push(['Motivo', reason]);
   if (appt.staffNote) rows.push(['Nota de Jefatura', asText(appt.staffNote)]);
   const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const textLines = [heading, '', intro, '', ...rows.map(([k, v]) => `${k}: ${v}`), ''];
-  if (portalLink) textLines.push(`Ver en el portal: ${portalLink}`, '');
   textLines.push('— CEIC · Ingeniería Civil UCN', 'Correo automático de la agenda de atención. No respondas a esta dirección.');
   const text = textLines.join('\n');
   const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55">
@@ -1645,11 +1640,190 @@ function bookingEmailContent(type, appt, audience) {
       <div style="display:inline-block;background:${tone};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;margin-bottom:14px">${escH(heading)}</div>
       <p style="margin:0 0 16px;color:#334155">${escH(intro)}</p>
       <table style="width:100%;border-collapse:collapse;margin:0 0 6px">${rows.map(([k, v]) => `<tr><td style="padding:7px 0;color:#94a3b8;font-size:13px;width:38%;vertical-align:top">${escH(k)}</td><td style="padding:7px 0;color:#1e293b;font-weight:600;font-size:14px">${escH(v)}</td></tr>`).join('')}</table>
-      ${portalLink ? `<p style="margin:18px 0 0"><a href="${escH(portalLink)}" style="background:#126fe3;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:600">Ver en el portal</a></p>` : ''}
       <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo automático de la agenda de atención de CEIC Ingeniería Civil UCN. No respondas a esta dirección.</p>
     </div>
   </div>`;
   return { subject, text, html };
+}
+
+// ============================================================
+// RESERVAS DE MESAS (taca-taca / ping-pong) — flujo acordado con la
+// tesorería CEAL: reserva preconfirmada -> pago $1.000 (transferencia o
+// presencial) -> confirmación manual de la tesorería. Sin confirmación
+// 2 horas antes del bloque, el cupo se libera automáticamente.
+// ============================================================
+const RESERVATION_TABLES = {
+  tacataca: { label: 'Taca-taca', place: 'Sala de estar Ingeniería Civil' },
+  pingpong: { label: 'Mesa de ping-pong', place: 'Sala de estar Ingeniería Civil' }
+};
+const RESERVATION_BLOCKS = ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'];
+const RESERVATION_BLOCK_MINUTES = 30;
+const RESERVATION_DAYS_AHEAD = 13;
+const RESERVATION_PRICE_CLP = 1000;
+const RESERVATION_ACTIVE = new Set(['preconfirmada', 'pagoAvisado', 'confirmada']);
+const reservationTreasurerEmail = (process.env.RESERVATION_TREASURER_EMAIL || 'belen.astu24@gmail.com').trim().toLowerCase();
+const RESERVATION_PAYMENT = {
+  amountLabel: '$1.000 CLP por bloque de 30 minutos',
+  holder: 'Belén Alessandra Astudillo Díaz',
+  rut: '21.010.841-6',
+  bank: 'Mercado Pago',
+  accountType: 'Cuenta Vista',
+  accountNumber: '1062801369',
+  email: reservationTreasurerEmail,
+  note: 'El pago se recibe temporalmente en la cuenta de la tesorera del CEAL para la administración de los fondos del centro de estudiantes.'
+};
+
+function reservationChileOffset(dateStr) {
+  // Offset real de America/Santiago para esa fecha (maneja el cambio de hora).
+  try {
+    const probe = new Date(`${dateStr}T12:00:00Z`);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Santiago', timeZoneName: 'longOffset' }).formatToParts(probe);
+    const raw = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT-04:00';
+    const m = raw.match(/GMT([+-]\d{2}:?\d{2})/);
+    return m ? m[1].replace(/^([+-]\d{2})(\d{2})$/, '$1:$2') : '-04:00';
+  } catch { return '-04:00'; }
+}
+function reservationStartDate(dateStr, block) {
+  return new Date(`${dateStr}T${block}:00${reservationChileOffset(dateStr)}`);
+}
+function isValidReservationSlot(dateStr, block) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return false;
+  if (!RESERVATION_BLOCKS.includes(String(block || ''))) return false;
+  const start = reservationStartDate(dateStr, block);
+  if (Number.isNaN(start.getTime())) return false;
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Santiago', weekday: 'short' }).format(start);
+  if (['Sat', 'Sun'].includes(weekday)) return false;
+  const now = Date.now();
+  if (start.getTime() <= now) return false;
+  if (start.getTime() > now + (RESERVATION_DAYS_AHEAD + 1) * 86400000) return false;
+  return true;
+}
+function reservationExpiryIso(startIso, createdMs = Date.now()) {
+  const startMs = new Date(startIso).getTime();
+  const twoHoursBefore = startMs - 2 * 3600000;
+  // Reservada con menos de 2 h de anticipación: el plazo corre hasta el inicio del bloque.
+  return new Date(twoHoursBefore >= createdMs ? twoHoursBefore : startMs).toISOString();
+}
+function expireReservations(db) {
+  const now = Date.now();
+  let changed = false;
+  for (const rsv of db.data.reservations || []) {
+    if (!['preconfirmada', 'pagoAvisado'].includes(rsv.status)) continue;
+    const expiry = new Date(rsv.expiresAt || reservationExpiryIso(rsv.start, new Date(rsv.createdAt || 0).getTime())).getTime();
+    if (expiry <= now) {
+      rsv.status = 'liberada';
+      rsv.updatedAt = new Date().toISOString();
+      (rsv.history ||= []).unshift({ at: rsv.updatedAt, title: 'Bloque liberado', detail: 'El pago no se confirmó dentro del plazo y el cupo volvió a quedar disponible.' });
+      changed = true;
+    }
+  }
+  return changed;
+}
+function reservationWhenLabel(rsv) {
+  try {
+    const start = new Date(rsv.start);
+    const day = start.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago' });
+    const t = (d) => d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Santiago' });
+    return `${day.charAt(0).toUpperCase() + day.slice(1)}, ${t(start)}–${t(new Date(rsv.end))}`;
+  } catch { return `${rsv.date} ${rsv.block}`; }
+}
+function reservationOwnerView(rsv) {
+  const { studentEmail, studentName, history, ...rest } = rsv;
+  return { ...rest, mine: true };
+}
+function reservationPublicView(rsv) {
+  return { id: rsv.id, table: rsv.table, date: rsv.date, block: rsv.block, status: rsv.status };
+}
+function reservationEmailContent(type, rsv, audience) {
+  const tableLabel = RESERVATION_TABLES[rsv.table]?.label || 'Mesa de juegos';
+  const place = RESERVATION_TABLES[rsv.table]?.place || 'Sala de estar Ingeniería Civil';
+  const when = reservationWhenLabel(rsv);
+  const student = asText(rsv.studentName, 'Estudiante');
+  const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let subject = '', heading = '', intro = '', tone = '#126fe3';
+  let includePayment = false;
+  if (type === 'preconfirmada' && audience === 'treasurer') {
+    subject = `Nueva reserva por confirmar — ${tableLabel}`;
+    heading = 'Nueva reserva preconfirmada';
+    intro = `${student} reservó ${tableLabel.toLowerCase()} (${when}). Cuando verifiques el pago, confírmala desde Gestión CEAL.`;
+    tone = '#c26a12';
+  } else if (type === 'preconfirmada') {
+    subject = `Tu reserva de ${tableLabel.toLowerCase()} quedó preconfirmada`;
+    heading = 'Reserva preconfirmada';
+    intro = `Hola ${student}, tu reserva quedó preconfirmada. Para confirmar el bloque, realiza el pago de $1.000 mediante transferencia a la cuenta indicada o paga presencialmente antes del turno. Una vez verificado el pago, tu reserva quedará confirmada. Si el pago no se confirma hasta 2 horas antes del horario reservado, el bloque será liberado automáticamente.`;
+    tone = '#c26a12';
+    includePayment = true;
+  } else if (type === 'pagoAvisado' && audience === 'treasurer') {
+    subject = `Aviso de pago — ${student} (${tableLabel})`;
+    heading = 'Aviso de pago recibido';
+    intro = `${student} indicó que ya realizó el pago de su reserva (${when}). Verifica la transferencia y confírmala desde Gestión CEAL.`;
+    tone = '#126fe3';
+  } else if (type === 'confirmada') {
+    subject = `Tu reserva de ${tableLabel.toLowerCase()} está confirmada`;
+    heading = 'Reserva confirmada';
+    intro = `Hola ${student}, verificamos tu pago y tu reserva quedó confirmada. ¡Te esperamos!`;
+    tone = '#1a7f45';
+  } else if (type === 'rechazada') {
+    subject = `Tu reserva de ${tableLabel.toLowerCase()} no pudo confirmarse`;
+    heading = 'Reserva no confirmada';
+    intro = `Hola ${student}, no pudimos verificar el pago de tu reserva y el bloque fue liberado. Si crees que es un error, escríbenos a ${reservationTreasurerEmail}.`;
+    tone = '#b42318';
+  } else {
+    subject = `Tu reserva de ${tableLabel.toLowerCase()} fue cancelada`;
+    heading = 'Reserva cancelada';
+    intro = `Hola ${student}, tu reserva quedó cancelada y el bloque volvió a estar disponible.`;
+    tone = '#5b6472';
+  }
+  const rows = [['Mesa', tableLabel], ['Fecha y hora', when], ['Lugar', place], ['Valor', RESERVATION_PAYMENT.amountLabel]];
+  const payRows = [
+    ['Titular', RESERVATION_PAYMENT.holder],
+    ['RUT', RESERVATION_PAYMENT.rut],
+    ['Entidad', `${RESERVATION_PAYMENT.bank} · ${RESERVATION_PAYMENT.accountType}`],
+    ['N° de cuenta', RESERVATION_PAYMENT.accountNumber],
+    ['Correo', RESERVATION_PAYMENT.email]
+  ];
+  const textLines = [heading, '', intro, '', ...rows.map(([k, v]) => `${k}: ${v}`), ''];
+  if (includePayment) {
+    textLines.push('Datos para transferir:', ...payRows.map(([k, v]) => `${k}: ${v}`), '', RESERVATION_PAYMENT.note, '');
+  }
+  textLines.push('— CEAL · Ingeniería Civil UCN', 'Correo automático de reservas. No respondas a esta dirección.');
+  const paymentHtml = includePayment
+    ? `<div style="margin:16px 0 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc">
+        <strong style="display:block;margin-bottom:8px;color:#0d2747;font-size:14px">Datos para transferir</strong>
+        <table style="width:100%;border-collapse:collapse">${payRows.map(([k, v]) => `<tr><td style="padding:5px 0;color:#94a3b8;font-size:13px;width:38%">${escH(k)}</td><td style="padding:5px 0;color:#1e293b;font-weight:600;font-size:14px">${escH(v)}</td></tr>`).join('')}</table>
+        <p style="margin:12px 0 0;color:#64748b;font-size:12px">${escH(RESERVATION_PAYMENT.note)}</p>
+      </div>`
+    : '';
+  const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55">
+    <div style="background:#0d2747;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0"><strong style="font-size:15px">CEAL · Ingeniería Civil UCN</strong><div style="opacity:.82;font-size:12px;margin-top:2px">Reservas · Taca-taca y ping-pong</div></div>
+    <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:20px">
+      <div style="display:inline-block;background:${tone};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;margin-bottom:14px">${escH(heading)}</div>
+      <p style="margin:0 0 16px;color:#334155">${escH(intro)}</p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 6px">${rows.map(([k, v]) => `<tr><td style="padding:7px 0;color:#94a3b8;font-size:13px;width:38%;vertical-align:top">${escH(k)}</td><td style="padding:7px 0;color:#1e293b;font-weight:600;font-size:14px">${escH(v)}</td></tr>`).join('')}</table>
+      ${paymentHtml}
+      <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo automático de reservas de CEAL Ingeniería Civil UCN. No respondas a esta dirección.</p>
+    </div>
+  </div>`;
+  return { subject, text: textLines.join('\n'), html };
+}
+async function notifyReservationEmails(type, rsv) {
+  const targets = [];
+  const studentEmail = asText(rsv.studentEmail).toLowerCase();
+  if (studentEmail) targets.push({ audience: 'student', to: studentEmail });
+  if (['preconfirmada', 'pagoAvisado'].includes(type) && reservationTreasurerEmail) {
+    targets.push({ audience: 'treasurer', to: reservationTreasurerEmail });
+  }
+  const results = [];
+  for (const t of targets) {
+    try {
+      const { subject, text, html } = reservationEmailContent(type, rsv, t.audience);
+      await sendDirectEmail({ to: t.to, subject, text, html });
+      results.push({ to: t.to, sent: true });
+    } catch (err) {
+      results.push({ to: t.to, sent: false, reason: (err && err.message) || 'send-failed' });
+    }
+  }
+  return results;
 }
 
 async function sendCommunicationEmail(comm, groups) {
@@ -2111,6 +2285,121 @@ async function handleApi(req, res, url) {
       }
     }
     return sendError(res, 404, 'unknown booking action');
+  }
+
+  if (resource === 'reservations' || resource === 'reservas') {
+    const action = parts[2] || '';
+    const session = (() => { try { return requirePortalSession(req, db); } catch (error) { return null; } })();
+    if (!session) return sendError(res, 401, 'session required');
+    const sessionEmail = asText(session.email).toLowerCase();
+    const isCealSession = (() => { try { requireCealSession(req, db); return true; } catch { return false; } })();
+    db.data.reservations ||= [];
+    const expired = expireReservations(db);
+
+    if (!id && req.method === 'GET') {
+      if (expired) await writeDb(db);
+      const horizon = Date.now() + (RESERVATION_DAYS_AHEAD + 1) * 86400000;
+      const relevant = db.data.reservations.filter(rsv => new Date(rsv.end || rsv.start).getTime() > Date.now() - 86400000 && new Date(rsv.start).getTime() < horizon);
+      const items = relevant.map(rsv => {
+        if (isCealSession) return { ...rsv };
+        if (asText(rsv.studentEmail).toLowerCase() === sessionEmail) return reservationOwnerView(rsv);
+        return reservationPublicView(rsv);
+      });
+      return sendJson(res, 200, {
+        ok: true,
+        items,
+        schedule: { blocks: RESERVATION_BLOCKS, blockMinutes: RESERVATION_BLOCK_MINUTES, daysAhead: RESERVATION_DAYS_AHEAD, tables: RESERVATION_TABLES, priceClp: RESERVATION_PRICE_CLP },
+        payment: RESERVATION_PAYMENT
+      });
+    }
+
+    if (!id && req.method === 'POST') {
+      const body = await readBody(req);
+      const table = asText(body.table);
+      const date = asText(body.date);
+      const block = asText(body.block);
+      if (!RESERVATION_TABLES[table]) return sendError(res, 422, 'invalid table');
+      if (!isValidReservationSlot(date, block)) return sendError(res, 422, 'invalid or past slot');
+      const start = reservationStartDate(date, block);
+      const end = new Date(start.getTime() + RESERVATION_BLOCK_MINUTES * 60000);
+      const taken = db.data.reservations.some(rsv => RESERVATION_ACTIVE.has(rsv.status) && rsv.table === table && rsv.date === date && rsv.block === block);
+      if (taken) return sendError(res, 409, 'slot already reserved');
+      const mineActive = db.data.reservations.filter(rsv => RESERVATION_ACTIVE.has(rsv.status) && asText(rsv.studentEmail).toLowerCase() === sessionEmail);
+      if (mineActive.length >= 2) return sendError(res, 409, 'ya tienes 2 reservas activas');
+      if (mineActive.some(rsv => rsv.table === table && rsv.date === date)) return sendError(res, 409, 'ya tienes una reserva de esta mesa ese día');
+      const nowIso = new Date().toISOString();
+      const created = {
+        id: `rsv-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+        table,
+        date,
+        block,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        studentEmail: sessionEmail,
+        studentName: asText(session.name, 'Estudiante'),
+        status: 'preconfirmada',
+        payMethod: null,
+        expiresAt: reservationExpiryIso(start.toISOString(), Date.now()),
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        history: [{ at: nowIso, title: 'Reserva creada', detail: 'Preconfirmada, a la espera del pago.' }]
+      };
+      db.data.reservations.unshift(created);
+      db.data.reservations = db.data.reservations.slice(0, 600);
+      await writeDb(db);
+      const mail = await notifyReservationEmails('preconfirmada', created).catch(() => []);
+      return sendJson(res, 201, { ok: true, item: reservationOwnerView(created), payment: RESERVATION_PAYMENT, mail });
+    }
+
+    if (id && req.method === 'POST') {
+      const rsv = db.data.reservations.find(item => item.id === id);
+      if (!rsv) return sendError(res, 404, 'reservation not found');
+      const isOwner = asText(rsv.studentEmail).toLowerCase() === sessionEmail;
+      const nowIso = new Date().toISOString();
+      const body = await readBody(req).catch(() => ({}));
+
+      if (action === 'pay') {
+        if (!isOwner) return sendError(res, 403, 'only the owner can report a payment');
+        if (!['preconfirmada', 'pagoAvisado'].includes(rsv.status)) return sendError(res, 409, 'reservation is not awaiting payment');
+        rsv.payMethod = asText(body.method) === 'presencial' ? 'presencial' : 'transferencia';
+        rsv.status = 'pagoAvisado';
+        rsv.updatedAt = nowIso;
+        (rsv.history ||= []).unshift({ at: nowIso, title: rsv.payMethod === 'presencial' ? 'Pago presencial comprometido' : 'Transferencia avisada', detail: 'A la espera de la verificación de la tesorería CEAL.' });
+        await writeDb(db);
+        const mail = await notifyReservationEmails('pagoAvisado', rsv).catch(() => []);
+        return sendJson(res, 200, { ok: true, item: reservationOwnerView(rsv), mail });
+      }
+
+      if (action === 'cancel') {
+        if (!isOwner && !isCealSession) return sendError(res, 403, 'not allowed');
+        if (!RESERVATION_ACTIVE.has(rsv.status)) return sendError(res, 409, 'reservation is not active');
+        rsv.status = 'cancelada';
+        rsv.updatedAt = nowIso;
+        (rsv.history ||= []).unshift({ at: nowIso, title: 'Reserva cancelada', detail: isOwner ? 'Cancelada por quien reservó.' : 'Cancelada por la directiva CEAL.' });
+        await writeDb(db);
+        const mail = await notifyReservationEmails('cancelada', rsv).catch(() => []);
+        return sendJson(res, 200, { ok: true, item: isCealSession ? { ...rsv } : reservationOwnerView(rsv), mail });
+      }
+
+      if (action === 'confirm' || action === 'reject') {
+        if (!isCealSession) return sendError(res, 403, 'ceal session required');
+        if (!['preconfirmada', 'pagoAvisado'].includes(rsv.status)) return sendError(res, 409, 'reservation is not awaiting verification');
+        rsv.status = action === 'confirm' ? 'confirmada' : 'rechazada';
+        rsv.updatedAt = nowIso;
+        (rsv.history ||= []).unshift({
+          at: nowIso,
+          title: action === 'confirm' ? 'Pago verificado' : 'Pago no verificado',
+          detail: action === 'confirm' ? 'La tesorería CEAL confirmó el pago del bloque.' : asText(body.note, 'La tesorería CEAL no pudo verificar el pago y liberó el bloque.')
+        });
+        await writeDb(db);
+        const mail = await notifyReservationEmails(rsv.status, rsv).catch(() => []);
+        return sendJson(res, 200, { ok: true, item: { ...rsv }, mail });
+      }
+
+      return sendError(res, 404, 'unknown reservation action');
+    }
+
+    return sendError(res, 405, 'method not allowed');
   }
 
   if (resource === 'saved' && req.method === 'POST') {
