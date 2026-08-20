@@ -56,11 +56,14 @@ assert(!indexHtml.includes('accounts.google.com/gsi/client'), 'index should not 
 assert(indexHtml.includes('src/config.js'), 'index should load public runtime config');
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
 assert(!appJs.includes('window.google'), 'app should not depend on the legacy GSI global');
+assert(appJs.includes("surveys: false"), 'surveys should remain disabled until explicitly re-enabled');
+assert(appJs.includes("tableReservations: false"), 'table reservations should remain disabled until explicitly re-enabled');
 assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
 assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
 assert(appJs.includes("!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)"), 'scroll reset should not blur active form controls');
 assert(appJs.includes('routeTo(`/material/${resourceRow.dataset.resourceRow}`)'), 'desktop material rows should open the resource detail route');
+assert(appJs.includes('sandbox="allow-scripts"'), 'embedded curricula should run inside a sandboxed iframe');
 
 assert(Array.isArray(data.cealMembers), 'cealMembers should be an array');
 assert(data.cealMembers.length === 9, 'there should be 9 CEAL members from candidate list');
@@ -126,6 +129,8 @@ assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring shou
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
 assert(Array.isArray(data.surveys) && data.surveys.length >= 1, 'surveys should be seeded');
 assert(Array.isArray(data.staffProfiles) && data.staffProfiles.length >= 1, 'staff profiles should be seeded');
+assert(!('courseProgress' in data), 'student course progress should not be inferred without academic records');
+assert(!data.appointments || (Array.isArray(data.appointments) && data.appointments.length === 0), 'appointments seed should not contain fictitious students');
 for (const notification of data.notifications || []) {
   assert(notification.route !== '/contingencia', `notification ${notification.id} should not link to removed contingency route`);
 }
@@ -135,9 +140,8 @@ for (const profile of data.staffProfiles) {
   const authorized = [profile.email, ...(profile.authorizedEmails || [])].filter(Boolean);
   const authorizedSet = new Set(authorized.map((email) => email.toLowerCase()));
   assert(authorized.includes('jc.icivil.afta@ucn.cl'), 'Jefatura should authorize the official career-head email');
-  // jc real + stand-in aprobado (biblioteca) mientras se prueba la agenda antes de conectar el jc real.
-  const allowedJefatura = new Set(['jc.icivil.afta@ucn.cl', 'biblioteca.ceicucn@gmail.com']);
-  assert([...authorizedSet].every((email) => allowedJefatura.has(email)), 'Jefatura should only authorize the official career-head email or the approved stand-in');
+  const allowedJefatura = new Set(['jc.icivil.afta@ucn.cl']);
+  assert([...authorizedSet].every((email) => allowedJefatura.has(email)), 'Jefatura should only authorize the official career-head email');
   for (const email of authorized) assert(!cealEmailSet.has(email), `Jefatura should not authorize CEAL email ${email}`);
 }
 
@@ -302,6 +306,12 @@ for (const [name, content] of visibleUiTextFiles) {
 }
 
 assert(!/rut|ppa/i.test(JSON.stringify(data.cealMembers)), 'seed members should not include sensitive academic identifiers');
+assert(indexHtml.includes("Content-Security-Policy"), 'index should declare a content security policy');
+assert(serverJs.includes("PORTAL_MAX_SESSIONS"), 'server should support an explicit session capacity');
+assert(serverJs.includes("bookingAvailability"), 'server should persist appointment availability');
+assert(serverJs.includes("sendBookingNotifications"), 'appointment notifications should be derived on the server');
+assert(serverJs.includes("aes-256-gcm"), 'Google Calendar tokens should be encrypted at rest');
+assert(serverJs.includes("tokensEncrypted"), 'encrypted Google Calendar token storage should be enabled');
 
 const routeNeedles = [
   "#/gestion",

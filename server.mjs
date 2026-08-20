@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { strToU8, zipSync } from 'fflate';
@@ -29,8 +30,8 @@ const publicPortalUrl = (process.env.PORTAL_PUBLIC_URL || '').replace(/\/$/, '')
 const calendarClientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || googleClientId;
 const calendarClientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '';
 const calendarRedirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || '';
-// Cuenta de agenda configurable por env (por defecto el jefe real; se puede usar
-// biblioteca.ceicucn@gmail.com como stand-in mientras se prueba antes de conectar el real).
+const tokenEncryptionSecret = process.env.PORTAL_TOKEN_ENCRYPTION_KEY || calendarClientSecret;
+// Cuenta institucional autorizada para Jefatura y Google Calendar.
 const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
 const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 const calendarScopes = [
@@ -60,6 +61,8 @@ const gmailClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
 const gmailClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
 const gmailRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 const gmailConfigured = Boolean(gmailClientId && gmailClientSecret && gmailRefreshToken);
+const maxSessions = Math.max(400, Number(process.env.PORTAL_MAX_SESSIONS || 1200));
+const features = Object.freeze({ surveys: false, tableReservations: false });
 
 const collectionMap = {
   communications: 'communications',
@@ -247,16 +250,22 @@ function ensureDbShape(db, seed) {
     account: calendarAccount,
     calendarId,
     connected: false,
-    tokens: null,
+    tokensEncrypted: null,
     updatedAt: null
   };
+  db.data.bookingAvailability ||= { closedSlots: [] };
+  db.data.bookingAvailability.closedSlots ||= [];
   // Si cambia la cuenta de agenda configurada (p. ej. stand-in biblioteca <-> jc real),
   // se resetea la conexion para forzar reconectar con la cuenta correcta.
   if (asText(db.data.integrations.googleCalendar.account).toLowerCase() !== calendarAccount) {
     db.data.integrations.googleCalendar.account = calendarAccount;
     db.data.integrations.googleCalendar.connected = false;
     db.data.integrations.googleCalendar.tokens = null;
+    db.data.integrations.googleCalendar.tokensEncrypted = null;
     db.data.integrations.googleCalendar.updatedAt = new Date().toISOString();
+  }
+  if (db.data.integrations.googleCalendar.tokens && tokenEncryptionSecret) {
+    setCalendarTokens(db.data.integrations.googleCalendar, db.data.integrations.googleCalendar.tokens);
   }
   if ((db.data.cealMembers || []).length) db.data.users.ceal = publicMember(db.data.cealMembers[0]);
   db.data.saved ||= seed.data.saved || { resources: [], courses: [], reminders: [] };
@@ -307,15 +316,11 @@ function ensureDbShape(db, seed) {
     ...item,
     route: item.route === '/contingencia' ? '/comunicados' : item.route
   }));
-  // Limpieza unica SOLO en produccion: quita el contenido de maqueta (comunicados,
-  // casos, acuerdos y notificaciones demo) para partir con datos reales. La semilla se
-  // mantiene para dev/QA; este flag evita re-ejecutar y no toca contenido real futuro.
+  // Marca la migracion heredada como aplicada sin vaciar colecciones completas.
+  // Los filtros puntuales anteriores eliminan solo registros identificables como QA;
+  // una base remota nueva puede contener datos operativos importados que deben conservarse.
   db.meta ||= {};
   if (useSupabaseState && !db.meta.demoContentClean) {
-    db.data.communications = [];
-    db.data.cases = [];
-    db.data.agreements = [];
-    db.data.notifications = [];
     db.meta.demoContentClean = true;
   }
   return db;
@@ -399,9 +404,19 @@ async function doWriteDb(next) {
 // Serializa todas las escrituras (Supabase o archivo local) para que nunca haya
 // dos en vuelo a la vez; el snapshot del `db` se toma al EJECUTAR, no al encolar,
 // así la última escritura siempre persiste el estado más reciente.
-let writeChain = Promise.resolve();
+let writeChain = null;
+let pendingWrite = null;
 async function writeDb(next) {
-  writeChain = writeChain.then(() => doWriteDb(next), () => doWriteDb(next));
+  pendingWrite = next;
+  if (!writeChain) {
+    writeChain = (async () => {
+      while (pendingWrite) {
+        const latest = pendingWrite;
+        pendingWrite = null;
+        await doWriteDb(latest);
+      }
+    })().finally(() => { writeChain = null; });
+  }
   return writeChain;
 }
 
@@ -409,6 +424,9 @@ function sendJson(res, status, body) {
   const headers = {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': 'content-type,authorization',
     'vary': 'Origin'
@@ -418,9 +436,51 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function sendSerializedJson(res, status, json, gzipBody, etag = '') {
+  const acceptsGzip = /\bgzip\b/i.test(asText(res.req?.headers?.['accept-encoding']));
+  const body = acceptsGzip && gzipBody ? gzipBody : json;
+  const headers = {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'access-control-allow-headers': 'content-type,authorization',
+    'vary': 'Origin, Accept-Encoding',
+    ...(acceptsGzip && gzipBody ? { 'content-encoding': 'gzip' } : {}),
+    ...(etag ? { etag } : {})
+  };
+  if (res._corsOrigin) headers['access-control-allow-origin'] = res._corsOrigin;
+  if (etag && asText(res.req?.headers?.['if-none-match']) === etag) {
+    delete headers['content-length'];
+    delete headers['content-encoding'];
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+  res.writeHead(status, headers);
+  res.end(body);
+}
+
+let publicBootstrapCache = { key: '', json: '', gzip: null, etag: '' };
+function sendPublicBootstrap(res, db) {
+  const key = asText(db.meta?.updatedAt, 'initial');
+  if (publicBootstrapCache.key !== key) {
+    const json = JSON.stringify({ ok: true, data: publicData(db.data), curricula: db.curricula });
+    const etag = `"${crypto.createHash('sha256').update(json).digest('base64url').slice(0, 24)}"`;
+    publicBootstrapCache = { key, json, gzip: gzipSync(json, { level: 6 }), etag };
+  }
+  sendSerializedJson(res, 200, publicBootstrapCache.json, publicBootstrapCache.gzip, publicBootstrapCache.etag);
+}
+
 function sendBinary(res, status, body, headers = {}) {
   res.writeHead(status, {
     'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     ...headers
   });
   res.end(body);
@@ -571,6 +631,7 @@ function createSession(db, user) {
     tokenHash: tokenHash(token),
     userId: user.id || '',
     email: asText(user.email).toLowerCase(),
+    name: asText(user.name, user.email),
     role: asText(user.role, 'student'),
     accessMode: asText(user.accessMode, user.role || 'student'),
     createdAt: now.toISOString(),
@@ -578,7 +639,7 @@ function createSession(db, user) {
   };
   db.data.sessions = db.data.sessions
     .filter(item => new Date(item.expiresAt).getTime() > now.getTime())
-    .slice(-80);
+    .slice(-(maxSessions - 1));
   db.data.sessions.push(session);
   return token;
 }
@@ -682,13 +743,18 @@ function requireGoogleDomain(payload, domain = googleDomain) {
 }
 
 function requestOrigin(req) {
+  if (publicPortalUrl) {
+    try { return new URL(publicPortalUrl).origin; } catch {}
+  }
   const forwardedProto = asText(req.headers['x-forwarded-proto']).split(',')[0];
   const proto = forwardedProto || (req.socket?.encrypted ? 'https' : 'http');
-  return `${proto}://${req.headers.host || `localhost:${port}`}`;
+  const host = asText(req.headers.host);
+  if (/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host)) return `${proto}://${host}`;
+  return `http://localhost:${port}`;
 }
 
 function portalReturnUrl(req, status = '') {
-  const base = publicPortalUrl || requestOrigin(req);
+  const base = requestOrigin(req);
   const suffix = status ? `?calendar=${encodeURIComponent(status)}` : '';
   return `${base}/#/jefatura${suffix}`;
 }
@@ -698,7 +764,54 @@ function calendarOAuthRedirectUri(req) {
 }
 
 function calendarConfigured() {
-  return Boolean(calendarClientId && calendarClientSecret);
+  const localRedirectAllowed = stateBackend === 'local' || qaTestMode;
+  return Boolean(calendarClientId && calendarClientSecret && (calendarRedirectUri || localRedirectAllowed));
+}
+
+function tokenEncryptionKey() {
+  return tokenEncryptionSecret ? crypto.createHash('sha256').update(tokenEncryptionSecret).digest() : null;
+}
+
+function encryptCalendarTokens(tokens) {
+  const key = tokenEncryptionKey();
+  if (!key || !tokens) return null;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(tokens), 'utf8'), cipher.final()]);
+  return {
+    version: 1,
+    algorithm: 'aes-256-gcm',
+    iv: iv.toString('base64url'),
+    tag: cipher.getAuthTag().toString('base64url'),
+    data: encrypted.toString('base64url')
+  };
+}
+
+function decryptCalendarTokens(payload) {
+  const key = tokenEncryptionKey();
+  if (!key || !payload?.iv || !payload?.tag || !payload?.data) return null;
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64url'));
+    decipher.setAuthTag(Buffer.from(payload.tag, 'base64url'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64url')), decipher.final()]);
+    return JSON.parse(decrypted.toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function calendarTokens(integration = {}) {
+  if (integration.tokensEncrypted) return decryptCalendarTokens(integration.tokensEncrypted);
+  return integration.tokens || null;
+}
+
+function setCalendarTokens(integration, tokens) {
+  integration.tokensEncrypted = tokens ? encryptCalendarTokens(tokens) : null;
+  integration.tokens = null;
+}
+
+function calendarHasRefreshToken(db) {
+  return Boolean(calendarTokens(googleCalendarIntegration(db))?.refresh_token);
 }
 
 function googleCalendarIntegration(db) {
@@ -707,7 +820,7 @@ function googleCalendarIntegration(db) {
   const integration = db.data.integrations.googleCalendar;
   integration.account ||= calendarAccount;
   integration.calendarId ||= calendarId;
-  integration.connected = Boolean(integration.tokens?.refresh_token);
+  integration.connected = Boolean(calendarTokens(integration)?.refresh_token);
   return integration;
 }
 
@@ -715,7 +828,7 @@ function publicCalendarStatus(db, session = null) {
   const integration = googleCalendarIntegration(db);
   return {
     configured: calendarConfigured(),
-    connected: Boolean(integration.tokens?.refresh_token),
+    connected: Boolean(calendarTokens(integration)?.refresh_token),
     account: integration.account || calendarAccount,
     calendarId: integration.calendarId || calendarId,
     connectedAt: integration.connectedAt || null,
@@ -770,10 +883,11 @@ async function connectGoogleCalendar(req, db, code, state) {
   const client = calendarOAuthClient(req);
   const tokenResponse = await client.getToken(code);
   const tokens = tokenResponse.tokens || {};
+  const existingTokens = calendarTokens(integration) || {};
   const mergedTokens = {
-    ...(integration.tokens || {}),
+    ...existingTokens,
     ...tokens,
-    refresh_token: tokens.refresh_token || integration.tokens?.refresh_token || ''
+    refresh_token: tokens.refresh_token || existingTokens.refresh_token || ''
   };
   client.setCredentials(mergedTokens);
   const authorizedEmail = await calendarAuthorizedEmail(client);
@@ -784,7 +898,7 @@ async function connectGoogleCalendar(req, db, code, state) {
   }
   integration.account = authorizedEmail;
   integration.calendarId = calendarId;
-  integration.tokens = mergedTokens;
+  setCalendarTokens(integration, mergedTokens);
   integration.connected = Boolean(mergedTokens.refresh_token);
   integration.connectedAt ||= new Date().toISOString();
   integration.updatedAt = new Date().toISOString();
@@ -794,19 +908,20 @@ async function connectGoogleCalendar(req, db, code, state) {
 
 async function calendarApiRequest(req, db, request) {
   const integration = googleCalendarIntegration(db);
-  if (!integration.tokens?.refresh_token) {
+  const storedTokens = calendarTokens(integration);
+  if (!storedTokens?.refresh_token) {
     const err = new Error('google calendar is not connected');
     err.statusCode = 409;
     throw err;
   }
   const client = calendarOAuthClient(req);
-  client.setCredentials(integration.tokens);
+  client.setCredentials(storedTokens);
   const response = await client.request(request);
-  integration.tokens = {
-    ...integration.tokens,
+  setCalendarTokens(integration, {
+    ...storedTokens,
     ...(client.credentials || {}),
-    refresh_token: client.credentials?.refresh_token || integration.tokens.refresh_token
-  };
+    refresh_token: client.credentials?.refresh_token || storedTokens.refresh_token
+  });
   integration.updatedAt = new Date().toISOString();
   await writeDb(db);
   return response.data;
@@ -858,6 +973,100 @@ function calendarEventPayload(body, session) {
         requesterRole: session.role
       }
     }
+  };
+}
+
+const APPOINTMENT_ACTIVE = new Set(['solicitada', 'confirmada']);
+const APPOINTMENT_DAYS_AHEAD = 21;
+const APPOINTMENT_SLOT_MINUTES = 30;
+const WEEKDAY_INDEX_ES = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+
+function santiagoDateParts(date) {
+  const values = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(date).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  const weekday = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }[values.weekday];
+  return { weekday, hour: Number(values.hour), minute: Number(values.minute), dateKey: `${values.year}-${values.month}-${values.day}` };
+}
+
+function appointmentSlotKey(start, end) {
+  return `${new Date(start).toISOString()}|${new Date(end).toISOString()}`;
+}
+
+function officeHourRanges(profile = {}) {
+  return (profile.officeHours || []).map((entry) => {
+    const weekday = WEEKDAY_INDEX_ES[plain(entry.day)];
+    const match = asText(entry.time).match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
+    if (weekday === undefined || !match) return null;
+    return {
+      weekday,
+      startMinutes: Number(match[1]) * 60 + Number(match[2]),
+      endMinutes: Number(match[3]) * 60 + Number(match[4]),
+      mode: asText(entry.mode, 'Presencial').slice(0, 80),
+      place: asText(entry.place, 'Departamento de Ingeniería Civil').slice(0, 180)
+    };
+  }).filter(Boolean);
+}
+
+function validateAppointmentRequest(db, profile, body, session) {
+  const start = validateCalendarDateTime(body.start, 'start');
+  const end = validateCalendarDateTime(body.end, 'end');
+  const duration = (end.getTime() - start.getTime()) / 60000;
+  if (duration !== APPOINTMENT_SLOT_MINUTES) throw Object.assign(new Error('La atención debe usar un bloque de 30 minutos.'), { statusCode: 422 });
+  if (start.getTime() < Date.now() + 60 * 60000) throw Object.assign(new Error('Elige una hora con al menos una hora de anticipación.'), { statusCode: 422 });
+  if (start.getTime() > Date.now() + APPOINTMENT_DAYS_AHEAD * 86400000) throw Object.assign(new Error('La hora seleccionada queda fuera del periodo disponible.'), { statusCode: 422 });
+  const startParts = santiagoDateParts(start);
+  const endParts = santiagoDateParts(end);
+  const startMinutes = startParts.hour * 60 + startParts.minute;
+  const endMinutes = endParts.hour * 60 + endParts.minute;
+  const officeRange = officeHourRanges(profile).find(range => (
+    range.weekday === startParts.weekday
+    && startParts.dateKey === endParts.dateKey
+    && startMinutes >= range.startMinutes
+    && endMinutes <= range.endMinutes
+  ));
+  if (!officeRange) throw Object.assign(new Error('La hora no pertenece a la disponibilidad publicada.'), { statusCode: 422 });
+  const key = appointmentSlotKey(start, end);
+  if ((db.data.bookingAvailability?.closedSlots || []).includes(key)) throw Object.assign(new Error('La hora fue cerrada por Jefatura.'), { statusCode: 409 });
+  const overlaps = (db.data.appointments || []).some(item => APPOINTMENT_ACTIVE.has(item.status)
+    && start.getTime() < new Date(item.end).getTime()
+    && end.getTime() > new Date(item.start).getTime());
+  if (overlaps) throw Object.assign(new Error('La hora ya no está disponible.'), { statusCode: 409 });
+  const activeMine = (db.data.appointments || []).filter(item => APPOINTMENT_ACTIVE.has(item.status)
+    && asText(item.studentEmail || item.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
+  if (activeMine.length >= 3) throw Object.assign(new Error('Ya tienes tres solicitudes activas.'), { statusCode: 409 });
+  const reason = asText(body.reason);
+  if (reason.length < 5 || reason.length > 500) throw Object.assign(new Error('Describe brevemente el motivo de la atención.'), { statusCode: 422 });
+  return { start, end, reason, ...officeRange };
+}
+
+function appointmentView(item = {}) {
+  return {
+    id: item.id,
+    studentEmail: asText(item.studentEmail || item.requesterEmail).toLowerCase(),
+    studentName: asText(item.studentName || item.requesterName || item.requesterEmail, 'Estudiante'),
+    requesterEmail: asText(item.studentEmail || item.requesterEmail).toLowerCase(),
+    requesterRole: item.requesterRole || 'student',
+    status: item.status,
+    start: item.start,
+    end: item.end,
+    mode: item.mode,
+    place: item.place,
+    reason: item.reason,
+    staffNote: item.staffNote || '',
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt || null,
+    googleEventLink: item.googleEventLink || null
+  };
+}
+
+function appointmentAvailability(db) {
+  const now = Date.now();
+  return {
+    closedSlots: [...new Set(db.data.bookingAvailability?.closedSlots || [])],
+    occupied: (db.data.appointments || [])
+      .filter(item => APPOINTMENT_ACTIVE.has(item.status) && new Date(item.end).getTime() > now)
+      .map(item => ({ start: item.start, end: item.end }))
   };
 }
 
@@ -1249,7 +1458,7 @@ function publicIntegrationData(data = {}) {
   return {
     googleCalendar: {
       configured: calendarConfigured(),
-      connected: Boolean(googleCalendar.tokens?.refresh_token),
+      connected: Boolean(calendarTokens(googleCalendar)?.refresh_token),
       account: googleCalendar.account || calendarAccount,
       calendarId: googleCalendar.calendarId || calendarId,
       connectedAt: googleCalendar.connectedAt || null,
@@ -1260,11 +1469,11 @@ function publicIntegrationData(data = {}) {
 
 function publicData(data = {}) {
   // appointments y reservations se excluyen: contienen correos/datos personales y el bootstrap es publico.
-  const { sessions, aiUsage, aiDrafts, integrations, appointments, reservations, cealMembers, staffProfiles, ...safe } = data;
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, cealMembers, staffProfiles, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
-    surveys: Array.isArray(data.surveys) ? data.surveys.map(publicSurvey) : [],
+    surveys: features.surveys && Array.isArray(data.surveys) ? data.surveys.map(publicSurvey) : [],
     cealMembers: Array.isArray(data.cealMembers) ? data.cealMembers.map(publicMember) : [],
     staffProfiles: Array.isArray(data.staffProfiles) ? data.staffProfiles.map(publicStaffProfile) : []
   };
@@ -1646,6 +1855,22 @@ function bookingEmailContent(type, appt, audience) {
   return { subject, text, html };
 }
 
+async function sendBookingNotifications(type, appointment, { includeStaff = false } = {}) {
+  const targets = [{ audience: 'student', to: asText(appointment.studentEmail || appointment.requesterEmail).toLowerCase() }];
+  if (includeStaff) targets.push({ audience: 'staff', to: calendarAccount });
+  const results = [];
+  for (const target of targets.filter(item => item.to)) {
+    try {
+      const content = bookingEmailContent(type, appointment, target.audience);
+      await sendDirectEmail({ to: target.to, ...content });
+      results.push({ audience: target.audience, sent: true });
+    } catch (error) {
+      results.push({ audience: target.audience, sent: false, reason: asText(error?.message || 'send-failed').slice(0, 120) });
+    }
+  }
+  return results;
+}
+
 // ============================================================
 // RESERVAS DE MESAS (taca-taca / ping-pong) — flujo acordado con la
 // tesorería CEAL: reserva preconfirmada -> pago $1.000 (transferencia o
@@ -1902,17 +2127,35 @@ function resolveCorsOrigin(origin) {
   return ALLOWED_ORIGINS.includes(origin) ? origin : null;
 }
 const rateBuckets = new Map();
+const authFailureBuckets = new Map();
+function requestIp(req) {
+  return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+}
 function checkRateLimit(req, res) {
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  const ip = requestIp(req);
   if (['::1', '127.0.0.1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) return true;
   const now = Date.now();
   const windowMs = 60000;
-  const max = Number(process.env.PORTAL_RATE_LIMIT || 120);
+  const max = Number(process.env.PORTAL_RATE_LIMIT || 600);
   let bucket = rateBuckets.get(ip);
   if (!bucket || now > bucket.reset) { bucket = { count: 0, reset: now + windowMs }; rateBuckets.set(ip, bucket); }
   bucket.count += 1;
   if (rateBuckets.size > 5000) { for (const [k, v] of rateBuckets) { if (now > v.reset) rateBuckets.delete(k); } }
   if (bucket.count > max) { sendError(res, 429, 'Demasiadas solicitudes. Intenta nuevamente en un momento.'); return false; }
+  return true;
+}
+
+function checkPasswordAttempt(req, res) {
+  const ip = requestIp(req);
+  if (['::1', '127.0.0.1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) return true;
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000;
+  const max = Number(process.env.PORTAL_PASSWORD_ATTEMPTS || 30);
+  let bucket = authFailureBuckets.get(ip);
+  if (!bucket || now > bucket.reset) bucket = { count: 0, reset: now + windowMs };
+  bucket.count += 1;
+  authFailureBuckets.set(ip, bucket);
+  if (bucket.count > max) { sendError(res, 429, 'Demasiados intentos. Espera unos minutos.'); return false; }
   return true;
 }
 
@@ -1923,27 +2166,27 @@ async function handleApi(req, res, url) {
   const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   const [resource, id] = parts;
 
+  if (!features.surveys && ['surveys', 'encuestas', 'votaciones'].includes(resource)) {
+    return sendError(res, 404, 'unknown api resource');
+  }
+  if (!features.tableReservations && ['reservations', 'reservas'].includes(resource)) {
+    return sendError(res, 404, 'unknown api resource');
+  }
+
   if (!resource || resource === 'bootstrap') {
+    const session = sessionFromRequest(req, db);
+    const canSeeMail = session?.role === 'ceal' && session?.accessMode === 'ceal';
+    if (!canSeeMail) return sendPublicBootstrap(res, db);
     return sendJson(res, 200, {
       ok: true,
-      mode: 'backend',
-      meta: db.meta,
       data: publicData(db.data),
       curricula: db.curricula,
-      counts: countDb(db),
-      mail: mailMeta()
+      ...(canSeeMail ? { mail: mailMeta() } : {})
     });
   }
 
   if (resource === 'health') {
-    return sendJson(res, 200, {
-      ok: true,
-      service: 'portal-ceic-backend',
-      storage: useSupabaseState ? 'supabase' : 'local-json',
-      dbPath: useSupabaseState ? null : dbPath,
-      counts: countDb(db),
-      mail: { configured: mailMeta().configured }
-    });
+    return sendJson(res, 200, { ok: true });
   }
 
   if (resource === 'auth') {
@@ -1975,6 +2218,7 @@ async function handleApi(req, res, url) {
     }
 
     if (id === 'setup' && req.method === 'POST') {
+      if (!checkPasswordAttempt(req, res)) return;
       const body = await readBody(req);
       const member = findMember(db, asText(body.memberId));
       const password = String(body.password || '');
@@ -1991,6 +2235,7 @@ async function handleApi(req, res, url) {
     }
 
     if (id === 'login' && req.method === 'POST') {
+      if (!checkPasswordAttempt(req, res)) return;
       const body = await readBody(req);
       const member = findMember(db, asText(body.memberId));
       const password = String(body.password || '');
@@ -2091,6 +2336,7 @@ async function handleApi(req, res, url) {
       }
     }
     if (id === 'survey-draft' && req.method === 'POST') {
+      if (!features.surveys) return sendError(res, 404, 'unknown ai action');
       try {
         const member = requireCealSession(req, db);
         const body = await readBody(req);
@@ -2165,7 +2411,7 @@ async function handleApi(req, res, url) {
       try {
         requireStaffSession(req, db);
         const integration = googleCalendarIntegration(db);
-        integration.tokens = null;
+        setCalendarTokens(integration, null);
         integration.connected = false;
         integration.connectedAt = null;
         integration.updatedAt = new Date().toISOString();
@@ -2201,10 +2447,10 @@ async function handleApi(req, res, url) {
     if (id === 'appointments' && req.method === 'GET') {
       try {
         const session = requirePortalSession(req, db);
-        const all = db.data.appointments || [];
+        const all = [...(db.data.appointments || [])].sort((a, b) => new Date(a.start) - new Date(b.start));
         const isJefatura = session.role === 'jefatura' && session.accessMode === 'jefatura';
-        const mine = isJefatura ? all : all.filter(a => asText(a.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
-        return sendJson(res, 200, { ok: true, items: mine, scope: isJefatura ? 'all' : 'mine' });
+        const mine = isJefatura ? all : all.filter(a => asText(a.studentEmail || a.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
+        return sendJson(res, 200, { ok: true, items: mine.map(appointmentView), availability: appointmentAvailability(db), scope: isJefatura ? 'all' : 'mine' });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'appointments list failed');
       }
@@ -2214,35 +2460,124 @@ async function handleApi(req, res, url) {
       try {
         const session = requirePortalSession(req, db);
         const emailAllowed = asText(session.email).toLowerCase().endsWith(`@${googleDomain}`);
-        const roleAllowed = session.role === 'jefatura' || session.role === 'ceal';
-        if (!emailAllowed && !roleAllowed) {
-          return sendError(res, 403, `only ${googleDomain} or CEAL accounts can request appointments`);
+        const roleAllowed = session.role === 'student' || session.role === 'ceal';
+        if (!emailAllowed || !roleAllowed) {
+          return sendError(res, 403, 'only authorized student or CEAL accounts can request appointments');
         }
         const body = await readBody(req);
-        const event = calendarEventPayload(body, session);
-        const createdEvent = await calendarApiRequest(req, db, {
-          method: 'POST',
-          url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
-          data: event
-        });
+        const profile = (db.data.staffProfiles || [])[0] || {};
+        const slot = validateAppointmentRequest(db, profile, body, session);
         const appointment = {
-          id: `apt-${Date.now()}`,
+          id: `apt-${crypto.randomUUID()}`,
           createdAt: new Date().toISOString(),
+          studentEmail: asText(session.email).toLowerCase(),
+          studentName: asText(session.name, session.email.split('@')[0]).slice(0, 160),
           requesterEmail: session.email,
           requesterRole: session.role,
           status: 'solicitada',
-          start: event.start.dateTime,
-          end: event.end.dateTime,
-          reason: asText(body.reason),
-          googleEventId: createdEvent.id || null,
-          googleEventLink: createdEvent.htmlLink || null
+          start: slot.start.toISOString(),
+          end: slot.end.toISOString(),
+          mode: slot.mode,
+          place: slot.place,
+          reason: slot.reason,
+          staffNote: '',
+          googleEventId: null,
+          googleEventLink: null
         };
         db.data.appointments ||= [];
         db.data.appointments.unshift(appointment);
         await writeDb(db);
-        return sendJson(res, 201, { ok: true, item: appointment, event: { id: createdEvent.id, htmlLink: createdEvent.htmlLink } });
+        const notifications = await sendBookingNotifications('solicitada', appointment, { includeStaff: true });
+        return sendJson(res, 201, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), notifications });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'calendar appointment failed');
+      }
+    }
+
+    if (id === 'appointments' && action && req.method === 'PATCH') {
+      try {
+        const session = requirePortalSession(req, db);
+        const body = await readBody(req);
+        const appointment = (db.data.appointments || []).find(item => item.id === action);
+        if (!appointment) return sendError(res, 404, 'appointment not found');
+        const isJefatura = session.role === 'jefatura' && session.accessMode === 'jefatura';
+        const isOwner = asText(appointment.studentEmail || appointment.requesterEmail).toLowerCase() === asText(session.email).toLowerCase();
+        const operation = asText(body.action);
+        if (operation === 'cancel') {
+          if (!isOwner && !isJefatura) return sendError(res, 403, 'appointment owner or Jefatura required');
+          if (!APPOINTMENT_ACTIVE.has(appointment.status)) return sendError(res, 409, 'appointment is not active');
+          appointment.status = 'cancelada';
+        } else if (operation === 'confirm' || operation === 'reject') {
+          requireStaffSession(req, db);
+          if (appointment.status !== 'solicitada') return sendError(res, 409, 'appointment is not pending');
+          appointment.status = operation === 'confirm' ? 'confirmada' : 'rechazada';
+          appointment.staffNote = asText(body.staffNote).slice(0, 500);
+        } else {
+          return sendError(res, 422, 'invalid appointment action');
+        }
+        appointment.updatedAt = new Date().toISOString();
+        appointment.updatedBy = session.email;
+        let calendarSynced = false;
+        if (appointment.status === 'confirmada' && calendarHasRefreshToken(db)) {
+          try {
+            const event = calendarEventPayload({
+              start: appointment.start,
+              end: appointment.end,
+              name: appointment.studentName,
+              reason: appointment.reason
+            }, { email: appointment.studentEmail || appointment.requesterEmail, role: appointment.requesterRole || 'student' });
+            const createdEvent = await calendarApiRequest(req, db, {
+              method: 'POST',
+              url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
+              data: event
+            });
+            appointment.googleEventId = createdEvent.id || null;
+            appointment.googleEventLink = createdEvent.htmlLink || null;
+            calendarSynced = Boolean(createdEvent.id);
+          } catch (error) {
+            appointment.calendarSyncError = asText(error?.message || 'calendar sync failed').slice(0, 180);
+          }
+        }
+        if (['cancelada', 'rechazada'].includes(appointment.status) && appointment.googleEventId && calendarHasRefreshToken(db)) {
+          try {
+            await calendarApiRequest(req, db, {
+              method: 'DELETE',
+              url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(appointment.googleEventId)}?sendUpdates=all`
+            });
+            appointment.googleEventId = null;
+            appointment.googleEventLink = null;
+          } catch {}
+        }
+        await writeDb(db);
+        const notificationType = appointment.status;
+        const notifications = await sendBookingNotifications(notificationType, appointment, { includeStaff: operation === 'cancel' && !isJefatura });
+        return sendJson(res, 200, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), calendarSynced, notifications });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'appointment update failed');
+      }
+    }
+
+    if (id === 'availability' && req.method === 'PATCH') {
+      try {
+        const { session } = requireStaffSession(req, db);
+        const body = await readBody(req);
+        const [startRaw, endRaw] = asText(body.slotKey).split('|');
+        const start = validateCalendarDateTime(startRaw, 'start');
+        const end = validateCalendarDateTime(endRaw, 'end');
+        const key = appointmentSlotKey(start, end);
+        db.data.bookingAvailability ||= { closedSlots: [] };
+        const closed = new Set(db.data.bookingAvailability.closedSlots || []);
+        if (body.closed === true) closed.add(key); else closed.delete(key);
+        db.data.bookingAvailability.closedSlots = [...closed].filter(item => {
+          const [, itemEnd] = String(item).split('|');
+          return new Date(itemEnd).getTime() > Date.now() - 86400000;
+        }).slice(-500);
+        db.data.bookingAvailability.updatedAt = new Date().toISOString();
+        db.data.bookingAvailability.updatedBy = session.email;
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, availability: appointmentAvailability(db) });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'availability update failed');
       }
     }
 
@@ -2250,41 +2585,7 @@ async function handleApi(req, res, url) {
   }
 
   if (resource === 'booking') {
-    if (id === 'notify' && req.method === 'POST') {
-      try {
-        const session = requirePortalSession(req, db);
-        const body = await readBody(req);
-        const type = asText(body.type);
-        const appt = body.appointment || {};
-        if (!['solicitada', 'confirmada', 'rechazada', 'cancelada'].includes(type)) {
-          return sendError(res, 422, 'invalid notification type');
-        }
-        // Allowlist de demo: solo se envía de verdad a la cuenta de la sesión, a
-        // Jefatura y al estudiante de prueba. Los estudiantes ficticios del seed se
-        // omiten para no escribir a terceros reales (regla de no enviar a alumnos).
-        const jefaturaEmail = 'biblioteca.ceicucn@gmail.com';
-        const sessionEmail = asText(session.email).toLowerCase();
-        const demoStudent = asText(process.env.BOOKING_DEMO_STUDENT || 'kevin.cortes@alumnos.ucn.cl').toLowerCase();
-        const safe = new Set([sessionEmail, jefaturaEmail, demoStudent].filter(Boolean));
-        const studentEmail = asText(appt.studentEmail).toLowerCase();
-        const targets = [];
-        if (studentEmail) targets.push({ audience: 'student', to: studentEmail });
-        if (type === 'solicitada' || type === 'cancelada') targets.push({ audience: 'staff', to: jefaturaEmail });
-        const results = [];
-        for (const t of targets) {
-          if (!safe.has(t.to)) { results.push({ to: t.to, sent: false, reason: 'not-in-demo-allowlist' }); continue; }
-          try {
-            const { subject, text, html } = bookingEmailContent(type, appt, t.audience);
-            await sendDirectEmail({ to: t.to, subject, text, html });
-            results.push({ to: t.to, sent: true });
-          } catch (err) { results.push({ to: t.to, sent: false, reason: (err && err.message) || 'send-failed' }); }
-        }
-        return sendJson(res, 200, { ok: true, results });
-      } catch (error) {
-        return sendError(res, error.statusCode || 500, error.message || 'booking notify failed');
-      }
-    }
-    return sendError(res, 404, 'unknown booking action');
+    return sendError(res, 410, 'booking notifications are managed by appointments');
   }
 
   if (resource === 'reservations' || resource === 'reservas') {
@@ -2696,11 +2997,22 @@ async function serveStatic(req, res, url) {
     const ext = path.extname(file).toLowerCase();
     res.writeHead(200, {
       'content-type': mime[ext] || 'application/octet-stream',
-      'cache-control': ext === '.html' ? 'no-store' : 'public, max-age=600'
+      'cache-control': ext === '.html' ? 'no-store' : 'public, max-age=600',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     });
     res.end(await fs.readFile(file));
   } catch {
-    res.writeHead(200, { 'content-type': mime['.html'], 'cache-control': 'no-store' });
+    res.writeHead(200, {
+      'content-type': mime['.html'],
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    });
     res.end(await fs.readFile(path.join(root, 'index.html')));
   }
 }

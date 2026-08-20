@@ -87,6 +87,23 @@ async function setupStudentSession() {
   return payload.user;
 }
 
+async function setupJefaturaSession() {
+  const res = await fetch(`${baseUrl}/api/auth/qa-session`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      role: 'jefatura',
+      name: 'Jefatura de carrera',
+      label: 'Jefatura',
+      email: 'jc.icivil.afta@ucn.cl',
+      permissions: ['manage:office-hours', 'edit:calendario']
+    })
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.user?.sessionToken) fail(`could not create a Jefatura session for QA (status ${res.status})`);
+  return payload.user;
+}
+
 async function loginStudent(page, studentUser) {
   await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
   await page.evaluate(user => {
@@ -129,6 +146,17 @@ async function loginCeal(page, cealUser) {
     localStorage.setItem('portal.session', JSON.stringify(user));
   }, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
+  await page.waitForSelector('.page-title');
+}
+
+async function loginJefatura(page, jefaturaUser) {
+  await page.goto(`${baseUrl}/?qa=${Date.now()}`, { waitUntil: 'networkidle' });
+  await page.evaluate(user => {
+    localStorage.removeItem('portal.session');
+    localStorage.removeItem('portal.theme');
+    localStorage.setItem('portal.session', JSON.stringify(user));
+  }, jefaturaUser);
+  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
@@ -179,7 +207,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   // Rutas que pertenecen a una pestaña del dock: deben marcarla activa.
   // Las rutas secundarias (calendario, perfil, atención…) viven en el menú
   // lateral y no marcan pestaña, pero el dock siempre debe estar visible.
-  const tabbedRoutes = new Set(['inicio', 'comunicados', 'comunicado-detalle', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle', 'reservas']);
+  const tabbedRoutes = new Set(['inicio', 'comunicados', 'comunicado-detalle', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle']);
   if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none')) {
     pushFailure(`${label}: bottom nav missing`);
   }
@@ -241,13 +269,56 @@ async function runPublicFlowTests(page, studentUser) {
   await page.waitForURL(/#\/material\?course=/);
   await page.waitForSelector('.page-title');
   report.flows.push('course detail routes to filtered material');
+
+  await page.goto(appUrl('/calendario'), { waitUntil: 'networkidle' });
+  const selectedToday = page.locator('.academic-calendar-card .day-cell.today[aria-pressed="true"]');
+  if (!(await selectedToday.count())) fail('calendar should select the current day automatically');
+  const initialMonth = await page.locator('.academic-calendar-card .card-title').first().textContent();
+  await page.locator('[data-calendar-month="1"]').click();
+  await page.waitForTimeout(120);
+  const nextMonth = await page.locator('.academic-calendar-card .card-title').first().textContent();
+  if (nextMonth === initialMonth) fail('calendar month navigation did not update the visible month');
+  await page.locator('[data-calendar-today]').click();
+  report.flows.push('calendar selects today and navigates between months');
+
+  for (const route of ['/encuestas', '/reservas']) {
+    await page.goto(appUrl(route), { waitUntil: 'networkidle' });
+    if (!/^No encontrado$/i.test((await page.locator('.page-title').textContent()) || '')) fail(`${route} should be disabled`);
+  }
+  report.flows.push('surveys and table reservations stay disabled');
+}
+
+async function runBookingFlowTests(page, studentUser, jefaturaUser) {
+  await loginStudent(page, studentUser);
+  await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
+  await page.locator('[data-book-slot]').first().click();
+  await page.locator('[data-booking-reason]').fill('Consulta sobre inscripción de asignaturas.');
+  await page.locator('[data-appointment-create]').click();
+  await page.getByText('Solicitada', { exact: true }).waitFor();
+
+  await loginJefatura(page, jefaturaUser);
+  await page.locator('[data-appointment-confirm]').first().click();
+  await page.locator('[data-appointment-confirm]').waitFor({ state: 'detached' });
+  const closeSlot = page.locator('[data-availability-close]').first();
+  if (await closeSlot.count()) {
+    await closeSlot.click();
+    const reopenSlot = page.locator('[data-availability-open]').first();
+    await reopenSlot.waitFor();
+    await reopenSlot.click();
+  }
+
+  await loginStudent(page, studentUser);
+  await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
+  await page.getByText('Confirmada', { exact: true }).waitFor();
+  report.flows.push('student requests an appointment and Jefatura confirms it');
 }
 
 async function runCealFlowTests(page, cealUser) {
   await loginCeal(page, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   if (!(await page.locator('text=Acciones del centro').count())) fail('gestion dashboard missing actions section');
-  if (!(await page.locator('text=Reservas de taca-taca y ping-pong').count())) fail('gestion dashboard missing reservations panel');
+  const managementText = await page.locator('main').innerText();
+  if (/Encuestas|Reservas de taca-taca|ping-pong/i.test(managementText)) fail('gestion dashboard should not expose disabled surveys or reservations');
 
   await page.goto(appUrl('/gestion/acuerdos/nuevo'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
@@ -280,6 +351,7 @@ async function main() {
     await waitForHealth();
     const cealUser = await setupCealSession();
     const studentUser = await setupStudentSession();
+    const jefaturaUser = await setupJefaturaSession();
     const { chromium } = await importPlaywright();
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -293,6 +365,7 @@ async function main() {
     page.on('pageerror', error => pushFailure(`page error: ${error.message}`));
 
     await runPublicFlowTests(page, studentUser);
+    await runBookingFlowTests(page, studentUser, jefaturaUser);
     await runCealFlowTests(page, cealUser);
 
     const studentRoutes = [
@@ -310,8 +383,7 @@ async function main() {
       ['/ayudantias/ay-001', 'ayudantia-detalle'],
       ['/tramites/proc-001', 'tramite-detalle'],
       ['/atencion', 'atencion'],
-      ['/perfil', 'perfil'],
-      ['/reservas', 'reservas']
+      ['/perfil', 'perfil']
     ];
     await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
@@ -339,6 +411,9 @@ async function main() {
     for (const [route, name] of cealRoutes) {
       await auditRoute(page, route, name, 'desktop-ceal', name === 'gestion');
     }
+
+    await loginJefatura(page, jefaturaUser);
+    await auditRoute(page, '/jefatura', 'jefatura', 'desktop-jefatura', true);
 
     await browser.close();
     report.ok = report.failures.length === 0;

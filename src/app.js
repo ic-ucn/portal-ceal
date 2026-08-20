@@ -11,7 +11,8 @@
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
   const API_BASE = !STATIC_MODE && (LOCAL_API_BASE || window.PORTAL_API_BASE || '');
   const AI_ENDPOINT = String(window.PORTAL_AI_ENDPOINT || '').trim();
-  const LEGACY_CALENDAR_ACCOUNT = 'biblioteca.ceicucn@gmail.com';
+  const FEATURES = Object.freeze({ surveys: false, tableReservations: false });
+  const JEFATURA_EMAIL = 'jc.icivil.afta@ucn.cl';
   const CEAL_ASSISTANT_AUDIENCE = 'Estudiantes de Ingeniería Civil UCN';
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
@@ -72,11 +73,15 @@
     calendarStatus: null,
     calendarStatusLoading: false,
     calendarStatusError: '',
+    calendarMonth: null,
+    calendarSelectedDate: '',
     staffBusy: null,
     staffBusyLoading: false,
     staffBusyError: '',
     myAppointments: null,
     myApptsLoading: false,
+    staffClosedSlots: [],
+    appointmentBusy: [],
     bookingSlotKey: null,
     bookingReason: '',
     bookingSubmitting: false,
@@ -225,15 +230,7 @@
     Data.appointments ||= [];
     Data.staffProfiles ||= [];
     Data.integrations ||= {};
-    Data.integrations.googleCalendar ||= { configured: false, connected: false, account: 'jc.icivil.afta@ucn.cl', calendarId: 'primary' };
-    if (String(Data.integrations.googleCalendar.account || '').toLowerCase() === LEGACY_CALENDAR_ACCOUNT) {
-      Data.integrations.googleCalendar = {
-        ...Data.integrations.googleCalendar,
-        configured: false,
-        connected: false,
-        account: 'jc.icivil.afta@ucn.cl'
-      };
-    }
+    Data.integrations.googleCalendar ||= { configured: false, connected: false, account: JEFATURA_EMAIL, calendarId: 'primary' };
     if (!Data.cealMembers.length && Data.users?.ceal) Data.cealMembers = [Data.users.ceal];
     Data.resources = Data.resources.filter(r => !plain([r.title, r.origin, r.description, r.size].join(' ')).includes('demo') && !plain(r.title).includes('prueba funcional'));
     Data.resources = sanitizeMaterialResources(Data.resources);
@@ -295,10 +292,12 @@
     if (!frame) return;
     frame.dataset.theme = dark ? 'dark' : 'light';
     try {
+      frame.contentWindow?.postMessage({ __mcPortalTheme: true, theme: dark ? 'dark' : 'light' }, '*');
+    } catch {}
+    try {
       const doc = frame.contentDocument;
       if (doc?.documentElement) {
         doc.documentElement.classList.toggle('mc-light', !dark);
-        try { localStorage.setItem('mc-theme', dark ? 'dark' : 'light'); } catch {}
       }
     } catch {}
   }
@@ -406,6 +405,18 @@
   }
   function fmtDate(date) { const d = parsePortalDate(date); return Number.isNaN(d.getTime()) ? esc(date) : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }); }
   function fmtTime(date) { const d = new Date(date); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); }
+  function portalTodayKey(now = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(now)
+      .reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+  function currentAndFutureEvents() {
+    const today = portalTodayKey();
+    return [...(Data.events || [])]
+      .filter(event => String(event.date || '').slice(0, 10) >= today)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
+  }
   function titleCase(str) {
     const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
     const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
@@ -463,8 +474,7 @@
     const isError = t.type === 'red' || t.type === 'orange';
     return `<div class="toast toast-${esc(t.type)}" role="${isError ? 'alert' : 'status'}"><span class="toast-dot" aria-hidden="true"></span><span class="toast-icon" aria-hidden="true">${toastVariantIcon(t.type)}</span><span class="toast-msg">${esc(t.message)}</span><button class="toast-close" type="button" data-dismiss-toast aria-label="Cerrar aviso">${icon('x')}</button></div>`;
   }
-  // Notificaciones: SOLO para estudiantes y SOLO derivadas de contenido real
-  // nuevo (comunicados sin leer y encuestas/votaciones abiertas sin responder).
+  // Notificaciones estudiantiles derivadas de contenido vigente.
   const READ_COMMS_KEY = 'portal.comms.read';
   const ANSWERED_SURVEYS_KEY = 'portal.surveys.answered';
   function readIdSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } }
@@ -482,13 +492,13 @@
       route: `/comunicados/${c.id}`
     }));
     const answered = readIdSet(ANSWERED_SURVEYS_KEY);
-    const surveys = (Data.surveys || []).filter(s => s.status === 'open' && !answered.has(s.id)).slice(0, 8).map(s => ({
+    const surveys = FEATURES.surveys ? (Data.surveys || []).filter(s => s.status === 'open' && !answered.has(s.id)).slice(0, 8).map(s => ({
       id: `ntf-enc-${s.id}`,
       title: s.title,
       detail: s.mode === 'votacion' ? 'Nueva votación abierta' : 'Nueva encuesta abierta',
       date: s.updatedAt || s.createdAt,
       route: `/encuestas/${s.id}`
-    }));
+    })) : [];
     return [...comms, ...surveys].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   }
   function getUnreadCount() { return studentNotifications().length; }
@@ -572,8 +582,6 @@
   function findCourse(plan, code) { return getCourses(plan).find(c => c.code === code || c.visibleCode === code); }
   function findCoursePlanForCode(code) { return ['planP', 'planO'].find(plan => findCourse(plan, code)) || state.activePlan; }
   function courseKey(plan, code) { return `${plan}:${code}`; }
-  function getProgress(plan, code) { return Data.courseProgress?.[courseKey(plan, code)] || 'pending'; }
-  function setProgress(plan, code, value) { Data.courseProgress ||= {}; Data.courseProgress[courseKey(plan, code)] = value; persistSnapshot(); }
   function getPrereqs(plan, course) { return (course.prereqs || []).map(code => findCourse(plan, code)).filter(Boolean); }
   // Descripción REAL del ramo o cadena vacía: las plantillas genéricas
   // ("Asignatura del Plan…", "Ficha curricular…") no se muestran nunca,
@@ -655,6 +663,16 @@
       return { ...buildMemberUser(member), authProvider: 'local-dev', accessMode: 'ceal', sessionToken: 'local-dev-ceal' };
     }
     return { id: 'local-student', name: 'Estudiante UCN', initials: 'EU', role: 'student', accessMode: 'student', label: 'Estudiante', plan: 'planP', yearLabel: 'Cuenta UCN', email: 'estudiante@alumnos.ucn.cl', authProvider: 'local-dev', sessionToken: 'local-dev-student', permissions: [] };
+  }
+  async function qaSessionFor(role) {
+    if (!QA_MODE || !API_BASE) return devSessionFor(role);
+    const profiles = {
+      student: { role: 'student', name: 'Estudiante UCN', label: 'Estudiante', plan: 'planP', yearLabel: 'Cuenta UCN', email: 'qa.estudiante@alumnos.ucn.cl', permissions: [] },
+      ceal: { role: 'ceal', name: 'Equipo CEAL', label: 'CEAL', plan: 'planP', yearLabel: 'Gestión interna', email: 'qa.ceal@alumnos.ucn.cl', permissions: ['edit:comunicados', 'edit:calendario', 'manage:material', 'manage:cases', 'edit:mallas'] },
+      jefatura: { role: 'jefatura', name: 'Jefatura de carrera', label: 'Jefatura', plan: 'planP', yearLabel: 'Gestión académica', email: JEFATURA_EMAIL, permissions: ['manage:office-hours', 'edit:calendario'] }
+    };
+    const payload = await apiRequest('/auth/qa-session', { method: 'POST', body: JSON.stringify(profiles[role] || profiles.student) });
+    return payload.user;
   }
   function localPasswordMap() { try { return JSON.parse(localStorage.getItem('portal.ceal.passwords') || '{}'); } catch { return {}; } }
   function saveLocalPasswordMap(map) { localStorage.setItem('portal.ceal.passwords', JSON.stringify(map)); }
@@ -1059,11 +1077,11 @@
       ['/', 'home', 'Inicio'],
       ['/comunicados', 'megaphone', 'Comunicados'],
       ['/calendario', 'calendar', 'Calendario'],
-      ['/encuestas', 'check', 'Encuestas'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
-    if (!isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
+    if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
+    if (FEATURES.tableReservations && !isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
     if (hasCealAccess()) {
       items.push(['/gestion', 'settings', 'Gestión']);
     }
@@ -1179,7 +1197,7 @@
   function afterRender() {
     hydrateMallaEmbed();
     hydrateCalendarStatus();
-    hydrateReservations();
+    if (FEATURES.tableReservations) hydrateReservations();
   }
   async function hydrateCalendarStatus() {
     const route = getRoute().path;
@@ -1204,6 +1222,8 @@
       try {
         const payload = await apiRequest('/calendar/appointments');
         state.myAppointments = Array.isArray(payload.items) ? payload.items : [];
+        state.staffClosedSlots = Array.isArray(payload.availability?.closedSlots) ? payload.availability.closedSlots : [];
+        state.appointmentBusy = Array.isArray(payload.availability?.occupied) ? payload.availability.occupied : [];
       } catch { state.myAppointments = []; }
       finally { state.myApptsLoading = false; render({ transition: false, scope: 'panel', resetScroll: false }); }
       return;
@@ -1226,18 +1246,18 @@
   }
   function renderLogin() {
     const googleConfigured = Boolean(GOOGLE_CLIENT_ID) && !QA_MODE;
-    const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Google UCN pendiente</strong><span>Agrega el Client ID web para activar el acceso con Google.</span></div>`;
+    const googlePending = googleConfigured ? '' : `<div class="google-auth-note"><strong>Acceso institucional no disponible</strong><span>Utiliza el ingreso habilitado por la administración.</span></div>`;
     const googleButton = role => `<button class="google-oauth-btn ${googleConfigured ? '' : 'is-disabled'}" data-google-redirect="${role}" type="button" ${googleConfigured ? '' : 'disabled'}><span class="google-mark" aria-hidden="true">G</span><span>Acceder con Google</span></button>`;
-    const devAccess = isLocalDevHost() ? `<div class="dev-login-panel"><span class="kicker">Ingreso rapido</span><div class="quick-chip-row"><button class="chip-btn" type="button" data-dev-login="student">Estudiante</button><button class="chip-btn" type="button" data-dev-login="ceal">CEAL</button><button class="chip-btn" type="button" data-dev-login="jefatura">Jefatura</button></div></div>` : '';
+    const devAccess = isLocalDevHost() ? `<div class="dev-login-panel"><span class="kicker">Ingreso rápido</span><div class="quick-chip-row"><button class="chip-btn" type="button" data-dev-login="student">Estudiante</button><button class="chip-btn" type="button" data-dev-login="ceal">CEAL</button><button class="chip-btn" type="button" data-dev-login="jefatura">Jefatura</button></div></div>` : '';
     return `<main class="login-shell">${themeToggleButton('login-theme-toggle')}<section class="login-card" aria-label="Ingreso al portal">
-      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal.png" alt="CEIC UCN Ingeniería Civil UCN" /><span class="login-wordmark" role="img" aria-label="CEIC UCN"><strong>CEIC UCN</strong><small>Ingeniería Civil · Universidad Católica del Norte</small></span></div></div>
+      <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal-transparent.png" alt="CEIC UCN Ingeniería Civil UCN" /><span class="login-wordmark" role="img" aria-label="CEIC UCN"><strong>CEIC UCN</strong><small>Ingeniería Civil · Universidad Católica del Norte</small></span></div></div>
       <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @alumnos.ucn.cl.</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
           <section class="google-login-card">
             <span class="role-icon">${icon('user')}</span>
             <div class="google-login-body">
-              <div><strong>Estudiantes</strong><span>Material, mallas, calendario, comunicados y encuestas.</span></div>
+              <div><strong>Estudiantes</strong><span>Material, mallas, calendario, comunicados y atención.</span></div>
               ${googleButton('student')}
             </div>
           </section>
@@ -1263,11 +1283,12 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], ['/reservas', 'pingpong', 'Reservas']]
+    const roleDestination = isGuest() ? ['/calendario', 'calendar', 'Calendario'] : hasJefaturaAccess() ? ['/jefatura', 'users', 'Jefatura'] : ['/atencion', 'users', 'Atención'];
+    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], roleDestination]
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('');
-    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
+    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${notificationBell()}<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
-      <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${notificationBell()}<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
+      <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${notificationBell()}<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
   }
   function renderMobileMenu(path) {
@@ -1293,7 +1314,7 @@
   }
   function renderPage(path, query) {
     if (path === '/') return renderHome();
-    if (path === '/reservas') return isGuest() ? renderNotFound('Inicia sesión para reservar taca-taca o ping-pong.') : renderReservations();
+    if (path === '/reservas') return FEATURES.tableReservations && !isGuest() ? renderReservations() : renderNotFound();
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/notificaciones') return renderNotificationsPage();
@@ -1305,9 +1326,9 @@
       return renderCommunicationDetail(commId);
     }
     if (path === '/calendario') return renderCalendar();
-    if (path === '/encuestas') return renderSurveys();
-    if (path === '/encuestas/nueva') return renderSurveyBuilder();
-    if (path.startsWith('/encuestas/')) return renderSurveyDetail(path.split('/')[2]);
+    if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
+    if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
+    if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
     if (path === '/jefatura') return hasJefaturaAccess() ? renderBookingPage(true) : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
     if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderBookingPage(false);
     if (path === '/asistente') return renderCealAssistant();
@@ -1355,14 +1376,15 @@
   function renderHome() {
     const noDataYet = !dataReady && !Data.communications.length && !Data.events.length;
     const homeUnreadComms = (Data.communications || []).filter(isCommUnread).length;
-    const homeNextEvent = (Data.events || []).find(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || new Date().toISOString().slice(0, 10)}T00:00:00`));
+    const upcomingEvents = currentAndFutureEvents();
+    const homeNextEvent = upcomingEvents[0];
     const homeActiveAgreements = (Data.agreements || []).filter(a => a.status !== 'publicado').length;
     const homeResourceCount = (Data.resources || []).length;
     const summaryStrip = `<div class="summary-strip">${summaryStat('megaphone', homeUnreadComms, 'Comunicados nuevos', '/comunicados')}${summaryStat('calendar', homeNextEvent ? fmtDate(homeNextEvent.date) : '—', 'Próxima fecha', '/calendario')}${summaryStat('file', homeActiveAgreements, 'Seguimientos activos', '/calendario')}${summaryStat('book', homeResourceCount, 'Recursos', '/material')}</div>`;
     return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}${summaryStrip}
       <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || (noDataYet ? skeletonList(3) : '<p class="small muted">Sin comunicados por ahora.</p>')}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P en vista inmersiva.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas oficiales 2026.','Abrir','/calendario')}${access('check','Encuestas','Votaciones y consultas CEAL.','Responder','/encuestas','blue')}</div></div></section>${renderHomeDigest()}
-      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('') || (noDataYet ? skeletonList(3) : '')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${Data.events.slice(0,4).map(dateRow).join('') || (noDataYet ? skeletonList(3) : '')}</section></div>`;
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas','blue')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}${isGuest() ? '' : access('users','Atención de Jefatura','Consulta horas disponibles.','Abrir',hasJefaturaAccess() ? '/jefatura' : '/atencion','blue')}</div></div></section>${renderHomeDigest()}
+      <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('') || (noDataYet ? skeletonList(3) : '')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${upcomingEvents.slice(0,4).map(dateRow).join('') || (noDataYet ? skeletonList(3) : renderEmpty('Sin fechas próximas', 'No hay hitos futuros publicados.'))}</section></div>`;
 
   }
   function renderHomeDigest() {
@@ -1374,7 +1396,10 @@
   function newsRow(ico, title, desc, href, date) { return `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<span><strong>${esc(title)}</strong><span>${esc(desc || '')}</span></span></span><span class="small muted">${fmtDate(date)}</span></a>`; }
   function dateRow(e) {
     const detail = [fmtDate(e.date), e.time, e.description].filter(Boolean).map(esc).join(' - ');
-    return `<a class="link-card-row" href="#/calendario"><span><strong>${esc(e.title)}</strong><span>${detail}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`;
+    return `<a class="link-card-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${detail}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`;
+  }
+  function calendarNextRow(e) {
+    return `<a class="link-card-row calendar-next-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${fmtDate(e.date)}${e.time ? ` · ${esc(e.time)}` : ''}</span></span><span class="pill ${calendarEventTone(e.type)}">${esc(e.type || 'Fecha')}</span></a>`;
   }
   function parseCalendarDate(date) {
     const [year, month, day] = String(date).slice(0, 10).split('-').map(Number);
@@ -1393,8 +1418,8 @@
     if (value.includes('receso') || value.includes('bienestar')) return 'green';
     return 'blue';
   }
-  function renderMonthCalendar(monthDate, events) {
-    const todayKey = Data.today || new Date().toISOString().slice(0, 10);
+  function renderMonthCalendar(monthDate, events, selectedDate) {
+    const todayKey = portalTodayKey();
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
     const first = new Date(year, month, 1);
@@ -1414,14 +1439,17 @@
       const visibleDay = inMonth ? dayNumber : dayNumber < 1 ? previousMonthDays + dayNumber : dayNumber - daysInMonth;
       const dateKey = inMonth ? isoCalendarDate(year, month, visibleDay) : '';
       const dayEvents = inMonth ? (eventsByDate[dateKey] || []) : [];
-      const classes = ['day-cell', inMonth ? '' : 'outside', dateKey === todayKey ? 'today' : '', dayEvents.length ? 'has-event' : ''].filter(Boolean).join(' ');
+      const classes = ['day-cell', inMonth ? '' : 'outside', dateKey === todayKey ? 'today' : '', dateKey === selectedDate ? 'selected' : '', dateKey && dateKey < todayKey ? 'past' : '', dayEvents.length ? 'has-event' : ''].filter(Boolean).join(' ');
       const eventsMarkup = dayEvents.slice(0, 2).map(event => `<span class="day-event ${calendarEventTone(event.type)}" title="${esc(event.title)}">${esc(event.title)}</span>`).join('');
       const extra = dayEvents.length > 2 ? `<span class="day-more">+${dayEvents.length - 2}</span>` : '';
-      return `<div class="${classes}" ${dateKey ? `data-calendar-date="${dateKey}"` : ''}><time datetime="${dateKey || ''}"><span class="day-number ${inMonth ? '' : 'muted'}">${visibleDay}</span>${dateKey === todayKey ? '<span class="today-dot">Hoy</span>' : ''}</time>${eventsMarkup}${extra}</div>`;
+      const label = dateKey ? `${parseCalendarDate(dateKey).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}${dayEvents.length ? `, ${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'}` : ''}` : '';
+      return inMonth
+        ? `<button type="button" class="${classes}" data-calendar-date="${dateKey}" aria-label="${esc(label)}" aria-pressed="${dateKey === selectedDate ? 'true' : 'false'}"><time datetime="${dateKey}"><span class="day-number">${visibleDay}</span>${dateKey === todayKey ? '<span class="today-dot">Hoy</span>' : ''}</time>${eventsMarkup}${extra}</button>`
+        : `<div class="${classes}" aria-hidden="true"><span class="day-number muted">${visibleDay}</span></div>`;
     }).join('');
     return `<div class="month-grid" aria-label="Calendario ${esc(calendarMonthLabel(monthDate))}">${heads}${cells}</div>`;
   }
-  function renderMonthEventAgenda(monthDate, events) {
+  function renderMonthEventAgenda(monthDate, events, selectedDate) {
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
     const monthEvents = events.filter(event => {
@@ -1429,7 +1457,16 @@
       return date.getFullYear() === year && date.getMonth() === month;
     });
     if (!monthEvents.length) return renderEmpty('Sin fechas este mes', 'Las próximas actividades aparecen en la agenda lateral.');
-    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<a class="calendar-agenda-row" href="#/calendario"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${[event.time, event.description].filter(Boolean).map(esc).join(' - ')}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></a>`).join('')}</div>`;
+    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<button type="button" class="calendar-agenda-row ${String(event.date).slice(0, 10) === selectedDate ? 'selected' : ''}" data-calendar-date="${esc(String(event.date).slice(0, 10))}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${[event.time, event.description].filter(Boolean).map(esc).join(' - ')}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></button>`).join('')}</div>`;
+  }
+
+  function renderSelectedCalendarDay(dateKey, events) {
+    const date = parseCalendarDate(dateKey);
+    const dayEvents = events.filter(event => String(event.date || '').slice(0, 10) === dateKey);
+    const rawHeading = date.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    const heading = rawHeading.charAt(0).toUpperCase() + rawHeading.slice(1);
+    if (!dayEvents.length) return `<section class="card pad calendar-day-detail" aria-live="polite"><span class="kicker">Día seleccionado</span><h2 class="card-title">${esc(heading)}</h2><p class="small muted">Sin hitos publicados.</p></section>`;
+    return `<section class="card pad calendar-day-detail" aria-live="polite"><span class="kicker">Día seleccionado</span><h2 class="card-title">${esc(heading)}</h2><div class="calendar-day-events">${dayEvents.map(event => `<article><div class="row-between"><strong>${esc(event.title)}</strong><span class="pill ${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</span></div>${event.time ? `<time>${esc(event.time)}</time>` : ''}<p>${esc(event.description || 'Actividad del calendario académico.')}</p></article>`).join('')}</div></section>`;
   }
 
   function renderCommunications() {
@@ -1479,12 +1516,24 @@
 
   function renderCalendar() {
     const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
-    const nextEvents = Data.events.filter(e => new Date(`${e.date}T23:59:59`) >= new Date(`${Data.today || '2026-06-17'}T00:00:00`));
-    const currentMonth = parseCalendarDate(Data.today || nextEvents[0]?.date || '2026-06-17');
+    const todayKey = portalTodayKey();
+    const routeDate = String(getRoute().query.date || '').slice(0, 10);
+    const validRouteDate = /^\d{4}-\d{2}-\d{2}$/.test(routeDate) ? routeDate : '';
+    if (validRouteDate && state.calendarSelectedDate !== validRouteDate) {
+      state.calendarSelectedDate = validRouteDate;
+      state.calendarMonth = parseCalendarDate(validRouteDate);
+    }
+    state.calendarSelectedDate ||= todayKey;
+    state.calendarMonth ||= parseCalendarDate(state.calendarSelectedDate);
+    const currentMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth(), 1);
+    const events = [...(Data.events || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
+    const nextEvents = currentAndFutureEvents();
     const agreementAction = hasCealAccess() ? `<a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a>` : '';
     const agreementRows = Data.agreements.slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
-    return `${pageHead('Calendario', 'Fechas académicas oficiales relevantes desde junio de 2026', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2><p class="small muted">Fechas oficiales visibles desde la fecha actual del portal.</p></div><span class="pill blue">${nextEvents.length} ${nextEvents.length === 1 ? 'fecha próxima' : 'fechas próximas'}</span></div>${renderMonthCalendar(currentMonth, nextEvents)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${esc(currentMonth.toLocaleDateString('es-CL', { month: 'long' }))}</span></div>${renderMonthEventAgenda(currentMonth, nextEvents)}</section><aside class="card pad calendar-side-panel"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="calendar-change-note"><strong>Fechas sujetas a cambio</strong><span>Algunos hitos pueden ajustarse si la carrera informa cambios oficiales. CEAL actualizará esta vista cuando exista información confirmada.</span></div><div class="card-list">${nextEvents.map(dateRow).join('')}</div><div class="divider"></div><span class="kicker">Fuente oficial</span><h2 class="card-title">Calendario de Actividades Docentes 2026</h2><p class="small muted">Se muestran los hitos vigentes y próximos del calendario DGPRE UCN para pregrado. Las fechas pasadas de enero a mayo quedan fuera para evitar ruido al consultar el portal.</p><div class="divider"></div><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></aside></div>`;
+    const monthEventCount = events.filter(event => { const date = parseCalendarDate(event.date); return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth(); }).length;
+    const monthActions = `<div class="calendar-month-actions"><button class="icon-btn calendar-prev" type="button" data-calendar-month="-1" aria-label="Mes anterior" title="Mes anterior">${icon('arrow')}</button><button class="btn secondary sm" type="button" data-calendar-today>Hoy</button><button class="icon-btn" type="button" data-calendar-month="1" aria-label="Mes siguiente" title="Mes siguiente">${icon('arrow')}</button></div>`;
+    return `${pageHead('Calendario académico', 'Fechas vigentes y próximas', calendarAction)}
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel">${renderSelectedCalendarDay(state.calendarSelectedDate, events)}<section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><p class="small muted">Fuente: Calendario DGPRE UCN 2026. Fechas sujetas a actualización.</p></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
@@ -1586,12 +1635,7 @@
     const accountLabel = 'Mi cuenta';
     const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
     const mallaTotalCourses = getCourses(planKey).length;
-    const mallaApprovedCourses = getCourses(planKey).filter(c => getProgress(planKey, c.code) === 'approved').length;
-    const mallaProgressMarkup = mallaTotalCourses
-      ? (mallaApprovedCourses
-        ? `<div class="malla-progress-wrap"><span class="malla-progress-label">${mallaApprovedCourses} de ${mallaTotalCourses} ramos</span><div class="progress malla-progress"><div class="progress-bar" style="width:${Math.round((mallaApprovedCourses / mallaTotalCourses) * 100)}%"></div></div></div>`
-        : `<span class="malla-progress-label">${mallaTotalCourses} ramos</span>`)
-      : '';
+    const mallaProgressMarkup = mallaTotalCourses ? `<span class="malla-progress-label">${mallaTotalCourses} ramos</span>` : '';
     return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
         <header class="malla-commandbar">
           <a class="malla-commandbar-title" href="#/" aria-label="Volver al inicio del portal">
@@ -1614,7 +1658,7 @@
         </header>
         <div class="malla-embed-frame-wrap" data-malla-frame-wrap>
           <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
-          <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}"></iframe>
+          <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
         </div>
       </section>`;
   }
@@ -1688,16 +1732,16 @@
       .mc-semester{display:grid;gap:10px;align-content:start}
       .mc-semester h2{margin:0;padding:9px 10px;border-radius:10px;background:var(--mc-panel);border:1px solid var(--mc-border);font-size:13px;text-transform:uppercase;color:var(--mc-muted);letter-spacing:.04em}
       .mc-semester__cards{display:grid;gap:10px}
-      .mc-card{display:grid;gap:6px;min-height:104px;padding:12px;border:1px solid var(--mc-border);border-left:4px solid var(--mc-area-general);border-radius:var(--mc-card-radius);background:var(--mc-card-bg);box-shadow:var(--mc-card-shadow);cursor:pointer}
+      .mc-card{display:grid;gap:6px;min-height:104px;padding:12px;border:1px solid var(--mc-border);border-radius:var(--mc-card-radius);background:var(--mc-card-bg);box-shadow:var(--mc-card-shadow);cursor:pointer}
       .mc-card__code{font-size:11px;font-weight:800;color:var(--mc-muted)}
       .mc-card__title{font-size:13px;line-height:1.25;color:var(--mc-text)}
       .mc-card__meta{font-size:11px;color:var(--mc-muted);line-height:1.25}
-      .mc-area-basica{border-left-color:var(--mc-area-basica);background:linear-gradient(180deg,var(--mc-area-basica-bg),var(--mc-card-bg))}
-      .mc-area-ingenieria{border-left-color:var(--mc-area-ingenieria);background:linear-gradient(180deg,var(--mc-area-ingenieria-bg),var(--mc-card-bg))}
-      .mc-area-aplicada{border-left-color:var(--mc-area-aplicada);background:linear-gradient(180deg,var(--mc-area-aplicada-bg),var(--mc-card-bg))}
-      .mc-area-general{border-left-color:var(--mc-area-general);background:linear-gradient(180deg,var(--mc-area-general-bg),var(--mc-card-bg))}
-      .mc-area-proyecto{border-left-color:var(--mc-area-proyecto);background:linear-gradient(180deg,var(--mc-area-proyecto-bg),var(--mc-card-bg))}
-      .mc-area-electivo{border-left-color:var(--mc-area-electivo);background:linear-gradient(180deg,var(--mc-area-electivo-bg),var(--mc-card-bg))}
+      .mc-area-basica{background:linear-gradient(180deg,var(--mc-area-basica-bg),var(--mc-card-bg))}
+      .mc-area-ingenieria{background:linear-gradient(180deg,var(--mc-area-ingenieria-bg),var(--mc-card-bg))}
+      .mc-area-aplicada{background:linear-gradient(180deg,var(--mc-area-aplicada-bg),var(--mc-card-bg))}
+      .mc-area-general{background:linear-gradient(180deg,var(--mc-area-general-bg),var(--mc-card-bg))}
+      .mc-area-proyecto{background:linear-gradient(180deg,var(--mc-area-proyecto-bg),var(--mc-card-bg))}
+      .mc-area-electivo{background:linear-gradient(180deg,var(--mc-area-electivo-bg),var(--mc-card-bg))}
       @media(max-width:640px){.mc-local-shell{padding:12px}.mc-header{display:grid}.mc-grid{display:grid;grid-template-columns:1fr;min-width:0}.mc-semester{content-visibility:auto}.mc-semester h2{position:sticky;top:0;z-index:2}}
     </style>`;
     const subjectPayload = safeJsonForScript(subjects.map(course => ({ code: course.code, prereqs: course.prereqs || [] })));
@@ -1817,6 +1861,7 @@
       .mc-card {
         border-radius: 8px !important;
         border-color: var(--mc-line) !important;
+        border-left-width: 1px !important;
         box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px var(--mc-card-glow) !important;
       }
       .mc-card:hover { transform: translateY(-1px); }
@@ -1932,6 +1977,13 @@
   function mallaEmbedGuidanceScript() {
     return `<script>
       (function() {
+        window.addEventListener('message', function(event) {
+          var data = event.data;
+          if (event.source !== window.parent || !data || data.__mcPortalTheme !== true) return;
+          var dark = data.theme === 'dark';
+          document.documentElement.classList.toggle('mc-light', !dark);
+          try { localStorage.setItem('mc-theme', dark ? 'dark' : 'light'); } catch (err) {}
+        });
         var mq = window.matchMedia ? window.matchMedia('(max-width: 640px)') : { matches: false };
         var topHint = null;
         var bottomHint = null;
@@ -2202,7 +2254,7 @@
     const dimmed = selected && !selectedCodes.has(c.code);
     const prereq = selected && (selected.prereqs || []).includes(c.code);
     const successor = selected && (c.prereqs || []).includes(selected.code);
-    return `<button class="course-card ${isSelected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''} ${prereq ? 'prereq' : ''} ${successor ? 'successor' : ''}" data-course="${esc(c.code)}" data-course-plan="${plan}"><span class="course-code">${esc(c.visibleCode || c.code)}</span><strong class="course-title">${esc(titleCase(c.name))}</strong><span class="course-meta"><span class="sct">${c.sct || 0} SCT</span>${badge(getProgress(plan, c.code))}</span></button>`;
+    return `<button class="course-card ${isSelected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''} ${prereq ? 'prereq' : ''} ${successor ? 'successor' : ''}" data-course="${esc(c.code)}" data-course-plan="${plan}"><span class="course-code">${esc(c.visibleCode || c.code)}</span><strong class="course-title">${esc(titleCase(c.name))}</strong><span class="course-meta"><span class="sct">${c.sct || 0} SCT</span></span></button>`;
   }
   function renderCourseDetail(course, plan, inline = false) {
     const prereqs = getPrereqs(plan, course);
@@ -2212,9 +2264,9 @@
       ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
       : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
     const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap">${badge(getProgress(plan, course.code))}<span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Agregar seguimiento</button></div>`;
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Guardar ramo</button></div>`;
   }
-  function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${badge(getProgress(plan, c.code))}</a>`; }
+  function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
 
   function renderSupport() { return renderMaterial(); }
@@ -2392,52 +2444,34 @@
   }
   function fmtSlotTime(date) { return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }); }
 
-  // ---- Modo demo de agendamiento: store local con data cargada, funciona sin
-  // Google Calendar. Cuando la agenda real se conecte, el flujo real toma el mando. ----
-  const DEMO_JEFATURA_EMAIL = 'biblioteca.ceicucn@gmail.com';
-  const BOOKING_STORE_KEY = 'portal.booking.v1';
+  // Respaldo local para la versión estática. En producción el servidor conserva
+  // las solicitudes y la disponibilidad entre dispositivos.
+  const BOOKING_STORE_KEY = 'portal.booking.v2';
   const APPT_STATUS = { solicitada: ['Solicitada', 'orange'], confirmada: ['Confirmada', 'green'], rechazada: ['Rechazada', 'red'], cancelada: ['Cancelada', 'gray'] };
   const APPT_ACTIVE = new Set(['solicitada', 'confirmada']);
-  function bookingDemoActive() { return !state.calendarStatus?.connected; }
   function bookingStoreDefault() { return { appointments: [], closedSlots: [], seeded: false }; }
   function readBookingStore() {
     try { const raw = JSON.parse(localStorage.getItem(BOOKING_STORE_KEY) || 'null'); if (raw && typeof raw === 'object') return { ...bookingStoreDefault(), ...raw }; } catch {}
     return bookingStoreDefault();
   }
   function writeBookingStore(store) { try { localStorage.setItem(BOOKING_STORE_KEY, JSON.stringify(store)); } catch {} }
-  async function notifyBookingEmail(type, appt) {
-    if (!API_BASE) return;
-    try {
-      await apiRequest('/booking/notify', { method: 'POST', body: JSON.stringify({ type, appointment: { studentEmail: appt.studentEmail, studentName: appt.studentName, start: appt.start, end: appt.end, mode: appt.mode, place: appt.place, reason: appt.reason, staffNote: appt.staffNote || '' } }) });
-    } catch (error) { console.warn('No se pudo enviar la notificación de agenda', error); }
-  }
   function apptSlotKey(a) { return `${a.start}|${a.end}`; }
-  function demoAllSlots(profile) { return generateBookingSlots(profile.officeHours || []); }
-  function demoAvailableSlots(profile, store) {
-    const taken = new Set(store.appointments.filter(a => APPT_ACTIVE.has(a.status)).map(apptSlotKey));
-    const closed = new Set(store.closedSlots || []);
-    return demoAllSlots(profile).filter(s => { const k = slotKey(s); return !taken.has(k) && !closed.has(k); });
-  }
-  function seedBookingStore(profile) {
-    const store = readBookingStore();
-    if (store.seeded) return store;
-    const slots = demoAllSlots(profile);
-    const stamp = (slot, over) => ({ id: `apt-seed-${over.who}`, studentEmail: over.email, studentName: over.name, start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: over.reason, status: over.status, staffNote: over.note || '', createdAt: new Date(slot.start.getTime() - 86400000).toISOString() });
-    const appts = [];
-    const seedPlan = [
-      { i: 1, who: 'kevin', email: 'kevin.cortes@alumnos.ucn.cl', name: 'Kevin Cortés', reason: 'Consulta sobre inscripción de ramos del próximo semestre', status: 'confirmada', note: '' },
-      { i: 2, who: 'valentina', email: 'valentina.rojas@alumnos.ucn.cl', name: 'Valentina Rojas', reason: 'Revisión de convalidación de asignaturas de intercambio', status: 'solicitada', note: '' },
-      { i: 4, who: 'diego', email: 'diego.munoz@alumnos.ucn.cl', name: 'Diego Muñoz', reason: 'Situación de tercera matrícula en Cálculo III', status: 'solicitada', note: '' },
-      { i: 5, who: 'javiera', email: 'javiera.soto@alumnos.ucn.cl', name: 'Javiera Soto', reason: 'Consulta por inicio de práctica profesional', status: 'confirmada', note: 'Traer carta de la empresa.' }
+  function allBookingSlots(profile) { return generateBookingSlots(profile.officeHours || []); }
+  function availableBookingSlots(profile, store) {
+    const busy = [
+      ...store.appointments.filter(a => APPT_ACTIVE.has(a.status)),
+      ...(state.appointmentBusy || []),
+      ...(state.staffBusy || [])
     ];
-    for (const p of seedPlan) { const slot = slots[p.i]; if (slot) appts.push(stamp(slot, p)); }
-    store.appointments = appts;
-    store.seeded = true;
-    writeBookingStore(store);
+    const closed = new Set(store.closedSlots || []);
+    return allBookingSlots(profile).filter(s => !closed.has(slotKey(s)) && !slotOverlapsBusy(s, busy));
+  }
+  function loadBookingStore(profile) {
+    const store = readBookingStore();
     return store;
   }
   function bookingUserEmail() { return String(state.user?.email || '').toLowerCase(); }
-  function myDemoAppointments(store) { const me = bookingUserEmail(); return store.appointments.filter(a => String(a.studentEmail).toLowerCase() === me).sort((x, y) => new Date(x.start) - new Date(y.start)); }
+  function myBookingAppointments(store) { const me = bookingUserEmail(); return store.appointments.filter(a => String(a.studentEmail).toLowerCase() === me).sort((x, y) => new Date(x.start) - new Date(y.start)); }
   function nameInitials(name) { return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?'; }
   function dayHead(label) { const parts = label.split(' '); return `<div class="booking-col-head"><strong>${esc(parts[0])}</strong><span>${esc(parts.slice(1).join(' '))}</span></div>`; }
   function slotModeIcon(mode) { return /video|mixto|online/i.test(mode || '') ? 'calendar' : 'user'; }
@@ -2811,7 +2845,7 @@
     const rows = mine.filter(a => new Date(a.end).getTime() > now || APPT_ACTIVE.has(a.status)).map(a => {
       const start = new Date(a.start);
       const [label, color] = APPT_STATUS[a.status] || [a.status, 'gray'];
-      const actions = APPT_ACTIVE.has(a.status) ? `<button class="btn ghost sm" type="button" data-demo-cancel="${esc(a.id)}">${icon('x')} Soltar hora</button>` : '';
+      const actions = APPT_ACTIVE.has(a.status) ? `<button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar</button>` : '';
       return `<div class="appt-card">
         <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
         <div class="appt-card-body"><div class="row-between"><strong>${esc(a.mode || 'Presencial')}</strong><span class="status-chip ${color}">${esc(label)}</span></div><p class="small muted">${esc(a.reason || 'Sin motivo indicado')}</p>${a.staffNote ? `<p class="small booking-note">${icon('bell')} <span>${esc(a.staffNote)}</span></p>` : ''}</div>
@@ -2820,20 +2854,20 @@
     }).join('');
     return `<section class="card pad booking-mine"><div class="row-between"><h2 class="card-title">Mis horas</h2></div><div class="appt-card-list">${rows}</div></section>`;
   }
-  function renderDemoStudent(profile, store) {
-    const avail = demoAvailableSlots(profile, store);
-    const mine = myDemoAppointments(store);
+  function renderStudentBooking(profile, store) {
+    const avail = availableBookingSlots(profile, store);
+    const mine = myBookingAppointments(store);
     const selected = avail.find(s => slotKey(s) === state.bookingSlotKey);
     const confirmBlock = selected
-      ? `<div class="booking-confirm"><div class="booking-confirm-head">${icon('check')}<div><strong>${esc(fmtSlotDayLabel(selected.start))}</strong><span class="small muted">${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)} · ${esc(selected.mode || 'Presencial')} · ${esc(selected.place || '')}</span></div></div><div class="form-field"><label for="f-book-reason">Motivo de la atención</label><textarea id="f-book-reason" class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-demo-book ${state.bookingSubmitting ? 'aria-busy="true" disabled' : ''}>${state.bookingSubmitting ? '<span class="btn-spinner"></span><span>Reservando…</span>' : 'Reservar esta hora'}</button><p class="small muted">Recibirás un correo de confirmación. La hora queda sujeta a confirmación de Jefatura.</p></div>`
-      : `<p class="small muted booking-hint">${icon('clock')} Elige una hora disponible para reservar tu atención.</p>`;
+      ? `<div class="booking-confirm"><div class="booking-confirm-head">${icon('check')}<div><strong>${esc(fmtSlotDayLabel(selected.start))}</strong><span class="small muted">${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)} · ${esc(selected.mode || 'Presencial')} · ${esc(selected.place || '')}</span></div></div><div class="form-field"><label for="f-book-reason">Motivo</label><textarea id="f-book-reason" class="textarea compact" data-booking-reason maxlength="500" placeholder="Indica brevemente el motivo">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-appointment-create ${state.bookingSubmitting ? 'aria-busy="true" disabled' : ''}>${state.bookingSubmitting ? '<span class="btn-spinner"></span><span>Enviando…</span>' : 'Solicitar hora'}</button><p class="small muted">Jefatura confirmará la solicitud por correo.</p></div>`
+      : `<p class="small muted booking-hint">${icon('clock')} Selecciona una hora disponible.</p>`;
     return `${pageHead('Atención de Jefatura', 'Agenda una hora de atención con la Jefatura de carrera')}
       <div class="split wide booking-layout">
         <section class="card pad booking-picker">
           <div class="row-between"><h2 class="card-title">Horas disponibles</h2><span class="pill blue">${avail.length} libres</span></div>
           <p class="small muted">Selecciona el día y la hora que prefieras.</p>
-          ${renderStudentCalendar(avail)}
           ${confirmBlock}
+          ${renderStudentCalendar(avail)}
         </section>
         ${bookingHeroCard(profile)}
       </div>
@@ -2845,7 +2879,7 @@
       <div class="request-card-top"><span class="avatar sm">${nameInitials(a.studentName || a.studentEmail)}</span><div class="request-who"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail)}</span></div><span class="status-chip orange">Solicitada</span></div>
       <div class="request-when">${icon('calendar')}<span>${esc(fmtSlotDayLabel(start))} · ${fmtSlotTime(start)}–${fmtSlotTime(new Date(a.end))} · ${esc(a.mode || 'Presencial')}</span></div>
       <p class="request-reason">${esc(a.reason || 'Sin motivo indicado')}</p>
-      <div class="request-actions"><button class="btn primary sm" type="button" data-demo-confirm="${esc(a.id)}">${icon('check')} Confirmar</button><button class="btn ghost sm" type="button" data-demo-reject="${esc(a.id)}">${icon('x')} Rechazar</button></div>
+      <div class="request-actions"><button class="btn primary sm" type="button" data-appointment-confirm="${esc(a.id)}">${icon('check')} Confirmar</button><button class="btn ghost sm" type="button" data-appointment-reject="${esc(a.id)}">${icon('x')} Rechazar</button></div>
     </article>`;
   }
   function renderStaffApptRow(a) {
@@ -2853,28 +2887,28 @@
     return `<div class="appt-card">
       <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
       <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
-      <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-demo-cancel="${esc(a.id)}">${icon('x')} Cancelar</button></div>
+      <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar</button></div>
     </div>`;
   }
   function renderStaffAvailability(profile, store) {
-    const all = demoAllSlots(profile);
+    const all = allBookingSlots(profile);
     if (!all.length) return `<p class="small muted">No hay horarios base configurados en el perfil.</p>`;
     const closed = new Set(store.closedSlots || []);
-    const taken = new Set(store.appointments.filter(a => APPT_ACTIVE.has(a.status)).map(apptSlotKey));
+    const busy = [...store.appointments.filter(a => APPT_ACTIVE.has(a.status)), ...(state.staffBusy || [])];
     const byDay = new Map();
     all.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
     const cols = [...byDay.entries()].slice(0, 6).map(([day, list]) => {
       const chips = list.map(s => {
         const k = slotKey(s);
-        if (taken.has(k)) return `<span class="slot-chip is-taken" title="Reservada por un estudiante">${fmtSlotTime(s.start)}</span>`;
-        if (closed.has(k)) return `<button type="button" class="slot-chip is-closed" data-demo-open="${esc(k)}" title="Cerrada — clic para reabrir">${fmtSlotTime(s.start)}</button>`;
-        return `<button type="button" class="slot-chip is-open" data-demo-close="${esc(k)}" title="Disponible — clic para cerrar">${fmtSlotTime(s.start)}</button>`;
+        if (slotOverlapsBusy(s, busy)) return `<span class="slot-chip is-taken" title="Hora ocupada">${fmtSlotTime(s.start)}</span>`;
+        if (closed.has(k)) return `<button type="button" class="slot-chip is-closed" data-availability-open="${esc(k)}" title="Cerrada; activar para reabrir">${fmtSlotTime(s.start)}</button>`;
+        return `<button type="button" class="slot-chip is-open" data-availability-close="${esc(k)}" title="Disponible; activar para cerrar">${fmtSlotTime(s.start)}</button>`;
       }).join('');
       return `<div class="booking-col">${dayHead(day)}<div class="booking-col-slots">${chips}</div></div>`;
     }).join('');
     return `<div class="booking-legend"><span><i class="dot open"></i> Disponible</span><span><i class="dot closed"></i> Cerrada</span><span><i class="dot taken"></i> Reservada</span></div><div class="booking-calendar">${cols}</div>`;
   }
-  function renderDemoStaff(profile, store) {
+  function renderStaffBooking(profile, store) {
     const appts = store.appointments.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
     const now = Date.now();
     const pending = appts.filter(a => a.status === 'solicitada');
@@ -2882,7 +2916,7 @@
     const weekEnd = now + 7 * 86400000;
     const thisWeek = appts.filter(a => APPT_ACTIVE.has(a.status) && new Date(a.start).getTime() <= weekEnd && new Date(a.end).getTime() > now);
     const kpis = `<div class="booking-kpis">${bookingKpi('bell', pending.length, 'Solicitudes por revisar', pending.length ? 'orange' : 'gray')}${bookingKpi('check', confirmed.length, 'Confirmadas próximas', 'green')}${bookingKpi('clock', thisWeek.length, 'Atenciones esta semana', 'blue')}</div>`;
-    const inbox = pending.length ? pending.map(renderRequestCard).join('') : renderEmpty('Sin solicitudes pendientes', 'Cuando un estudiante reserve una hora aparecerá aquí para confirmarla.', '', 'check');
+    const inbox = pending.length ? pending.map(renderRequestCard).join('') : `<div class="booking-inline-empty">${icon('check')}<span><strong>Sin solicitudes pendientes</strong><small>Las nuevas solicitudes aparecerán aquí.</small></span></div>`;
     const agenda = confirmed.length ? confirmed.map(renderStaffApptRow).join('') : `<p class="small muted">No hay atenciones confirmadas próximas.</p>`;
     return `${pageHead('Jefatura de carrera', 'Solicitudes de atención y gestión de tu agenda')}
       ${kpis}
@@ -2895,11 +2929,11 @@
   }
   function renderBookingPage(forStaff) {
     const profile = (Data.staffProfiles || [])[0] || {};
-    if (bookingDemoActive()) {
-      const store = seedBookingStore(profile);
-      return forStaff ? renderDemoStaff(profile, store) : renderDemoStudent(profile, store);
-    }
-    return renderStaffAdvising();
+    if (API_BASE && state.myAppointments === null) return renderLoading(forStaff ? 'Jefatura de carrera' : 'Atención de Jefatura', 'Cargando horarios…');
+    const store = API_BASE
+      ? { appointments: state.myAppointments || [], closedSlots: state.staffClosedSlots || [] }
+      : loadBookingStore(profile);
+    return forStaff ? renderStaffBooking(profile, store) : renderStudentBooking(profile, store);
   }
 
   function renderStaffCalendarPanel(profile = {}) {
@@ -2909,10 +2943,10 @@
       return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conexión no disponible</h2><p class="small muted">La conexión directa con Google Calendar se activará cuando el servicio institucional esté listo.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Cuenta de agenda</strong><small>${esc(account)}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Agenda institucional</strong><small>Al activarse aparecerá el botón de conexión.</small></span></div></aside>`;
     }
     if (state.calendarStatusLoading && !state.calendarStatus) {
-      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">Revisando Calendar</h2><p class="small muted">Consultando el estado de conexión de Google Calendar.</p></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Revisando conexión</h2></aside>`;
     }
     if (state.calendarStatusError) {
-      return `<aside class="card pad"><span class="kicker">Agenda pro</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
+      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
     }
     if (!status.configured) {
       return `<aside class="card pad"><span class="kicker">Agenda · opcional</span><h2 class="card-title">Horarios desde Google Calendar</h2><p class="small muted">Los horarios de atención se muestran a la izquierda. De forma opcional, Jefatura podrá conectar su Google Calendar para publicarlos y actualizarlos automáticamente.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Horarios publicados</strong><small>Ya visibles para estudiantes.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Sincronización automática</strong><small>Próximamente con Google Calendar.</small></span></div></aside>`;
@@ -2922,57 +2956,6 @@
     }
     return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo institucional.</p></aside>`;
   }
-  function renderBookingPanel(profile) {
-    const status = state.calendarStatus || {};
-    const contactEmail = profile.email || 'jc.icivil.afta@ucn.cl';
-    if (!API_BASE) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Agenda no disponible</h2><p class="small muted">El agendamiento se activará cuando el servicio esté listo.</p></aside>`;
-    if (!state.calendarStatus && state.calendarStatusLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Cargando disponibilidad…</h2></aside>`;
-    if (!status.connected) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Agendamiento no disponible aún</h2><p class="small muted">La jefatura todavía no habilitó la agenda en línea. Puedes escribir a <strong>${esc(contactEmail)}</strong> o revisar los horarios de atención a la izquierda.</p></aside>`;
-    if (state.staffBusy === null && state.staffBusyLoading) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Buscando horas libres…</h2></aside>`;
-    if (state.staffBusy == null && state.staffBusyError) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">No pudimos verificar la disponibilidad</h2><p class="small muted">No pudimos verificar la disponibilidad. Reintenta en unos minutos.</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
-    const slots = generateBookingSlots(profile.officeHours).filter(s => !slotOverlapsBusy(s, state.staffBusy || []));
-    if (!slots.length) return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Sin horas disponibles</h2><p class="small muted">No hay cupos libres en las próximas semanas. Vuelve a revisar más adelante o escribe a <strong>${esc(contactEmail)}</strong>.</p></aside>`;
-    const byDay = new Map();
-    slots.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
-    const selected = slots.find(s => slotKey(s) === state.bookingSlotKey);
-    const slotsHtml = [...byDay.entries()].slice(0, 8).map(([day, list]) => `<div class="booking-day"><span class="booking-day-label">${esc(day)}</span><div class="booking-slot-row">${list.map(s => `<button type="button" class="booking-slot ${slotKey(s) === state.bookingSlotKey ? 'active' : ''}" data-book-slot="${esc(slotKey(s))}">${fmtSlotTime(s.start)}</button>`).join('')}</div></div>`).join('');
-    const confirmBlock = selected
-      ? `<div class="booking-confirm"><div class="divider"></div><p class="small"><strong>${esc(fmtSlotDayLabel(selected.start))}</strong> · ${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)}${selected.mode ? ` · ${esc(selected.mode)}` : ''}${selected.place ? ` · ${esc(selected.place)}` : ''}</p><div class="form-field"><label for="f-booking-reason">Motivo (breve)</label><textarea id="f-booking-reason" class="textarea compact" data-booking-reason placeholder="Ej: consulta sobre inscripción de ramos">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-book-submit ${state.bookingSubmitting ? 'disabled' : ''}>${state.bookingSubmitting ? 'Solicitando…' : 'Solicitar esta hora'}</button><p class="small muted">Recibirás una invitación por correo. La hora queda sujeta a confirmación de jefatura.</p></div>`
-      : `<p class="small muted" style="margin-top:10px">Elige una hora para solicitar tu atención.</p>`;
-    return `<aside class="card pad booking-panel"><span class="kicker">${icon('calendar')} Agendar atención</span><h2 class="card-title">Solicita una hora</h2><p class="small muted">Horas libres según el calendario de jefatura.</p>${state.staffBusyError ? `<p class="form-alert">${esc(state.staffBusyError)}</p>` : ''}<div class="booking-slots">${slotsHtml}</div>${confirmBlock}</aside>`;
-  }
-  function renderAppointmentsList(isJefatura) {
-    const items = state.myAppointments;
-    if (!Array.isArray(items) || !items.length) return '';
-    const rows = items.slice(0, 10).map(a => {
-      const start = new Date(a.start);
-      const valid = !Number.isNaN(start.getTime());
-      const when = valid ? `${fmtSlotDayLabel(start)} · ${fmtSlotTime(start)}` : 'Hora por confirmar';
-      const who = isJefatura && a.requesterEmail ? `<small>${esc(a.requesterEmail)}</small>` : '';
-      const reason = a.reason ? `<small>${esc(a.reason)}</small>` : '';
-      const safeEventLink = safeUrl(a.googleEventLink);
-      const link = safeEventLink ? `<a class="link" href="${esc(safeEventLink)}" target="_blank" rel="noopener">Ver en Calendar ${icon('arrow')}</a>` : '';
-      return `<div class="appt-row"><span class="appt-main"><strong>${esc(when)}</strong>${who}${reason}</span><span class="hstack">${badge('blue', a.status || 'solicitada')}${link}</span></div>`;
-    }).join('');
-    return `<section class="card pad" style="margin-top:18px"><h2 class="card-title">${isJefatura ? 'Solicitudes recibidas' : 'Tus solicitudes'}</h2><div class="appt-list">${rows}</div></section>`;
-  }
-  function renderStaffAdvising() {
-    const profile = (Data.staffProfiles || [])[0] || {};
-    const hours = profile.officeHours || [];
-    const contactEmail = profile.email || 'jc.icivil.afta@ucn.cl';
-    const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
-    const isJefatura = hasJefaturaAccess();
-    const calendarButton = isJefatura
-      ? (status.connected ? `<span class="pill green">Agenda conectada</span>` : status.configured ? `<span class="pill orange">Agenda no conectada</span>` : '')
-      : '';
-    const safeBookingUrl = safeUrl(profile.bookingUrl);
-    const bookingButton = safeBookingUrl ? `<a class="btn secondary" href="${esc(safeBookingUrl)}" target="_blank" rel="noopener">${icon('calendar')} Agenda pública</a>` : '';
-    const actions = `${calendarButton}${bookingButton}`;
-    const rightPanel = isJefatura ? renderStaffCalendarPanel(profile) : renderBookingPanel(profile);
-    return `${pageHead(isJefatura ? 'Jefatura de carrera' : 'Atención de Jefatura', isJefatura ? 'Horarios de atención y solicitudes recibidas' : 'Agenda una hora de atención con la Jefatura de carrera')}
-      <div class="split wide"><section class="card pad staff-profile-card"><div class="row-between"><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div><span class="icon-box blue">${icon('users')}</span></div><div class="detail-block"><div class="detail-row"><span>Correo</span><strong>${esc(contactEmail)}</strong></div><div class="detail-row"><span>Acceso</span><strong>Perfil institucional autorizado</strong></div></div><p class="muted">${esc(profile.description || 'Horarios de atención e información oficial de Jefatura de carrera.')}</p>${actions.trim() ? `<div class="hstack">${actions}</div>` : ''}<div class="divider"></div><h3 class="card-title">Horarios publicados</h3><div class="staff-hours-list">${hours.map(hour => `<div class="staff-hour-row"><span><strong>${esc(hour.day)}</strong><small>${esc(hour.mode)} - ${esc(hour.place)}</small></span><span><strong>${esc(hour.time)}</strong><small>${esc(hour.status)}</small></span></div>`).join('') || renderEmpty('Sin horarios publicados', 'Cuando jefatura confirme disponibilidad aparecerá aquí.')}</div></section>${rightPanel}</div>${renderAppointmentsList(isJefatura)}`;
-  }
-
   function renderCealAssistant() {
     const req = state.cealAssistantRequest || {};
     const endpointReady = Boolean(AI_ENDPOINT || API_BASE);
@@ -3055,11 +3038,8 @@
 
   function renderManagement() {
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
-    const pendingReservations = rsvAdminItems().filter(rsv => ['preconfirmada', 'pagoAvisado'].includes(rsv.status));
-    const openSurveys = (Data.surveys || []).filter(s => s.status === 'open');
     const actions = [
       ['megaphone', 'Publicar comunicado', 'Redacta con ayuda del asistente y avisa por correo.', '/comunicados/nuevo'],
-      ['check', 'Crear encuesta o votación', 'Consulta a estudiantes con resultados agregados.', '/encuestas/nueva'],
       ['file', 'Registrar seguimiento', 'Acta de acuerdos y compromisos con la carrera.', '/gestion/acuerdos/nuevo'],
       ['book', 'Validar material', pendingMaterial.length ? `${pendingMaterial.length} recurso${pendingMaterial.length === 1 ? '' : 's'} esperando revisión.` : 'No hay recursos pendientes.', pendingMaterial[0] ? `/gestion/material/${pendingMaterial[0].id}/validar` : '/material']
     ];
@@ -3071,16 +3051,13 @@
       return `<a class="link-card-row" href="#${href}"><span><strong>${esc(r.title)}</strong><span>${esc(r.courseName)} - ${esc(r.type)}</span></span><span class="hstack">${badge(r.status)}<span class="link">${action} ${icon('arrow')}</span></span></a>`;
     }).join('');
     const agreementRows = Data.agreements.slice(0, 4).map(a => `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${esc(a.title)} - ${fmtDate(a.date)}</span></span>${badge(a.status)}</a>`).join('');
-    const surveyRows = (Data.surveys || []).slice(0, 4).map(s => `<a class="link-card-row" href="#/encuestas/${s.id}"><span><strong>${esc(s.title)}</strong><span>${s.mode === 'votacion' ? 'Votación' : 'Encuesta'} · ${(s.responses?.length ?? s.responsesCount ?? 0)} respuestas</span></span>${badge(s.status === 'open' ? 'abierto' : s.status === 'closed' ? 'cerrado' : 'borrador', s.status === 'open' ? 'Abierta' : s.status === 'closed' ? 'Cerrada' : 'Borrador')}</a>`).join('');
-    return `${pageHead('Gestión CEAL', 'Lo pendiente primero: reservas, material y publicaciones del centro', `<span class="pill blue">Acceso CEAL</span>`)}
+    return `${pageHead('Gestión CEAL', 'Material, comunicados y seguimientos', `<span class="pill blue">Acceso CEAL</span>`)}
       <div class="vstack">
-        <div class="stat-grid compact management-kpis">${stat('pingpong', pendingReservations.length, 'Reservas', 'Por confirmar')}${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('check', openSurveys.length, 'Encuestas', 'Abiertas')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En curso')}</div>
-        ${renderReservationAdminPanel()}
+        <div class="stat-grid compact management-kpis">${stat('book', pendingMaterial.length, 'Material', 'Por validar')}${stat('megaphone', Data.communications.length, 'Comunicados', 'Publicados')}${stat('file', Data.agreements.filter(a => a.status !== 'publicado').length, 'Acuerdos', 'En curso')}</div>
         <section class="card pad"><h2 class="card-title">Acciones del centro</h2><div class="management-modules">${actionCards}</div></section>
         <div class="management-content-grid">
           <section class="card pad"><div class="row-between"><h2 class="card-title">Comunicados publicados</h2><a class="btn secondary sm" href="#/comunicados/nuevo">${icon('megaphone')} Crear</a></div><div class="card-list">${communicationRows || '<p class="small muted">No hay comunicados cargados.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Material y aportes</h2><a class="btn secondary sm" href="#/material/subir">Subir material</a></div><div class="card-list">${materialRows || '<p class="small muted">No hay material cargado.</p>'}</div></section>
-          <section class="card pad"><div class="row-between"><h2 class="card-title">Encuestas y votaciones</h2><a class="btn secondary sm" href="#/encuestas/nueva">Crear</a></div><div class="card-list">${surveyRows || '<p class="small muted">Aún no hay encuestas.</p>'}</div></section>
           <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
       </div>`;
@@ -3122,13 +3099,13 @@
   function renderNotificationsPage() {
     if (!canSeeNotifications()) return renderNotFound('Las notificaciones están disponibles en el modo estudiante.');
     const items = studentNotifications();
-    return `${pageHead('Notificaciones', 'Comunicados nuevos y encuestas abiertas')}<section class="card pad">${items.length ? items.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} · ${fmtDate(n.date)}</span></span>${badge('orange', 'Nueva')}</a>`).join('') : renderEmpty('Estás al día', 'Cuando haya un comunicado nuevo o se abra una encuesta aparecerá aquí.', '', 'bell')}</section>`;
+    return `${pageHead('Notificaciones', 'Comunicados nuevos')}<section class="card pad">${items.length ? items.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} · ${fmtDate(n.date)}</span></span>${badge('orange', 'Nueva')}</a>`).join('') : renderEmpty('Estás al día', 'Los comunicados nuevos aparecerán aquí.', '', 'bell')}</section>`;
   }
   function renderNotificationPopover() {
     const items = studentNotifications();
     const rows = items.length
       ? items.map(n => `<a class="not-row" href="#${esc(n.route)}"><span class="not-dot"></span><span><strong>${esc(n.title)}</strong><p>${esc(n.detail)}</p><small>${fmtDate(n.date)}</small></span></a>`).join('')
-      : `<div class="not-empty">${icon('check')}<span>Estás al día. Te avisaremos cuando haya un comunicado nuevo o una encuesta abierta.</span></div>`;
+      : `<div class="not-empty">${icon('check')}<span>Estás al día.</span></div>`;
     return `<aside class="notification-popover" role="dialog" aria-modal="true" aria-label="Notificaciones"><header><strong>Notificaciones</strong><button class="icon-btn" data-close-notifications aria-label="Cerrar notificaciones">${icon('x')}</button></header>${rows}</aside>`;
   }
   function renderNotFound(message = 'No encontramos la vista solicitada.') { return `${pageHead('No encontrado')}<section class="card pad empty-state"><span class="icon-wrap">${icon('search')}</span><h3>${esc(message)}</h3><a class="btn primary" href="#/">Volver al inicio</a></section>`; }
@@ -3147,8 +3124,12 @@
     }
     const devLogin = e.target.closest('[data-dev-login]');
     if (devLogin && isLocalDevHost()) {
-      saveSession(devSessionFor(devLogin.dataset.devLogin));
-      routeTo(consumePostLoginRoute());
+      try {
+        saveSession(await qaSessionFor(devLogin.dataset.devLogin));
+        routeTo(consumePostLoginRoute());
+      } catch (error) {
+        showToast(error.message || 'No se pudo iniciar la sesión de revisión.', 'error');
+      }
       return;
     }
     const googleRedirect = e.target.closest('[data-google-redirect]');
@@ -3178,6 +3159,36 @@
       state.notificationsOpen = !state.notificationsOpen;
       render({ transition: true, scope: 'overlay' });
       if (state.notificationsOpen) document.querySelector('.notification-popover [data-close-notifications]')?.focus();
+      return;
+    }
+    const calendarMonthButton = e.target.closest('[data-calendar-month]');
+    if (calendarMonthButton) {
+      const delta = Number(calendarMonthButton.dataset.calendarMonth || 0);
+      const base = state.calendarMonth || parseCalendarDate(portalTodayKey());
+      const nextMonth = new Date(base.getFullYear(), base.getMonth() + delta, 1);
+      const monthEvents = (Data.events || []).filter(event => {
+        const date = parseCalendarDate(event.date);
+        return date.getFullYear() === nextMonth.getFullYear() && date.getMonth() === nextMonth.getMonth();
+      }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      state.calendarMonth = nextMonth;
+      state.calendarSelectedDate = String(monthEvents[0]?.date || isoCalendarDate(nextMonth.getFullYear(), nextMonth.getMonth(), 1)).slice(0, 10);
+      routeTo(`/calendario?date=${encodeURIComponent(state.calendarSelectedDate)}`);
+      return;
+    }
+    if (e.target.closest('[data-calendar-today]')) {
+      const today = portalTodayKey();
+      state.calendarMonth = parseCalendarDate(today);
+      state.calendarSelectedDate = today;
+      routeTo(`/calendario?date=${today}`);
+      return;
+    }
+    const calendarDateButton = e.target.closest('[data-calendar-date]');
+    if (calendarDateButton) {
+      const date = String(calendarDateButton.dataset.calendarDate || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      state.calendarMonth = parseCalendarDate(date);
+      state.calendarSelectedDate = date;
+      routeTo(`/calendario?date=${encodeURIComponent(date)}`);
       return;
     }
     const rsvTableBtn = e.target.closest('[data-rsv-table]');
@@ -3333,103 +3344,127 @@
       render({ transition: false, scope: 'panel', resetScroll: false });
       return;
     }
-    if (e.target.closest('[data-demo-book]')) {
+    if (e.target.closest('[data-appointment-create]')) {
       if (isGuest()) { readonlyToast(); return; }
       const profile = (Data.staffProfiles || [])[0] || {};
-      const store = readBookingStore();
-      const slot = demoAvailableSlots(profile, store).find(s => slotKey(s) === state.bookingSlotKey);
+      const store = API_BASE ? { appointments: state.myAppointments || [], closedSlots: state.staffClosedSlots || [] } : readBookingStore();
+      const slot = availableBookingSlots(profile, store).find(s => slotKey(s) === state.bookingSlotKey);
       if (!slot) { showToast('Elige una hora disponible primero', 'blue'); return; }
-      state.bookingSubmitting = true;
-      render({ transition: false, scope: 'panel', resetScroll: false });
-      const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason || '', status: 'solicitada', staffNote: '', createdAt: new Date().toISOString() };
-      store.appointments.unshift(appt);
-      writeBookingStore(store);
-      state.bookingSlotKey = null;
-      state.bookingReason = '';
-      await notifyBookingEmail('solicitada', appt);
-      state.bookingSubmitting = false;
-      showToast('Hora reservada. Te enviamos un correo de confirmación.', 'green');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const demoCancel = e.target.closest('[data-demo-cancel]');
-    if (demoCancel) {
-      if (isGuest()) { readonlyToast(); return; }
-      const store = readBookingStore();
-      const appt = store.appointments.find(a => a.id === demoCancel.dataset.demoCancel);
-      if (!appt || !APPT_ACTIVE.has(appt.status)) return;
-      appt.status = 'cancelada';
-      writeBookingStore(store);
-      await notifyBookingEmail('cancelada', appt);
-      showToast('Hora liberada. Avisamos por correo.', 'blue');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const demoConfirm = e.target.closest('[data-demo-confirm]');
-    if (demoConfirm) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const store = readBookingStore();
-      const appt = store.appointments.find(a => a.id === demoConfirm.dataset.demoConfirm);
-      if (!appt) return;
-      appt.status = 'confirmada';
-      writeBookingStore(store);
-      await notifyBookingEmail('confirmada', appt);
-      showToast('Atención confirmada. Avisamos al estudiante.', 'green');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const demoReject = e.target.closest('[data-demo-reject]');
-    if (demoReject) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const store = readBookingStore();
-      const appt = store.appointments.find(a => a.id === demoReject.dataset.demoReject);
-      if (!appt) return;
-      appt.status = 'rechazada';
-      writeBookingStore(store);
-      await notifyBookingEmail('rechazada', appt);
-      showToast('Solicitud rechazada. Avisamos al estudiante.', 'blue');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const demoClose = e.target.closest('[data-demo-close]');
-    if (demoClose) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const store = readBookingStore();
-      const k = demoClose.dataset.demoClose;
-      if (!(store.closedSlots || []).includes(k)) { store.closedSlots = [...(store.closedSlots || []), k]; writeBookingStore(store); }
-      render({ transition: false, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const demoOpen = e.target.closest('[data-demo-open]');
-    if (demoOpen) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const store = readBookingStore();
-      store.closedSlots = (store.closedSlots || []).filter(x => x !== demoOpen.dataset.demoOpen);
-      writeBookingStore(store);
-      render({ transition: false, scope: 'panel', resetScroll: false });
-      return;
-    }
-    if (e.target.closest('[data-book-submit]')) {
-      if (isGuest()) { readonlyToast(); return; }
-      const profile = (Data.staffProfiles || [])[0] || {};
-      const slot = generateBookingSlots(profile.officeHours).find(s => slotKey(s) === state.bookingSlotKey);
-      if (!slot) { showToast('Elige una hora primero', 'blue'); return; }
+      if (String(state.bookingReason || '').trim().length < 5) { showToast('Indica brevemente el motivo', 'blue'); return; }
       state.bookingSubmitting = true;
       render({ transition: false, scope: 'panel', resetScroll: false });
       try {
-        const payload = await apiRequest('/calendar/appointments', { method: 'POST', body: JSON.stringify({ start: slot.start.toISOString(), end: slot.end.toISOString(), reason: state.bookingReason || '', name: state.user?.name || '' }) });
-        if (payload.item) { state.myAppointments = [payload.item, ...(state.myAppointments || [])]; }
+        if (API_BASE) {
+          const payload = await apiRequest('/calendar/appointments', { method: 'POST', body: JSON.stringify({ start: slot.start.toISOString(), end: slot.end.toISOString(), reason: state.bookingReason }) });
+          if (payload.item) state.myAppointments = [payload.item, ...(state.myAppointments || []).filter(item => item.id !== payload.item.id)];
+          state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots;
+          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
+        } else {
+          const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason, status: 'solicitada', staffNote: '', createdAt: new Date().toISOString() };
+          store.appointments.unshift(appt);
+          writeBookingStore(store);
+        }
         state.bookingSlotKey = null;
         state.bookingReason = '';
-        state.staffBusy = null; // refrescar disponibilidad
-        showToast('Solicitud de hora enviada. Revisa tu correo.', 'blue');
+        showToast('Solicitud enviada', 'green');
       } catch (error) {
-        if (error && error.isSessionExpired) { /* toast ya mostrado por handleSessionExpired */ }
-        else showToast(error.message || 'No se pudo solicitar la hora', 'blue');
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo solicitar la hora', 'orange');
       } finally {
         state.bookingSubmitting = false;
         render({ transition: true, scope: 'panel', resetScroll: false });
       }
+      return;
+    }
+    const appointmentCancel = e.target.closest('[data-appointment-cancel]');
+    if (appointmentCancel) {
+      if (isGuest()) { readonlyToast(); return; }
+      const id = appointmentCancel.dataset.appointmentCancel;
+      if (API_BASE) {
+        try {
+          const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel' }) });
+          if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
+          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
+        } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo cancelar', 'orange'); return; }
+      } else {
+        const store = readBookingStore();
+        const appt = store.appointments.find(a => a.id === id);
+        if (!appt || !APPT_ACTIVE.has(appt.status)) return;
+        appt.status = 'cancelada';
+        writeBookingStore(store);
+      }
+      showToast('Hora cancelada', 'blue');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const appointmentConfirm = e.target.closest('[data-appointment-confirm]');
+    if (appointmentConfirm) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const id = appointmentConfirm.dataset.appointmentConfirm;
+      if (API_BASE) {
+        try {
+          const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) });
+          if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
+          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
+        } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo confirmar', 'orange'); return; }
+      } else {
+        const store = readBookingStore();
+        const appt = store.appointments.find(a => a.id === id);
+        if (!appt) return;
+        appt.status = 'confirmada';
+        writeBookingStore(store);
+      }
+      showToast('Atención confirmada', 'green');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const appointmentReject = e.target.closest('[data-appointment-reject]');
+    if (appointmentReject) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const id = appointmentReject.dataset.appointmentReject;
+      if (API_BASE) {
+        try {
+          const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'reject' }) });
+          if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
+          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
+        } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo rechazar', 'orange'); return; }
+      } else {
+        const store = readBookingStore();
+        const appt = store.appointments.find(a => a.id === id);
+        if (!appt) return;
+        appt.status = 'rechazada';
+        writeBookingStore(store);
+      }
+      showToast('Solicitud rechazada', 'blue');
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const availabilityClose = e.target.closest('[data-availability-close]');
+    if (availabilityClose) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const k = availabilityClose.dataset.availabilityClose;
+      if (API_BASE) {
+        try { const payload = await apiRequest('/calendar/availability', { method: 'PATCH', body: JSON.stringify({ slotKey: k, closed: true }) }); state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots; }
+        catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo cerrar la hora', 'orange'); return; }
+      } else {
+        const store = readBookingStore();
+        if (!(store.closedSlots || []).includes(k)) { store.closedSlots = [...(store.closedSlots || []), k]; writeBookingStore(store); }
+      }
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const availabilityOpen = e.target.closest('[data-availability-open]');
+    if (availabilityOpen) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const k = availabilityOpen.dataset.availabilityOpen;
+      if (API_BASE) {
+        try { const payload = await apiRequest('/calendar/availability', { method: 'PATCH', body: JSON.stringify({ slotKey: k, closed: false }) }); state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots; }
+        catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo reabrir la hora', 'orange'); return; }
+      } else {
+        const store = readBookingStore();
+        store.closedSlots = (store.closedSlots || []).filter(x => x !== k);
+        writeBookingStore(store);
+      }
+      render({ transition: false, scope: 'panel', resetScroll: false });
       return;
     }
     if (e.target.closest('[data-clear-panel]')) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }

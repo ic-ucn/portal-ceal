@@ -1,5 +1,4 @@
 window.PortalMock = (() => {
-  const today = '2026-06-17';
 
   const cealMembers = [
     { id: 'ceal-martina-briceno', username: 'martina.briceno', name: 'Martina Briceño', initials: 'MB', role: 'ceal', roleName: 'Presidencia', label: 'Presidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'martina.briceno@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'manage:roles', 'review:casos', 'publish:comunicados', 'upload:acuerdos'] },
@@ -26,35 +25,6 @@ window.PortalMock = (() => {
       permissions: []
     },
     ceal: { ...cealMembers[2] }
-  };
-
-  const courseProgress = {
-    'planP:P-0101': 'approved',
-    'planP:P-0102': 'approved',
-    'planP:P-0103': 'approved',
-    'planP:P-0104': 'approved',
-    'planP:DDOC-01184': 'approved',
-    'planP:P-0201': 'approved',
-    'planP:P-0202': 'approved',
-    'planP:P-0203': 'approved',
-    'planP:P-0204': 'approved',
-    'planP:DDOC-02184': 'approved',
-    'planP:P-0301': 'approved',
-    'planP:P-0302': 'approved',
-    'planP:P-0303': 'approved',
-    'planP:P-0304': 'approved',
-    'planP:DDOC-03183': 'approved',
-    'planP:P-0401': 'inProgress',
-    'planP:P-0402': 'inProgress',
-    'planP:P-0403': 'inProgress',
-    'planP:P-0404': 'pending',
-    'planO:DAFI-00103': 'approved',
-    'planO:DAMA-00135': 'approved',
-    'planO:DAMA-00136': 'approved',
-    'planO:DAFI-00203': 'approved',
-    'planO:DAMA-00235': 'approved',
-    'planO:DAIC-00403': 'approved',
-    'planO:DAIC-00504': 'inProgress'
   };
 
   const communications = [
@@ -384,7 +354,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       contactName: 'Prof. Zelada',
       role: 'Jefe de Carrera IngenierÃ­a Civil UCN',
       email: 'jc.icivil.afta@ucn.cl',
-      authorizedEmails: ['jc.icivil.afta@ucn.cl', 'biblioteca.ceicucn@gmail.com'],
+      authorizedEmails: ['jc.icivil.afta@ucn.cl'],
       calendarUrl: '',
       bookingUrl: '',
       status: 'Horarios publicados',
@@ -452,5 +422,5 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     ? tutoring.map((item) => ({ ...item, materialId: driveResources.find((resource) => resource.courseCode === item.courseCode)?.id || '' }))
     : tutoring;
 
-  return { today, users, cealMembers, courseProgress, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
+  return { users, cealMembers, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
 })();

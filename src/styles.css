@@ -75,8 +75,8 @@
   --font-sans: "InterVariable", Inter, ui-sans-serif, system-ui, -apple-system,
                BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "FrauncesVariable", "Iowan Old Style", Georgia, "Times New Roman", serif;
-  --font-display: clamp(2rem, 1.45rem + 2vw, 2.75rem);
-  --font-title:   clamp(1.3rem, 1.18rem + .5vw, 1.55rem);
+  --font-display: 2.25rem;
+  --font-title:   1.5rem;
   --font-heading: 1.125rem;
   --font-md:      1rem;
   --font-sm:      .875rem;
@@ -90,7 +90,7 @@
   --leading-heading: 1.3;
   --leading-body:    1.55;
   --leading-relaxed: 1.65;
-  --tracking-tight: -0.01em;
+  --tracking-tight: 0;
   --tracking-wide:  0.05em;
 
   /* ===== ESPACIADO (grid 4px) ===== */
@@ -98,11 +98,11 @@
   --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
 
   /* ===== RADIOS (dial único, suavizado 2026) ===== */
-  --radius-base: 12px;
-  --radius-sm:  9px;
+  --radius-base: 8px;
+  --radius-sm:  6px;
   --radius-md:  var(--radius-base);
-  --radius-lg:  16px;
-  --radius-xl:  22px;
+  --radius-lg:  8px;
+  --radius-xl:  8px;
   --radius-full: 999px;
 
   /* ===== SOMBRAS (difusas, tinte navy, caída larga) ===== */
@@ -6536,3 +6536,172 @@ body.theme-dark .rsv-card-ico { background: rgba(94, 158, 255, .14); }
   .rsv-admin-actions .btn { flex: 1 1 auto; }
 }
 
+/* Calendario operativo */
+.refined-calendar-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+}
+.calendar-month-actions { display: flex; align-items: center; gap: 8px; }
+.calendar-month-actions .icon-btn { width: 38px; height: 38px; }
+.calendar-month-actions .calendar-prev .icon { transform: rotate(180deg); }
+.academic-calendar-card .day-cell {
+  appearance: none;
+  width: 100%;
+  border-top: 0;
+  border-left: 0;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.academic-calendar-card button.day-cell:hover {
+  z-index: 1;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 2px var(--border-interactive);
+}
+.academic-calendar-card .day-cell.selected {
+  z-index: 2;
+  background: var(--brand-blue-soft);
+  box-shadow: inset 0 0 0 2px var(--brand-blue);
+}
+.academic-calendar-card .day-cell.past:not(.today):not(.selected) { opacity: .68; }
+.calendar-agenda-row { width: 100%; text-align: left; cursor: pointer; font: inherit; }
+.calendar-agenda-row.selected { border-color: var(--brand-blue); background: var(--brand-blue-soft); }
+.calendar-day-detail { min-width: 0; }
+.calendar-day-detail .card-title { margin-top: 4px; }
+.calendar-day-events { display: grid; gap: 10px; margin-top: 14px; }
+.calendar-day-events article { padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.calendar-day-events article:first-child { padding-top: 0; border-top: 0; }
+.calendar-day-events article strong { min-width: 0; color: var(--text-primary); }
+.calendar-day-events article time { display: block; margin-top: 6px; color: var(--brand-blue-text); font-size: .82rem; font-weight: 700; }
+.calendar-day-events article p { margin: 6px 0 0; color: var(--text-secondary); font-size: .86rem; line-height: 1.5; }
+
+/* Acentos sobrios: sin franjas verticales decorativas */
+.home-digest,
+.comms-feed .item-card.is-featured,
+.request-reason { border-left-width: 1px; }
+.nav-item.active::before { display: none; }
+
+/* El trazado del campus debe conservar contraste sobre fondos oscuros. */
+body.theme-dark .home-campus-feature img {
+  filter: grayscale(1) brightness(0) invert(1);
+  opacity: .82;
+}
+body.theme-dark .login-campus-art img {
+  filter: grayscale(1) brightness(0) invert(1);
+  opacity: .82;
+}
+.calendar-side-panel .card-list { grid-template-columns: 1fr; }
+.calendar-next-row { grid-template-columns: minmax(0, 1fr) auto; }
+.calendar-next-row > span:first-child > span { white-space: nowrap; }
+.brand-mark,
+.mobile-brand img { background: transparent; border-color: transparent; }
+body.theme-dark .academic-calendar-card .day-cell { background: var(--surface-base); }
+body.theme-dark .academic-calendar-card .day-cell.has-event { background: var(--surface-raised); }
+body.theme-dark .academic-calendar-card .day-cell.today,
+body.theme-dark .academic-calendar-card .day-cell.selected { background: rgba(94, 158, 255, .16); }
+body.theme-dark .calendar-agenda-row.selected { background: rgba(94, 158, 255, .14); border-color: #70adff; }
+
+@media (max-width: 1080px) {
+  .refined-calendar-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .calendar-card-head { align-items: center; }
+  .calendar-month-actions { gap: 6px; }
+  .calendar-month-actions .btn { min-height: 36px; padding-inline: 10px; }
+}
+
+/* Cierre visual operativo: superficies sobrias, radios estables y sin adornos. */
+body::before,
+body.theme-dark::before,
+.login-card::before { display: none; }
+
+.sidebar { background: #071f3d; }
+body.theme-dark .sidebar { background: #081426; }
+.login-shell { background: #eef2f8; }
+body.theme-dark .login-shell { background: #07111f; }
+.login-card,
+.login-brand,
+.login-form,
+.google-login-card { border-radius: var(--radius-md); }
+.login-brand { background: var(--surface-base); }
+body.theme-dark .login-brand,
+body.theme-dark .login-form { background: var(--surface-base); }
+.login-form h1 { font-size: 2.15rem; letter-spacing: 0; }
+.login-wordmark strong { font-size: 2.4rem; letter-spacing: 0; }
+.login-wordmark::after { display: none; }
+
+.page-title { font-size: var(--font-display); letter-spacing: 0; }
+.btn.primary,
+.btn.primary:hover,
+body.theme-dark .btn.primary,
+body.theme-dark .btn.primary:hover { background: var(--brand-blue); }
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 50% !important;
+  overflow: hidden;
+}
+.brand-mark img,
+.mobile-brand img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50% !important;
+}
+body.theme-dark .home-campus-feature img,
+body.theme-dark .login-campus-art img { opacity: .92; }
+body.theme-dark .google-auth-note {
+  background: rgba(154, 52, 18, .16);
+  border-color: rgba(251, 146, 60, .28);
+  color: #fdba74;
+}
+body.theme-dark .google-auth-note strong { color: #fed7aa; }
+
+.booking-calendar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  overflow: visible;
+  scroll-snap-type: none;
+}
+.booking-col { min-width: 0; width: auto; }
+
+@media (max-width: 920px) {
+  .page-title { font-size: 2rem; }
+  .login-card { border-radius: var(--radius-md); }
+  .mobile-brand img { width: 34px; height: 34px; }
+}
+@media (max-width: 560px) {
+  .booking-calendar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.course-card,
+.day-event.orange,
+.comms-feed .item-card.is-featured { border-left-width: 1px; }
+.day-event.orange { padding-left: 6px; }
+.booking-inline-empty {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+.booking-inline-empty > .icon {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border-radius: 50%;
+  color: var(--brand-blue-text);
+  background: var(--brand-blue-soft);
+}
+.booking-inline-empty strong,
+.booking-inline-empty small { display: block; }
+.booking-inline-empty strong { color: var(--text-primary); }
+.booking-inline-empty small { margin-top: 3px; }
+
+@media (max-width: 430px) {
+  .malla-commandbar-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

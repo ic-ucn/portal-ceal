@@ -24,11 +24,14 @@ GitHub Pages puede servir el frontend estático. Para persistencia compartida en
 - Inicio con resumen operativo.
 - Comunicados, detalle y publicación desde Gestión CEAL.
 - Calendario, acuerdos y nuevo acuerdo interno.
+- Atención de Jefatura con horas dinámicas, confirmación y avisos por correo.
 - Biblioteca académica con búsqueda, filtros, subida y descarga local de archivos.
 - Mallas interactivas Plan O Catálogo 2016 y Plan P Catálogo 2025.
 - Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
 - Ayudantías, trámites y perfil.
 - Dashboard Gestión CEAL común para integrantes, con edición de contenido existente.
+
+Encuestas y reservas de mesas están deshabilitadas temporalmente en frontend y API. La malla no infiere avance académico porque el portal no dispone de registros curriculares individuales.
 
 ## Integrantes CEAL
 
@@ -69,6 +72,8 @@ Endpoints principales:
 - `/api/agreements`
 - `/api/events`
 - `/api/saved`
+- `/api/calendar/appointments`
+- `/api/calendar/availability`
 
 El backend verifica Google ID tokens con la librería oficial `google-auth-library`, revisando audiencia, firma, expiración, correo verificado y `hd=alumnos.ucn.cl`. El login visible del portal usa Google para estudiantes y CEAL, más un modo invitado de solo lectura.
 
@@ -109,12 +114,46 @@ $env:PORTAL_GOOGLE_CLIENT_ID='CLIENT_ID.apps.googleusercontent.com'
 npm run serve
 ```
 
+## Atención y Google Calendar
+
+La agenda funciona sin Google Calendar: Jefatura publica disponibilidad, el estudiante solicita una hora y Jefatura confirma o rechaza. Calendar es una sincronización opcional para crear el evento institucional después de confirmar.
+
+Cuenta autorizada:
+
+```txt
+jc.icivil.afta@ucn.cl
+```
+
+Variables requeridas en Render para conectar Calendar:
+
+```txt
+GOOGLE_CALENDAR_CLIENT_ID=...
+GOOGLE_CALENDAR_CLIENT_SECRET=...
+GOOGLE_CALENDAR_REDIRECT_URI=https://portal-ceic-api.onrender.com/api/calendar/oauth/callback
+GOOGLE_CALENDAR_ACCOUNT=jc.icivil.afta@ucn.cl
+PORTAL_PUBLIC_URL=https://ceicucn.cl
+PORTAL_TOKEN_ENCRYPTION_KEY=...
+PORTAL_MAX_SESSIONS=1200
+```
+
+El URI de callback debe registrarse también como `Authorized redirect URI` en Google Cloud. Los tokens de Calendar se guardan cifrados con AES-256-GCM; `PORTAL_TOKEN_ENCRYPTION_KEY` debe ser un secreto aleatorio estable de al menos 32 bytes.
+
+La persistencia compartida requiere un proyecto Supabase activo y estas variables:
+
+```txt
+SUPABASE_URL=...
+SUPABASE_SECRET_KEY=...
+SUPABASE_STATE_TABLE=portal_state
+SUPABASE_STATE_ID=main
+```
+
 ## Verificación
 
 ```powershell
 npm run check
 npm run quality
+npm run qa:security
 node scripts\qa-portal.mjs
 ```
 
-La suite actual cubre sintaxis, estructura de datos, privacidad de integrantes CEAL, mallas Plan O/Plan P, rutas desktop/mobile, login, material, acuerdos, comunicados y Gestión CEAL.
+La suite cubre sintaxis, privacidad, permisos, 300 sesiones concurrentes, colisiones de horas, rutas desktop/mobile, login, material, mallas, calendario, Atención, Jefatura y Gestión CEAL.
