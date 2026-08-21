@@ -116,7 +116,7 @@ npm run serve
 
 ## Atención y Google Calendar
 
-La agenda funciona sin Google Calendar: Jefatura publica disponibilidad, el estudiante solicita una hora y Jefatura confirma o rechaza. Calendar es una sincronización opcional para crear el evento institucional después de confirmar.
+La agenda funciona desde el portal y persiste las reservas en el backend. Al conectar Google Calendar, los bloques ocupados se excluyen de la disponibilidad y las nuevas atenciones se crean en la agenda institucional. Una cancelación del estudiante libera su bloque; una cancelación de Jefatura elimina el evento sincronizado y mantiene ese horario cerrado hasta que Jefatura lo reabra.
 
 Cuenta autorizada:
 
@@ -131,12 +131,13 @@ GOOGLE_CALENDAR_CLIENT_ID=...
 GOOGLE_CALENDAR_CLIENT_SECRET=...
 GOOGLE_CALENDAR_REDIRECT_URI=https://portal-ceic-api.onrender.com/api/calendar/oauth/callback
 GOOGLE_CALENDAR_ACCOUNT=jc.icivil.afta@ucn.cl
+CALENDAR_CONNECTION_NOTIFY_EMAIL=kevin.cortes@alumnos.ucn.cl
 PORTAL_PUBLIC_URL=https://ceicucn.cl
 PORTAL_TOKEN_ENCRYPTION_KEY=...
 PORTAL_MAX_SESSIONS=1200
 ```
 
-El URI de callback debe registrarse también como `Authorized redirect URI` en Google Cloud. Los tokens de Calendar se guardan cifrados con AES-256-GCM; `PORTAL_TOKEN_ENCRYPTION_KEY` debe ser un secreto aleatorio estable de al menos 32 bytes.
+El URI de callback debe registrarse también como `Authorized redirect URI` en Google Cloud. Tras el callback, el backend comprueba la cuenta autorizada, consulta eventos y disponibilidad, y envía el aviso técnico definido en `CALENDAR_CONNECTION_NOTIFY_EMAIL`. Los tokens de Calendar se guardan cifrados con AES-256-GCM; `PORTAL_TOKEN_ENCRYPTION_KEY` debe ser un secreto aleatorio estable de al menos 32 bytes.
 
 La persistencia compartida requiere un proyecto Supabase activo y estas variables:
 

@@ -34,6 +34,7 @@ const tokenEncryptionSecret = process.env.PORTAL_TOKEN_ENCRYPTION_KEY || calenda
 // Cuenta institucional autorizada para Jefatura y Google Calendar.
 const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
 const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+const calendarConnectionNotifyEmail = (process.env.CALENDAR_CONNECTION_NOTIFY_EMAIL || 'kevin.cortes@alumnos.ucn.cl').trim().toLowerCase();
 const calendarScopes = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
@@ -262,6 +263,10 @@ function ensureDbShape(db, seed) {
     db.data.integrations.googleCalendar.connected = false;
     db.data.integrations.googleCalendar.tokens = null;
     db.data.integrations.googleCalendar.tokensEncrypted = null;
+    db.data.integrations.googleCalendar.connectedAt = null;
+    db.data.integrations.googleCalendar.verifiedAt = null;
+    db.data.integrations.googleCalendar.verification = null;
+    db.data.integrations.googleCalendar.connectionNotice = null;
     db.data.integrations.googleCalendar.updatedAt = new Date().toISOString();
   }
   if (db.data.integrations.googleCalendar.tokens && tokenEncryptionSecret) {
@@ -274,6 +279,17 @@ function ensureDbShape(db, seed) {
   db.data.saved.reminders ||= [];
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles', 'reservations']) {
     db.data[key] ||= seed.data[key] || [];
+  }
+  const canonicalStaffId = 'jefatura-ingenieria-civil';
+  const legacyStaff = db.data.staffProfiles.find(profile => profile.id === 'zelada');
+  const canonicalStaff = db.data.staffProfiles.find(profile => profile.id === canonicalStaffId);
+  if (legacyStaff && !canonicalStaff) legacyStaff.id = canonicalStaffId;
+  if (legacyStaff && canonicalStaff) db.data.staffProfiles = db.data.staffProfiles.filter(profile => profile !== legacyStaff);
+  for (const appointment of db.data.appointments) {
+    if (appointment.status === 'solicitada') {
+      appointment.status = 'confirmada';
+      appointment.updatedAt ||= new Date().toISOString();
+    }
   }
   const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'authorizedEmails', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
   for (const profile of seed.data.staffProfiles || []) {
@@ -826,14 +842,17 @@ function googleCalendarIntegration(db) {
 
 function publicCalendarStatus(db, session = null) {
   const integration = googleCalendarIntegration(db);
+  const canManage = Boolean(session && session.role === 'jefatura' && session.accessMode === 'jefatura');
   return {
     configured: calendarConfigured(),
     connected: Boolean(calendarTokens(integration)?.refresh_token),
     account: integration.account || calendarAccount,
     calendarId: integration.calendarId || calendarId,
     connectedAt: integration.connectedAt || null,
+    verified: Boolean(integration.verifiedAt),
+    ...(canManage ? { verifiedAt: integration.verifiedAt || null } : {}),
     updatedAt: integration.updatedAt || null,
-    canManage: Boolean(session && session.role === 'jefatura' && session.accessMode === 'jefatura')
+    canManage
   };
 }
 
@@ -872,6 +891,89 @@ async function calendarAuthorizedEmail(client) {
   return asText(response.data?.email).toLowerCase();
 }
 
+async function verifyGoogleCalendarConnection(req, db) {
+  const integration = googleCalendarIntegration(db);
+  const storedTokens = calendarTokens(integration);
+  if (!storedTokens?.refresh_token) {
+    const err = new Error('google calendar is not connected');
+    err.statusCode = 409;
+    throw err;
+  }
+  const client = calendarOAuthClient(req);
+  client.setCredentials(storedTokens);
+  const authorizedEmail = await calendarAuthorizedEmail(client);
+  if (authorizedEmail !== calendarAccount) {
+    const err = new Error(`calendar account must be ${calendarAccount}`);
+    err.statusCode = 403;
+    throw err;
+  }
+  const now = new Date();
+  const timeMin = now.toISOString();
+  const timeMax = new Date(now.getTime() + 30 * 60000).toISOString();
+  const eventsResponse = await client.request({
+    method: 'GET',
+    url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?maxResults=1&singleEvents=true&timeMin=${encodeURIComponent(timeMin)}`
+  });
+  const freeBusyResponse = await client.request({
+    method: 'POST',
+    url: 'https://www.googleapis.com/calendar/v3/freeBusy',
+    data: { timeMin, timeMax, timeZone: 'America/Santiago', items: [{ id: calendarId }] }
+  });
+  const busyCalendars = freeBusyResponse.data?.calendars || {};
+  const busyCalendar = busyCalendars[calendarId] || Object.values(busyCalendars)[0];
+  if (!Array.isArray(eventsResponse.data?.items) || !busyCalendar || busyCalendar.errors?.length) {
+    const err = new Error('google calendar permissions could not be verified');
+    err.statusCode = 502;
+    throw err;
+  }
+  setCalendarTokens(integration, {
+    ...storedTokens,
+    ...(client.credentials || {}),
+    refresh_token: client.credentials?.refresh_token || storedTokens.refresh_token
+  });
+  integration.account = authorizedEmail;
+  integration.connected = true;
+  integration.verifiedAt = new Date().toISOString();
+  integration.verification = { accountMatch: true, eventsReadable: true, freeBusyReadable: true };
+  integration.updatedAt = integration.verifiedAt;
+  await writeDb(db);
+  return publicCalendarStatus(db, { role: 'jefatura', accessMode: 'jefatura' });
+}
+
+function calendarConnectionEmailContent(integration = {}) {
+  const connectedAt = new Date(integration.verifiedAt || integration.connectedAt || Date.now()).toLocaleString('es-CL', {
+    dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Santiago'
+  });
+  const subject = 'Jefatura conectó Google Calendar';
+  const text = [
+    'La conexión de Google Calendar de Jefatura quedó verificada.',
+    '',
+    `Cuenta: ${calendarAccount}`,
+    `Calendario: ${calendarId}`,
+    `Verificado: ${connectedAt}`,
+    '',
+    'El portal comprobó acceso a eventos y disponibilidad. Antes de compartir el tutorial con estudiantes, realiza una reserva controlada y confirma que el evento aparezca en Calendar.',
+    '',
+    '— Portal CEIC UCN'
+  ].join('\n');
+  const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55"><div style="background:#0d2747;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0"><strong>Portal CEIC UCN</strong></div><div style="border:1px solid #dbe4ef;border-top:0;border-radius:0 0 8px 8px;padding:20px"><h2 style="margin:0 0 12px;color:#0d2747;font-size:19px">Calendar de Jefatura conectado</h2><p>La conexión quedó verificada correctamente.</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:6px 0;color:#64748b">Cuenta</td><td style="padding:6px 0;font-weight:700">${calendarAccount}</td></tr><tr><td style="padding:6px 0;color:#64748b">Calendario</td><td style="padding:6px 0;font-weight:700">${calendarId}</td></tr><tr><td style="padding:6px 0;color:#64748b">Verificado</td><td style="padding:6px 0;font-weight:700">${connectedAt}</td></tr></table><p style="margin:18px 0 0;color:#475569">Antes de compartir el tutorial con estudiantes, realiza una reserva controlada y confirma que el evento aparezca en Calendar.</p></div></div>`;
+  return { subject, text, html };
+}
+
+async function notifyCalendarConnection(db) {
+  const integration = googleCalendarIntegration(db);
+  if (!calendarConnectionNotifyEmail || integration.connectionNotice?.sentAt) return Boolean(integration.connectionNotice?.sentAt);
+  try {
+    await sendDirectEmail({ to: calendarConnectionNotifyEmail, ...calendarConnectionEmailContent(integration) });
+    integration.connectionNotice = { sentAt: new Date().toISOString(), error: '' };
+  } catch (error) {
+    integration.connectionNotice = { sentAt: null, error: asText(error?.message || 'send-failed').slice(0, 160), attemptedAt: new Date().toISOString() };
+  }
+  integration.updatedAt = new Date().toISOString();
+  await writeDb(db);
+  return Boolean(integration.connectionNotice.sentAt);
+}
+
 async function connectGoogleCalendar(req, db, code, state) {
   consumeCalendarOAuthState(db, state);
   if (!calendarConfigured()) {
@@ -900,10 +1002,26 @@ async function connectGoogleCalendar(req, db, code, state) {
   integration.calendarId = calendarId;
   setCalendarTokens(integration, mergedTokens);
   integration.connected = Boolean(mergedTokens.refresh_token);
-  integration.connectedAt ||= new Date().toISOString();
+  integration.connectedAt = new Date().toISOString();
+  integration.verifiedAt = null;
+  integration.verification = null;
+  integration.connectionNotice = null;
   integration.updatedAt = new Date().toISOString();
   await writeDb(db);
-  return publicCalendarStatus(db);
+  try {
+    const status = await verifyGoogleCalendarConnection(req, db);
+    await notifyCalendarConnection(db);
+    return status;
+  } catch (error) {
+    setCalendarTokens(integration, null);
+    integration.connected = false;
+    integration.connectedAt = null;
+    integration.verifiedAt = null;
+    integration.verification = null;
+    integration.updatedAt = new Date().toISOString();
+    await writeDb(db);
+    throw error;
+  }
 }
 
 async function calendarApiRequest(req, db, request) {
@@ -1034,7 +1152,7 @@ function validateAppointmentRequest(db, profile, body, session) {
   if (overlaps) throw Object.assign(new Error('La hora ya no está disponible.'), { statusCode: 409 });
   const activeMine = (db.data.appointments || []).filter(item => APPOINTMENT_ACTIVE.has(item.status)
     && asText(item.studentEmail || item.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
-  if (activeMine.length >= 3) throw Object.assign(new Error('Ya tienes tres solicitudes activas.'), { statusCode: 409 });
+  if (activeMine.length >= 3) throw Object.assign(new Error('Ya tienes tres horas activas.'), { statusCode: 409 });
   const reason = asText(body.reason);
   if (reason.length < 5 || reason.length > 500) throw Object.assign(new Error('Describe brevemente el motivo de la atención.'), { statusCode: 422 });
   return { start, end, reason, ...officeRange };
@@ -1829,18 +1947,20 @@ function bookingEmailContent(type, appt, audience) {
   const place = asText(appt.place, 'Departamento de Ingeniería Civil');
   const reason = asText(appt.reason);
   const jefaturaName = 'Jefatura de Carrera de Ingeniería Civil UCN';
+  const cancelledByJefatura = type === 'cancelada' && appt.cancelledBy === 'jefatura' && audience === 'student';
+  const rescheduleUrl = `${publicPortalUrl || 'https://ceicucn.cl'}/#/atencion`;
   let subject = '', heading = '', intro = '', tone = '#126fe3';
-  if (type === 'solicitada' && audience === 'staff') { subject = `Nueva solicitud de atención — ${student}`; heading = 'Nueva solicitud de atención'; intro = `${student} solicitó una hora de atención. Puedes confirmarla o rechazarla desde el portal.`; tone = '#c26a12'; }
-  else if (type === 'solicitada') { subject = 'Recibimos tu solicitud de hora con Jefatura'; heading = 'Solicitud recibida'; intro = `Hola ${student}, registramos tu solicitud de atención. Te avisaremos por correo cuando la Jefatura la confirme.`; tone = '#c26a12'; }
-  else if (type === 'confirmada') { subject = 'Tu hora con Jefatura fue confirmada'; heading = 'Atención confirmada'; intro = `Hola ${student}, tu hora de atención con la ${jefaturaName} quedó confirmada. Te esperamos.`; tone = '#1a7f45'; }
-  else if (type === 'rechazada') { subject = 'Tu solicitud de hora no pudo agendarse'; heading = 'Solicitud no agendada'; intro = `Hola ${student}, no fue posible agendar la hora solicitada. Puedes elegir otro horario disponible en el portal.`; tone = '#b42318'; }
+  if (type === 'confirmada' && audience === 'staff') { subject = `Nueva hora reservada - ${student}`; heading = 'Nueva hora reservada'; intro = `${student} reservó una hora de atención. Revisa el horario y el motivo en el portal.`; tone = '#1a7f45'; }
+  else if (type === 'confirmada') { subject = 'Tu hora con Jefatura quedó reservada'; heading = 'Hora reservada'; intro = `Hola ${student}, tu hora de atención con la ${jefaturaName} quedó reservada de inmediato.`; tone = '#1a7f45'; }
   else if (type === 'cancelada' && audience === 'staff') { subject = `Hora liberada — ${student}`; heading = 'Hora liberada'; intro = `${student} liberó su hora de atención; el cupo vuelve a quedar disponible.`; tone = '#5b6472'; }
+  else if (cancelledByJefatura) { subject = 'Jefatura canceló tu hora de atención'; heading = 'Hora cancelada por Jefatura'; intro = `Hola ${student}, Jefatura canceló esta atención y cerró ese horario. Elige otro bloque disponible desde el portal.`; tone = '#b42318'; }
   else { subject = 'Tu hora con Jefatura fue cancelada'; heading = 'Hora cancelada'; intro = `Hola ${student}, tu hora de atención quedó cancelada y el cupo fue liberado.`; tone = '#5b6472'; }
   const rows = [['Fecha y hora', when], ['Modalidad', mode], ['Lugar', place]];
   if (reason) rows.push(['Motivo', reason]);
   if (appt.staffNote) rows.push(['Nota de Jefatura', asText(appt.staffNote)]);
   const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const textLines = [heading, '', intro, '', ...rows.map(([k, v]) => `${k}: ${v}`), ''];
+  if (cancelledByJefatura) textLines.push(`Reagendar: ${rescheduleUrl}`, '');
   textLines.push('— CEIC · Ingeniería Civil UCN', 'Correo automático de la agenda de atención. No respondas a esta dirección.');
   const text = textLines.join('\n');
   const html = `<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.55">
@@ -1849,6 +1969,7 @@ function bookingEmailContent(type, appt, audience) {
       <div style="display:inline-block;background:${tone};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;margin-bottom:14px">${escH(heading)}</div>
       <p style="margin:0 0 16px;color:#334155">${escH(intro)}</p>
       <table style="width:100%;border-collapse:collapse;margin:0 0 6px">${rows.map(([k, v]) => `<tr><td style="padding:7px 0;color:#94a3b8;font-size:13px;width:38%;vertical-align:top">${escH(k)}</td><td style="padding:7px 0;color:#1e293b;font-weight:600;font-size:14px">${escH(v)}</td></tr>`).join('')}</table>
+      ${cancelledByJefatura ? `<p style="margin:18px 0 4px"><a href="${escH(rescheduleUrl)}" style="display:inline-block;background:#126fe3;color:#fff;text-decoration:none;font-weight:700;padding:10px 16px;border-radius:7px">Elegir otra hora</a></p>` : ''}
       <p style="margin:22px 0 0;color:#94a3b8;font-size:12px">Correo automático de la agenda de atención de CEIC Ingeniería Civil UCN. No respondas a esta dirección.</p>
     </div>
   </div>`;
@@ -1869,6 +1990,45 @@ async function sendBookingNotifications(type, appointment, { includeStaff = fals
     }
   }
   return results;
+}
+
+async function syncAppointmentToCalendar(req, db, appointment) {
+  if (!calendarHasRefreshToken(db)) return false;
+  try {
+    const event = calendarEventPayload({
+      start: appointment.start,
+      end: appointment.end,
+      name: appointment.studentName,
+      reason: appointment.reason
+    }, { email: appointment.studentEmail || appointment.requesterEmail, role: appointment.requesterRole || 'student' });
+    const createdEvent = await calendarApiRequest(req, db, {
+      method: 'POST',
+      url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
+      data: event
+    });
+    appointment.googleEventId = createdEvent.id || null;
+    appointment.googleEventLink = createdEvent.htmlLink || null;
+    appointment.calendarSyncError = '';
+    return Boolean(createdEvent.id);
+  } catch (error) {
+    appointment.calendarSyncError = asText(error?.message || 'calendar sync failed').slice(0, 180);
+    return false;
+  }
+}
+
+async function removeAppointmentFromCalendar(req, db, appointment) {
+  if (!appointment.googleEventId || !calendarHasRefreshToken(db)) return false;
+  try {
+    await calendarApiRequest(req, db, {
+      method: 'DELETE',
+      url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(appointment.googleEventId)}?sendUpdates=all`
+    });
+    appointment.googleEventId = null;
+    appointment.googleEventLink = null;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================
@@ -2414,11 +2574,25 @@ async function handleApi(req, res, url) {
         setCalendarTokens(integration, null);
         integration.connected = false;
         integration.connectedAt = null;
+        integration.verifiedAt = null;
+        integration.verification = null;
+        integration.connectionNotice = null;
         integration.updatedAt = new Date().toISOString();
         await writeDb(db);
         return sendJson(res, 200, { ok: true, status: publicCalendarStatus(db) });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'calendar disconnect failed');
+      }
+    }
+
+    if (id === 'verify' && req.method === 'POST') {
+      try {
+        requireStaffSession(req, db);
+        const status = await verifyGoogleCalendarConnection(req, db);
+        const noticeSent = await notifyCalendarConnection(db);
+        return sendJson(res, 200, { ok: true, status, noticeSent });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'calendar verification failed');
       }
     }
 
@@ -2474,7 +2648,7 @@ async function handleApi(req, res, url) {
           studentName: asText(session.name, session.email.split('@')[0]).slice(0, 160),
           requesterEmail: session.email,
           requesterRole: session.role,
-          status: 'solicitada',
+          status: 'confirmada',
           start: slot.start.toISOString(),
           end: slot.end.toISOString(),
           mode: slot.mode,
@@ -2486,9 +2660,10 @@ async function handleApi(req, res, url) {
         };
         db.data.appointments ||= [];
         db.data.appointments.unshift(appointment);
+        const calendarSynced = await syncAppointmentToCalendar(req, db, appointment);
         await writeDb(db);
-        const notifications = await sendBookingNotifications('solicitada', appointment, { includeStaff: true });
-        return sendJson(res, 201, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), notifications });
+        const notifications = await sendBookingNotifications('confirmada', appointment, { includeStaff: true });
+        return sendJson(res, 201, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), calendarSynced, notifications });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'calendar appointment failed');
       }
@@ -2503,55 +2678,28 @@ async function handleApi(req, res, url) {
         const isJefatura = session.role === 'jefatura' && session.accessMode === 'jefatura';
         const isOwner = asText(appointment.studentEmail || appointment.requesterEmail).toLowerCase() === asText(session.email).toLowerCase();
         const operation = asText(body.action);
-        if (operation === 'cancel') {
-          if (!isOwner && !isJefatura) return sendError(res, 403, 'appointment owner or Jefatura required');
-          if (!APPOINTMENT_ACTIVE.has(appointment.status)) return sendError(res, 409, 'appointment is not active');
-          appointment.status = 'cancelada';
-        } else if (operation === 'confirm' || operation === 'reject') {
-          requireStaffSession(req, db);
-          if (appointment.status !== 'solicitada') return sendError(res, 409, 'appointment is not pending');
-          appointment.status = operation === 'confirm' ? 'confirmada' : 'rechazada';
-          appointment.staffNote = asText(body.staffNote).slice(0, 500);
-        } else {
-          return sendError(res, 422, 'invalid appointment action');
-        }
+        if (!isOwner && !isJefatura) return sendError(res, 403, 'appointment owner or Jefatura required');
+        if (operation !== 'cancel') return sendError(res, 422, 'only appointment cancellation is supported');
+        if (!APPOINTMENT_ACTIVE.has(appointment.status)) return sendError(res, 409, 'appointment is not active');
+        appointment.status = 'cancelada';
+        appointment.cancelledBy = isJefatura ? 'jefatura' : 'student';
         appointment.updatedAt = new Date().toISOString();
         appointment.updatedBy = session.email;
-        let calendarSynced = false;
-        if (appointment.status === 'confirmada' && calendarHasRefreshToken(db)) {
-          try {
-            const event = calendarEventPayload({
-              start: appointment.start,
-              end: appointment.end,
-              name: appointment.studentName,
-              reason: appointment.reason
-            }, { email: appointment.studentEmail || appointment.requesterEmail, role: appointment.requesterRole || 'student' });
-            const createdEvent = await calendarApiRequest(req, db, {
-              method: 'POST',
-              url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
-              data: event
-            });
-            appointment.googleEventId = createdEvent.id || null;
-            appointment.googleEventLink = createdEvent.htmlLink || null;
-            calendarSynced = Boolean(createdEvent.id);
-          } catch (error) {
-            appointment.calendarSyncError = asText(error?.message || 'calendar sync failed').slice(0, 180);
-          }
+        if (isJefatura) {
+          db.data.bookingAvailability ||= { closedSlots: [] };
+          const closed = new Set(db.data.bookingAvailability.closedSlots || []);
+          closed.add(appointmentSlotKey(appointment.start, appointment.end));
+          db.data.bookingAvailability.closedSlots = [...closed].filter(item => {
+            const [, itemEnd] = String(item).split('|');
+            return new Date(itemEnd).getTime() > Date.now() - 86400000;
+          }).slice(-500);
+          db.data.bookingAvailability.updatedAt = appointment.updatedAt;
+          db.data.bookingAvailability.updatedBy = session.email;
         }
-        if (['cancelada', 'rechazada'].includes(appointment.status) && appointment.googleEventId && calendarHasRefreshToken(db)) {
-          try {
-            await calendarApiRequest(req, db, {
-              method: 'DELETE',
-              url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(appointment.googleEventId)}?sendUpdates=all`
-            });
-            appointment.googleEventId = null;
-            appointment.googleEventLink = null;
-          } catch {}
-        }
+        const calendarRemoved = await removeAppointmentFromCalendar(req, db, appointment);
         await writeDb(db);
-        const notificationType = appointment.status;
-        const notifications = await sendBookingNotifications(notificationType, appointment, { includeStaff: operation === 'cancel' && !isJefatura });
-        return sendJson(res, 200, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), calendarSynced, notifications });
+        const notifications = await sendBookingNotifications('cancelada', appointment, { includeStaff: !isJefatura });
+        return sendJson(res, 200, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), calendarRemoved, notifications });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'appointment update failed');
       }

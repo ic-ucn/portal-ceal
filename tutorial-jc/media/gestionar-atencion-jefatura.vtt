@@ -1,61 +1,73 @@
 WEBVTT
 
 1
-00:00:00.782 --> 00:00:06.355
+00:00:00.720 --> 00:00:05.586
 Esta guía muestra cómo conectar Calendar y gestionar las horas desde el portál.
 
 2
-00:00:06.866 --> 00:00:14.247
-Paso uno. Inicia sesión con la cuenta autorizada y abre Jefatura. Aquí verás reservas, disponibilidad y Calendar.
+00:00:06.102 --> 00:00:12.173
+Paso uno. En Jefatura o CEAL, selecciona Acceder con Google.
 
 3
-00:00:14.247 --> 00:00:21.613
-Paso dos. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.
+00:00:12.173 --> 00:00:17.243
+Continúa únicamente con la cuenta de Jefatura que aparece en pantalla.
 
 4
-00:00:21.613 --> 00:00:27.985
-Paso tres. Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.
+00:00:18.036 --> 00:00:23.200
+En el teléfono, Jefatura aparece al final de la barra inferior.
 
 5
-00:00:27.985 --> 00:00:35.349
-Elige la cuenta institucional indicada y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.
+00:00:23.707 --> 00:00:29.081
+Paso dos. Abre Jefatura. Aquí verás reservas, disponibilidad y Calendar.
 
 6
-00:00:36.145 --> 00:00:44.718
-Paso cuatro. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.
+00:00:29.200 --> 00:00:35.791
+Paso tres. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.
 
 7
-00:00:44.718 --> 00:00:52.576
-Las ocupaciones de Calendar bloquean horarios superpuestos. Cada reserva crea un evento y cada cancelación lo elimina.
+00:00:35.791 --> 00:00:41.653
+Paso cuatro. Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.
 
 8
-00:00:52.576 --> 00:01:00.944
-Los horarios y cupos se administran en el portál. Mover un evento en Calendar no reprograma una reserva.
+00:00:41.653 --> 00:00:48.013
+Continúa con la misma cuenta y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.
 
 9
-00:01:00.944 --> 00:01:07.302
-Paso cinco. Antes de atender, revisa estudiante, horario, modalidad, lugar y motivo.
+00:00:48.840 --> 00:00:56.716
+Paso cinco. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.
 
 10
-00:01:07.302 --> 00:01:15.161
-Paso seis. Si no puedes atender, cancela desde la tarjeta. El cupo se libera y el evento se elimina.
+00:00:56.716 --> 00:01:03.285
+Las ocupaciones de Calendar bloquean horarios superpuestos. Cada reserva crea un evento y cada cancelación lo elimina.
 
 11
-00:01:15.265 --> 00:01:22.634
-El estudiante recibe automáticamente un enlace para elegir otra hora. No necesitas redactar el correo.
+00:01:03.285 --> 00:01:10.145
+Los horarios y cupos se administran en el portál. Mover un evento en Calendar no reprograma una reserva.
 
 12
-00:01:22.634 --> 00:01:30.498
-Paso siete. Para retirar una hora libre, selecciona un bloque verde. Las horas reservadas no se cierran aquí.
+00:01:10.145 --> 00:01:16.003
+Paso seis. Antes de atender, revisa estudiante, horario, modalidad, lugar y motivo.
 
 13
-00:01:30.557 --> 00:01:37.925
-Paso ocho. Para ofrecerla nuevamente, selecciona el bloque cerrado. El cambio aparece de inmediato en el portál.
+00:01:16.003 --> 00:01:23.364
+Paso siete. Si no puedes atender, cancela desde la tarjeta. El evento se elimina y ese horario queda cerrado.
 
 14
-00:01:37.941 --> 00:01:46.328
-Paso nueve. Realiza una reserva de prueba, confirma el evento en Calendar y cancélala desde Jefatura.
+00:01:23.448 --> 00:01:30.821
+El estudiante recibe automáticamente un enlace para elegir otra hora. El bloque cancelado no se ofrece a otra persona.
 
 15
-00:01:46.328 --> 00:01:52.188
+00:01:30.821 --> 00:01:37.680
+Paso ocho. Para retirar otra hora que aún está libre, selecciona un bloque verde.
+
+16
+00:01:37.744 --> 00:01:44.604
+Paso nueve. Para volver a ofrecer cualquier bloque cerrado, selecciónalo nuevamente.
+
+17
+00:01:44.617 --> 00:01:51.995
+Paso diez. Realiza una reserva de prueba, confirma el evento en Calendar y cancélala desde Jefatura.
+
+18
+00:01:51.995 --> 00:01:56.850
 Con la prueba completa, la agenda queda lista. Las notificaciones se enviarán automáticamente.

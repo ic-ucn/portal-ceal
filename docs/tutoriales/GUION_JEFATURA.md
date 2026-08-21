@@ -1,18 +1,21 @@
-# Guion privado: gestión de atención
+# Guion: configuración y gestión de agenda
 
-Duración objetivo: 3:15.
+Duración final: 1:58. Usa voz femenina chilena, música discreta, texto compacto y foco visual sin tapar el control señalado.
 
-| Tiempo | Pantalla | Narración |
+| Tramo | Pantalla | Indicación |
 | --- | --- | --- |
-| 00:00-00:08 | Título | Gestión de atención para Jefatura de carrera. |
-| 00:08-00:28 | Acceso | Ingresa con `jc.icivil.afta@ucn.cl` y abre Jefatura. Solo esa cuenta tiene acceso a este panel. |
-| 00:28-00:52 | Solicitudes | Revisa estudiante, fecha y motivo. Confirma o rechaza cada solicitud desde la bandeja. |
-| 00:52-01:12 | Próximas atenciones | Las horas confirmadas quedan en Próximas atenciones. Desde allí también se pueden cancelar. |
-| 01:12-01:42 | Disponibilidad | En Disponibilidad de la semana, selecciona una hora verde para cerrarla. Selecciona una hora cerrada para reabrirla. |
-| 01:42-02:05 | Conexión Calendar | Abre Conectar Google Calendar y presiona Conectar agenda. |
-| 02:05-02:32 | Consentimiento Google | Selecciona `jc.icivil.afta@ucn.cl`, revisa los permisos de Calendar y confirma. No uses otra cuenta. |
-| 02:32-02:52 | Resultado | Al volver al portal, verifica el estado Google Calendar conectado. |
-| 02:52-03:08 | Correo y evento | Al confirmar una hora, el portal avisa por correo y crea el evento cuando Calendar está conectado. |
-| 03:08-03:15 | Cierre | Si necesitas retirar el acceso, usa Desconectar Calendar. |
+| Inicio | Título | Configurar y gestionar la agenda de Jefatura. |
+| Acceso | Ingreso | En Jefatura / CEAL, continúa únicamente con `jc.icivil.afta@ucn.cl`; no se muestra el selector privado de Google. |
+| Móvil | Inicio | Jefatura aparece al final de la barra inferior. |
+| Panel | Inicio | Abre Jefatura; allí se reúnen reservas, cupos y Calendar. |
+| Calendar | Panel | Despliega Google Calendar y selecciona Conectar agenda. |
+| Google | Intermedio | Elige exactamente la cuenta indicada y revisa los permisos de eventos y disponibilidad. |
+| Verificación | Panel | Comprueba estado, cuenta, calendario y fecha de última verificación. |
+| Alcance | Resumen | Calendar bloquea ocupaciones, crea eventos y elimina los cancelados desde el portal. |
+| Límites | Resumen | No importa eventos como atenciones, no cambia horarios base y no reprograma reservas al mover eventos. |
+| Revisión | Agenda | Comprueba estudiante, correo, horario, modalidad y motivo. |
+| Cancelación | Agenda | Cancela desde Jefatura; se elimina el evento, el estudiante recibe acceso para elegir otra hora y el bloque queda cerrado. |
+| Disponibilidad | Agenda | Cierra otros cupos libres y reabre manualmente cualquier bloque cerrado cuando corresponda. |
+| Gate | Verificación | Confirma estado verificado, aviso a Kevin, reserva visible en Calendar y cancelación con correo antes de habilitar el acceso estudiantil. |
 
-Texto final en pantalla: `Jefatura de carrera · jc.icivil.afta@ucn.cl`.
+Texto final en pantalla: `Agenda lista para operar · Calendar verificado y flujo completo comprobado`.

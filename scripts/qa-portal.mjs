@@ -296,23 +296,28 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   await page.locator('[data-book-slot]').first().click();
   await page.locator('[data-booking-reason]').fill('Consulta sobre inscripción de asignaturas.');
   await page.locator('[data-appointment-create]').click();
-  await page.getByText('Solicitada', { exact: true }).waitFor();
+  await page.getByText('Reservada', { exact: true }).waitFor();
 
   await loginJefatura(page, jefaturaUser);
-  await page.locator('[data-appointment-confirm]').first().click();
-  await page.locator('[data-appointment-confirm]').waitFor({ state: 'detached' });
+  await page.getByText('Próximas atenciones', { exact: true }).waitFor();
+  const closedBeforeCancellation = await page.locator('[data-availability-open]').count();
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('[data-appointment-cancel]').first().click();
+  await page.getByText('Sin atenciones próximas', { exact: true }).waitFor();
+  await page.waitForFunction(expected => document.querySelectorAll('[data-availability-open]').length > expected, closedBeforeCancellation);
   const closeSlot = page.locator('[data-availability-close]').first();
   if (await closeSlot.count()) {
+    const closeSlotKey = await closeSlot.getAttribute('data-availability-close');
     await closeSlot.click();
-    const reopenSlot = page.locator('[data-availability-open]').first();
+    const reopenSlot = page.locator(`[data-availability-open="${closeSlotKey}"]`);
     await reopenSlot.waitFor();
     await reopenSlot.click();
   }
 
   await loginStudent(page, studentUser);
   await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
-  await page.getByText('Confirmada', { exact: true }).waitFor();
-  report.flows.push('student requests an appointment and Jefatura confirms it');
+  await page.getByText('Cancelada', { exact: true }).waitFor();
+  report.flows.push('student reserves immediately and Jefatura can cancel with rescheduling notice');
 }
 
 async function runCealFlowTests(page, cealUser) {

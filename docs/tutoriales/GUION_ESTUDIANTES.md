@@ -1,16 +1,19 @@
-# Guion: solicitar una hora de atención
+# Guion: reservar una hora de atención
 
-Duración objetivo: 1:45.
+Duración final: 0:59. Voz femenina chilena, música discreta e indicaciones en pantalla.
 
-| Tiempo | Pantalla | Narración |
+| Tiempo | Pantalla | Indicación |
 | --- | --- | --- |
-| 00:00-00:05 | Título y portal | Cómo solicitar una hora de atención con Jefatura de carrera. |
-| 00:05-00:16 | Inicio de sesión | Ingresa al Portal CEIC con tu cuenta institucional y abre Atención. |
-| 00:16-00:32 | Disponibilidad | Revisa los días y horas disponibles. Cada cupo indica si la atención es presencial o mixta. |
-| 00:32-00:52 | Selección | Selecciona una hora. El portal mostrará el día, el horario y el lugar asociado. |
-| 00:52-01:08 | Motivo | Escribe un motivo breve y concreto. No incluyas información sensible. |
-| 01:08-01:23 | Solicitud | Presiona Solicitar hora. La solicitud quedará pendiente hasta que Jefatura la revise. |
-| 01:23-01:37 | Estado | En Mis horas puedes revisar si está solicitada o confirmada. También puedes cancelarla. |
-| 01:37-01:45 | Cierre | La confirmación llegará al correo institucional. |
+| 00:00-00:05 | Título | Reservar una hora de atención. |
+| 00:05-00:12 | Acceso | Selecciona Acceder con Google para estudiantes. |
+| 00:12-00:17 | Google | Usa la cuenta institucional; no se muestra el selector privado. |
+| 00:17-00:22 | Móvil | Atención aparece al final de la barra inferior. |
+| 00:22-00:27 | Inicio | Abre Atención desde el menú principal. |
+| 00:27-00:33 | Disponibilidad | Revisa día, modalidad y lugar. |
+| 00:33-00:38 | Selección | Elige un bloque disponible. |
+| 00:38-00:43 | Motivo | Describe la consulta sin datos sensibles. |
+| 00:43-00:48 | Reserva | Reserva la hora; queda confirmada de inmediato. |
+| 00:48-00:54 | Estado | Revisa o cancela desde Mis horas. También recibirás un correo. |
+| 00:54-00:59 | Cierre | Hora reservada. |
 
-Texto final en pantalla: `Atención · ceicucn.cl`.
+Texto final en pantalla: `Hora reservada`.

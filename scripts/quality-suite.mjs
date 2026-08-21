@@ -319,9 +319,18 @@ assert(indexHtml.includes("Content-Security-Policy"), 'index should declare a co
 assert(serverJs.includes("PORTAL_MAX_SESSIONS"), 'server should support an explicit session capacity');
 assert(serverJs.includes("bookingAvailability"), 'server should persist appointment availability');
 assert(serverJs.includes("sendBookingNotifications"), 'appointment notifications should be derived on the server');
-assert(!appJs.includes('Prof. Zelada'), 'appointment UI should identify Jefatura by role');
+assert(serverJs.includes("status: 'confirmada'"), 'appointments should be reserved immediately');
+assert(serverJs.includes('Elegir otra hora'), 'Jefatura cancellation email should include a rescheduling action');
+assert(!appJs.includes('Prof. Zelada'), 'appointment UI should not identify a specific person');
+assert(!appJs.includes('Atención académica'), 'appointment UI should identify the role as Jefe de carrera');
+assert(!appJs.includes('#/jefatura/tutorial'), 'private Jefatura tutorial should not be exposed as a web route');
 assert(serverJs.includes("aes-256-gcm"), 'Google Calendar tokens should be encrypted at rest');
 assert(serverJs.includes("tokensEncrypted"), 'encrypted Google Calendar token storage should be enabled');
+assert(serverJs.includes('verifyGoogleCalendarConnection'), 'Calendar connection should be verified after OAuth');
+assert(serverJs.includes('CALENDAR_CONNECTION_NOTIFY_EMAIL'), 'Calendar connection should notify the configured reviewer');
+assert(serverJs.includes('kevin.cortes@alumnos.ucn.cl'), 'Calendar connection should default to Kevin as reviewer');
+assert(appJs.includes('Calendar conectado y verificado'), 'Jefatura should see a verified Calendar state');
+assert(!appJs.includes('sin aprobación previa'), 'Jefatura UI should not expose removed workflow commentary');
 
 const routeNeedles = [
   "#/gestion",

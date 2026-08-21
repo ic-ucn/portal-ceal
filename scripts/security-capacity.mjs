@@ -134,6 +134,8 @@ async function main() {
     assert((await request('/api/surveys')).status === 404, 'survey API is disabled');
     assert((await request('/api/reservations')).status === 404, 'table-reservation API is disabled');
     assert((await request('/api/calendar/appointments')).status === 401, 'appointments require an authenticated session');
+    assert((await request('/api/calendar/verify', { method: 'POST' })).status === 401, 'Calendar verification requires Jefatura authentication');
+    assert((await request('/api/tutorials/jefatura')).status === 404, 'private Jefatura web tutorial is not exposed');
 
     const studentA = await qaSession({ role: 'student', name: 'Estudiante A', email: 'qa.a@alumnos.ucn.cl' });
     const studentB = await qaSession({ role: 'student', name: 'Estudiante B', email: 'qa.b@alumnos.ucn.cl' });
@@ -142,6 +144,7 @@ async function main() {
     const slot = nextOfficeSlot(bootstrap.payload.data.staffProfiles[0]);
     assert((await request('/api/ai/survey-draft', { method: 'POST', token: ceal.sessionToken, body: { rawText: 'Consulta' } })).status === 404, 'survey generation API is disabled');
     assert((await request('/api/calendar/appointments', { method: 'POST', token: jefatura.sessionToken, body: { ...slot, reason: 'Consulta interna.' } })).status === 403, 'Jefatura cannot request an appointment with itself');
+    assert((await request('/api/calendar/verify', { method: 'POST', token: ceal.sessionToken })).status === 403, 'CEAL cannot verify the Jefatura Calendar connection');
 
     const [createA, createB] = await Promise.all([
       request('/api/calendar/appointments', { method: 'POST', token: studentA.sessionToken, body: { ...slot, reason: 'Consulta sobre inscripción académica.' } }),
@@ -152,6 +155,7 @@ async function main() {
     const created = createA.status === 201 ? createA.payload.item : createB.payload.item;
     const owner = createA.status === 201 ? studentA : studentB;
     const other = createA.status === 201 ? studentB : studentA;
+    assert(created.status === 'confirmada', 'an available appointment is reserved immediately');
 
     const ownerList = await request('/api/calendar/appointments', { token: owner.sessionToken });
     const otherList = await request('/api/calendar/appointments', { token: other.sessionToken });
@@ -162,9 +166,16 @@ async function main() {
     assert((await request('/api/calendar/availability', { method: 'PATCH', token: ceal.sessionToken, body: { slotKey: `${slot.start}|${slot.end}`, closed: true } })).status === 403, 'CEAL cannot change Jefatura availability');
 
     const staffList = await request('/api/calendar/appointments', { token: jefatura.sessionToken });
-    assert(staffList.payload?.scope === 'all' && staffList.payload.items.length === 1, 'Jefatura can review all appointment requests');
-    const confirmed = await request(`/api/calendar/appointments/${created.id}`, { method: 'PATCH', token: jefatura.sessionToken, body: { action: 'confirm' } });
-    assert(confirmed.status === 200 && confirmed.payload?.item?.status === 'confirmada', 'Jefatura can confirm a pending appointment');
+    assert(staffList.payload?.scope === 'all' && staffList.payload.items.length === 1, 'Jefatura can review all reserved appointments');
+    const manualConfirmation = await request(`/api/calendar/appointments/${created.id}`, { method: 'PATCH', token: jefatura.sessionToken, body: { action: 'confirm' } });
+    assert(manualConfirmation.status === 422, 'manual appointment confirmation is disabled');
+    const cancelled = await request(`/api/calendar/appointments/${created.id}`, { method: 'PATCH', token: jefatura.sessionToken, body: { action: 'cancel' } });
+    assert(cancelled.status === 200 && cancelled.payload?.item?.status === 'cancelada', 'Jefatura can cancel a reserved appointment');
+    assert(cancelled.payload?.item?.studentEmail === owner.email, 'Jefatura cancellation targets the appointment owner');
+    const cancelledSlotKey = `${created.start}|${created.end}`;
+    assert(cancelled.payload?.availability?.closedSlots?.includes(cancelledSlotKey), 'Jefatura cancellation closes the exact appointment slot');
+    const cancelledSlotRetry = await request('/api/calendar/appointments', { method: 'POST', token: other.sessionToken, body: { ...slot, reason: 'Intento sobre horario cancelado por Jefatura.' } });
+    assert(cancelledSlotRetry.status === 409, 'a slot cancelled by Jefatura cannot be booked by another student');
 
     const sessionBatch = await Promise.all(Array.from({ length: 300 }, (_, index) => request('/api/auth/qa-session', {
       method: 'POST',

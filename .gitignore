@@ -8,6 +8,10 @@ node_modules/
 *.log
 qa-report.json
 qa-screenshots/
+output/tutoriales-privados/
+tmp/
+__pycache__/
+*.pyc
 .DS_Store
 Thumbs.db
 

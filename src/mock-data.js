@@ -348,22 +348,22 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
 
   const staffProfiles = [
     {
-      id: 'zelada',
+      id: 'jefatura-ingenieria-civil',
       name: 'Jefatura de carrera',
       displayName: 'Jefatura de carrera',
-      contactName: 'Prof. Zelada',
-      role: 'Jefe de Carrera IngenierÃ­a Civil UCN',
+      contactName: 'Jefe de carrera',
+      role: 'Ingeniería Civil UCN',
       email: 'jc.icivil.afta@ucn.cl',
       authorizedEmails: ['jc.icivil.afta@ucn.cl'],
       calendarUrl: '',
       bookingUrl: '',
       status: 'Horarios publicados',
-      description: 'Horarios de atenciÃ³n e informaciÃ³n oficial de Jefatura de carrera.',
+      description: 'Horarios de atención e información oficial de Jefatura de carrera.',
       officeHours: [
-        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de IngenierÃ­a Civil', status: 'Sujeto a confirmaciÃ³n' },
-        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Sujeto a confirmaciÃ³n' }
+        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de Ingeniería Civil', status: 'Reserva directa' },
+        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Reserva directa' }
       ],
-      notes: ['Las horas quedan sujetas a confirmaciÃ³n de jefatura.', 'La solicitud se realiza por correo institucional mientras se habilita agenda oficial.']
+      notes: ['Las horas disponibles quedan reservadas de inmediato.', 'Si Jefatura cancela una atención, el estudiante recibe un correo para reagendar.']
     }
   ];
 

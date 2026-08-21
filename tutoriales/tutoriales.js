@@ -13,6 +13,19 @@
     localStorage.setItem('portal.theme', dark ? 'dark' : 'light');
     apply(dark);
   });
+  const appointmentLink = document.querySelector('a[href*="#/atencion"]');
+  if (appointmentLink) {
+    let warmupStarted = false;
+    const warmup = () => {
+      if (warmupStarted) return;
+      warmupStarted = true;
+      fetch('https://portal-ceic-api.onrender.com/api/health', { cache: 'no-store', mode: 'cors' }).catch(() => {});
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(warmup, { timeout: 1200 });
+    else setTimeout(warmup, 250);
+    appointmentLink.addEventListener('pointerenter', warmup, { once: true });
+    appointmentLink.addEventListener('focus', warmup, { once: true });
+  }
   const video = document.querySelector('[data-tutorial-video]');
   const toggle = document.querySelector('[data-video-toggle]');
   const toggleLabel = document.querySelector('[data-video-toggle-label]');

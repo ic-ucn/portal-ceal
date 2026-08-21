@@ -80,6 +80,8 @@
     staffBusyError: '',
     myAppointments: null,
     myApptsLoading: false,
+    myApptsSlow: false,
+    myApptsError: '',
     staffClosedSlots: [],
     appointmentBusy: [],
     bookingSlotKey: null,
@@ -189,6 +191,7 @@
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
     upload: '<svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"/></svg>',
     download: '<svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M20 20H4"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg>',
     x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
@@ -669,7 +672,7 @@
     const profiles = {
       student: { role: 'student', name: 'Estudiante UCN', label: 'Estudiante', plan: 'planP', yearLabel: 'Cuenta UCN', email: 'qa.estudiante@alumnos.ucn.cl', permissions: [] },
       ceal: { role: 'ceal', name: 'Equipo CEAL', label: 'CEAL', plan: 'planP', yearLabel: 'Gestión interna', email: 'qa.ceal@alumnos.ucn.cl', permissions: ['edit:comunicados', 'edit:calendario', 'manage:material', 'manage:cases', 'edit:mallas'] },
-      jefatura: { role: 'jefatura', name: 'Jefatura de carrera', label: 'Jefatura', plan: 'planP', yearLabel: 'Gestión académica', email: JEFATURA_EMAIL, permissions: ['manage:office-hours', 'edit:calendario'] }
+      jefatura: { role: 'jefatura', name: 'Jefatura de carrera', label: 'Jefatura', plan: 'planP', yearLabel: 'Cuenta de jefatura', email: JEFATURA_EMAIL, permissions: ['manage:office-hours', 'edit:calendario'] }
     };
     const payload = await apiRequest('/auth/qa-session', { method: 'POST', body: JSON.stringify(profiles[role] || profiles.student) });
     return payload.user;
@@ -710,9 +713,10 @@
   }
   async function apiRequest(path, options = {}) {
     if (!API_BASE) throw new Error('api unavailable');
-    const headers = { 'content-type': 'application/json', ...(options.headers || {}) };
+    const { timeoutMs = 45000, ...requestOptions } = options;
+    const headers = { 'content-type': 'application/json', ...(requestOptions.headers || {}) };
     if (state.user?.sessionToken && !headers.Authorization) headers.Authorization = `Bearer ${state.user.sessionToken}`;
-    const res = await fetchWithTimeout(`${API_BASE}${path}`, { ...options, headers }, 45000);
+    const res = await fetchWithTimeout(`${API_BASE}${path}`, { ...requestOptions, headers }, timeoutMs);
     const payload = await res.json().catch(() => ({}));
     if (res.status === 401 && state.user?.sessionToken) {
       handleSessionExpired();
@@ -763,6 +767,9 @@
   }
   async function calendarDisconnectRequest() {
     return apiRequest('/calendar/disconnect', { method: 'POST', body: JSON.stringify({}) });
+  }
+  async function calendarVerifyRequest() {
+    return apiRequest('/calendar/verify', { method: 'POST', body: JSON.stringify({}) });
   }
   async function setupMemberPassword(memberId, password) {
     try { const payload = await apiRequest('/auth/setup', { method: 'POST', body: JSON.stringify({ memberId, password }) }); if (payload.user) return payload.user; } catch {}
@@ -1203,31 +1210,45 @@
     const route = getRoute().path;
     const canHydrate = (route === '/jefatura' && hasJefaturaAccess()) || (route === '/atencion' && !isGuest());
     if (!canHydrate || !API_BASE) return;
+    let started = false;
+    if (state.myAppointments === null && !state.myApptsLoading && !state.myApptsError) {
+      started = true;
+      state.myApptsLoading = true;
+      state.myApptsSlow = false;
+      const slowTimer = setTimeout(() => {
+        if (!state.myApptsLoading || state.myAppointments !== null) return;
+        state.myApptsSlow = true;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }, 3500);
+      apiRequest('/calendar/appointments', { timeoutMs: 30000 })
+        .then(payload => {
+          state.myAppointments = Array.isArray(payload.items) ? payload.items : [];
+          state.staffClosedSlots = Array.isArray(payload.availability?.closedSlots) ? payload.availability.closedSlots : [];
+          state.appointmentBusy = Array.isArray(payload.availability?.occupied) ? payload.availability.occupied : [];
+        })
+        .catch(error => {
+          if (!error?.isSessionExpired) state.myApptsError = error.message || 'No se pudieron cargar los horarios.';
+        })
+        .finally(() => {
+          clearTimeout(slowTimer);
+          state.myApptsLoading = false;
+          state.myApptsSlow = false;
+          render({ transition: false, scope: 'panel', resetScroll: false });
+        });
+    }
     if (!state.calendarStatus && !state.calendarStatusLoading && !state.calendarStatusError) {
+      started = true;
       state.calendarStatusLoading = true;
       state.calendarStatusError = '';
-      try {
-        const payload = await calendarStatusRequest();
-        state.calendarStatus = payload.status || null;
-      } catch (error) {
-        state.calendarStatusError = error.message || 'No se pudo revisar Calendar.';
-      } finally {
-        state.calendarStatusLoading = false;
-        render({ transition: false, scope: 'panel', resetScroll: false });
-      }
-      return;
+      calendarStatusRequest()
+        .then(payload => { state.calendarStatus = payload.status || null; })
+        .catch(error => { state.calendarStatusError = error.message || 'No se pudo revisar Calendar.'; })
+        .finally(() => {
+          state.calendarStatusLoading = false;
+          render({ transition: false, scope: 'panel', resetScroll: false });
+        });
     }
-    if (state.myAppointments === null && !state.myApptsLoading) {
-      state.myApptsLoading = true;
-      try {
-        const payload = await apiRequest('/calendar/appointments');
-        state.myAppointments = Array.isArray(payload.items) ? payload.items : [];
-        state.staffClosedSlots = Array.isArray(payload.availability?.closedSlots) ? payload.availability.closedSlots : [];
-        state.appointmentBusy = Array.isArray(payload.availability?.occupied) ? payload.availability.occupied : [];
-      } catch { state.myAppointments = []; }
-      finally { state.myApptsLoading = false; render({ transition: false, scope: 'panel', resetScroll: false }); }
-      return;
-    }
+    if (started) return;
     if (state.calendarStatus?.connected && state.staffBusy === null && !state.staffBusyLoading && !state.staffBusyError) {
       state.staffBusyLoading = true;
       try {
@@ -2447,11 +2468,20 @@
   // Respaldo local para la versión estática. En producción el servidor conserva
   // las solicitudes y la disponibilidad entre dispositivos.
   const BOOKING_STORE_KEY = 'portal.booking.v2';
-  const APPT_STATUS = { solicitada: ['Solicitada', 'orange'], confirmada: ['Confirmada', 'green'], rechazada: ['Rechazada', 'red'], cancelada: ['Cancelada', 'gray'] };
+  const APPT_STATUS = { solicitada: ['Reservada', 'green'], confirmada: ['Reservada', 'green'], rechazada: ['No agendada', 'red'], cancelada: ['Cancelada', 'gray'] };
   const APPT_ACTIVE = new Set(['solicitada', 'confirmada']);
   function bookingStoreDefault() { return { appointments: [], closedSlots: [], seeded: false }; }
   function readBookingStore() {
-    try { const raw = JSON.parse(localStorage.getItem(BOOKING_STORE_KEY) || 'null'); if (raw && typeof raw === 'object') return { ...bookingStoreDefault(), ...raw }; } catch {}
+    try {
+      const raw = JSON.parse(localStorage.getItem(BOOKING_STORE_KEY) || 'null');
+      if (raw && typeof raw === 'object') {
+        return {
+          ...bookingStoreDefault(),
+          ...raw,
+          appointments: (raw.appointments || []).map(item => item.status === 'solicitada' ? { ...item, status: 'confirmada' } : item)
+        };
+      }
+    } catch {}
     return bookingStoreDefault();
   }
   function writeBookingStore(store) { try { localStorage.setItem(BOOKING_STORE_KEY, JSON.stringify(store)); } catch {} }
@@ -2819,7 +2849,7 @@
     const email = opts.staff ? (profile.email || 'jc.icivil.afta@ucn.cl') : (profile.email || 'jc.icivil.afta@ucn.cl');
     const hoursHtml = hours.map(h => `<div class="staff-hour-row"><span><strong>${esc(h.day)}</strong><small>${esc(h.mode)} · ${esc(h.place)}</small></span><strong>${esc(h.time)}</strong></div>`).join('');
     return `<section class="card pad staff-hero">
-      <div class="staff-hero-top"><span class="avatar big blue">JC</span><div><span class="kicker">Jefe de carrera</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div></div>
+      <div class="staff-hero-top"><span class="avatar big blue">JC</span><div><span class="kicker">Jefe de carrera</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Ingeniería Civil UCN')}</p></div></div>
       <div class="staff-hero-meta">${icon('user')}<span>${esc(email)}</span></div>
       <div class="divider"></div>
       <h3 class="card-title sm">Horarios de atención</h3>
@@ -2859,9 +2889,9 @@
     const mine = myBookingAppointments(store);
     const selected = avail.find(s => slotKey(s) === state.bookingSlotKey);
     const confirmBlock = selected
-      ? `<div class="booking-confirm"><div class="booking-confirm-head">${icon('check')}<div><strong>${esc(fmtSlotDayLabel(selected.start))}</strong><span class="small muted">${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)} · ${esc(selected.mode || 'Presencial')} · ${esc(selected.place || '')}</span></div></div><div class="form-field"><label for="f-book-reason">Motivo</label><textarea id="f-book-reason" class="textarea compact" data-booking-reason maxlength="500" placeholder="Indica brevemente el motivo">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-appointment-create ${state.bookingSubmitting ? 'aria-busy="true" disabled' : ''}>${state.bookingSubmitting ? '<span class="btn-spinner"></span><span>Enviando…</span>' : 'Solicitar hora'}</button><p class="small muted">Jefatura confirmará la solicitud por correo.</p></div>`
+      ? `<div class="booking-confirm"><div class="booking-confirm-head">${icon('check')}<div><strong>${esc(fmtSlotDayLabel(selected.start))}</strong><span class="small muted">${fmtSlotTime(selected.start)}–${fmtSlotTime(selected.end)} · ${esc(selected.mode || 'Presencial')} · ${esc(selected.place || '')}</span></div></div><div class="form-field"><label for="f-book-reason">Motivo</label><textarea id="f-book-reason" class="textarea compact" data-booking-reason maxlength="500" placeholder="Indica brevemente el motivo">${esc(state.bookingReason || '')}</textarea></div><button class="btn primary full" type="button" data-appointment-create ${state.bookingSubmitting ? 'aria-busy="true" disabled' : ''}>${state.bookingSubmitting ? '<span class="btn-spinner"></span><span>Reservando…</span>' : 'Reservar hora'}</button><p class="small muted">La hora queda reservada de inmediato y recibirás un correo de respaldo.</p></div>`
       : `<p class="small muted booking-hint">${icon('clock')} Selecciona una hora disponible.</p>`;
-    return `${pageHead('Atención de Jefatura', 'Agenda una hora de atención con la Jefatura de carrera')}
+    return `${pageHead('Atención de Jefatura', 'Reserva directamente una hora disponible', `<a class="btn secondary" href="/tutoriales/">${icon('play')} Ver tutorial</a>`)}
       <div class="split wide booking-layout">
         <section class="card pad booking-picker">
           <div class="row-between"><h2 class="card-title">Horas disponibles</h2><span class="pill blue">${avail.length} libres</span></div>
@@ -2873,21 +2903,12 @@
       </div>
       ${renderMyHours(mine)}`;
   }
-  function renderRequestCard(a) {
-    const start = new Date(a.start);
-    return `<article class="request-card">
-      <div class="request-card-top"><span class="avatar sm">${nameInitials(a.studentName || a.studentEmail)}</span><div class="request-who"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail)}</span></div><span class="status-chip orange">Solicitada</span></div>
-      <div class="request-when">${icon('calendar')}<span>${esc(fmtSlotDayLabel(start))} · ${fmtSlotTime(start)}–${fmtSlotTime(new Date(a.end))} · ${esc(a.mode || 'Presencial')}</span></div>
-      <p class="request-reason">${esc(a.reason || 'Sin motivo indicado')}</p>
-      <div class="request-actions"><button class="btn primary sm" type="button" data-appointment-confirm="${esc(a.id)}">${icon('check')} Confirmar</button><button class="btn ghost sm" type="button" data-appointment-reject="${esc(a.id)}">${icon('x')} Rechazar</button></div>
-    </article>`;
-  }
   function renderStaffApptRow(a) {
     const start = new Date(a.start);
     return `<div class="appt-card">
       <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
-      <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
-      <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar</button></div>
+      <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail || '')}</span><p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
+      <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar hora</button></div>
     </div>`;
   }
   function renderStaffAvailability(profile, store) {
@@ -2911,25 +2932,35 @@
   function renderStaffBooking(profile, store) {
     const appts = store.appointments.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
     const now = Date.now();
-    const pending = appts.filter(a => a.status === 'solicitada');
-    const confirmed = appts.filter(a => a.status === 'confirmada' && new Date(a.end).getTime() > now);
+    const confirmed = appts.filter(a => APPT_ACTIVE.has(a.status) && new Date(a.end).getTime() > now);
     const weekEnd = now + 7 * 86400000;
     const thisWeek = appts.filter(a => APPT_ACTIVE.has(a.status) && new Date(a.start).getTime() <= weekEnd && new Date(a.end).getTime() > now);
-    const kpis = `<div class="booking-kpis">${bookingKpi('bell', pending.length, 'Solicitudes por revisar', pending.length ? 'orange' : 'gray')}${bookingKpi('check', confirmed.length, 'Confirmadas próximas', 'green')}${bookingKpi('clock', thisWeek.length, 'Atenciones esta semana', 'blue')}</div>`;
-    const inbox = pending.length ? pending.map(renderRequestCard).join('') : `<div class="booking-inline-empty">${icon('check')}<span><strong>Sin solicitudes pendientes</strong><small>Las nuevas solicitudes aparecerán aquí.</small></span></div>`;
-    const agenda = confirmed.length ? confirmed.map(renderStaffApptRow).join('') : `<p class="small muted">No hay atenciones confirmadas próximas.</p>`;
-    return `${pageHead('Jefatura de carrera', 'Solicitudes de atención y gestión de tu agenda')}
+    const closed = (store.closedSlots || []).length;
+    const kpis = `<div class="booking-kpis">${bookingKpi('check', confirmed.length, 'Próximas reservadas', 'green')}${bookingKpi('clock', thisWeek.length, 'Esta semana', 'blue')}${bookingKpi('x', closed, 'Cupos cerrados', closed ? 'orange' : 'gray')}</div>`;
+    const agenda = confirmed.length ? confirmed.map(renderStaffApptRow).join('') : `<div class="booking-inline-empty">${icon('calendar')}<span><strong>Sin atenciones próximas</strong><small>Las horas tomadas aparecerán aquí automáticamente.</small></span></div>`;
+    const calendarStatus = state.calendarStatus || Data.integrations?.googleCalendar || {};
+    const calendarLabel = calendarStatus.verified ? 'Calendar verificado' : (calendarStatus.connected ? 'Revisar Calendar' : 'Conectar Calendar');
+    const calendarTone = calendarStatus.verified ? 'green' : (calendarStatus.connected ? 'orange' : 'gray');
+    const calendarOpen = !calendarStatus.verified || getRoute().query.calendar ? ' open' : '';
+    return `${pageHead('Jefatura de carrera', 'Atenciones reservadas y disponibilidad semanal', `<a class="btn secondary" href="/tutorial-jc/">${icon('play')} Ver tutorial</a>`)}
       ${kpis}
       <div class="split wide">
-        <section class="card pad"><div class="row-between"><h2 class="card-title">Solicitudes por revisar</h2>${pending.length ? `<span class="pill orange">${pending.length}</span>` : ''}</div><div class="request-list">${inbox}</div></section>
-        <aside class="booking-aside"><section class="card pad"><h2 class="card-title">Próximas atenciones</h2><div class="appt-card-list">${agenda}</div></section>${bookingHeroCard(profile, { staff: true })}</aside>
+        <section class="card pad"><div class="row-between"><h2 class="card-title">Próximas atenciones</h2>${confirmed.length ? `<span class="pill green">${confirmed.length}</span>` : ''}</div><p class="small muted">Revisa estudiante, horario, modalidad y motivo antes de cada atención.</p><div class="appt-card-list">${agenda}</div></section>
+        <aside class="booking-aside">${bookingHeroCard(profile, { staff: true })}</aside>
       </div>
-      <section class="card pad"><div class="row-between"><h2 class="card-title">Disponibilidad de la semana</h2><span class="small muted">Cierra o reabre horas para tus estudiantes</span></div>${renderStaffAvailability(profile, store)}</section>
-      <details class="card pad booking-gcal"><summary><strong>Conectar Google Calendar (opcional)</strong> — sincroniza estas horas con tu agenda real</summary><div class="booking-gcal-body">${renderStaffCalendarPanel(profile)}</div></details>`;
+      <section class="card pad"><div class="row-between"><h2 class="card-title">Disponibilidad de la semana</h2><span class="small muted">Cierra o reabre horas libres</span></div>${renderStaffAvailability(profile, store)}</section>
+      <details class="card pad booking-gcal"${calendarOpen}><summary><span><strong>Google Calendar</strong><small>Sincronización de la agenda de atención</small></span><span class="pill ${calendarTone}">${calendarLabel}</span></summary><div class="booking-gcal-body">${renderStaffCalendarPanel(profile)}</div></details>`;
   }
   function renderBookingPage(forStaff) {
     const profile = (Data.staffProfiles || [])[0] || {};
-    if (API_BASE && state.myAppointments === null) return renderLoading(forStaff ? 'Jefatura de carrera' : 'Atención de Jefatura', 'Cargando horarios…');
+    if (API_BASE && state.myAppointments === null) {
+      const title = forStaff ? 'Jefatura de carrera' : 'Atención de Jefatura';
+      if (state.myApptsError) {
+        const retry = `<button class="btn primary" type="button" data-appointments-refresh>${icon('calendar')} Reintentar</button>`;
+        return `${pageHead(title)}<section class="card pad">${renderEmpty('No pudimos cargar los horarios', state.myApptsError, retry, 'calendar')}</section>`;
+      }
+      return renderLoading(title, state.myApptsSlow ? 'El servicio se está iniciando. Esto puede tardar unos segundos.' : 'Consultando disponibilidad…');
+    }
     const store = API_BASE
       ? { appointments: state.myAppointments || [], closedSlots: state.staffClosedSlots || [] }
       : loadBookingStore(profile);
@@ -2939,22 +2970,29 @@
   function renderStaffCalendarPanel(profile = {}) {
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
     const account = status.account || profile.email || 'jc.icivil.afta@ucn.cl';
+    const callbackState = getRoute().query.calendar || '';
+    const callbackNotice = callbackState === 'connected'
+      ? `<div class="booking-calendar-notice success">${icon('check')}<span><strong>Conexión completada</strong><small>La cuenta y los permisos de Calendar fueron verificados.</small></span></div>`
+      : callbackState === 'error'
+        ? `<div class="booking-calendar-notice error">${icon('x')}<span><strong>No se completó la conexión</strong><small>Revisa la cuenta seleccionada e inténtalo nuevamente.</small></span></div>`
+        : '';
     if (!API_BASE) {
-      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conexión no disponible</h2><p class="small muted">La conexión directa con Google Calendar se activará cuando el servicio institucional esté listo.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Cuenta de agenda</strong><small>${esc(account)}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Agenda institucional</strong><small>Al activarse aparecerá el botón de conexión.</small></span></div></aside>`;
+      return `<div class="booking-calendar-panel" data-calendar-state="unavailable"><span class="kicker">Agenda</span><h2 class="card-title">Conexión no disponible</h2><p class="small muted">La conexión con Google Calendar aún no está habilitada.</p><div class="booking-calendar-account"><span class="icon-box">${icon('user')}</span><span><strong>Cuenta de Jefatura</strong><small>${esc(account)}</small></span></div></div>`;
     }
     if (state.calendarStatusLoading && !state.calendarStatus) {
-      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Revisando conexión</h2></aside>`;
+      return `<div class="booking-calendar-panel" data-calendar-state="loading"><span class="kicker">Agenda</span><h2 class="card-title">Revisando conexión</h2></div>`;
     }
     if (state.calendarStatusError) {
-      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></aside>`;
+      return `<div class="booking-calendar-panel" data-calendar-state="error"><span class="kicker">Agenda</span><h2 class="card-title">No se pudo revisar Calendar</h2><p class="small muted">${esc(state.calendarStatusError)}</p><button class="btn secondary" data-calendar-refresh type="button">${icon('calendar')} Reintentar</button></div>`;
     }
     if (!status.configured) {
-      return `<aside class="card pad"><span class="kicker">Agenda · opcional</span><h2 class="card-title">Horarios desde Google Calendar</h2><p class="small muted">Los horarios de atención se muestran a la izquierda. De forma opcional, Jefatura podrá conectar su Google Calendar para publicarlos y actualizarlos automáticamente.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Horarios publicados</strong><small>Ya visibles para estudiantes.</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Sincronización automática</strong><small>Próximamente con Google Calendar.</small></span></div></aside>`;
+      return `<div class="booking-calendar-panel" data-calendar-state="unconfigured"><span class="kicker">Agenda</span><h2 class="card-title">Conexión aún no habilitada</h2><p class="small muted">La agenda del portal sigue disponible. Calendar podrá conectarse cuando la autorización institucional esté preparada.</p><div class="booking-calendar-account"><span class="icon-box">${icon('user')}</span><span><strong>Cuenta prevista</strong><small>${esc(account)}</small></span></div></div>`;
     }
     if (status.connected) {
-      return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Google Calendar conectado</h2><p class="small muted">La agenda de ${esc(account)} está autorizada para crear eventos desde el portal.</p><div class="divider"></div><div class="assistant-rule"><span class="icon-box">${icon('check')}</span><span><strong>Conexión activa</strong><small>${status.connectedAt ? fmtDate(status.connectedAt) : 'Lista para usar'}</small></span></div><div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span></div><button class="btn secondary" data-calendar-disconnect type="button">${icon('x')} Desconectar Calendar</button></aside>`;
+      const verified = Boolean(status.verified);
+      return `<div class="booking-calendar-panel" data-calendar-state="${verified ? 'verified' : 'connected'}">${callbackNotice}<div class="booking-calendar-status"><span class="icon-box ${verified ? 'green' : 'orange'}">${icon(verified ? 'check' : 'clock')}</span><span><span class="kicker">Agenda</span><h2 class="card-title">${verified ? 'Calendar conectado y verificado' : 'Calendar conectado'}</h2><p class="small muted">${verified ? 'El portal comprobó la cuenta, la disponibilidad y el acceso a eventos.' : 'Verifica el acceso antes de habilitar la atención para estudiantes.'}</p></span></div><div class="booking-calendar-details"><span><strong>Cuenta</strong><small>${esc(account)}</small></span><span><strong>Calendario</strong><small>${esc(status.calendarId || 'primary')}</small></span><span><strong>Última verificación</strong><small>${status.verifiedAt ? fmtDate(status.verifiedAt) : 'Pendiente'}</small></span></div><div class="hstack"><button class="btn ${verified ? 'secondary' : 'primary'}" data-calendar-verify type="button">${icon('check')} Verificar ahora</button><button class="btn ghost" data-calendar-disconnect type="button">${icon('x')} Desconectar</button></div></div>`;
     }
-    return `<aside class="card pad"><span class="kicker">Agenda</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza ${esc(account)} para que el portal pueda crear eventos de atención.</p><div class="divider"></div><button class="btn primary full" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google pedirá permisos de Calendar y correo institucional.</p></aside>`;
+    return `<div class="booking-calendar-panel" data-calendar-state="disconnected">${callbackNotice}<span class="kicker">Agenda</span><h2 class="card-title">Conectar Google Calendar</h2><p class="small muted">Autoriza la cuenta de Jefatura para consultar ocupaciones y administrar los eventos creados por el portal.</p><div class="booking-calendar-account"><span class="icon-box">${icon('user')}</span><span><strong>Cuenta requerida</strong><small>${esc(account)}</small></span></div><button class="btn primary" data-calendar-connect type="button">${icon('calendar')} Conectar agenda</button><p class="small muted">Google abrirá una pantalla de autorización. Selecciona exactamente esta cuenta y revisa los permisos antes de continuar.</p></div>`;
   }
   function renderCealAssistant() {
     const req = state.cealAssistantRequest || {};
@@ -3297,6 +3335,13 @@
       document.querySelector('[data-toggle-notifications]')?.focus();
       return;
     }
+    if (e.target.closest('[data-appointments-refresh]')) {
+      state.myAppointments = null;
+      state.myApptsError = '';
+      state.myApptsSlow = false;
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      return;
+    }
     if (e.target.closest('[data-calendar-refresh]')) {
       state.calendarStatus = null;
       state.calendarStatusError = '';
@@ -3338,6 +3383,25 @@
       }
       return;
     }
+    if (e.target.closest('[data-calendar-verify]')) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      state.calendarStatusLoading = true;
+      state.calendarStatusError = '';
+      render({ transition: true, scope: 'panel', resetScroll: false });
+      try {
+        const payload = await calendarVerifyRequest();
+        state.calendarStatus = payload.status || null;
+        state.staffBusy = null;
+        state.staffBusyError = '';
+        showToast('Conexión de Calendar verificada', 'green');
+      } catch (error) {
+        state.calendarStatusError = error.message || 'No se pudo verificar Calendar.';
+      } finally {
+        state.calendarStatusLoading = false;
+        render({ transition: true, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
     const bookSlot = e.target.closest('[data-book-slot]');
     if (bookSlot) {
       state.bookingSlotKey = state.bookingSlotKey === bookSlot.dataset.bookSlot ? null : bookSlot.dataset.bookSlot;
@@ -3360,15 +3424,15 @@
           state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots;
           state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
         } else {
-          const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason, status: 'solicitada', staffNote: '', createdAt: new Date().toISOString() };
+          const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason, status: 'confirmada', staffNote: '', createdAt: new Date().toISOString() };
           store.appointments.unshift(appt);
           writeBookingStore(store);
         }
         state.bookingSlotKey = null;
         state.bookingReason = '';
-        showToast('Solicitud enviada', 'green');
+        showToast('Hora reservada', 'green');
       } catch (error) {
-        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo solicitar la hora', 'orange');
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo reservar la hora', 'orange');
       } finally {
         state.bookingSubmitting = false;
         render({ transition: true, scope: 'panel', resetScroll: false });
@@ -3379,10 +3443,16 @@
     if (appointmentCancel) {
       if (isGuest()) { readonlyToast(); return; }
       const id = appointmentCancel.dataset.appointmentCancel;
+      const target = (state.myAppointments || readBookingStore().appointments || []).find(item => item.id === id);
+      const cancelMessage = hasJefaturaAccess()
+        ? `¿Cancelar la hora de ${target?.studentName || target?.studentEmail || 'este estudiante'}? Se le enviará un correo para reagendar y este horario quedará cerrado.`
+        : '¿Cancelar tu hora? El bloque volverá a quedar disponible.';
+      if (!window.confirm(cancelMessage)) return;
       if (API_BASE) {
         try {
           const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel' }) });
           if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
+          state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots;
           state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
         } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo cancelar', 'orange'); return; }
       } else {
@@ -3390,51 +3460,14 @@
         const appt = store.appointments.find(a => a.id === id);
         if (!appt || !APPT_ACTIVE.has(appt.status)) return;
         appt.status = 'cancelada';
+        appt.cancelledBy = hasJefaturaAccess() ? 'jefatura' : 'student';
+        if (hasJefaturaAccess()) {
+          const key = `${new Date(appt.start).toISOString()}|${new Date(appt.end).toISOString()}`;
+          if (!(store.closedSlots || []).includes(key)) store.closedSlots = [...(store.closedSlots || []), key];
+        }
         writeBookingStore(store);
       }
-      showToast('Hora cancelada', 'blue');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const appointmentConfirm = e.target.closest('[data-appointment-confirm]');
-    if (appointmentConfirm) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const id = appointmentConfirm.dataset.appointmentConfirm;
-      if (API_BASE) {
-        try {
-          const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) });
-          if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
-          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
-        } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo confirmar', 'orange'); return; }
-      } else {
-        const store = readBookingStore();
-        const appt = store.appointments.find(a => a.id === id);
-        if (!appt) return;
-        appt.status = 'confirmada';
-        writeBookingStore(store);
-      }
-      showToast('Atención confirmada', 'green');
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    const appointmentReject = e.target.closest('[data-appointment-reject]');
-    if (appointmentReject) {
-      if (!hasJefaturaAccess()) { readonlyToast(); return; }
-      const id = appointmentReject.dataset.appointmentReject;
-      if (API_BASE) {
-        try {
-          const payload = await apiRequest(`/calendar/appointments/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'reject' }) });
-          if (payload.item) state.myAppointments = (state.myAppointments || []).map(item => item.id === id ? payload.item : item);
-          state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
-        } catch (error) { if (!error?.isSessionExpired) showToast(error.message || 'No se pudo rechazar', 'orange'); return; }
-      } else {
-        const store = readBookingStore();
-        const appt = store.appointments.find(a => a.id === id);
-        if (!appt) return;
-        appt.status = 'rechazada';
-        writeBookingStore(store);
-      }
-      showToast('Solicitud rechazada', 'blue');
+      showToast(hasJefaturaAccess() ? 'Hora cancelada y horario cerrado' : 'Hora cancelada', 'blue');
       render({ transition: true, scope: 'panel', resetScroll: false });
       return;
     }
