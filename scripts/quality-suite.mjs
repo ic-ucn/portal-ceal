@@ -46,11 +46,13 @@ const tutorialsHtml = read('tutoriales/index.html');
 const jefaturaTutorialHtml = read('tutorial-jc/index.html');
 const cealTutorialHtml = read('tutorial-ceal/index.html');
 const portalTutorialHtml = read('tutorial-portal/index.html');
+const publicStudentTutorialHtml = read('tutorial-estudiantes/index.html');
+const publicJefaturaTutorialHtml = read('tutorial-jefatura/index.html');
 const tutorialJs = read('tutoriales/tutoriales.js');
 const stylesCss = read('src/styles.css');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutorial-portal/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-hombre.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4', 'tutorial-ceal/media/gestionar-portal-ceal-poster.webp', 'tutorial-ceal/media/gestionar-portal-ceal.vtt', 'tutorial-portal/media/recorrido-portal-narrado.mp4', 'tutorial-portal/media/recorrido-portal-hombre.mp4', 'tutorial-portal/media/recorrido-portal-poster.webp', 'tutorial-portal/media/recorrido-portal.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
+for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutorial-portal/index.html', 'tutorial-estudiantes/index.html', 'tutorial-jefatura/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-hombre.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4', 'tutorial-ceal/media/gestionar-portal-ceal-poster.webp', 'tutorial-ceal/media/gestionar-portal-ceal.vtt', 'tutorial-portal/media/recorrido-portal-narrado.mp4', 'tutorial-portal/media/recorrido-portal-hombre.mp4', 'tutorial-portal/media/recorrido-portal-poster.webp', 'tutorial-portal/media/recorrido-portal.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
 assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-narrado.mp4')).size > 500_000, 'student tutorial video should contain a real narrated export');
@@ -77,6 +79,11 @@ assert(tutorialsHtml.includes('data-tutorial-access="student"'), 'student tutori
 assert(cealTutorialHtml.includes('data-tutorial-access="ceal"'), 'CEAL tutorial should declare internal access');
 assert(jefaturaTutorialHtml.includes('data-tutorial-access="jefatura"'), 'Jefatura tutorial should declare its exclusive access');
 assert(portalTutorialHtml.includes('data-tutorial-access="student"'), 'portal tutorial should require a portal session');
+assert([publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => html.includes('data-tutorial-public="true"')), 'shareable tutorials should explicitly declare public access');
+assert([publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => html.includes('rel="canonical"') && html.includes('property="og:title"') && html.includes('property="og:image"')), 'shareable tutorials should include canonical and social metadata');
+assert(publicStudentTutorialHtml.includes('../tutoriales/media/solicitar-hora-narrado.mp4'), 'public student tutorial should reuse the approved narrated video');
+assert(publicJefaturaTutorialHtml.includes('../tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4'), 'public Jefatura tutorial should reuse the approved narrated video');
+assert(tutorialJs.includes("dataset.tutorialPublic === 'true'"), 'tutorial runtime should support explicit public share pages');
 assert(tutorialJs.includes("localStorage.getItem('portal.session')") && tutorialJs.includes('/auth/session'), 'tutorial pages should validate an existing portal session');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => html.includes('class="video-followup"')), 'each tutorial should expose its portal action directly below the video');
 

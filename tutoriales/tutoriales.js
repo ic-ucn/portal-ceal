@@ -1,4 +1,5 @@
 (async () => {
+  const publicTutorial = document.body.dataset.tutorialPublic === 'true';
   const session = (() => {
     try { return JSON.parse(localStorage.getItem('portal.session') || 'null'); } catch { return null; }
   })();
@@ -10,14 +11,13 @@
     || (requiredAccess === 'jefatura' && effectiveRole === 'jefatura')
   );
   const returnToPortal = () => location.replace('../#/tutoriales');
-  if (!accessAllowed) {
+  const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+  const apiBase = isLocal ? `${location.origin}/api` : String(window.PORTAL_API_BASE || '');
+  if (!publicTutorial && !accessAllowed) {
     returnToPortal();
     return;
   }
-
-  const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
-  const apiBase = isLocal ? `${location.origin}/api` : String(window.PORTAL_API_BASE || '');
-  if (apiBase && !(isLocal && session.authProvider === 'local-dev')) {
+  if (!publicTutorial && apiBase && !(isLocal && session.authProvider === 'local-dev')) {
     try {
       const response = await fetch(`${apiBase}/auth/session`, {
         cache: 'no-store',

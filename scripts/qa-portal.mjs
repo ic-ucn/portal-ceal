@@ -455,7 +455,9 @@ async function runTutorialPageTests(browser, users) {
     { path: '/tutoriales/', label: 'estudiantes', voiceCount: 2, maleSource: 'solicitar-hora-hombre.mp4', user: users.student },
     { path: '/tutorial-portal/', label: 'portal general', voiceCount: 2, maleSource: 'recorrido-portal-hombre.mp4', user: users.student },
     { path: '/tutorial-jc/', label: 'Jefatura', voiceCount: 2, maleSource: 'gestionar-atencion-jefatura-hombre.mp4', user: users.jefatura },
-    { path: '/tutorial-ceal/', label: 'CEAL', voiceCount: 0, maleSource: '', user: users.ceal }
+    { path: '/tutorial-ceal/', label: 'CEAL', voiceCount: 0, maleSource: '', user: users.ceal },
+    { path: '/tutorial-estudiantes/', label: 'estudiantes público', voiceCount: 2, maleSource: 'solicitar-hora-hombre.mp4', user: null },
+    { path: '/tutorial-jefatura/', label: 'Jefatura público', voiceCount: 2, maleSource: 'gestionar-atencion-jefatura-hombre.mp4', user: null }
   ];
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -467,9 +469,13 @@ async function runTutorialPageTests(browser, users) {
 
     for (const tutorial of tutorials) {
       await page.goto(`${baseUrl}/?qa=tutorial-session`, { waitUntil: 'domcontentloaded' });
-      await page.evaluate(user => localStorage.setItem('portal.session', JSON.stringify(user)), tutorial.user);
+      await page.evaluate(user => {
+        if (user) localStorage.setItem('portal.session', JSON.stringify(user));
+        else localStorage.removeItem('portal.session');
+      }, tutorial.user);
       await page.goto(`${baseUrl}${tutorial.path}?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
+      if (!tutorial.user && !new URL(page.url()).pathname.startsWith(tutorial.path)) fail(`tutorial ${tutorial.label} should remain public without a session`);
       const video = page.locator('[data-tutorial-video]');
       await video.waitFor();
       await page.waitForFunction(() => {
@@ -538,7 +544,8 @@ async function runTutorialPageTests(browser, users) {
   await reviewPage.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
   if ((await reviewPage.locator('h1').innerText()) !== 'Configurar y gestionar la agenda') fail('localhost quick access should open the selected role tutorial without another login');
   await reviewPage.close();
-  report.flows.push('tutorial pages require a valid role and use native controls with responsive voice switching');
+  report.flows.push('protected tutorials require a valid role and public share pages open without a session');
+  report.flows.push('tutorial pages use native controls with responsive voice switching');
 }
 
 async function runTutorialLibraryTests(page, studentUser, cealUser, jefaturaUser) {
