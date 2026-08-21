@@ -71,6 +71,7 @@ assert(portalTutorialHtml.includes('media/recorrido-portal-narrado.mp4'), 'porta
 assert(tutorialsHtml.includes('data-video-male') && jefaturaTutorialHtml.includes('data-video-male') && portalTutorialHtml.includes('data-video-male'), 'two-voice tutorial pages should expose both narration voices');
 assert([tutorialsHtml, jefaturaTutorialHtml, portalTutorialHtml].every(html => (html.match(/data-video-voice=/g) || []).length === 2), 'each two-voice tutorial should offer exactly two voice choices');
 assert((cealTutorialHtml.match(/data-video-voice=/g) || []).length === 0, 'CEAL tutorial should use its single approved narration without a voice selector');
+assert(!cealTutorialHtml.includes('video-narration-label'), 'CEAL tutorial should not expose internal narration metadata');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => /<video\s+controls\b/.test(html)), 'all tutorials should use the browser-native video player');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => !html.includes('data-video-fullscreen') && !html.includes('data-video-toggle')), 'tutorial pages should not retain the custom transport controls');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml, publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => !/<track\b[^>]*\bdefault\b/i.test(html)), 'tutorial captions should be available but disabled by default');

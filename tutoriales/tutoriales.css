@@ -32,6 +32,7 @@ h2{font-size:29px;line-height:1.15;margin-bottom:0}
 .tutorial-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .tutorial-meta span{border:1px solid var(--line);background:var(--surface);padding:7px 10px;border-radius:999px;color:var(--muted);font-size:13px;font-weight:700;white-space:nowrap}
 .video-options{min-height:46px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.video-options-download{justify-content:flex-end}
 .video-options .download-link{min-height:38px;padding:0 12px;border:1px solid var(--line);border-radius:6px;display:inline-flex;align-items:center;background:var(--surface)}
 .video-options .download-link:hover{background:var(--surface-2)}
 .video-narration-label{color:var(--muted);font-size:13px;font-weight:750}
