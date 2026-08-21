@@ -27,7 +27,25 @@ window.PortalMock = (() => {
     ceal: { ...cealMembers[2] }
   };
 
-  const communications = [];
+  const communications = [
+    {
+      id: 'com-001',
+      title: 'Bienvenida al Portal CEIC UCN',
+      category: 'Información',
+      date: '2026-08-21T15:00:00-04:00',
+      source: 'CEAL Ingeniería Civil UCN',
+      pinned: true,
+      unread: true,
+      delivery: 'portal',
+      summary: 'Revisa información académica, material y atención de Jefatura desde las secciones del portal.',
+      body: `Este portal reúne la información y los recursos disponibles para estudiantes de Ingeniería Civil UCN.
+
+Desde el menú puedes revisar los comunicados del CEAL, las fechas del calendario académico, las mallas curriculares y el material compartido por ramo. En Atención encontrarás los horarios disponibles para reservar una hora con Jefatura de carrera.
+
+Las próximas novedades se publicarán en esta sección.`,
+      related: []
+    }
+  ];
 
   const resources = [
     {

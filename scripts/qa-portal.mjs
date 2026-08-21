@@ -394,7 +394,7 @@ async function runCealFlowTests(page, cealUser) {
   if (!(await page.locator('text=Contenido y fuentes').count())) fail('gestion dashboard missing consolidated console');
   const managementText = await page.locator('main').innerText();
   if (/Encuestas|Reservas de taca-taca|ping-pong/i.test(managementText)) fail('gestion dashboard should not expose disabled surveys or reservations');
-  if (!managementText.includes('Sin publicaciones')) fail('communications should start empty');
+  if (!managementText.includes('1 publicado') || !managementText.includes('Bienvenida al Portal CEIC UCN')) fail('portal introduction should be the first published communication');
   const cealNav = await page.locator('.sidebar .nav-item').allTextContents();
   if (cealNav.at(-1)?.trim() !== 'Gestión' || cealNav.findIndex(item => item.trim() === 'Atención') > cealNav.findIndex(item => item.trim() === 'Gestión')) fail('CEAL management should be the final navigation item after Atención');
 
@@ -429,7 +429,7 @@ async function runCealFlowTests(page, cealUser) {
   await communicationForm.locator('input[name="title"]').fill('Comunicado QA inicial');
   await communicationForm.locator('select[name="category"]').selectOption({ label: 'Información' });
   await communicationForm.locator('input[name="summary"]').fill('Resumen breve para validar una publicación nueva.');
-  await communicationForm.locator('textarea[name="body"]').fill('Este contenido valida la creación manual de un comunicado desde una colección inicialmente vacía.');
+  await communicationForm.locator('textarea[name="body"]').fill('Este contenido valida la creación manual de un comunicado junto a la publicación introductoria.');
   await communicationForm.locator('button[type="submit"]').click();
   await page.waitForURL(/#\/comunicados\/com-/);
   const createdCommunicationId = decodeURIComponent(new URL(page.url()).hash.split('/').filter(Boolean).at(-1) || '');
@@ -446,7 +446,7 @@ async function runCealFlowTests(page, cealUser) {
   await page.locator('form[data-form="edit-content"] button[type="submit"]').click();
   await page.waitForURL(new RegExp(`#\\/comunicados\\/${createdCommunicationId}`));
   await page.waitForSelector('text=Comunicado QA publicado');
-  report.flows.push('CEAL creates and edits a communication from an empty collection');
+  report.flows.push('CEAL creates and edits a communication while preserving the portal introduction');
   return createdCommunicationId;
 }
 
@@ -488,6 +488,7 @@ async function runTutorialPageTests(browser, users) {
         return {
           controls: element?.controls,
           playsInline: element?.playsInline,
+          captionsShowing: [...(element?.textTracks || [])].some(track => track.mode === 'showing'),
           voiceCount: document.querySelectorAll('[data-video-voice]').length,
           customControls: document.querySelectorAll('.transport-controls, [data-video-seek], [data-video-toggle], [data-video-fullscreen]').length,
           viewportWidth: window.innerWidth,
@@ -495,6 +496,7 @@ async function runTutorialPageTests(browser, users) {
         };
       });
       if (!state.controls || !state.playsInline) fail(`tutorial ${tutorial.label} should use the native responsive video player`);
+      if (state.captionsShowing) fail(`tutorial ${tutorial.label} should keep captions disabled by default`);
       if (state.customControls) fail(`tutorial ${tutorial.label} should not expose the former custom playback toolbar`);
       if (state.voiceCount !== tutorial.voiceCount) fail(`tutorial ${tutorial.label} has an unexpected voice selector`);
       if (state.documentWidth > state.viewportWidth) fail(`tutorial ${tutorial.label} overflows at ${viewport.width}px`);

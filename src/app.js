@@ -3,10 +3,10 @@
   let Data = window.PortalMock;
   const Curricula = window.CURRICULA;
   const AcademicSchedule = window.ACADEMIC_SCHEDULE || { blocks: {}, courses: [] };
-  const DATA_CONTENT_VERSION = '20260821b';
-  const LOCAL_DATA_KEY = 'portal.data.v49';
+  const DATA_CONTENT_VERSION = '20260821c';
+  const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46', 'portal.data.v47', 'portal.data.v48'];
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46', 'portal.data.v47', 'portal.data.v48', 'portal.data.v49'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
@@ -1712,7 +1712,7 @@
         audience: 'Estudiantes',
         title: 'Recorrido por el portal',
         description: 'Inicio, comunicados, calendario, mallas y material académico.',
-        duration: '1 min 24 s',
+        duration: '1 min 21 s',
         href: 'tutorial-portal/'
       },
       {

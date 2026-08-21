@@ -243,9 +243,11 @@ def compose_narrated(visual: Path, output: Path, vtt: Path, music: Path, variati
 
 def poster(video: Path, output: Path) -> None:
     png = output.with_suffix(".source.png")
+    next_output = output.with_name(f"{output.stem}.next{output.suffix}")
     run("-loglevel", "error", "-ss", "2.2", "-i", video, "-frames:v", "1", png)
     with Image.open(png) as image:
-        image.save(output, "WEBP", quality=90, method=6)
+        image.save(next_output, "WEBP", quality=90, method=6)
+    os.replace(next_output, output)
     png.unlink(missing_ok=True)
 
 

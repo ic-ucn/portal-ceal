@@ -335,9 +335,12 @@ async function captureMobilePreview(browser, { name, session, route = '/', focus
         return rect.width > 0 && rect.height > 0;
       });
       if (!target) return;
-      target.style.outline = '4px solid #f07822';
-      target.style.outlineOffset = '-4px';
-      target.style.background = '#eaf2ff';
+      target.style.setProperty('outline', '4px solid #f07822', 'important');
+      target.style.setProperty('outline-offset', '-4px', 'important');
+      target.style.setProperty('background', '#123b68', 'important');
+      target.style.setProperty('color', '#ffffff', 'important');
+      target.style.setProperty('box-shadow', '0 0 0 2px #ffffff', 'important');
+      target.querySelectorAll('*').forEach(node => node.style.setProperty('color', '#ffffff', 'important'));
     }, focusSelector);
     await page.waitForTimeout(350);
     const screenshot = await page.screenshot({ fullPage: false });
@@ -455,7 +458,7 @@ try {
     mobileSession: student,
     mobileRoute: '/',
     mobileFocusSelector: '.bottom-nav a[href="#/material"]',
-    totalSteps: 8,
+    totalSteps: 7,
     intro: { kicker: 'Tutorial para estudiantes', title: 'Recorrido por el portal', detail: 'Las secciones principales y dónde encontrar cada recurso.' },
     outputDir: portalWebMediaDir,
     vttName: 'recorrido-portal.vtt',
@@ -473,7 +476,10 @@ try {
 
       await page.evaluate(() => { window.location.hash = '/comunicados'; });
       await page.locator('h1.page-title').filter({ hasText: 'Comunicados' }).waitFor({ state: 'visible' });
-      await cue('Paso tres. En Comunicados revisa los avisos oficiales y abre cada publicación para leer sus detalles.', 5700, () => showStep(page, 3, 'Revisa comunicados', 'Los avisos publicados aparecen ordenados en esta sección.', '.communications-empty, .comms-feed'));
+      await cue('Paso tres. En Comunicados revisa los avisos oficiales y selecciona una publicación para leerla completa.', 5200, () => showStep(page, 3, 'Revisa comunicados', 'El aviso destacado aparece primero.', '.comms-feed .item-card'));
+      await page.locator('.comms-feed .item-card').first().click();
+      await page.locator('h1.page-title').filter({ hasText: 'Bienvenida al Portal' }).waitFor({ state: 'visible' });
+      await cue('Aquí encontrarás el contenido, la fuente y la fecha de publicación.', 4300, () => showStep(page, 3, 'Abre el comunicado', 'Revisa el contenido completo antes de volver.', '.communication-body'));
 
       await page.evaluate(() => { window.location.hash = '/calendario'; });
       await page.locator('h1.page-title').filter({ hasText: 'Calendario' }).waitFor({ state: 'visible' });
@@ -486,25 +492,21 @@ try {
         await page.locator('[data-calendar-modal-close]').first().click();
       }
 
-      await page.evaluate(() => { window.location.hash = '/horarios'; });
-      await page.locator('h1.page-title').filter({ hasText: 'Horario académico' }).waitFor({ state: 'visible' });
-      await cue('Paso cinco. En Horario académico filtra por día, plan o semestre, y busca por ramo, docente o sala.', 6200, () => showStep(page, 5, 'Consulta el horario', 'Los filtros actualizan los bloques visibles.', '.academic-schedule-toolbar'));
-
       await page.evaluate(() => { window.location.hash = '/mallas'; });
       await page.locator('[data-malla-frame]').waitFor({ state: 'visible' });
-      await cue('Paso seis. En Mallas alterna entre Plan O y Plan P. Selecciona un ramo para revisar sus relaciones y material asociado.', 6500, () => showStep(page, 6, 'Explora las mallas', 'Elige tu plan y abre la ficha del ramo que necesites.', '[data-malla-frame-wrap]'));
+      await cue('Paso cinco. En Mallas alterna entre Plan O y Plan P. Selecciona un ramo para revisar sus relaciones y material asociado.', 6500, () => showStep(page, 5, 'Explora las mallas', 'Elige tu plan y abre la ficha del ramo que necesites.', '[data-malla-frame-wrap]'));
 
       await page.evaluate(() => { window.location.hash = '/material'; });
       await page.locator('[data-material-search]').waitFor({ state: 'visible' });
-      await cue('Paso siete. En Material busca por ramo, código o tipo de archivo y combina los filtros para acotar resultados.', 6200, async () => {
-        await showStep(page, 7, 'Busca material', 'Escribe un ramo, código, prueba, apunte o guía.', '.material-search-panel');
+      await cue('Paso seis. En Material busca por ramo, código o tipo de archivo y combina los filtros para acotar resultados.', 6200, async () => {
+        await showStep(page, 6, 'Busca material', 'Escribe un ramo, código, prueba, apunte o guía.', '.material-search-panel');
         await page.locator('[data-material-search]').fill('Mecánica de Fluidos');
         await page.waitForTimeout(500);
       });
 
       await page.evaluate(() => { window.location.hash = '/tutoriales'; });
       await page.locator('.tutorial-library-grid').waitFor({ state: 'visible' });
-      await cue('Paso ocho. En Tutoriales encontrarás esta guía y el procedimiento específico para reservar una hora con Jefatura.', 6000, () => showStep(page, 8, 'Consulta los tutoriales', 'Cada guía abre su video y un resumen paso a paso.', '.tutorial-library-grid'));
+      await cue('Paso siete. En Tutoriales encontrarás esta guía y el procedimiento específico para reservar una hora con Jefatura.', 6000, () => showStep(page, 7, 'Consulta los tutoriales', 'Cada guía abre su video y un resumen paso a paso.', '.tutorial-library-grid'));
       await cue('Recorrido completado.', 4200, () => showTitle(page, 'Portal CEIC UCN', 'Ya puedes comenzar', 'Vuelve a Inicio o abre la sección que necesites.'));
     }
   });

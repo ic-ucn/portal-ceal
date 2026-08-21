@@ -288,6 +288,7 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles', 'reservations']) {
     db.data[key] ||= seed.data[key] || [];
   }
+  const introCommunicationSeed = (seed.data.communications || []).find(item => item.id === 'com-001');
   db.meta ||= {};
   db.meta.migrations ||= [];
   const communicationsResetMigration = 'communications-reset-20260821';
@@ -298,6 +299,15 @@ function ensureDbShape(db, seed) {
     delete db.data.aiCommunicationsDigest;
     db.data.notifications = (db.data.notifications || []).filter(item => !String(item.route || '').startsWith('/comunicados'));
     db.meta.migrations.push(communicationsResetMigration);
+  }
+  const introCommunicationMigration = 'intro-communication-20260821';
+  if (!db.meta.migrations.includes(introCommunicationMigration)) {
+    const introduction = introCommunicationSeed;
+    if (introduction && !(db.data.communications || []).some(item => item.id === introduction.id)) {
+      db.data.communications.unshift({ ...introduction, related: [...(introduction.related || [])] });
+    }
+    delete db.data.aiCommunicationsDigest;
+    db.meta.migrations.push(introCommunicationMigration);
   }
   const seedCalendarVersion = asText(seed.data.calendarSource?.version);
   const storedCalendarVersion = asText(db.data.calendarSource?.version);

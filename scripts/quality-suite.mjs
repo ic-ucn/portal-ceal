@@ -71,6 +71,7 @@ assert([tutorialsHtml, jefaturaTutorialHtml, portalTutorialHtml].every(html => (
 assert((cealTutorialHtml.match(/data-video-voice=/g) || []).length === 0, 'CEAL tutorial should use its single approved narration without a voice selector');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => /<video\s+controls\b/.test(html)), 'all tutorials should use the browser-native video player');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => !html.includes('data-video-fullscreen') && !html.includes('data-video-toggle')), 'tutorial pages should not retain the custom transport controls');
+assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml, publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => !/<track\b[^>]*\bdefault\b/i.test(html)), 'tutorial captions should be available but disabled by default');
 assert(tutorialsHtml.includes('media/solicitar-hora.vtt'), 'tutorial page should include captions');
 assert(cealTutorialHtml.includes('media/gestionar-portal-ceal.vtt'), 'CEAL tutorial page should include captions');
 assert(!tutorialsHtml.includes('jc.icivil.afta@ucn.cl'), 'public tutorial should not expose the private Jefatura account');
@@ -108,7 +109,7 @@ assert(appJs.includes("apiRequest('/bootstrap', { cache: 'no-store' })"), 'authe
 assert(/const initialPortalDark = storedPortalTheme\s*\? storedPortalTheme === 'dark'\s*:\s*false;/.test(appJs), 'new portal sessions should start in light mode');
 assert(stylesCss.includes('color-scheme: only light'), 'light mode should prevent forced browser recoloring');
 assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
-assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
+assert(!appJs.includes("'portal.data.v5'"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
 assert(appJs.includes("!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)"), 'scroll reset should not blur active form controls');
 assert(appJs.includes('routeTo(`/material/${resourceRow.dataset.resourceRow}`)'), 'desktop material rows should open the resource detail route');
@@ -169,7 +170,8 @@ for (const email of [
 
 assert(data.users.student.role === 'student', 'student user should be student');
 assert(data.users.ceal.role === 'ceal', 'seed CEAL user should be CEAL');
-assert(Array.isArray(data.communications) && data.communications.length === 0, 'communications should start empty after the content reset');
+assert(Array.isArray(data.communications) && data.communications.length === 1, 'communications should start with the official portal introduction');
+assert(data.communications[0].id === 'com-001' && data.communications[0].delivery === 'portal', 'introductory communication should be portal-only');
 assert(!('gestion' in data), 'static data should not include unused management filler');
 assert(Array.isArray(data.resources) && data.resources.length >= 9, 'resources should be seeded');
 assert(Array.isArray(data.cases) && data.cases.length >= 5, 'cases should be seeded');
@@ -195,6 +197,7 @@ assert(appJs.includes("path === '/gestion/comunicados/nuevo'"), 'CEAL should hav
 assert(appJs.includes('management-console'), 'CEAL management should use the consolidated console');
 assert(!appJs.includes("id === 'com-001' ?"), 'app should not retain a legacy communication fallback');
 assert(serverJs.includes('communications-reset-20260821'), 'backend should apply the one-time communication reset migration');
+assert(serverJs.includes('intro-communication-20260821'), 'backend should publish the portal introduction once');
 assert(!serverJs.includes("collectionName === 'communications' && id === 'com-001'"), 'backend should not retain a legacy communication fallback');
 assert(!serverJs.includes("hasDriveSeed && /^mat-\\d{3}$/.test"), 'backend should preserve real uploaded materials when Drive resources are present');
 assert(!appJs.includes("hasDriveCatalog && /^mat-\\d{3}$/.test"), 'frontend should preserve real uploaded materials when Drive resources are present');
