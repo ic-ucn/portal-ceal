@@ -453,6 +453,7 @@ async function runCealFlowTests(page, cealUser) {
 async function runTutorialPageTests(browser, users) {
   const tutorials = [
     { path: '/tutoriales/', label: 'estudiantes', voiceCount: 2, maleSource: 'solicitar-hora-hombre.mp4', user: users.student },
+    { path: '/tutorial-portal/', label: 'portal general', voiceCount: 2, maleSource: 'recorrido-portal-hombre.mp4', user: users.student },
     { path: '/tutorial-jc/', label: 'Jefatura', voiceCount: 2, maleSource: 'gestionar-atencion-jefatura-hombre.mp4', user: users.jefatura },
     { path: '/tutorial-ceal/', label: 'CEAL', voiceCount: 0, maleSource: '', user: users.ceal }
   ];
@@ -551,8 +552,9 @@ async function runTutorialLibraryTests(page, studentUser, cealUser, jefaturaUser
     await page.goto(appUrl('/tutoriales'), { waitUntil: 'networkidle' });
     const cards = page.locator('.tutorial-library-card');
     if ((await cards.count()) !== testCase.expected) fail(`tutorial library expected ${testCase.expected} role-filtered guides`);
-    if (!(await page.getByText('Recorrido por el portal', { exact: true }).count())) fail('tutorial library should reserve the future general portal guide');
-    if (!(await page.getByText('Próximamente', { exact: true }).count())) fail('future portal tutorial should be labelled as upcoming');
+    if (!(await page.getByText('Recorrido por el portal', { exact: true }).count())) fail('tutorial library should expose the general portal guide');
+    if (!(await page.locator('a[href="tutorial-portal/"]').count())) fail('general portal guide should link to its tutorial page');
+    if (await page.getByText('Próximamente', { exact: true }).count()) fail('completed portal tutorial should not be labelled as upcoming');
     if (testCase.forbidden && (await page.locator('main').innerText()).includes(testCase.forbidden)) fail(`tutorial library exposed an unauthorized guide: ${testCase.forbidden}`);
   }
   report.flows.push('tutorial library exposes guides according to student, CEAL and Jefatura access');

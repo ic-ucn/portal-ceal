@@ -14,17 +14,20 @@ const publicMediaDir = path.join(root, 'tutoriales', 'media');
 const privateDir = path.join(root, 'output', 'tutoriales-privados');
 const jefaturaWebMediaDir = path.join(root, 'tutorial-jc', 'media');
 const cealWebMediaDir = path.join(root, 'tutorial-ceal', 'media');
+const portalWebMediaDir = path.join(root, 'tutorial-portal', 'media');
 const tutorialTarget = String(process.env.TUTORIAL_TARGET || 'all').toLowerCase();
 const captureStudent = tutorialTarget === 'all' || tutorialTarget === 'student';
 const captureJefatura = tutorialTarget === 'all' || tutorialTarget === 'jefatura';
 const captureCeal = tutorialTarget === 'all' || tutorialTarget === 'ceal';
+const capturePortal = tutorialTarget === 'all' || tutorialTarget === 'portal';
 
 await Promise.all([
   fs.mkdir(rawDir, { recursive: true }),
   fs.mkdir(publicMediaDir, { recursive: true }),
   fs.mkdir(privateDir, { recursive: true }),
   fs.mkdir(jefaturaWebMediaDir, { recursive: true }),
-  fs.mkdir(cealWebMediaDir, { recursive: true })
+  fs.mkdir(cealWebMediaDir, { recursive: true }),
+  fs.mkdir(portalWebMediaDir, { recursive: true })
 ]);
 
 const server = spawn(process.execPath, ['server.mjs'], {
@@ -444,6 +447,69 @@ async function enterCaptureSession(page, session, name, route = '/') {
 await waitForServer();
 
 try {
+  if (capturePortal) {
+  const student = await qaSession('student');
+  await captureTutorial({
+    name: 'recorrido-portal',
+    route: '/login',
+    mobileSession: student,
+    mobileRoute: '/',
+    mobileFocusSelector: '.bottom-nav a[href="#/material"]',
+    totalSteps: 8,
+    intro: { kicker: 'Tutorial para estudiantes', title: 'Recorrido por el portal', detail: 'Las secciones principales y dónde encontrar cada recurso.' },
+    outputDir: portalWebMediaDir,
+    vttName: 'recorrido-portal.vtt',
+    run: async ({ page, cue, resetGuide }) => {
+      await cue('Este recorrido muestra las secciones principales del portál y cómo moverte entre ellas.', 4800);
+      await prepareLoginForCapture(page, 'student');
+      await hideTitle(page);
+      await cue('Paso uno. En Estudiantes, selecciona Acceder con Google y usa tu cuenta institucional.', 5400, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional de estudiante.', '[data-google-redirect="student"]'));
+      await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa tu cuenta @alumnos.ucn.cl.'));
+      await enterCaptureSession(page, student, 'recorrido-portal', '/');
+      await resetGuide();
+      await cue('En el teléfono, las secciones principales están en la barra inferior y el resto dentro del menú.', 5200, () => showMobile(page, 'Vista móvil', 'Navegación adaptada al teléfono', 'Usa la barra inferior o abre el menú para ver todas las secciones.'));
+      await hideMobile(page);
+      await cue('Paso dos. Inicio resume las fechas próximas, los recursos y los accesos que usarás con más frecuencia.', 5600, () => showStep(page, 2, 'Revisa Inicio', 'Aquí encuentras fechas y accesos frecuentes.', '.home-actions-panel'));
+
+      await page.evaluate(() => { window.location.hash = '/comunicados'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Comunicados' }).waitFor({ state: 'visible' });
+      await cue('Paso tres. En Comunicados revisa los avisos oficiales y abre cada publicación para leer sus detalles.', 5700, () => showStep(page, 3, 'Revisa comunicados', 'Los avisos publicados aparecen ordenados en esta sección.', '.communications-empty, .comms-feed'));
+
+      await page.evaluate(() => { window.location.hash = '/calendario'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Calendario' }).waitFor({ state: 'visible' });
+      await cue('Paso cuatro. El Calendario muestra el día actual, las fechas próximas y los hitos académicos del mes.', 6000, () => showStep(page, 4, 'Consulta el calendario', 'Selecciona una fecha para abrir su información.', '.academic-calendar-card'));
+      const calendarDate = page.locator('button[data-calendar-date]').first();
+      if (await calendarDate.count()) {
+        await calendarDate.click();
+        await page.locator('.calendar-detail-modal').waitFor({ state: 'visible' });
+        await cue('Al seleccionar una fecha, el detalle se abre sobre el calendario sin mover el contenido de la página.', 5300, () => showStep(page, 4, 'Abre el detalle', 'Cierra esta ventana para continuar revisando el mes.', '.calendar-detail-modal'));
+        await page.locator('[data-calendar-modal-close]').first().click();
+      }
+
+      await page.evaluate(() => { window.location.hash = '/horarios'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Horario académico' }).waitFor({ state: 'visible' });
+      await cue('Paso cinco. En Horario académico filtra por día, plan o semestre, y busca por ramo, docente o sala.', 6200, () => showStep(page, 5, 'Consulta el horario', 'Los filtros actualizan los bloques visibles.', '.academic-schedule-toolbar'));
+
+      await page.evaluate(() => { window.location.hash = '/mallas'; });
+      await page.locator('[data-malla-frame]').waitFor({ state: 'visible' });
+      await cue('Paso seis. En Mallas alterna entre Plan O y Plan P. Selecciona un ramo para revisar sus relaciones y material asociado.', 6500, () => showStep(page, 6, 'Explora las mallas', 'Elige tu plan y abre la ficha del ramo que necesites.', '[data-malla-frame-wrap]'));
+
+      await page.evaluate(() => { window.location.hash = '/material'; });
+      await page.locator('[data-material-search]').waitFor({ state: 'visible' });
+      await cue('Paso siete. En Material busca por ramo, código o tipo de archivo y combina los filtros para acotar resultados.', 6200, async () => {
+        await showStep(page, 7, 'Busca material', 'Escribe un ramo, código, prueba, apunte o guía.', '.material-search-panel');
+        await page.locator('[data-material-search]').fill('Mecánica de Fluidos');
+        await page.waitForTimeout(500);
+      });
+
+      await page.evaluate(() => { window.location.hash = '/tutoriales'; });
+      await page.locator('.tutorial-library-grid').waitFor({ state: 'visible' });
+      await cue('Paso ocho. En Tutoriales encontrarás esta guía y el procedimiento específico para reservar una hora con Jefatura.', 6000, () => showStep(page, 8, 'Consulta los tutoriales', 'Cada guía abre su video y un resumen paso a paso.', '.tutorial-library-grid'));
+      await cue('Recorrido completado.', 4200, () => showTitle(page, 'Portal CEIC UCN', 'Ya puedes comenzar', 'Vuelve a Inicio o abre la sección que necesites.'));
+    }
+  });
+  }
+
   if (captureStudent) {
   const student = await qaSession('student');
   await captureTutorial({
@@ -680,4 +746,4 @@ try {
   server.kill('SIGTERM');
 }
 
-console.log(JSON.stringify({ ok: true, publicMediaDir, jefaturaWebMediaDir, cealWebMediaDir, privateDir, rawDir }, null, 2));
+console.log(JSON.stringify({ ok: true, publicMediaDir, portalWebMediaDir, jefaturaWebMediaDir, cealWebMediaDir, privateDir, rawDir }, null, 2));

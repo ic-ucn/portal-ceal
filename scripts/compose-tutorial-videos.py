@@ -23,6 +23,7 @@ PUBLIC = ROOT / "tutoriales" / "media"
 PRIVATE = ROOT / "output" / "tutoriales-privados"
 JEFATURA_WEB = ROOT / "tutorial-jc" / "media"
 CEAL_WEB = ROOT / "tutorial-ceal" / "media"
+PORTAL_WEB = ROOT / "tutorial-portal" / "media"
 FFMPEG = Path(imageio_ffmpeg.get_ffmpeg_exe())
 
 
@@ -253,18 +254,29 @@ def main() -> None:
     PRIVATE.mkdir(parents=True, exist_ok=True)
     JEFATURA_WEB.mkdir(parents=True, exist_ok=True)
     CEAL_WEB.mkdir(parents=True, exist_ok=True)
+    PORTAL_WEB.mkdir(parents=True, exist_ok=True)
     target = os.environ.get("TUTORIAL_TARGET", "all").lower()
     compose_student = target in {"all", "student"}
     compose_jefatura = target in {"all", "jefatura"}
     compose_ceal = target in {"all", "ceal"}
+    compose_portal = target in {"all", "portal"}
     student_narrated = PUBLIC / "solicitar-hora-narrado.mp4"
     student_male = PUBLIC / "solicitar-hora-hombre.mp4"
     jefatura_narrated = JEFATURA_WEB / "gestionar-atencion-jefatura-narrado.mp4"
     jefatura_male = JEFATURA_WEB / "gestionar-atencion-jefatura-hombre.mp4"
     ceal_narrated = CEAL_WEB / "gestionar-portal-ceal-narrado.mp4"
+    portal_narrated = PORTAL_WEB / "recorrido-portal-narrado.mp4"
+    portal_male = PORTAL_WEB / "recorrido-portal-hombre.mp4"
     student_seconds = None
     jefatura_seconds = None
     ceal_seconds = None
+    portal_seconds = None
+    if compose_portal:
+        portal_visual = encode_visual(RAW / "recorrido-portal.webm", WORK / "visual" / "recorrido-portal.mp4")
+        portal_seconds = compose_narrated(portal_visual, portal_narrated, PORTAL_WEB / "recorrido-portal.vtt", WORK / "portal-narrated-music.wav", 3, "es-CL-CatalinaNeural", "+1%")
+        compose_narrated(portal_visual, portal_male, PORTAL_WEB / "recorrido-portal.vtt", WORK / "portal-narrated-music.wav", 3, "es-CL-LorenzoNeural", "+1%")
+        poster(portal_narrated, PORTAL_WEB / "recorrido-portal-poster.webp")
+        (PORTAL_WEB / "recorrido-portal-poster.png").unlink(missing_ok=True)
     if compose_student:
         student_visual = encode_visual(RAW / "solicitar-hora.webm", WORK / "visual" / "solicitar-hora.mp4")
         student_seconds = compose_narrated(student_visual, student_narrated, PUBLIC / "solicitar-hora.vtt", WORK / "student-narrated-music.wav", 0, "es-CL-CatalinaNeural", "+1%")
@@ -294,11 +306,14 @@ def main() -> None:
         "student_seconds": student_seconds,
         "jefatura_seconds": jefatura_seconds,
         "ceal_seconds": ceal_seconds,
+        "portal_seconds": portal_seconds,
         "student_narrated_output": str(student_narrated),
         "student_male_output": str(student_male),
         "jefatura_narrated_output": str(jefatura_narrated),
         "jefatura_male_output": str(jefatura_male),
         "ceal_narrated_output": str(ceal_narrated),
+        "portal_narrated_output": str(portal_narrated),
+        "portal_male_output": str(portal_male),
     })
 
 

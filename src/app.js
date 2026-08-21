@@ -1712,7 +1712,8 @@
         audience: 'Estudiantes',
         title: 'Recorrido por el portal',
         description: 'Inicio, comunicados, calendario, mallas y material académico.',
-        pending: true
+        duration: '1 min 24 s',
+        href: 'tutorial-portal/'
       },
       {
         iconName: 'users',
