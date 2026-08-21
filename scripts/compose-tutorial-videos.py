@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import json
 import os
 import re
 import asyncio
@@ -21,6 +22,7 @@ RAW = WORK / "raw"
 PUBLIC = ROOT / "tutoriales" / "media"
 PRIVATE = ROOT / "output" / "tutoriales-privados"
 JEFATURA_WEB = ROOT / "tutorial-jc" / "media"
+CEAL_WEB = ROOT / "tutorial-ceal" / "media"
 FFMPEG = Path(imageio_ffmpeg.get_ffmpeg_exe())
 
 
@@ -126,9 +128,16 @@ def make_music(target: Path, seconds: float, variation: int) -> None:
         wav.writeframes(pcm.tobytes())
 
 
-def encode_video_args(raw: Path) -> list[str]:
+def capture_trim(raw: Path) -> float:
+    manifest = raw.with_suffix('.capture.json')
+    if not manifest.exists():
+        return 0.0
+    return max(0.0, float(json.loads(manifest.read_text(encoding='utf-8')).get('trimStartSeconds', 0.0)))
+
+
+def encode_video_args(raw: Path, trim: float = 0.0) -> list[str]:
     return [
-        "-loglevel", "error", "-i", str(raw), "-map_metadata", "-1",
+        "-loglevel", "error", "-ss", f"{trim:.3f}", "-i", str(raw), "-map_metadata", "-1",
         "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p", "-r", "30",
         "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "main",
         "-level", "4.0", "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-bf", "0",
@@ -136,12 +145,19 @@ def encode_video_args(raw: Path) -> list[str]:
     ]
 
 
+def encode_visual(raw: Path, output: Path) -> Path:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    run(*encode_video_args(raw, capture_trim(raw)), "-an", output)
+    return output
+
+
 def compose_music(raw: Path, output: Path, music: Path, variation: int, volume: float = 0.42) -> float:
-    seconds = duration(raw)
+    trim = capture_trim(raw)
+    seconds = max(0.1, duration(raw) - trim)
     output.parent.mkdir(parents=True, exist_ok=True)
     make_music(music, seconds, variation)
-    args = encode_video_args(raw)
-    args[4:4] = ["-i", str(music)]
+    args = encode_video_args(raw, trim)
+    args[6:6] = ["-i", str(music)]
     run(*args, "-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "160k", "-af", f"volume={volume:.2f}", "-shortest", output)
     return seconds
 
@@ -196,12 +212,12 @@ def make_narration_segments(vtt: Path, target_dir: Path, voice: str, rate: str) 
     return result
 
 
-def compose_narrated(raw: Path, output: Path, vtt: Path, music: Path, variation: int, voice: str, rate: str) -> float:
-    seconds = duration(raw)
+def compose_narrated(visual: Path, output: Path, vtt: Path, music: Path, variation: int, voice: str, rate: str) -> float:
+    seconds = duration(visual)
     output.parent.mkdir(parents=True, exist_ok=True)
     make_music(music, seconds, variation)
     segments = make_narration_segments(vtt, WORK / "narration" / output.stem, voice, rate)
-    inputs: list[str] = ["-loglevel", "error", "-i", str(raw), "-i", str(music)]
+    inputs: list[str] = ["-loglevel", "error", "-i", str(visual), "-i", str(music)]
     for _, segment in segments:
         inputs.extend(["-i", str(segment)])
     filters = ["[1:a]volume=0.12[music]"]
@@ -218,9 +234,7 @@ def compose_narrated(raw: Path, output: Path, vtt: Path, music: Path, variation:
         "-map_metadata", "-1",
         "-filter_complex", ";".join(filters),
         "-map", "0:v:0", "-map", "[outa]",
-        "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p", "-r", "30",
-        "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "main", "-level", "4.0",
-        "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-bf", "0",
+        "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-shortest", output
     )
     return seconds
@@ -238,33 +252,53 @@ def main() -> None:
     PUBLIC.mkdir(parents=True, exist_ok=True)
     PRIVATE.mkdir(parents=True, exist_ok=True)
     JEFATURA_WEB.mkdir(parents=True, exist_ok=True)
+    CEAL_WEB.mkdir(parents=True, exist_ok=True)
     target = os.environ.get("TUTORIAL_TARGET", "all").lower()
     compose_student = target in {"all", "student"}
     compose_jefatura = target in {"all", "jefatura"}
+    compose_ceal = target in {"all", "ceal"}
     student_narrated = PUBLIC / "solicitar-hora-narrado.mp4"
+    student_male = PUBLIC / "solicitar-hora-hombre.mp4"
     jefatura_narrated = JEFATURA_WEB / "gestionar-atencion-jefatura-narrado.mp4"
+    jefatura_male = JEFATURA_WEB / "gestionar-atencion-jefatura-hombre.mp4"
+    ceal_narrated = CEAL_WEB / "gestionar-portal-ceal-narrado.mp4"
     student_seconds = None
     jefatura_seconds = None
+    ceal_seconds = None
     if compose_student:
-        student_seconds = compose_narrated(RAW / "solicitar-hora.webm", student_narrated, PUBLIC / "solicitar-hora.vtt", WORK / "student-narrated-music.wav", 0, "es-CL-CatalinaNeural", "+1%")
+        student_visual = encode_visual(RAW / "solicitar-hora.webm", WORK / "visual" / "solicitar-hora.mp4")
+        student_seconds = compose_narrated(student_visual, student_narrated, PUBLIC / "solicitar-hora.vtt", WORK / "student-narrated-music.wav", 0, "es-CL-CatalinaNeural", "+1%")
+        compose_narrated(student_visual, student_male, PUBLIC / "solicitar-hora.vtt", WORK / "student-narrated-music.wav", 0, "es-CL-LorenzoNeural", "+1%")
         poster(student_narrated, PUBLIC / "solicitar-hora-poster.webp")
         (PUBLIC / "solicitar-hora.mp4").unlink(missing_ok=True)
         (PUBLIC / "solicitar-hora-poster.png").unlink(missing_ok=True)
     if compose_jefatura:
-        jefatura_seconds = compose_narrated(RAW / "gestionar-atencion-jefatura.webm", jefatura_narrated, JEFATURA_WEB / "gestionar-atencion-jefatura.vtt", WORK / "jefatura-narrated-music.wav", 1, "es-CL-CatalinaNeural", "+1%")
+        jefatura_visual = encode_visual(RAW / "gestionar-atencion-jefatura.webm", WORK / "visual" / "gestionar-atencion-jefatura.mp4")
+        jefatura_seconds = compose_narrated(jefatura_visual, jefatura_narrated, JEFATURA_WEB / "gestionar-atencion-jefatura.vtt", WORK / "jefatura-narrated-music.wav", 1, "es-CL-CatalinaNeural", "+1%")
+        compose_narrated(jefatura_visual, jefatura_male, JEFATURA_WEB / "gestionar-atencion-jefatura.vtt", WORK / "jefatura-narrated-music.wav", 1, "es-CL-LorenzoNeural", "+1%")
         poster(jefatura_narrated, JEFATURA_WEB / "gestionar-atencion-jefatura-poster.webp")
         shutil.copy2(jefatura_narrated, PRIVATE / "gestionar-atencion-jefatura.mp4")
+        shutil.copy2(jefatura_male, PRIVATE / "gestionar-atencion-jefatura-hombre.mp4")
         shutil.copy2(JEFATURA_WEB / "gestionar-atencion-jefatura.vtt", PRIVATE / "gestionar-atencion-jefatura.vtt")
         shutil.copy2(JEFATURA_WEB / "gestionar-atencion-jefatura-poster.webp", PRIVATE / "gestionar-atencion-jefatura-poster.webp")
         (JEFATURA_WEB / "gestionar-atencion-jefatura-musica.mp4").unlink(missing_ok=True)
         (PRIVATE / "gestionar-atencion-jefatura-musica.mp4").unlink(missing_ok=True)
         (JEFATURA_WEB / "gestionar-atencion-jefatura-poster.png").unlink(missing_ok=True)
+    if compose_ceal:
+        ceal_visual = encode_visual(RAW / "gestionar-portal-ceal.webm", WORK / "visual" / "gestionar-portal-ceal.mp4")
+        ceal_seconds = compose_narrated(ceal_visual, ceal_narrated, CEAL_WEB / "gestionar-portal-ceal.vtt", WORK / "ceal-narrated-music.wav", 2, "es-CL-CatalinaNeural", "+1%")
+        poster(ceal_narrated, CEAL_WEB / "gestionar-portal-ceal-poster.webp")
+        (CEAL_WEB / "gestionar-portal-ceal-poster.png").unlink(missing_ok=True)
     print({
         "ok": True,
         "student_seconds": student_seconds,
         "jefatura_seconds": jefatura_seconds,
+        "ceal_seconds": ceal_seconds,
         "student_narrated_output": str(student_narrated),
+        "student_male_output": str(student_male),
         "jefatura_narrated_output": str(jefatura_narrated),
+        "jefatura_male_output": str(jefatura_male),
+        "ceal_narrated_output": str(ceal_narrated),
     })
 
 

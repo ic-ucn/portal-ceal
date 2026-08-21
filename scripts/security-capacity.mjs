@@ -131,6 +131,9 @@ async function main() {
     const indexResponse = await fetch(`${baseUrl}/`);
     assert(Boolean(indexResponse.headers.get('content-security-policy')), 'static responses include a content security policy');
     assert(indexResponse.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'static responses use a restrictive referrer policy');
+    const mediaRange = await fetch(`${baseUrl}/tutoriales/media/solicitar-hora-narrado.mp4`, { headers: { range: 'bytes=1024-2047' } });
+    assert(mediaRange.status === 206 && mediaRange.headers.get('accept-ranges') === 'bytes', 'tutorial media supports byte-range seeking');
+    assert((await mediaRange.arrayBuffer()).byteLength === 1024, 'tutorial media returns only the requested byte range');
 
     const bootstrap = await request('/api/bootstrap');
     assert(bootstrap.status === 200, 'public bootstrap remains available');
@@ -154,6 +157,13 @@ async function main() {
     const studentB = await qaSession({ role: 'student', name: 'Estudiante B', email: 'qa.b@alumnos.ucn.cl' });
     const ceal = await qaSession({ role: 'ceal', name: 'Equipo CEAL', email: 'kevin.cortes@alumnos.ucn.cl' });
     const jefatura = await qaSession({ role: 'jefatura', name: 'Jefatura de carrera', email: 'jc.icivil.afta@ucn.cl' });
+    const disposable = await qaSession({ role: 'student', name: 'Sesión temporal', email: 'qa.session@alumnos.ucn.cl' });
+    const validSession = await request('/api/auth/session', { token: disposable.sessionToken });
+    assert(validSession.status === 200 && validSession.payload?.user?.role === 'student', 'valid saved session is restored from server authority');
+    assert((await request('/api/auth/session', { token: 'invalid-session-token' })).status === 401, 'invalid saved session is rejected before rendering protected content');
+    assert((await request('/api/calendar-updates', { token: jefatura.sessionToken })).status === 403, 'Jefatura session cannot access CEAL calendar-source management');
+    assert((await request('/api/auth/logout', { method: 'POST', token: disposable.sessionToken })).status === 200, 'session can be revoked explicitly');
+    assert((await request('/api/auth/session', { token: disposable.sessionToken })).status === 401, 'revoked session cannot be restored');
     const initialProfile = bootstrap.payload.data.staffProfiles[0];
     const initialConfiguration = { bookingSettings: initialProfile.bookingSettings, officeHours: initialProfile.officeHours };
     const slot = nextOfficeSlot(initialProfile);

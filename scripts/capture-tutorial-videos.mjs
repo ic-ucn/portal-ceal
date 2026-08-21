@@ -13,15 +13,18 @@ const dbPath = path.join(workDir, `portal-tutorial-${Date.now()}.json`);
 const publicMediaDir = path.join(root, 'tutoriales', 'media');
 const privateDir = path.join(root, 'output', 'tutoriales-privados');
 const jefaturaWebMediaDir = path.join(root, 'tutorial-jc', 'media');
+const cealWebMediaDir = path.join(root, 'tutorial-ceal', 'media');
 const tutorialTarget = String(process.env.TUTORIAL_TARGET || 'all').toLowerCase();
 const captureStudent = tutorialTarget === 'all' || tutorialTarget === 'student';
 const captureJefatura = tutorialTarget === 'all' || tutorialTarget === 'jefatura';
+const captureCeal = tutorialTarget === 'all' || tutorialTarget === 'ceal';
 
 await Promise.all([
   fs.mkdir(rawDir, { recursive: true }),
   fs.mkdir(publicMediaDir, { recursive: true }),
   fs.mkdir(privateDir, { recursive: true }),
-  fs.mkdir(jefaturaWebMediaDir, { recursive: true })
+  fs.mkdir(jefaturaWebMediaDir, { recursive: true }),
+  fs.mkdir(cealWebMediaDir, { recursive: true })
 ]);
 
 const server = spawn(process.execPath, ['server.mjs'], {
@@ -64,7 +67,8 @@ async function api(route, options = {}) {
 async function qaSession(role) {
   const profiles = {
     student: { role: 'student', name: 'Estudiante UCN', email: 'estudiante.tutorial@alumnos.ucn.cl' },
-    jefatura: { role: 'jefatura', name: 'Jefatura de carrera', email: 'jc.icivil.afta@ucn.cl' }
+    jefatura: { role: 'jefatura', name: 'Jefatura de carrera', email: 'jc.icivil.afta@ucn.cl' },
+    ceal: { role: 'ceal', name: 'Equipo CEAL', label: 'CEAL', email: 'martina.briceno@alumnos.ucn.cl', permissions: ['publish:comunicados', 'edit:calendario', 'validate:material', 'upload:acuerdos'] }
   };
   return (await api('/auth/qa-session', { method: 'POST', body: JSON.stringify(profiles[role]) })).user;
 }
@@ -79,6 +83,27 @@ async function seedTutorialAppointment() {
     method: 'POST',
     headers: { Authorization: `Bearer ${student.sessionToken}` },
     body: JSON.stringify({ start: start.toISOString(), end: end.toISOString(), reason: 'Consulta sobre inscripción de asignaturas.' })
+  });
+}
+
+async function seedTutorialMaterial(session) {
+  await api('/materials', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.sessionToken}` },
+    body: JSON.stringify({
+      title: 'Apunte de Mecánica de Fluidos',
+      type: 'Apunte',
+      courseCode: 'DAIC-00700',
+      plan: 'planO',
+      courseName: 'Mecánica de Fluidos',
+      semester: 5,
+      year: 2026,
+      format: 'PDF',
+      size: '1.2 MB',
+      origin: 'Aporte estudiantil',
+      uploadedBy: 'Estudiante',
+      description: 'Apunte enviado para revisión académica.'
+    })
   });
 }
 
@@ -113,6 +138,13 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
       #tutorial-title-card{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#f2f6fb;color:#10233d;font-family:Inter,Arial,sans-serif;opacity:0;transition:opacity .3s ease}
       #tutorial-title-card.is-visible{opacity:1}
       #tutorial-title-card .tutorial-title-inner{width:min(860px,calc(100vw - 96px));text-align:center}
+      #tutorial-title-card .tutorial-title-inner>*{opacity:0;transform:translateY(8px);transition:opacity .34s ease,transform .34s ease}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*{opacity:1;transform:translateY(0)}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*:nth-child(2){transition-delay:.04s}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*:nth-child(3){transition-delay:.08s}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*:nth-child(4){transition-delay:.12s}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*:nth-child(5){transition-delay:.16s}
+      #tutorial-title-card.is-visible .tutorial-title-inner>*:nth-child(6){transition-delay:.2s}
       #tutorial-title-card img{display:block;width:86px;height:86px;object-fit:contain;margin:0 auto 12px;filter:drop-shadow(0 8px 20px rgba(0,0,0,.2))}
       #tutorial-title-card .title-brand{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:750;margin-bottom:28px;color:#10233d}
       #tutorial-title-card small{display:block;color:#155bcc;font-size:13px;font-weight:850;text-transform:uppercase;margin-bottom:10px}
@@ -128,6 +160,11 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
       #tutorial-mobile-card .mobile-rule{width:56px;height:4px;background:#f07822;margin-top:28px;border-radius:2px}
       #tutorial-mobile-card .phone-frame{width:350px;aspect-ratio:390/844;padding:9px;background:#12233a;border:1px solid #304968;border-radius:30px;box-shadow:0 24px 60px rgba(12,35,66,.28)}
       #tutorial-mobile-card .phone-frame img{display:block;width:100%;height:100%;object-fit:cover;object-position:top;border-radius:22px;background:#fff}
+      #tutorial-mobile-card .mobile-copy>*{opacity:0;transform:translateY(8px);transition:opacity .34s ease,transform .34s ease}
+      #tutorial-mobile-card.is-visible .mobile-copy>*{opacity:1;transform:translateY(0)}
+      #tutorial-mobile-card.is-visible .mobile-copy>*:nth-child(2){transition-delay:.05s}
+      #tutorial-mobile-card.is-visible .mobile-copy>*:nth-child(3){transition-delay:.1s}
+      #tutorial-mobile-card.is-visible .mobile-copy>*:nth-child(4){transition-delay:.15s}
     `;
     document.head.appendChild(style);
     const guide = document.createElement('div');
@@ -139,6 +176,10 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
     document.body.appendChild(cursor);
     window.__tutorialCapture = {
       total,
+      revealCapture() {
+        document.documentElement.classList.remove('tutorial-capture-loading');
+        document.querySelector('#tutorial-clean-guard')?.remove();
+      },
       clearFocus() { document.querySelectorAll('.tutorial-focus').forEach(node => node.classList.remove('tutorial-focus')); },
       setStep(step, title, detail, selector) {
         this.clearFocus();
@@ -163,6 +204,7 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
           cursor.style.top = `${Math.min(innerHeight - 34, Math.max(34, rect.top + rect.height * .55))}px`;
           cursor.classList.add('is-visible');
           guide.classList.add('is-visible');
+          this.revealCapture();
         }, 450);
         return true;
       },
@@ -178,7 +220,10 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
         card.querySelector('h1').textContent = title;
         card.querySelector('p').textContent = detail;
         document.body.appendChild(card);
-        requestAnimationFrame(() => card.classList.add('is-visible'));
+        requestAnimationFrame(() => {
+          card.classList.add('is-visible');
+          setTimeout(() => this.revealCapture(), 80);
+        });
       },
       hideTitle() {
         const card = document.querySelector('#tutorial-title-card');
@@ -198,7 +243,10 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
         card.querySelector('p').textContent = detail;
         card.querySelector('img').src = mobilePreviewDataUrl;
         document.body.appendChild(card);
-        requestAnimationFrame(() => card.classList.add('is-visible'));
+        requestAnimationFrame(() => {
+          card.classList.add('is-visible');
+          setTimeout(() => this.revealCapture(), 80);
+        });
       },
       hideMobile() {
         const card = document.querySelector('#tutorial-mobile-card');
@@ -218,6 +266,56 @@ async function addCaptureSession(context, session) {
       localStorage.setItem('portal.prefs', JSON.stringify({ compacto: false }));
     } catch {}
   }, session || null);
+}
+
+async function addCleanCaptureGuard(context, intro) {
+  await context.addInitScript(meta => {
+    document.documentElement.classList.add('tutorial-capture-loading');
+    const style = document.createElement('style');
+    style.id = 'tutorial-clean-guard-style';
+    style.textContent = `
+      html.tutorial-capture-loading,html.tutorial-capture-loading body{margin:0!important;background:#f2f6fb!important}
+      html.tutorial-capture-loading body>*{visibility:hidden!important}
+      html.tutorial-capture-loading body>#tutorial-clean-guard,
+      html.tutorial-capture-loading body>#tutorial-title-card,
+      html.tutorial-capture-loading body>#tutorial-mobile-card,
+      html.tutorial-capture-loading body>#tutorial-guide,
+      html.tutorial-capture-loading body>#tutorial-cursor{visibility:visible!important}
+      #tutorial-clean-guard{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#f2f6fb;color:#10233d;font-family:Inter,Arial,sans-serif}
+      #tutorial-clean-guard>div{width:min(860px,calc(100vw - 96px));text-align:center}
+      #tutorial-clean-guard img{display:block;width:86px;height:86px;object-fit:contain;margin:0 auto 12px}
+      #tutorial-clean-guard .guard-brand{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:750;margin-bottom:28px}
+      #tutorial-clean-guard small{display:block;color:#155bcc;font-size:13px;font-weight:850;text-transform:uppercase;margin-bottom:10px}
+      #tutorial-clean-guard h1{font-family:Fraunces,Georgia,serif;font-size:56px;line-height:1.05;margin:0 0 15px;letter-spacing:0}
+      #tutorial-clean-guard p{margin:0 auto;color:#526883;font-size:20px;max-width:680px;line-height:1.45}
+      #tutorial-clean-guard i{display:block;width:56px;height:4px;background:#f07822;margin:28px auto 0;border-radius:2px}
+    `;
+    document.documentElement.appendChild(style);
+    const mount = () => {
+      if (!document.body || document.querySelector('#tutorial-clean-guard')) return;
+      const guard = document.createElement('div');
+      guard.id = 'tutorial-clean-guard';
+      const inner = document.createElement('div');
+      const logo = document.createElement('img');
+      logo.src = '/assets/logo-mark-transparent.png';
+      logo.alt = '';
+      const brand = document.createElement('div');
+      brand.className = 'guard-brand';
+      brand.textContent = 'CEIC UCN';
+      const kicker = document.createElement('small');
+      kicker.textContent = meta.kicker;
+      const heading = document.createElement('h1');
+      heading.textContent = meta.title;
+      const detail = document.createElement('p');
+      detail.textContent = meta.detail;
+      const rule = document.createElement('i');
+      inner.append(logo, brand, kicker, heading, detail, rule);
+      guard.appendChild(inner);
+      document.body.appendChild(guard);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+    else mount();
+  }, intro);
 }
 
 async function captureMobilePreview(browser, { name, session, route = '/', focusSelector, setupPage }) {
@@ -246,7 +344,7 @@ async function captureMobilePreview(browser, { name, session, route = '/', focus
   }
 }
 
-async function captureTutorial({ name, route, session, mobileSession, mobileRoute, mobileFocusSelector, totalSteps, run, outputDir, vttName, setupPage }) {
+async function captureTutorial({ name, route, session, mobileSession, mobileRoute, mobileFocusSelector, totalSteps, intro, run, outputDir, vttName, setupPage }) {
   const browser = await chromium.launch({ headless: true });
   let context;
   try {
@@ -260,20 +358,25 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
       recordVideo: { dir: rawDir, size: { width: 1920, height: 1080 } }
     });
     await addCaptureSession(context, session);
+    await addCleanCaptureGuard(context, intro);
     const page = await context.newPage();
     if (setupPage) await setupPage(page);
     const video = page.video();
-    const startedAt = Date.now();
+    const recordingStartedAt = Date.now();
+    let startedAt = recordingStartedAt;
     const cues = [];
     const cue = async (text, durationMs, action) => {
-      const start = (Date.now() - startedAt) / 1000;
       if (action) await action();
+      const start = (Date.now() - startedAt) / 1000;
       await page.waitForTimeout(durationMs);
       cues.push({ start, end: (Date.now() - startedAt) / 1000, text });
     };
     await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}#${route}`, { waitUntil: 'networkidle' });
     await page.locator('main').waitFor({ state: 'visible' });
     await injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl);
+    await page.evaluate(() => document.fonts?.ready || Promise.resolve());
+    await showTitle(page, intro.kicker, intro.title, intro.detail);
+    startedAt = Date.now();
     await run({ page, cue, resetGuide: () => injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl) });
     const posterPath = path.join(outputDir, `${name}-poster.png`);
     await page.screenshot({ path: posterPath, fullPage: false });
@@ -281,6 +384,9 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
     context = null;
     const rawPath = path.join(rawDir, `${name}.webm`);
     await video.saveAs(rawPath);
+    await fs.writeFile(path.join(rawDir, `${name}.capture.json`), JSON.stringify({
+      trimStartSeconds: Math.max(0, (startedAt - recordingStartedAt) / 1000 - 0.12)
+    }, null, 2));
     await writeVtt(path.join(outputDir, vttName), cues);
     return { rawPath, posterPath, cues };
   } finally {
@@ -347,12 +453,13 @@ try {
     mobileRoute: '/',
     mobileFocusSelector: 'a[href="#/atencion"]',
     totalSteps: 7,
+    intro: { kicker: 'Tutorial para estudiantes', title: 'Reservar una hora de atención', detail: 'El horario queda confirmado al terminar.' },
     outputDir: publicMediaDir,
     vttName: 'solicitar-hora.vtt',
     run: async ({ page, cue, resetGuide }) => {
-      await cue('Cómo reservar una hora de atención con Jefatura de carrera.', 3900, () => showTitle(page, 'Tutorial para estudiantes', 'Reservar una hora de atención', 'El horario queda confirmado al terminar.'));
-      await hideTitle(page);
+      await cue('Cómo reservar una hora de atención con Jefatura de carrera.', 3900);
       await prepareLoginForCapture(page, 'student');
+      await hideTitle(page);
       await cue('Paso uno. En Estudiantes, selecciona Acceder con Google y usa tu cuenta institucional.', 5200, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional de estudiante.', '[data-google-redirect="student"]'));
       await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa tu cuenta @alumnos.ucn.cl.'));
       await enterCaptureSession(page, student, 'solicitar-hora', '/');
@@ -391,6 +498,7 @@ try {
     mobileRoute: '/',
     mobileFocusSelector: 'a[href="#/jefatura"]',
     totalSteps: 12,
+    intro: { kicker: 'Guía para Jefatura', title: 'Configurar y gestionar la agenda', detail: 'Horarios, sincronización y operación diaria.' },
     outputDir: jefaturaWebMediaDir,
     vttName: 'gestionar-atencion-jefatura.vtt',
     setupPage: async page => {
@@ -411,9 +519,9 @@ try {
       await page.route('**/api/calendar/freebusy', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, busy: [] }) }));
     },
     run: async ({ page, cue, resetGuide }) => {
-      await cue('Esta guía muestra cómo configurar los horarios, conectar Calendar y gestionar las atenciones desde el portál.', 5600, () => showTitle(page, 'Guía para Jefatura', 'Configurar y gestionar la agenda', 'Horarios, sincronización y operación diaria.'));
-      await hideTitle(page);
+      await cue('Esta guía muestra cómo configurar los horarios, conectar Calendar y gestionar las atenciones desde el portál.', 5600);
       await prepareLoginForCapture(page, 'internal');
+      await hideTitle(page);
       await cue('Paso uno. En Jefatura o CEAL, selecciona Acceder con Google.', 5200, () => showStep(page, 1, 'Accede con Google', 'Usa únicamente la cuenta autorizada de Jefatura.', '[data-google-redirect="internal"]'));
       await cue('Continúa únicamente con la cuenta de Jefatura que aparece en pantalla.', 4700, () => showTitle(page, 'Cuenta autorizada', 'jc.icivil.afta@ucn.cl', 'No uses otra cuenta para este acceso.'));
       await enterCaptureSession(page, jefatura, 'gestionar-atencion-jefatura', '/');
@@ -470,8 +578,106 @@ try {
     }
   });
   }
+
+  if (captureCeal) {
+  const ceal = await qaSession('ceal');
+  await seedTutorialMaterial(ceal);
+  await captureTutorial({
+    name: 'gestionar-portal-ceal',
+    route: '/login',
+    mobileSession: ceal,
+    mobileRoute: '/gestion',
+    mobileFocusSelector: 'a[href="#/gestion"]',
+    totalSteps: 7,
+    intro: { kicker: 'Tutorial para CEAL', title: 'Gestionar el contenido del portal', detail: 'Comunicados, calendario, material y seguimientos.' },
+    outputDir: cealWebMediaDir,
+    vttName: 'gestionar-portal-ceal.vtt',
+    run: async ({ page, cue, resetGuide }) => {
+      await cue('Esta guía muestra cómo administrar el contenido del portál desde una cuenta del CEAL.', 4800);
+      await prepareLoginForCapture(page, 'internal');
+      await hideTitle(page);
+      await cue('Paso uno. En Jefatura o CEAL, selecciona Acceder con Google y usa tu cuenta institucional autorizada.', 6000, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional del CEAL.', '[data-google-redirect="internal"]'));
+      await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa la cuenta habilitada para el CEAL.'));
+      await enterCaptureSession(page, ceal, 'gestionar-portal-ceal', '/');
+      await resetGuide();
+      await cue('En el teléfono, Gestión aparece al final de la barra inferior.', 4800, () => showMobile(page, 'Vista móvil', 'Gestión está en la barra inferior', 'Las mismas herramientas están disponibles desde el teléfono.'));
+      await hideMobile(page);
+      await cue('Paso dos. Abre Gestión. Está al final del menú, después de Atención.', 5000, () => showStep(page, 2, 'Abre Gestión', 'Desde aquí se administra el contenido del portal.', 'a[href="#/gestion"]'));
+      await page.locator('a[href="#/gestion"]').first().click();
+      await page.locator('h1.page-title').filter({ hasText: 'Gestión CEAL' }).waitFor({ state: 'visible' });
+      await cue('El panel reúne comunicados, calendario académico, material y seguimientos.', 5200, () => showStep(page, 2, 'Revisa el panel', 'Cada fila muestra su estado y sus acciones disponibles.', '.management-console'));
+
+      await cue('Paso tres. Para publicar un aviso, selecciona Nuevo en Comunicados.', 4800, () => showStep(page, 3, 'Crea un comunicado', 'La publicación manual no depende del asistente.', 'a[href="#/gestion/comunicados/nuevo"]'));
+      await page.locator('a[href="#/gestion/comunicados/nuevo"]').click();
+      await page.locator('form[data-form="edit-content"]').waitFor({ state: 'visible' });
+      await cue('Completa un título directo, la categoría, un resumen breve y el contenido.', 6500, async () => {
+        await showStep(page, 3, 'Completa el aviso', 'Revisa fechas, responsables y enlaces antes de publicar.', 'form[data-form="edit-content"]');
+        const form = page.locator('form[data-form="edit-content"]');
+        await form.locator('input[name="title"]').fill('Información académica');
+        await form.locator('select[name="category"]').selectOption({ label: 'Académico' });
+        await form.locator('input[name="summary"]').fill('Actualización relevante para estudiantes de la carrera.');
+        await form.locator('textarea[name="body"]').fill('Revisa la información, las fechas y los enlaces oficiales antes de publicar este comunicado.');
+      });
+      await cue('Selecciona Publicar comunicado. El aviso aparecerá inmediatamente en la sección pública.', 5200, () => showStep(page, 3, 'Publica el comunicado', 'Después podrás editarlo o eliminarlo desde Gestión.', 'form[data-form="edit-content"] button[type="submit"]'));
+      await page.locator('form[data-form="edit-content"] button[type="submit"]').click();
+      await page.locator('h1.page-title').filter({ hasText: 'Información académica' }).waitFor({ state: 'visible' });
+
+      await page.evaluate(() => { window.location.hash = '/gestion'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Gestión CEAL' }).waitFor({ state: 'visible' });
+      await cue('Paso cuatro. En Calendario académico, selecciona Actualizar cuando recibas una nueva fuente oficial.', 5600, () => showStep(page, 4, 'Actualiza el calendario', 'Adjunta el documento y señala qué periodo reemplaza.', 'a[href="#/gestion/calendario"]'));
+      await page.locator('a[href="#/gestion/calendario"]').click();
+      await page.locator('form[data-form="calendar-update"]').waitFor({ state: 'visible' });
+      await cue('Selecciona el archivo, agrega una nota breve y envíalo a revisión.', 6200, async () => {
+        await showStep(page, 4, 'Envía la fuente', 'El archivo queda pendiente hasta que se aplique la actualización.', 'form[data-form="calendar-update"]');
+        const form = page.locator('form[data-form="calendar-update"]');
+        await form.locator('input[type="file"]').setInputFiles({ name: 'calendario-academico-2026.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% tutorial\n') });
+        await form.locator('textarea[name="note"]').fill('Actualización del segundo semestre 2026.');
+      });
+      await cue('Presiona Enviar a revisión y comprueba que el estado quede pendiente.', 5000, () => showStep(page, 4, 'Confirma el envío', 'La fuente pública cambia solo después de la revisión.', 'form[data-form="calendar-update"] button[type="submit"]'));
+      await page.locator('form[data-form="calendar-update"] button[type="submit"]').click();
+      await page.getByText('Pendiente de revisión', { exact: true }).waitFor({ state: 'visible' });
+
+      await page.evaluate(() => { window.location.hash = '/gestion'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Gestión CEAL' }).waitFor({ state: 'visible' });
+      const materialReviewLink = page.locator('a[href^="#/gestion/material/"]').first();
+      await cue('Paso cinco. Si hay material pendiente, selecciona Revisar para comprobar el archivo y sus datos.', 5600, () => showStep(page, 5, 'Revisa material', 'Valida solo recursos pertinentes y correctamente identificados.', '.management-console-row:nth-of-type(3)'));
+      if (await materialReviewLink.count()) {
+        await materialReviewLink.click();
+        await page.locator('[data-approve-material]').waitFor({ state: 'visible' });
+        await cue('Después de revisarlo, selecciona Validar y publicar. Si falta información, déjalo con observaciones.', 6000, () => showStep(page, 5, 'Publica o deja observaciones', 'La decisión queda registrada en el material.', '[data-approve-material]'));
+        await page.locator('[data-approve-material]').click();
+        await page.getByText('Material validado y publicado', { exact: true }).waitFor({ state: 'visible' });
+      }
+
+      await page.evaluate(() => { window.location.hash = '/gestion'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Gestión CEAL' }).waitFor({ state: 'visible' });
+      await cue('Paso seis. En Acuerdos y seguimiento, selecciona Nuevo para registrar una decisión o compromiso.', 5600, () => showStep(page, 6, 'Registra un seguimiento', 'Incluye origen, responsable, estado y próximo paso.', 'a[href="#/gestion/acuerdos/nuevo"]'));
+      await page.locator('a[href="#/gestion/acuerdos/nuevo"]').click();
+      const agreementForm = page.locator('form[data-form="new-agreement"]');
+      await agreementForm.waitFor({ state: 'visible' });
+      await cue('Completa los campos con información verificable y un próximo paso concreto.', 6500, async () => {
+        await showStep(page, 6, 'Completa el seguimiento', 'El resumen debe ser breve y útil para consultar después.', 'form[data-form="new-agreement"]');
+        await agreementForm.locator('input[name="title"]').fill('Seguimiento académico');
+        await agreementForm.locator('input[name="origin"]').fill('Reunión de coordinación');
+        await agreementForm.locator('input[name="responsible"]').fill('Secretaría CEAL');
+        await agreementForm.locator('textarea[name="summary"]').fill('Se registran los acuerdos académicos y las tareas pendientes de la reunión.');
+        await agreementForm.locator('input[name="nextStep"]').fill('Revisar avances en la próxima reunión.');
+        await agreementForm.locator('input[name="commitment"]').fill('Publicar la actualización correspondiente.');
+      });
+      await cue('Selecciona Crear seguimiento para dejarlo disponible en el calendario y sus detalles.', 5200, () => showStep(page, 6, 'Guarda el seguimiento', 'Después podrás revisar su estado y compromisos.', 'form[data-form="new-agreement"] button[type="submit"]'));
+      await agreementForm.locator('button[type="submit"]').click();
+      await page.waitForURL(/#\/acuerdos\/agr-/);
+      await page.getByText('Seguimiento académico', { exact: true }).first().waitFor({ state: 'visible' });
+
+      await page.evaluate(() => { window.location.hash = '/gestion'; });
+      await page.locator('h1.page-title').filter({ hasText: 'Gestión CEAL' }).waitFor({ state: 'visible' });
+      await cue('Paso siete. Vuelve a Gestión y confirma los estados antes de cerrar la sesión.', 5600, () => showStep(page, 7, 'Comprueba los cambios', 'Revisa comunicados, fuentes, material y seguimientos.', '.management-console'));
+      await cue('Gestión actualizada.', 4200, () => showTitle(page, 'Equipo CEAL', 'Contenido listo', 'Los cambios quedan disponibles en sus secciones correspondientes.'));
+    }
+  });
+  }
 } finally {
   server.kill('SIGTERM');
 }
 
-console.log(JSON.stringify({ ok: true, publicMediaDir, jefaturaWebMediaDir, privateDir, rawDir }, null, 2));
+console.log(JSON.stringify({ ok: true, publicMediaDir, jefaturaWebMediaDir, cealWebMediaDir, privateDir, rawDir }, null, 2));

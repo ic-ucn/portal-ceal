@@ -27,122 +27,7 @@ window.PortalMock = (() => {
     ceal: { ...cealMembers[2] }
   };
 
-  const communications = [
-    {
-      id: 'com-paro-005',
-      title: 'Estado de movilización y próximas negociaciones',
-      category: 'Contingencia',
-      date: '2026-06-17T10:00:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: true,
-      unread: true,
-      summary: 'Actualización sobre turnos, cierre nocturno del campus, recalendarización y negociación diaria.',
-      body: `Compañeras y compañeros de Ingeniería Civil:
-
-Queremos informarles sobre la situación actual de la movilización estudiantil y las acciones que se desarrollarán durante el día de mañana.
-
-En primer lugar, hacemos un llamado a toda la comunidad a apoyar activamente la toma que se está llevando a cabo a nivel institucional. Actualmente se necesitan estudiantes que puedan colaborar en rondas de resguardo y turnos en portería, ya que su participación es fundamental para fortalecer este proceso y demostrar seriedad y organización frente a las autoridades.
-
-Además, les informamos que la entrada principal del campus se cerrará a las 23:00 horas. Una vez realizado el cierre, no será posible ingresar ni salir de las dependencias universitarias hasta las 07:00 horas, por lo que les pedimos considerar esta información al momento de organizar su participación y permanencia en el campus.
-
-Respecto a las preocupaciones relacionadas con lo académico, queremos transmitir tranquilidad. La recalendarización de las actividades académicas ya ha sido planteada y considerada dentro de las conversaciones, por lo que les pedimos no preocuparse por este aspecto mientras continúa el proceso de movilización.
-
-Por otra parte, durante la jornada se presentó el petitorio completo, revisando cada uno de sus puntos. Sin embargo, las respuestas entregadas hasta ahora no han incorporado avances ni observaciones significativas respecto de las demandas planteadas. Debido a esto, a partir de mañana se realizarán jornadas de negociación diarias entre las 10:00 y las 17:00 horas, donde las mesas de trabajo estarán sesionando de manera continua para buscar respuestas concretas a las solicitudes estudiantiles.
-
-Con respecto a un eventual pleno, cualquier información será comunicada oportunamente durante el transcurso de mañana.
-
-Como Centro de Estudiantes, seguiremos informando sobre cualquier avance relevante. Agradecemos el compromiso, la participación y el apoyo que han demostrado durante este proceso.`,
-      related: [{ type: 'contingencia', id: 'agr-paro-003', label: 'Seguimiento de negociación' }]
-    },
-    {
-      id: 'com-paro-004',
-      title: 'Turnos de resguardo del departamento',
-      category: 'Contingencia',
-      date: '2026-06-16T18:30:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: false,
-      unread: true,
-      summary: 'Se solicita apoyo para cubrir turnos de mañana, tarde y noche durante la toma.',
-      body: `Hola, como saben estamos en toma a nivel universidad y necesitamos apoyo en los turnos para cuidar el departamento.
-
-Los turnos son:
-
-1. Mañana: 08:00 a 15:00.
-2. Tarde: 15:00 a 21:00.
-3. Noche: 21:00 a 08:00.
-
-Si alguien se anima a apoyar, nos puede mandar un mensaje para poder anotarlo.`,
-      related: [{ type: 'contingencia', id: 'agr-paro-002', label: 'Organización de turnos' }]
-    },
-    {
-      id: 'com-paro-003',
-      title: 'Mesa de negociación y pleno estudiantil',
-      category: 'Contingencia',
-      date: '2026-06-16T09:00:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: false,
-      unread: false,
-      summary: 'Durante el martes 16 se inicia mesa de negociación con autoridades y posterior pleno estudiantil.',
-      body: `Buenas noches a todos y todas:
-
-Nos disculpamos por la hora, pero debido a distintas ocupaciones fuera de la Universidad se nos hizo difícil enviar antes este mensaje.
-
-Sobre las actividades y avances que se desarrollarán durante la jornada de hoy, martes 16 de junio, en el contexto de la movilización estudiantil a nivel institucional, durante el día comenzarán las conversaciones entre la mesa de negociación y las autoridades. Esta mesa está conformada por tres estudiantes voluntarios de distintos Centros de Estudiantes, con el objetivo de representar directamente las inquietudes, necesidades y preocupaciones de quienes se han visto afectados por el instructivo emitido por Vicerrectoría Académica.
-
-Una vez finalizada esta instancia, se realizará un pleno estudiantil, donde se expondrán los temas tratados en la mesa y se informarán los avances alcanzados durante la jornada.
-
-Entre los puntos que se abordarán se encuentran temas de gran importancia para el estudiantado, como la posible extensión del semestre, las prácticas profesionales y otros aspectos relacionados con el instructivo y su impacto en nuestra progresión académica. Recordamos que una eventual extensión del semestre también implicaría una recalendarización de las evaluaciones.
-
-Además, les informamos que la toma de las dependencias universitarias se mantendrá hasta que el nuevo instructivo elaborado por Vicerrectoría Académica sea emitido oficialmente y puesto en circulación para toda la comunidad universitaria.
-
-Como Centro de Estudiantes, seguiremos informando oportunamente cualquier avance o acuerdo que surja de estas instancias.
-
-Esperamos contar con su ayuda en esta instancia, debido a que tarde o temprano terminará afectando a todos y todas. Cualquier cosa, estamos disponibles para responder sus inquietudes y dudas. Cabe recalcar que, a pesar de ser parte del CEAL, podemos carecer también de información; por lo tanto, pedimos comprensión al plantear preguntas y exigencias de respuesta. Haremos lo posible por hacerles llegar información bien argumentada a su debido tiempo.`,
-      related: [{ type: 'contingencia', id: 'agr-paro-003', label: 'Mesa de negociación' }]
-    },
-    {
-      id: 'com-paro-002',
-      title: 'Ingeniería Civil se suma a la toma institucional',
-      category: 'Contingencia',
-      date: '2026-06-15T15:30:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: false,
-      unread: false,
-      summary: 'Tras pleno universitario, Ingeniería Civil se suma oficialmente a la toma desde el lunes 15.',
-      body: `Hola a todas y todos:
-
-Junto con saludar, informamos que hoy lunes 15, a las 12:00 horas, se llevó a cabo un pleno a nivel universidad. En esta instancia participaron las distintas carreras para discutir la situación actual de la paralización y definir los pasos a seguir.
-
-Luego de la intervención de diversas carreras, se llegó a la determinación de iniciar una toma a nivel universidad. En este contexto, como carrera de Ingeniería Civil, informamos que nos sumamos oficialmente a la toma a partir de hoy lunes 15.
-
-Como CEAL, nos estaremos organizando mediante turnos para resguardar y acompañar el proceso dentro del departamento de nuestra carrera. Invitamos a las y los estudiantes que quieran apoyar a sumarse a estos turnos, ya sea permaneciendo durante algunas horas o acompañando en los espacios que se vayan coordinando. Quienes puedan apoyar, por favor comuníquense con nosotros.
-
-Además, quienes puedan colaborar trayendo insumos que faciliten la permanencia en el departamento, pueden hacerlo con alimentos, sacos de dormir, colchones inflables, carpas, termos, bidones de agua u otros elementos útiles para la organización y estadía durante la toma.
-
-Solicitamos a todas y todos mantenerse atentos a los canales oficiales de la carrera, ya que por este medio se irán entregando nuevas informaciones, actualizaciones y coordinaciones relacionadas con el proceso.
-
-Agradecemos la atención, participación y apoyo de quienes han sido parte de las distintas instancias de discusión y organización. Cualquier consulta que tengan nos la hacen llegar.`,
-      related: [{ type: 'contingencia', id: 'agr-paro-001', label: 'Inicio de toma institucional' }]
-    },
-    {
-      id: 'com-paro-001',
-      title: 'Formulario sobre impacto del instructivo académico',
-      category: 'Contingencia',
-      date: '2026-06-14T19:30:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: false,
-      unread: false,
-      summary: 'Formulario para levantar postura estudiantil e impacto por ramo ante el instructivo de Vicerrectoría.',
-      body: `Hola a todas y todos:
-
-Este formulario tiene como finalidad conocer su postura con respecto al instructivo enviado por Vicerrectoría Académica y cuánto afecta su progreso académico.
-
-En el formulario podrán expresar si esto les afecta y en qué ramo.
-
-Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
-      related: [{ type: 'contingencia', id: 'agr-paro-001', label: 'Levantamiento de información' }]
-    }
-  ];
+  const communications = [];
 
   const resources = [
     {
@@ -345,26 +230,7 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     { id: 'proc-003', title: 'Consulta académica formal', due: '2026-06-15', status: 'enRevision', required: ['Descripción de consulta', 'Ramo o unidad relacionada'], responsible: 'Dirección de Docencia', description: 'Formulario para consultas académicas formales.' }
   ];
 
-  const surveys = [
-    {
-      id: 'enc-001',
-      title: 'Preferencias de horarios de atenciÃ³n',
-      description: 'Levantamiento inicial para ajustar horarios de atenciÃ³n de jefatura y coordinaciÃ³n acadÃ©mica.',
-      mode: 'encuesta',
-      audience: 'Estudiantes de IngenierÃ­a Civil UCN',
-      secret: true,
-      allowMultipleResponses: false,
-      status: 'open',
-      createdAt: '2026-06-19T10:30:00',
-      createdBy: 'CEAL IngenierÃ­a Civil UCN',
-      responseCount: 0,
-      questions: [
-        { id: 'q1', label: 'Â¿QuÃ© bloque prefieres para atenciÃ³n?', type: 'single', required: true, options: ['MaÃ±ana', 'MediodÃ­a', 'Tarde'] },
-        { id: 'q2', label: 'Â¿QuÃ© temas necesitas priorizar?', type: 'multiple', required: false, options: ['InscripciÃ³n de ramos', 'PrÃ¡ctica', 'Avance curricular', 'SituaciÃ³n personal acadÃ©mica'] },
-        { id: 'q3', label: 'Comentario adicional', type: 'text', required: false, options: [] }
-      ]
-    }
-  ];
+  const surveys = [];
 
   const staffProfiles = [
     {
@@ -374,7 +240,11 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       contactName: 'Jefe de carrera',
       role: 'Ingeniería Civil UCN',
       email: 'jc.icivil.afta@ucn.cl',
-      authorizedEmails: ['jc.icivil.afta@ucn.cl'],
+      authorizedEmails: [
+        'jc.icivil.afta@ucn.cl',
+        'martina.briceno@alumnos.ucn.cl',
+        'kevin.cortes@alumnos.ucn.cl'
+      ],
       calendarUrl: '',
       bookingUrl: '',
       status: 'Horarios publicados',
@@ -397,7 +267,6 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
   ];
 
   const notifications = [
-    { id: 'not-001', title: 'Comunicado actualizado', detail: 'Nuevo aviso sobre negociación, turnos y recalendarización.', date: '17 jun, 10:00', unread: true, route: '/comunicados/com-paro-005' },
     { id: 'not-002', title: 'Calendario académico actualizado', detail: 'Fechas oficiales 2026 desde junio en adelante.', date: '17 jun, 09:30', unread: true, route: '/calendario' },
     { id: 'not-003', title: 'Biblioteca disponible', detail: 'Material organizado por ramos reales de la malla.', date: '16 jun, 18:40', unread: true, route: '/material' }
   ];
@@ -406,29 +275,6 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     resources: ['mat-001', 'mat-003', 'mat-007'],
     courses: ['planO:DAIC-00504', 'planP:P-0505'],
     reminders: ['evt-001', 'ay-001']
-  };
-
-  const gestion = {
-    pending: [
-      { id: 'pend-001', type: 'mallas', title: 'Mallas en revisión', count: 2, detail: 'Planes y enlaces por confirmar' },
-      { id: 'pend-002', type: 'material', title: 'Material por validar', count: 2, detail: 'Aportes estudiantiles pendientes' },
-      { id: 'pend-003', type: 'seguimiento', title: 'Acuerdos en seguimiento', count: 3, detail: 'Comunicados y compromisos activos' },
-      { id: 'pend-004', type: 'calendario', title: 'Calendario oficial', count: 18, detail: 'Hitos académicos 2026 cargados' }
-    ],
-    changes: [
-      { title: 'Comunicado académico', detail: 'Actualizado por Comunicaciones CEAL', date: '17 jun, 10:00' },
-      { title: 'Seguimiento N°03/2026', detail: 'Seguimiento actualizado por CEAL', date: '17 jun, 09:45' },
-      { title: 'Calendario académico 2026', detail: 'Actualizado desde calendario DGPRE UCN', date: '17 jun, 09:30' },
-      { title: 'Material: guía de hormigón armado', detail: 'Validado por Docencia CEAL', date: '24 may, 12:10' }
-    ],
-    roles: [
-      { name: 'Presidencia', detail: 'Lidera y valida decisiones clave.', members: 2 },
-      { name: 'Secretaría', detail: 'Gestiona acuerdos, documentos y coordinación interna.', members: 3 },
-      { name: 'Comunicaciones', detail: 'Publica y difunde información.', members: 2 },
-      { name: 'Docencia', detail: 'Gestiona material y mallas.', members: 2 },
-      { name: 'Bienestar', detail: 'Coordina apoyos y actividades.', members: 2 },
-      { name: 'Seguimiento', detail: 'Ordena comunicados, compromisos y acuerdos.', members: 3 }
-    ]
   };
 
   const driveResources = Array.isArray(window.PortalDriveMaterials) ? window.PortalDriveMaterials : [];
@@ -443,5 +289,5 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     ? tutoring.map((item) => ({ ...item, materialId: driveResources.find((resource) => resource.courseCode === item.courseCode)?.id || '' }))
     : tutoring;
 
-  return { users, cealMembers, communications, resources: allResources, cases, events, calendarSource, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
+  return { users, cealMembers, communications, resources: allResources, cases, events, calendarSource, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState };
 })();

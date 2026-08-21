@@ -1,68 +1,108 @@
-(() => {
+(async () => {
+  const session = (() => {
+    try { return JSON.parse(localStorage.getItem('portal.session') || 'null'); } catch { return null; }
+  })();
+  const requiredAccess = document.body.dataset.tutorialAccess || 'student';
+  const effectiveRole = String(session?.accessMode || session?.role || '');
+  const accessAllowed = Boolean(session?.sessionToken) && (
+    requiredAccess === 'student'
+    || (requiredAccess === 'ceal' && ['ceal', 'jefatura'].includes(effectiveRole))
+    || (requiredAccess === 'jefatura' && effectiveRole === 'jefatura')
+  );
+  const returnToPortal = () => location.replace('../#/tutoriales');
+  if (!accessAllowed) {
+    returnToPortal();
+    return;
+  }
+
+  const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+  const apiBase = isLocal ? `${location.origin}/api` : String(window.PORTAL_API_BASE || '');
+  if (apiBase && !(isLocal && session.authProvider === 'local-dev')) {
+    try {
+      const response = await fetch(`${apiBase}/auth/session`, {
+        cache: 'no-store',
+        headers: { accept: 'application/json', Authorization: `Bearer ${session.sessionToken}` }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.user?.sessionToken) {
+        localStorage.removeItem('portal.session');
+        returnToPortal();
+        return;
+      }
+    } catch {
+      // Una caída temporal del API no bloquea un tutorial ya autorizado localmente.
+    }
+  }
+  document.documentElement.classList.remove('tutorial-auth-pending');
+
   const root = document.documentElement;
   const stored = localStorage.getItem('portal.theme');
-  const preferredDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-  const apply = dark => {
+  const themeButton = document.querySelector('[data-theme-toggle]');
+  const applyTheme = dark => {
     root.dataset.theme = dark ? 'dark' : 'light';
-    document.querySelector('[data-theme-toggle]')?.setAttribute('aria-pressed', String(dark));
+    root.style.colorScheme = dark ? 'dark' : 'only light';
+    if (themeButton) {
+      themeButton.setAttribute('aria-pressed', String(dark));
+      themeButton.setAttribute('aria-label', `Cambiar a modo ${dark ? 'claro' : 'oscuro'}`);
+      themeButton.innerHTML = dark
+        ? '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>'
+        : '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.8 15.2A8.5 8.5 0 0 1 8.8 3.2 8.5 8.5 0 1 0 20.8 15.2Z"/></svg>';
+    }
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#081527' : '#f5f7fb');
   };
-  apply(stored ? stored === 'dark' : preferredDark);
-  document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+  applyTheme(stored === 'dark');
+  themeButton?.addEventListener('click', () => {
     const dark = root.dataset.theme !== 'dark';
     localStorage.setItem('portal.theme', dark ? 'dark' : 'light');
-    apply(dark);
+    applyTheme(dark);
   });
+
   const appointmentLink = document.querySelector('a[href*="#/atencion"]');
-  if (appointmentLink) {
+  if (appointmentLink && apiBase) {
     let warmupStarted = false;
     const warmup = () => {
       if (warmupStarted) return;
       warmupStarted = true;
-      fetch('https://portal-ceic-api.onrender.com/api/health', { cache: 'no-store', mode: 'cors' }).catch(() => {});
+      fetch(`${apiBase}/health`, { cache: 'no-store', mode: 'cors' }).catch(() => {});
     };
     if ('requestIdleCallback' in window) window.requestIdleCallback(warmup, { timeout: 1200 });
     else setTimeout(warmup, 250);
     appointmentLink.addEventListener('pointerenter', warmup, { once: true });
     appointmentLink.addEventListener('focus', warmup, { once: true });
   }
-  const video = document.querySelector('[data-tutorial-video]');
-  const toggle = document.querySelector('[data-video-toggle]');
-  const toggleLabel = document.querySelector('[data-video-toggle-label]');
-  const time = document.querySelector('[data-video-time]');
-  const formatTime = value => {
-    if (!Number.isFinite(value)) return '00:00';
-    const seconds = Math.max(0, Math.floor(value));
-    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-  };
-  const updatePlayback = () => {
-    if (!video) return;
-    const playing = !video.paused && !video.ended;
-    const action = playing ? 'Pausar' : 'Reproducir';
-    if (toggleLabel) toggleLabel.textContent = action;
-    if (toggle) {
-      toggle.setAttribute('aria-label', `${action} video`);
-      toggle.title = `${action} video`;
-    }
-    if (time) time.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
-  };
-  document.querySelectorAll('[data-video-skip]').forEach(button => {
+
+  const player = document.querySelector('[data-video-player]');
+  const video = player?.querySelector('[data-tutorial-video]');
+  if (!player || !video) return;
+
+  const download = document.querySelector('[data-video-download]');
+  const voiceButtons = [...document.querySelectorAll('[data-video-voice]')];
+  let activeVoice = 'female';
+
+  voiceButtons.forEach(button => {
     button.addEventListener('click', () => {
-      if (!video) return;
-      const next = video.currentTime + Number(button.dataset.videoSkip || 0);
-      video.currentTime = Math.min(Number.isFinite(video.duration) ? video.duration : next, Math.max(0, next));
-      updatePlayback();
+      const voice = button.dataset.videoVoice;
+      if (!voice || voice === activeVoice) return;
+      const source = voice === 'male' ? player.dataset.videoMale : player.dataset.videoFemale;
+      if (!source) return;
+      const currentTime = video.currentTime;
+      const wasPlaying = !video.paused && !video.ended;
+      const muted = video.muted;
+      const volume = video.volume;
+      const playbackRate = video.playbackRate;
+      activeVoice = voice;
+      voiceButtons.forEach(item => item.setAttribute('aria-pressed', String(item.dataset.videoVoice === voice)));
+      video.pause();
+      video.src = source;
+      video.load();
+      video.addEventListener('loadedmetadata', () => {
+        video.currentTime = Math.min(currentTime, Number.isFinite(video.duration) ? video.duration : currentTime);
+        video.muted = muted;
+        video.volume = volume;
+        video.playbackRate = playbackRate;
+        if (wasPlaying) video.play().catch(() => {});
+      }, { once: true });
+      if (download) download.href = source;
     });
   });
-  toggle?.addEventListener('click', () => {
-    if (!video) return;
-    if (video.paused || video.ended) video.play().catch(() => {});
-    else video.pause();
-  });
-  video?.addEventListener('loadedmetadata', updatePlayback);
-  video?.addEventListener('timeupdate', updatePlayback);
-  video?.addEventListener('play', updatePlayback);
-  video?.addEventListener('pause', updatePlayback);
-  video?.addEventListener('ended', updatePlayback);
-  updatePlayback();
 })();

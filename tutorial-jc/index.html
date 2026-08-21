@@ -7,10 +7,11 @@
   <meta name="description" content="Guía operativa para configurar y administrar la agenda de Jefatura de Ingeniería Civil UCN." />
   <meta name="robots" content="noindex,nofollow" />
   <title>Guía de Jefatura | Portal CEIC UCN</title>
+  <script>document.documentElement.classList.add('tutorial-auth-pending')</script>
   <link rel="icon" href="../assets/logo-mark-transparent.png" type="image/png" />
-  <link rel="stylesheet" href="../tutoriales/tutoriales.css?v=20260820h" />
+  <link rel="stylesheet" href="../tutoriales/tutoriales.css?v=20260821e" />
 </head>
-<body>
+<body data-tutorial-access="jefatura">
   <header class="tutorial-header">
     <a class="tutorial-brand" href="../#/">
       <img src="../assets/logo-mark-transparent.png" alt="CEIC UCN" />
@@ -40,22 +41,23 @@
       </div>
     </section>
 
-    <section class="video-section" aria-label="Video tutorial">
-      <video controls preload="metadata" playsinline poster="media/gestionar-atencion-jefatura-poster.webp?v=20260821a" data-tutorial-video>
-        <source src="media/gestionar-atencion-jefatura-narrado.mp4?v=20260821a" type="video/mp4" />
-        <track kind="captions" src="media/gestionar-atencion-jefatura.vtt?v=20260821a" srclang="es" label="Español" />
+    <div class="video-options" aria-label="Opciones del video">
+      <div class="voice-switch" role="group" aria-label="Voz de la narración">
+        <span>Narración</span>
+        <button type="button" data-video-voice="female" aria-pressed="true">Mujer</button>
+        <button type="button" data-video-voice="male" aria-pressed="false">Hombre</button>
+      </div>
+      <a class="download-link" href="media/gestionar-atencion-jefatura-narrado.mp4?v=20260821d" data-video-download download>Descargar video</a>
+    </div>
+    <section class="video-player" aria-label="Video tutorial" data-video-player data-video-female="media/gestionar-atencion-jefatura-narrado.mp4?v=20260821d" data-video-male="media/gestionar-atencion-jefatura-hombre.mp4?v=20260821d">
+      <div class="video-section">
+      <video controls preload="metadata" playsinline poster="media/gestionar-atencion-jefatura-poster.webp?v=20260821d" src="media/gestionar-atencion-jefatura-narrado.mp4?v=20260821d" data-tutorial-video>
+        <track kind="captions" src="media/gestionar-atencion-jefatura.vtt?v=20260821d" srclang="es" label="Español" default />
         Tu navegador no puede reproducir este video.
       </video>
-    </section>
-    <div class="video-toolbar">
-      <div class="transport-controls" role="group" aria-label="Controles del video">
-        <button type="button" data-video-skip="-10" aria-label="Retroceder 10 segundos" title="Retroceder 10 segundos">-10 s</button>
-        <button type="button" data-video-toggle aria-label="Reproducir video" title="Reproducir video"><span data-video-toggle-label>Reproducir</span></button>
-        <button type="button" data-video-skip="10" aria-label="Adelantar 10 segundos" title="Adelantar 10 segundos">+10 s</button>
       </div>
-      <output class="video-time" data-video-time aria-live="off">00:00 / 00:00</output>
-      <a class="download-link" href="media/gestionar-atencion-jefatura-narrado.mp4?v=20260821a" download>Descargar video</a>
-    </div>
+    </section>
+    <div class="video-followup"><span>Continúa cuando termines el video</span><a class="primary-action" href="../#/jefatura">Abrir Jefatura<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></a></div>
 
     <section class="steps-section" aria-labelledby="steps-title">
       <div class="section-heading">
@@ -99,6 +101,7 @@
   </main>
 
   <footer>CEIC UCN · Ingeniería Civil</footer>
-  <script src="../tutoriales/tutoriales.js?v=20260820i"></script>
+  <script src="../src/config.js?v=20260712c"></script>
+  <script src="../tutoriales/tutoriales.js?v=20260821e"></script>
 </body>
 </html>

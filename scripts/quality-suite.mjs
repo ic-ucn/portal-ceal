@@ -38,23 +38,42 @@ function plain(value) {
 const data = loadBrowserGlobal('src/mock-data.js', 'PortalMock');
 const curricula = loadBrowserGlobal('data/curricula.js', 'CURRICULA');
 const driveMaterials = loadBrowserGlobal('data/drive-materials.js', 'PortalDriveMaterials') || [];
+const academicSchedule = loadBrowserGlobal('data/academic-schedule.js', 'ACADEMIC_SCHEDULE');
 const appJs = read('src/app.js');
 const serverJs = read('server.mjs');
 const indexHtml = read('index.html');
 const tutorialsHtml = read('tutoriales/index.html');
 const jefaturaTutorialHtml = read('tutorial-jc/index.html');
+const cealTutorialHtml = read('tutorial-ceal/index.html');
+const tutorialJs = read('tutoriales/tutoriales.js');
+const stylesCss = read('src/styles.css');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
+for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-hombre.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4', 'tutorial-ceal/media/gestionar-portal-ceal-poster.webp', 'tutorial-ceal/media/gestionar-portal-ceal.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
 assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-narrado.mp4')).size > 500_000, 'student tutorial video should contain a real narrated export');
+assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-hombre.mp4')).size > 500_000, 'student tutorial should contain a male narrated export');
 assert(statSync(path.join(root, 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4')).size > 500_000, 'Jefatura tutorial video should contain a real narrated export');
+assert(statSync(path.join(root, 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4')).size > 500_000, 'Jefatura tutorial should contain a male narrated export');
+assert(statSync(path.join(root, 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4')).size > 500_000, 'CEAL tutorial should contain a real narrated export');
 assert(tutorialsHtml.includes('media/solicitar-hora-narrado.mp4'), 'tutorial page should embed the narrated student video');
 assert(jefaturaTutorialHtml.includes('media/gestionar-atencion-jefatura-narrado.mp4'), 'Jefatura tutorial page should embed the narrated video');
-assert(!tutorialsHtml.includes('data-video-version') && !jefaturaTutorialHtml.includes('data-video-version'), 'tutorial pages should expose a single narrated version');
+assert(cealTutorialHtml.includes('media/gestionar-portal-ceal-narrado.mp4'), 'CEAL tutorial page should embed the narrated video');
+assert(tutorialsHtml.includes('data-video-male') && jefaturaTutorialHtml.includes('data-video-male'), 'tutorial pages should expose both narration voices');
+assert((tutorialsHtml.match(/data-video-voice=/g) || []).length === 2 && (jefaturaTutorialHtml.match(/data-video-voice=/g) || []).length === 2, 'each tutorial should offer exactly two voice choices');
+assert((cealTutorialHtml.match(/data-video-voice=/g) || []).length === 0, 'CEAL tutorial should use its single approved narration without a voice selector');
+assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml].every(html => /<video\s+controls\b/.test(html)), 'all tutorials should use the browser-native video player');
+assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml].every(html => !html.includes('data-video-fullscreen') && !html.includes('data-video-toggle')), 'tutorial pages should not retain the custom transport controls');
 assert(tutorialsHtml.includes('media/solicitar-hora.vtt'), 'tutorial page should include captions');
+assert(cealTutorialHtml.includes('media/gestionar-portal-ceal.vtt'), 'CEAL tutorial page should include captions');
 assert(!tutorialsHtml.includes('jc.icivil.afta@ucn.cl'), 'public tutorial should not expose the private Jefatura account');
+assert(!cealTutorialHtml.includes('@alumnos.ucn.cl'), 'CEAL tutorial should not expose an account identifier');
+assert(tutorialsHtml.includes('data-tutorial-access="student"'), 'student tutorial should require a portal session');
+assert(cealTutorialHtml.includes('data-tutorial-access="ceal"'), 'CEAL tutorial should declare internal access');
+assert(jefaturaTutorialHtml.includes('data-tutorial-access="jefatura"'), 'Jefatura tutorial should declare its exclusive access');
+assert(tutorialJs.includes("localStorage.getItem('portal.session')") && tutorialJs.includes('/auth/session'), 'tutorial pages should validate an existing portal session');
+assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml].every(html => html.includes('class="video-followup"')), 'each tutorial should expose its portal action directly below the video');
 
 assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package check should include quality-suite');
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
@@ -62,12 +81,20 @@ assert(packageJson.scripts['calendar:watch'] === 'node scripts/watch-calendar-up
 assert(indexHtml.includes('src/app.js'), 'index should load app.js');
 assert(indexHtml.includes('src/mock-data.js'), 'index should load data seed');
 assert(indexHtml.includes('data/curricula.js'), 'index should load curricula');
+assert(indexHtml.includes('data/academic-schedule.js'), 'index should load the current academic schedule');
 assert(!indexHtml.includes('accounts.google.com/gsi/client'), 'index should not load Google Identity Services widget');
 assert(indexHtml.includes('src/config.js'), 'index should load public runtime config');
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
 assert(!appJs.includes('window.google'), 'app should not depend on the legacy GSI global');
+assert(appJs.includes('!isLocalDevHost()'), 'Google OAuth should stay disabled on localhost to avoid an invalid redirect URI');
+assert(appJs.includes("state.user.authProvider === 'local-dev'"), 'localhost review sessions should survive direct tutorial navigation');
 assert(appJs.includes("surveys: false"), 'surveys should remain disabled until explicitly re-enabled');
 assert(appJs.includes("tableReservations: false"), 'table reservations should remain disabled until explicitly re-enabled');
+assert(appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'authenticated portal navigation should expose the tutorial library');
+assert(appJs.includes("if (path === '/tutoriales') return renderTutorialLibrary()"), 'portal should render the authenticated tutorial library');
+assert(appJs.includes("apiRequest('/bootstrap', { cache: 'no-store' })"), 'authenticated reloads should bypass a stale browser bootstrap cache');
+assert(/const initialPortalDark = storedPortalTheme\s*\? storedPortalTheme === 'dark'\s*:\s*false;/.test(appJs), 'new portal sessions should start in light mode');
+assert(stylesCss.includes('color-scheme: only light'), 'light mode should prevent forced browser recoloring');
 assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
 assert(!appJs.includes("portal.data.v5"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
@@ -130,7 +157,8 @@ for (const email of [
 
 assert(data.users.student.role === 'student', 'student user should be student');
 assert(data.users.ceal.role === 'ceal', 'seed CEAL user should be CEAL');
-assert(Array.isArray(data.communications) && data.communications.length >= 5, 'communications should be seeded');
+assert(Array.isArray(data.communications) && data.communications.length === 0, 'communications should start empty after the content reset');
+assert(!('gestion' in data), 'static data should not include unused management filler');
 assert(Array.isArray(data.resources) && data.resources.length >= 9, 'resources should be seeded');
 assert(Array.isArray(data.cases) && data.cases.length >= 5, 'cases should be seeded');
 assert(Array.isArray(data.events) && data.events.length >= 5, 'events should be seeded');
@@ -139,17 +167,34 @@ assert(data.events.some(event => event.date === '2026-08-20' && /inicio.*(ii|seg
 assert(Array.isArray(data.agreements) && data.agreements.length >= 3, 'agreements should be seeded');
 assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring should be seeded');
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
-assert(Array.isArray(data.surveys) && data.surveys.length >= 1, 'surveys should be seeded');
+assert(Array.isArray(data.surveys) && data.surveys.length === 0, 'disabled surveys should not retain sample content');
 assert(Array.isArray(data.staffProfiles) && data.staffProfiles.length >= 1, 'staff profiles should be seeded');
 assert(!('courseProgress' in data), 'student course progress should not be inferred without academic records');
 assert(!data.appointments || (Array.isArray(data.appointments) && data.appointments.length === 0), 'appointments seed should not contain fictitious students');
 for (const notification of data.notifications || []) {
   assert(notification.route !== '/contingencia', `notification ${notification.id} should not link to removed contingency route`);
+  assert(!String(notification.route || '').startsWith('/comunicados'), `notification ${notification.id} should not reference removed communications`);
 }
 assert(data.staffProfiles.some(profile => profile.email === 'jc.icivil.afta@ucn.cl'), 'career head profile email should be registered');
 assert(data.staffProfiles.every(profile => [15, 20, 30, 45, 60].includes(profile.bookingSettings?.slotMinutes)), 'Jefatura profiles should publish a supported appointment duration');
 assert(data.staffProfiles.every(profile => Array.isArray(profile.officeHours) && profile.officeHours.every(hour => hour.start && hour.end && hour.mode)), 'Jefatura profiles should publish structured weekly hours');
 assert(appJs.includes("path === '/gestion/calendario'"), 'CEAL calendar update route should exist');
+assert(appJs.includes("path === '/gestion/comunicados/nuevo'"), 'CEAL should have a direct manual communication route');
+assert(appJs.includes('management-console'), 'CEAL management should use the consolidated console');
+assert(!appJs.includes("id === 'com-001' ?"), 'app should not retain a legacy communication fallback');
+assert(serverJs.includes('communications-reset-20260821'), 'backend should apply the one-time communication reset migration');
+assert(!serverJs.includes("collectionName === 'communications' && id === 'com-001'"), 'backend should not retain a legacy communication fallback');
+assert(!serverJs.includes("hasDriveSeed && /^mat-\\d{3}$/.test"), 'backend should preserve real uploaded materials when Drive resources are present');
+assert(!appJs.includes("hasDriveCatalog && /^mat-\\d{3}$/.test"), 'frontend should preserve real uploaded materials when Drive resources are present');
+assert(appJs.includes("path === '/horarios'"), 'public academic schedule route should exist');
+assert(Array.isArray(academicSchedule?.courses) && academicSchedule.courses.length === 28, 'academic schedule should contain the 28 source rows');
+const academicSessions = academicSchedule.courses.flatMap(course => (course.sessions || []).map(session => ({ ...course, ...session })));
+assert(academicSessions.length === 64, 'academic schedule should preserve all 64 weekly class appearances from the source PDF');
+assert(academicSessions.every(item => ['lunes', 'martes', 'miércoles', 'jueves', 'viernes'].includes(item.day)), 'academic schedule should only contain weekday sessions');
+assert(academicSessions.every(item => academicSchedule.blocks[item.block]?.start && academicSchedule.blocks[item.block]?.end), 'every academic session should reference a valid A-G block');
+assert(academicSchedule.sourceFile === 'docs/horario-dic-2-2026-v1.pdf', 'academic schedule should link to the reviewed source PDF');
+assert(serverJs.includes("'.pdf': 'application/pdf'"), 'static server should send the source schedule with the PDF MIME type');
+assert(appJs.includes('calendar-detail-modal') && appJs.includes('data-calendar-modal-close'), 'academic calendar should open an accessible detail modal');
 assert(appJs.includes('data-form="booking-config"'), 'Jefatura booking configuration form should exist');
 assert(serverJs.includes('calendarUpdateRequests') && serverJs.includes('requireCalendarWatcher'), 'calendar source inbox should require a private watcher token');
 assert(/calendarUpdateRequests[^\n]+safe/.test(serverJs), 'calendar source files should be excluded from public bootstrap data');
@@ -158,9 +203,12 @@ for (const profile of data.staffProfiles) {
   const authorized = [profile.email, ...(profile.authorizedEmails || [])].filter(Boolean);
   const authorizedSet = new Set(authorized.map((email) => email.toLowerCase()));
   assert(authorized.includes('jc.icivil.afta@ucn.cl'), 'Jefatura should authorize the official career-head email');
-  const allowedJefatura = new Set(['jc.icivil.afta@ucn.cl']);
-  assert([...authorizedSet].every((email) => allowedJefatura.has(email)), 'Jefatura should only authorize the official career-head email');
-  for (const email of authorized) assert(!cealEmailSet.has(email), `Jefatura should not authorize CEAL email ${email}`);
+  const allowedJefatura = new Set(['jc.icivil.afta@ucn.cl', 'martina.briceno@alumnos.ucn.cl', 'kevin.cortes@alumnos.ucn.cl']);
+  assert([...authorizedSet].every((email) => allowedJefatura.has(email)), 'Jefatura should only authorize the official and approved test accounts');
+  assert(authorizedSet.size === allowedJefatura.size && [...allowedJefatura].every(email => authorizedSet.has(email)), 'Jefatura should authorize Martina and Kevin for end-to-end testing');
+  for (const email of authorized) {
+    if (email === 'jc.icivil.afta@ucn.cl') assert(!cealEmailSet.has(email), 'official Jefatura email should not be a CEAL account');
+  }
 }
 
 for (const collection of ['communications', 'resources', 'cases', 'events', 'agreements', 'tutoring', 'procedures', 'surveys', 'staffProfiles']) {
@@ -284,7 +332,7 @@ const appRequirements = [
   'google-oauth-btn',
   "googleButton('internal')",
   'Jefatura / CEAL',
-  'management-content-grid',
+  'management-console',
   'downloadResource',
   'drivePreviewUrl',
   'resource-preview-frame',
@@ -324,8 +372,13 @@ for (const [name, content] of visibleUiTextFiles) {
 }
 
 assert(!/rut|ppa/i.test(JSON.stringify(data.cealMembers)), 'seed members should not include sensitive academic identifiers');
+assert(!/21\.010\.841-6|1062801369|belen\.astu24@gmail\.com/i.test(`${appJs}\n${serverJs}`), 'public source should not contain legacy personal payment data');
 assert(indexHtml.includes("Content-Security-Policy"), 'index should declare a content security policy');
 assert(serverJs.includes("PORTAL_MAX_SESSIONS"), 'server should support an explicit session capacity');
+assert(serverJs.includes("id === 'session'") && appJs.includes('validateInitialSession'), 'saved sessions should be validated before protected UI renders');
+const internalGoogleBlock = serverJs.match(/if \(role === 'internal'\) \{[\s\S]*?\n\s*if \(role === 'ceal'\)/)?.[0] || '';
+assert(internalGoogleBlock.indexOf('findStaffProfileByEmail') >= 0 && internalGoogleBlock.indexOf('findStaffProfileByEmail') < internalGoogleBlock.indexOf('findMemberByEmail'), 'approved test accounts should resolve to Jefatura before CEAL in internal mode');
+assert(/permissions: \['manage:office-hours', 'edit:calendario'\]/.test(serverJs), 'Jefatura sessions should expose only agenda and calendar permissions');
 assert(serverJs.includes("bookingAvailability"), 'server should persist appointment availability');
 assert(serverJs.includes("sendBookingNotifications"), 'appointment notifications should be derived on the server');
 assert(serverJs.includes("status: 'confirmada'"), 'appointments should be reserved immediately');

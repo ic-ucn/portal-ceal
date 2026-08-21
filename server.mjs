@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { promises as fs } from 'node:fs';
-import { existsSync, readFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
@@ -98,8 +98,13 @@ const mime = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.vtt': 'text/vtt; charset=utf-8',
+  '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8'
 };
@@ -283,6 +288,17 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles', 'reservations']) {
     db.data[key] ||= seed.data[key] || [];
   }
+  db.meta ||= {};
+  db.meta.migrations ||= [];
+  const communicationsResetMigration = 'communications-reset-20260821';
+  if (!db.meta.migrations.includes(communicationsResetMigration)) {
+    db.data.communications = [];
+    db.data.surveys = [];
+    db.data.aiDrafts = [];
+    delete db.data.aiCommunicationsDigest;
+    db.data.notifications = (db.data.notifications || []).filter(item => !String(item.route || '').startsWith('/comunicados'));
+    db.meta.migrations.push(communicationsResetMigration);
+  }
   const seedCalendarVersion = asText(seed.data.calendarSource?.version);
   const storedCalendarVersion = asText(db.data.calendarSource?.version);
   if (seedCalendarVersion && seedCalendarVersion !== storedCalendarVersion) {
@@ -337,7 +353,6 @@ function ensureDbShape(db, seed) {
     ...resources.filter(resource => (
       !driveIds.has(resource.id)
       && !(hasDriveSeed && String(resource.id || '').startsWith('drive-'))
-      && !(hasDriveSeed && /^mat-\d{3}$/.test(resource.id || ''))
       && isOfficialCourseResource(resource, officialCourses)
     ))
   ].map(resource => canonicalizeResourceCourse(resource, officialCourses));
@@ -350,7 +365,6 @@ function ensureDbShape(db, seed) {
   // Marca la migracion heredada como aplicada sin vaciar colecciones completas.
   // Los filtros puntuales anteriores eliminan solo registros identificables como QA;
   // una base remota nueva puede contener datos operativos importados que deben conservarse.
-  db.meta ||= {};
   if (useSupabaseState && !db.meta.demoContentClean) {
     db.meta.demoContentClean = true;
   }
@@ -618,6 +632,7 @@ function staffProfileGoogleUser(profile, payload) {
     plan: 'planP',
     yearLabel: 'Perfil institucional',
     email: asText(profile.email || payload.email).toLowerCase(),
+    authenticatedEmail: asText(payload.email || profile.email).toLowerCase(),
     picture: payload.picture || profile.picture || '',
     authProvider: 'google',
     googleSub: payload.sub,
@@ -662,6 +677,7 @@ function createSession(db, user) {
     tokenHash: tokenHash(token),
     userId: user.id || '',
     email: asText(user.email).toLowerCase(),
+    authenticatedEmail: asText(user.authenticatedEmail || user.email).toLowerCase(),
     name: asText(user.name, user.email),
     role: asText(user.role, 'student'),
     accessMode: asText(user.accessMode, user.role || 'student'),
@@ -673,6 +689,48 @@ function createSession(db, user) {
     .slice(-(maxSessions - 1));
   db.data.sessions.push(session);
   return token;
+}
+
+function validatedSessionUser(db, session, sessionToken) {
+  if (session.role === 'ceal' && session.accessMode === 'ceal') {
+    const member = findMemberByEmail(db, session.email);
+    if (!member) return null;
+    return {
+      ...publicMember(member),
+      authProvider: 'session',
+      sessionToken
+    };
+  }
+  if (session.role === 'jefatura' && session.accessMode === 'jefatura') {
+    const profile = findStaffProfileByEmail(db, session.email);
+    if (!profile) return null;
+    return {
+      ...staffProfileGoogleUser(profile, {
+        sub: '',
+        email: session.authenticatedEmail || session.email,
+        picture: ''
+      }),
+      authProvider: 'session',
+      sessionToken
+    };
+  }
+  if (session.role === 'student' && session.accessMode === 'student') {
+    return {
+      id: session.userId || `session:${session.email}`,
+      name: session.name || 'Estudiante UCN',
+      initials: initialsFromName(session.name, 'EU'),
+      role: 'student',
+      accessMode: 'student',
+      label: 'Estudiante',
+      plan: 'planP',
+      yearLabel: 'Cuenta UCN',
+      email: session.email,
+      authProvider: 'session',
+      permissions: [],
+      sessionToken
+    };
+  }
+  return null;
 }
 
 function withSessionToken(db, user) {
@@ -1905,9 +1963,6 @@ function patchItem(items, id, patch) {
 function resolveLegacyItem(collectionName, collection, id) {
   const direct = collection.find(entry => entry.id === id);
   if (direct) return direct;
-  if (collectionName === 'communications' && id === 'com-001') {
-    return collection.find(entry => entry.id === 'com-paro-005') || collection[0] || null;
-  }
   if (collectionName === 'agreements' && id === 'agr-003') {
     return collection.find(entry => entry.id === 'agr-paro-003') || collection[0] || null;
   }
@@ -2224,16 +2279,16 @@ const RESERVATION_BLOCK_MINUTES = 30;
 const RESERVATION_DAYS_AHEAD = 13;
 const RESERVATION_PRICE_CLP = 1000;
 const RESERVATION_ACTIVE = new Set(['preconfirmada', 'pagoAvisado', 'confirmada']);
-const reservationTreasurerEmail = (process.env.RESERVATION_TREASURER_EMAIL || 'belen.astu24@gmail.com').trim().toLowerCase();
+const reservationTreasurerEmail = (process.env.RESERVATION_TREASURER_EMAIL || '').trim().toLowerCase();
 const RESERVATION_PAYMENT = {
   amountLabel: '$1.000 CLP por bloque de 30 minutos',
-  holder: 'Belén Alessandra Astudillo Díaz',
-  rut: '21.010.841-6',
-  bank: 'Mercado Pago',
-  accountType: 'Cuenta Vista',
-  accountNumber: '1062801369',
+  holder: '',
+  rut: '',
+  bank: '',
+  accountType: '',
+  accountNumber: '',
   email: reservationTreasurerEmail,
-  note: 'El pago se recibe temporalmente en la cuenta de la tesorera del CEAL para la administración de los fondos del centro de estudiantes.'
+  note: ''
 };
 
 function reservationChileOffset(dateStr) {
@@ -2528,6 +2583,15 @@ async function handleApi(req, res, url) {
   }
 
   if (resource === 'auth') {
+    if (id === 'session' && req.method === 'GET') {
+      const session = sessionFromRequest(req, db);
+      if (!session) return sendError(res, 401, 'portal session required');
+      const token = asText(req.headers.authorization || req.headers.Authorization || '').match(/^Bearer\s+(.+)$/i)?.[1] || '';
+      const user = validatedSessionUser(db, session, token);
+      if (!user) return sendError(res, 403, 'session role is no longer authorized');
+      return sendJson(res, 200, { ok: true, user });
+    }
+
     if (id === 'members' && req.method === 'GET') {
       return sendJson(res, 200, { ok: true, members: (db.data.cealMembers || []).map(publicMember) });
     }
@@ -3302,7 +3366,7 @@ async function handleApi(req, res, url) {
         title: asText(body.title),
         category: asText(body.category, 'Académico'),
         date: body.date || new Date().toISOString(),
-        source: asText(body.source, 'CEIC Ingeniería Civil UCN'),
+        source: asText(body.source, 'CEAL Ingeniería Civil UCN'),
         pinned: Boolean(body.pinned),
         unread: true,
         summary: asText(body.summary),
@@ -3442,16 +3506,40 @@ async function serveStatic(req, res, url) {
   try {
     const stat = await fs.stat(requested);
     const file = stat.isDirectory() ? path.join(requested, 'index.html') : requested;
+    const fileStat = stat.isDirectory() ? await fs.stat(file) : stat;
     const ext = path.extname(file).toLowerCase();
-    res.writeHead(200, {
+    const headers = {
       'content-type': mime[ext] || 'application/octet-stream',
       'cache-control': ext === '.html' ? 'no-store' : 'public, max-age=600',
+      'accept-ranges': 'bytes',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
       'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-    });
-    res.end(await fs.readFile(file));
+    };
+    const range = asText(req.headers.range);
+    const match = range.match(/^bytes=(\d*)-(\d*)$/);
+    if (match && fileStat.size > 0) {
+      const start = match[1] ? Number(match[1]) : 0;
+      const requestedEnd = match[2] ? Number(match[2]) : fileStat.size - 1;
+      const end = Math.min(requestedEnd, fileStat.size - 1);
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= fileStat.size) {
+        res.writeHead(416, { ...headers, 'content-range': `bytes */${fileStat.size}` });
+        res.end();
+        return;
+      }
+      res.writeHead(206, {
+        ...headers,
+        'content-range': `bytes ${start}-${end}/${fileStat.size}`,
+        'content-length': end - start + 1
+      });
+      if (req.method === 'HEAD') res.end();
+      else createReadStream(file, { start, end }).pipe(res);
+      return;
+    }
+    res.writeHead(200, { ...headers, 'content-length': fileStat.size });
+    if (req.method === 'HEAD') res.end();
+    else createReadStream(file).pipe(res);
   } catch {
     res.writeHead(200, {
       'content-type': mime['.html'],
