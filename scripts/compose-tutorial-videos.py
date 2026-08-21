@@ -129,17 +129,39 @@ def make_music(target: Path, seconds: float, variation: int) -> None:
         wav.writeframes(pcm.tobytes())
 
 
-def capture_trim(raw: Path) -> float:
+def capture_manifest(raw: Path) -> dict:
     manifest = raw.with_suffix('.capture.json')
     if not manifest.exists():
-        return 0.0
-    return max(0.0, float(json.loads(manifest.read_text(encoding='utf-8')).get('trimStartSeconds', 0.0)))
+        return {}
+    return json.loads(manifest.read_text(encoding='utf-8'))
 
 
-def encode_video_args(raw: Path, trim: float = 0.0) -> list[str]:
+def capture_trim(raw: Path) -> float:
+    return max(0.0, float(capture_manifest(raw).get('trimStartSeconds', 0.0)))
+
+
+def capture_cuts(raw: Path) -> list[dict[str, float]]:
+    cuts = capture_manifest(raw).get('cuts', [])
+    return [
+        {"start": max(0.0, float(cut["start"])), "end": max(0.0, float(cut["end"]))}
+        for cut in cuts
+        if float(cut.get("end", 0)) > float(cut.get("start", 0))
+    ]
+
+
+def encode_video_args(raw: Path, trim: float = 0.0, cuts: list[dict[str, float]] | None = None) -> list[str]:
+    cuts = cuts or []
+    filters = ["setpts=PTS-STARTPTS"]
+    if cuts:
+        excluded = "+".join(
+            f"between(t\\,{cut['start']:.3f}\\,{cut['end']:.3f})"
+            for cut in cuts
+        )
+        filters.extend([f"select='not({excluded})'", "setpts=N/FRAME_RATE/TB"])
+    filters.extend(["scale=1920:1080:flags=lanczos", "format=yuv420p"])
     return [
         "-loglevel", "error", "-ss", f"{trim:.3f}", "-i", str(raw), "-map_metadata", "-1",
-        "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p", "-r", "30",
+        "-vf", ",".join(filters), "-r", "30",
         "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "main",
         "-level", "4.0", "-g", "30", "-keyint_min", "30", "-sc_threshold", "0", "-bf", "0",
         "-movflags", "+faststart",
@@ -148,16 +170,17 @@ def encode_video_args(raw: Path, trim: float = 0.0) -> list[str]:
 
 def encode_visual(raw: Path, output: Path) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
-    run(*encode_video_args(raw, capture_trim(raw)), "-an", output)
+    run(*encode_video_args(raw, capture_trim(raw), capture_cuts(raw)), "-an", output)
     return output
 
 
 def compose_music(raw: Path, output: Path, music: Path, variation: int, volume: float = 0.42) -> float:
     trim = capture_trim(raw)
-    seconds = max(0.1, duration(raw) - trim)
+    cuts = capture_cuts(raw)
+    seconds = max(0.1, duration(raw) - trim - sum(cut["end"] - cut["start"] for cut in cuts))
     output.parent.mkdir(parents=True, exist_ok=True)
     make_music(music, seconds, variation)
-    args = encode_video_args(raw, trim)
+    args = encode_video_args(raw, trim, cuts)
     args[6:6] = ["-i", str(music)]
     run(*args, "-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "160k", "-af", f"volume={volume:.2f}", "-shortest", output)
     return seconds

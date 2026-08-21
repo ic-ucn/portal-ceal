@@ -124,6 +124,15 @@ async function writeVtt(filePath, cues) {
   await fs.writeFile(filePath, `WEBVTT\n\n${body}`, 'utf8');
 }
 
+function removeCutTime(time, cuts) {
+  let adjusted = time;
+  for (const cut of cuts) {
+    if (time >= cut.end) adjusted -= cut.end - cut.start;
+    else if (time > cut.start) adjusted -= time - cut.start;
+  }
+  return Math.max(0, adjusted);
+}
+
 async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') {
   await page.evaluate(({ total, mobilePreviewDataUrl }) => {
     const style = document.createElement('style');
@@ -225,7 +234,7 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
         document.body.appendChild(card);
         requestAnimationFrame(() => {
           card.classList.add('is-visible');
-          setTimeout(() => this.revealCapture(), 80);
+          setTimeout(() => this.revealCapture(), 380);
         });
       },
       hideTitle() {
@@ -248,12 +257,16 @@ async function injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl = '') 
         document.body.appendChild(card);
         requestAnimationFrame(() => {
           card.classList.add('is-visible');
-          setTimeout(() => this.revealCapture(), 80);
+          setTimeout(() => {
+            document.querySelector('#tutorial-clean-guard')?.remove();
+            document.documentElement.classList.remove('tutorial-capture-loading');
+          }, 380);
         });
       },
       hideMobile() {
         const card = document.querySelector('#tutorial-mobile-card');
         if (!card) return;
+        document.documentElement.classList.remove('tutorial-capture-loading');
         card.classList.remove('is-visible');
         setTimeout(() => card.remove(), 420);
       }
@@ -296,6 +309,14 @@ async function addCleanCaptureGuard(context, intro) {
     document.documentElement.appendChild(style);
     const mount = () => {
       if (!document.body || document.querySelector('#tutorial-clean-guard')) return;
+      let visibleMeta = meta;
+      try {
+        const savedMeta = sessionStorage.getItem('tutorial.capture.transition');
+        if (savedMeta) {
+          visibleMeta = { ...meta, ...JSON.parse(savedMeta) };
+          sessionStorage.removeItem('tutorial.capture.transition');
+        }
+      } catch {}
       const guard = document.createElement('div');
       guard.id = 'tutorial-clean-guard';
       const inner = document.createElement('div');
@@ -306,11 +327,11 @@ async function addCleanCaptureGuard(context, intro) {
       brand.className = 'guard-brand';
       brand.textContent = 'CEIC UCN';
       const kicker = document.createElement('small');
-      kicker.textContent = meta.kicker;
+      kicker.textContent = visibleMeta.kicker;
       const heading = document.createElement('h1');
-      heading.textContent = meta.title;
+      heading.textContent = visibleMeta.title;
       const detail = document.createElement('p');
-      detail.textContent = meta.detail;
+      detail.textContent = visibleMeta.detail;
       const rule = document.createElement('i');
       inner.append(logo, brand, kicker, heading, detail, rule);
       guard.appendChild(inner);
@@ -371,11 +392,17 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
     const recordingStartedAt = Date.now();
     let startedAt = recordingStartedAt;
     const cues = [];
+    const cuts = [];
     const cue = async (text, durationMs, action) => {
       if (action) await action();
       const start = (Date.now() - startedAt) / 1000;
       await page.waitForTimeout(durationMs);
       cues.push({ start, end: (Date.now() - startedAt) / 1000, text });
+    };
+    const cutTransition = async action => {
+      const start = (Date.now() - startedAt) / 1000;
+      await action();
+      cuts.push({ start, end: (Date.now() - startedAt) / 1000 });
     };
     await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}#${route}`, { waitUntil: 'networkidle' });
     await page.locator('main').waitFor({ state: 'visible' });
@@ -383,7 +410,7 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
     await page.evaluate(() => document.fonts?.ready || Promise.resolve());
     await showTitle(page, intro.kicker, intro.title, intro.detail);
     startedAt = Date.now();
-    await run({ page, cue, resetGuide: () => injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl) });
+    await run({ page, cue, cutTransition, resetGuide: () => injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl) });
     const posterPath = path.join(outputDir, `${name}-poster.png`);
     await page.screenshot({ path: posterPath, fullPage: false });
     await context.close();
@@ -391,9 +418,14 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
     const rawPath = path.join(rawDir, `${name}.webm`);
     await video.saveAs(rawPath);
     await fs.writeFile(path.join(rawDir, `${name}.capture.json`), JSON.stringify({
-      trimStartSeconds: Math.max(0, (startedAt - recordingStartedAt) / 1000 - 0.12)
+      trimStartSeconds: Math.max(0, (startedAt - recordingStartedAt) / 1000 - 0.12),
+      cuts
     }, null, 2));
-    await writeVtt(path.join(outputDir, vttName), cues);
+    await writeVtt(path.join(outputDir, vttName), cues.map(cueItem => ({
+      ...cueItem,
+      start: removeCutTime(cueItem.start, cuts),
+      end: removeCutTime(cueItem.end, cuts)
+    })));
     return { rawPath, posterPath, cues };
   } finally {
     if (context) await context.close().catch(() => {});
@@ -427,6 +459,87 @@ async function hideMobile(page) {
   await page.waitForTimeout(500);
 }
 
+async function moveTutorialCursor(page, target, durationMs, curve = 0) {
+  const start = await page.locator('#tutorial-cursor').evaluate(cursor => {
+    const rect = cursor.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  const steps = Math.max(14, Math.round(durationMs / 52));
+  const startedAt = Date.now();
+  await page.mouse.move(start.x, start.y);
+  for (let index = 1; index <= steps; index += 1) {
+    const progress = index / steps;
+    const eased = progress * progress * (3 - 2 * progress);
+    const x = start.x + (target.x - start.x) * eased;
+    const y = start.y + (target.y - start.y) * eased + Math.sin(Math.PI * progress) * curve;
+    await page.evaluate(point => {
+      const cursor = document.querySelector('#tutorial-cursor');
+      if (!cursor) return;
+      cursor.style.transition = 'none';
+      cursor.style.left = `${point.x}px`;
+      cursor.style.top = `${point.y}px`;
+      cursor.classList.add('is-visible');
+    }, { x, y });
+    await page.mouse.move(x, y);
+    const remaining = startedAt + (durationMs * index / steps) - Date.now();
+    if (remaining > 0) await page.waitForTimeout(remaining);
+  }
+}
+
+async function exploreMallaNaturally(page) {
+  const frameElement = page.locator('[data-malla-frame]');
+  const frame = frameElement.contentFrame();
+  const cards = frame.locator('.mc-card[data-mc-code]');
+  await cards.first().waitFor({ state: 'visible' });
+  const frameBox = await frameElement.boundingBox();
+  if (!frameBox) return;
+
+  const cardRects = await cards.evaluateAll(nodes => nodes.map((node, index) => {
+    const rect = node.getBoundingClientRect();
+    return { index, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+  const available = cardRects.map(item => ({
+    card: cards.nth(item.index),
+    center: { x: frameBox.x + item.x + item.width / 2, y: frameBox.y + item.y + item.height / 2 }
+  })).filter(item => (
+    item.center.x >= frameBox.x + 80
+    && item.center.x <= frameBox.x + frameBox.width - 40
+    && item.center.y >= frameBox.y + 70
+    && item.center.y <= frameBox.y + frameBox.height - 45
+  ));
+  if (!available.length) return;
+
+  const desired = [
+    { x: .30, y: .35 },
+    { x: .42, y: .62 },
+    { x: .55, y: .43 },
+    { x: .68, y: .66 },
+    { x: .82, y: .37 }
+  ];
+  const selected = [];
+  for (const point of desired) {
+    const target = {
+      x: frameBox.x + frameBox.width * point.x,
+      y: frameBox.y + frameBox.height * point.y
+    };
+    const candidate = available
+      .filter(item => !selected.includes(item))
+      .sort((a, b) => Math.hypot(a.center.x - target.x, a.center.y - target.y) - Math.hypot(b.center.x - target.x, b.center.y - target.y))[0];
+    if (candidate) selected.push(candidate);
+  }
+
+  await page.waitForTimeout(260);
+  await page.evaluate(() => window.__tutorialCapture.clearFocus());
+  const durations = [900, 980, 860, 1040, 920];
+  const pauses = [260, 340, 230, 390, 310];
+  const curves = [16, -20, 13, -17, 12];
+  for (let index = 0; index < selected.length; index += 1) {
+    await moveTutorialCursor(page, selected[index].center, durations[index], curves[index]);
+    await selected[index].card.hover({ force: true });
+    await page.waitForTimeout(pauses[index]);
+  }
+}
+
 async function prepareLoginForCapture(page, role) {
   await page.evaluate(selectedRole => {
     document.querySelector('.google-auth-note')?.remove();
@@ -441,10 +554,28 @@ async function prepareLoginForCapture(page, role) {
   }, role);
 }
 
-async function enterCaptureSession(page, session, name, route = '/') {
-  await page.evaluate(user => localStorage.setItem('portal.session', JSON.stringify(user)), session);
+async function enterCaptureSession(page, session, name, route = '/', transition = null) {
+  await page.evaluate(({ user, transition }) => {
+    localStorage.setItem('portal.session', JSON.stringify(user));
+    if (transition) sessionStorage.setItem('tutorial.capture.transition', JSON.stringify(transition));
+  }, { user: session, transition });
   await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}&session=1#${route}`, { waitUntil: 'networkidle' });
   await page.locator('main').waitFor({ state: 'visible' });
+  if (transition) {
+    await page.evaluate(meta => {
+      let guard = document.querySelector('#tutorial-clean-guard');
+      if (!guard) {
+        guard = document.createElement('div');
+        guard.id = 'tutorial-clean-guard';
+        guard.innerHTML = '<div><img src="/assets/logo-mark-transparent.png" alt=""><div class="guard-brand">CEIC UCN</div><small></small><h1></h1><p></p><i></i></div>';
+        document.body.appendChild(guard);
+      }
+      guard.querySelector('small').textContent = meta.kicker;
+      guard.querySelector('h1').textContent = meta.title;
+      guard.querySelector('p').textContent = meta.detail;
+      document.documentElement.classList.add('tutorial-capture-loading');
+    }, transition);
+  }
 }
 
 await waitForServer();
@@ -462,15 +593,18 @@ try {
     intro: { kicker: 'Tutorial para estudiantes', title: 'Recorrido por el portal', detail: 'Las secciones principales y dónde encontrar cada recurso.' },
     outputDir: portalWebMediaDir,
     vttName: 'recorrido-portal.vtt',
-    run: async ({ page, cue, resetGuide }) => {
+    run: async ({ page, cue, cutTransition, resetGuide }) => {
       await cue('Este recorrido muestra las secciones principales del portál y cómo moverte entre ellas.', 4800);
       await prepareLoginForCapture(page, 'student');
       await hideTitle(page);
       await cue('Paso uno. En Estudiantes, selecciona Acceder con Google y usa tu cuenta institucional.', 5400, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional de estudiante.', '[data-google-redirect="student"]'));
       await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa tu cuenta @alumnos.ucn.cl.'));
-      await enterCaptureSession(page, student, 'recorrido-portal', '/');
-      await resetGuide();
-      await cue('En el teléfono, las secciones principales están en la barra inferior y el resto dentro del menú.', 5200, () => showMobile(page, 'Vista móvil', 'Navegación adaptada al teléfono', 'Usa la barra inferior o abre el menú para ver todas las secciones.'));
+      await cutTransition(async () => {
+        await enterCaptureSession(page, student, 'recorrido-portal', '/', { kicker: 'Acceso institucional', title: 'Continúa en Google', detail: 'Usa tu cuenta @alumnos.ucn.cl.' });
+        await resetGuide();
+        await showMobile(page, 'Vista móvil', 'Navegación adaptada al teléfono', 'Usa la barra inferior o abre el menú para ver todas las secciones.');
+      });
+      await cue('En el teléfono, las secciones principales están en la barra inferior y el resto dentro del menú.', 5200);
       await hideMobile(page);
       await cue('Paso dos. Inicio resume las fechas próximas, los recursos y los accesos que usarás con más frecuencia.', 5600, () => showStep(page, 2, 'Revisa Inicio', 'Aquí encuentras fechas y accesos frecuentes.', '.home-actions-panel'));
 
@@ -492,9 +626,18 @@ try {
         await page.locator('[data-calendar-modal-close]').first().click();
       }
 
-      await page.evaluate(() => { window.location.hash = '/mallas'; });
-      await page.locator('[data-malla-frame]').waitFor({ state: 'visible' });
-      await cue('Paso cinco. En Mallas alterna entre Plan O y Plan P. Selecciona un ramo para revisar sus relaciones y material asociado.', 6500, () => showStep(page, 5, 'Explora las mallas', 'Elige tu plan y abre la ficha del ramo que necesites.', '[data-malla-frame-wrap]'));
+      await cutTransition(async () => {
+        await page.evaluate(() => { window.location.hash = '/mallas'; });
+        const mallaFrame = page.locator('[data-malla-frame]');
+        await mallaFrame.waitFor({ state: 'visible' });
+        await mallaFrame.contentFrame().locator('.mc-card[data-mc-code]').first().waitFor({ state: 'visible' });
+      });
+      let mallaMotion;
+      await cue('Paso cinco. En Mallas alterna entre Plan O y Plan P. Al recorrer los ramos verás sus prerrequisitos y las asignaturas que abren.', 7000, async () => {
+        await showStep(page, 5, 'Explora las mallas', 'Recorre los ramos para ver cómo se relacionan.', '[data-malla-frame-wrap]');
+        mallaMotion = exploreMallaNaturally(page);
+      });
+      await mallaMotion;
 
       await page.evaluate(() => { window.location.hash = '/material'; });
       await page.locator('[data-material-search]').waitFor({ state: 'visible' });
@@ -524,15 +667,18 @@ try {
     intro: { kicker: 'Tutorial para estudiantes', title: 'Reservar una hora de atención', detail: 'El horario queda confirmado al terminar.' },
     outputDir: publicMediaDir,
     vttName: 'solicitar-hora.vtt',
-    run: async ({ page, cue, resetGuide }) => {
+    run: async ({ page, cue, cutTransition, resetGuide }) => {
       await cue('Cómo reservar una hora de atención con Jefatura de carrera.', 3900);
       await prepareLoginForCapture(page, 'student');
       await hideTitle(page);
       await cue('Paso uno. En Estudiantes, selecciona Acceder con Google y usa tu cuenta institucional.', 5200, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional de estudiante.', '[data-google-redirect="student"]'));
       await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa tu cuenta @alumnos.ucn.cl.'));
-      await enterCaptureSession(page, student, 'solicitar-hora', '/');
-      await resetGuide();
-      await cue('En el teléfono, Atención aparece al final de la barra inferior. El proceso es el mismo.', 4800, () => showMobile(page, 'Vista móvil', 'Atención está en la barra inferior', 'Desde allí encontrarás los mismos horarios y controles.'));
+      await cutTransition(async () => {
+        await enterCaptureSession(page, student, 'solicitar-hora', '/', { kicker: 'Acceso institucional', title: 'Continúa en Google', detail: 'Usa tu cuenta @alumnos.ucn.cl.' });
+        await resetGuide();
+        await showMobile(page, 'Vista móvil', 'Atención está en la barra inferior', 'Desde allí encontrarás los mismos horarios y controles.');
+      });
+      await cue('En el teléfono, Atención aparece al final de la barra inferior. El proceso es el mismo.', 4800);
       await hideMobile(page);
       await cue('Paso dos. Abre Atención desde el menú principal.', 4000, () => showStep(page, 2, 'Abre Atención', 'Selecciona Atención para revisar los horarios.', 'a[href="#/atencion"]'));
       await page.locator('a[href="#/atencion"]').first().click();
@@ -586,15 +732,18 @@ try {
       }));
       await page.route('**/api/calendar/freebusy', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, busy: [] }) }));
     },
-    run: async ({ page, cue, resetGuide }) => {
+    run: async ({ page, cue, cutTransition, resetGuide }) => {
       await cue('Esta guía muestra cómo configurar los horarios, conectar Calendar y gestionar las atenciones desde el portál.', 5600);
       await prepareLoginForCapture(page, 'internal');
       await hideTitle(page);
       await cue('Paso uno. En Jefatura o CEAL, selecciona Acceder con Google.', 5200, () => showStep(page, 1, 'Accede con Google', 'Usa únicamente la cuenta autorizada de Jefatura.', '[data-google-redirect="internal"]'));
       await cue('Continúa únicamente con la cuenta de Jefatura que aparece en pantalla.', 4700, () => showTitle(page, 'Cuenta autorizada', 'jc.icivil.afta@ucn.cl', 'No uses otra cuenta para este acceso.'));
-      await enterCaptureSession(page, jefatura, 'gestionar-atencion-jefatura', '/');
-      await resetGuide();
-      await cue('En el teléfono, Jefatura aparece al final de la barra inferior.', 4800, () => showMobile(page, 'Vista móvil', 'Jefatura está en la barra inferior', 'Desde allí puedes abrir el mismo panel de gestión.'));
+      await cutTransition(async () => {
+        await enterCaptureSession(page, jefatura, 'gestionar-atencion-jefatura', '/', { kicker: 'Cuenta autorizada', title: 'jc.icivil.afta@ucn.cl', detail: 'No uses otra cuenta para este acceso.' });
+        await resetGuide();
+        await showMobile(page, 'Vista móvil', 'Jefatura está en la barra inferior', 'Desde allí puedes abrir el mismo panel de gestión.');
+      });
+      await cue('En el teléfono, Jefatura aparece al final de la barra inferior.', 4800);
       await hideMobile(page);
       await cue('Paso dos. Abre Jefatura. Aquí verás las próximas atenciones y la configuración de la agenda.', 5200, () => showStep(page, 2, 'Abre Jefatura', 'Aquí se administran atenciones, horarios y Calendar.', 'a[href="#/jefatura"]'));
       await page.locator('a[href="#/jefatura"]').first().click();
@@ -606,16 +755,18 @@ try {
       await cue('Paso cinco. En Opciones avanzadas ajusta cuántos días se muestran y la anticipación mínima. Luego guarda los cambios.', 7000, () => showStep(page, 5, 'Ajusta y guarda', 'Revisa las opciones avanzadas antes de publicar.', '.booking-config-advanced'));
       await cue('Guarda la configuración para actualizar inmediatamente los cupos que ven los estudiantes.', 5200, () => showStep(page, 5, 'Guarda los cambios', 'La disponibilidad se recalcula con esta configuración.', '.booking-config-actions .btn'));
       await page.locator('.booking-config-actions .btn').click();
-      await page.getByText('Configuración guardada', { exact: true }).waitFor({ state: 'visible' });
+      await page.locator('.toast-msg').getByText('Configuración guardada', { exact: true }).waitFor({ state: 'visible' });
       await cue('Paso seis. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.', 6000, () => showStep(page, 6, 'Revisa Google Calendar', 'Comprueba la cuenta indicada antes de conectar.', '.booking-gcal'));
       await cue('Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.', 5000, () => showStep(page, 6, 'Conecta la agenda', 'Presiona este botón para continuar en Google.', '[data-calendar-connect]'));
       await cue('Continúa con la misma cuenta y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.', 6000, () => showTitle(page, 'Autorización de Google', 'Permite la sincronización', 'Autoriza eventos y consulta de disponibilidad.'));
-      calendarConnected = true;
-      await page.goto(`${baseUrl}/?capture=gestionar-atencion-jefatura&calendarFixture=connected#/jefatura?calendar=connected`, { waitUntil: 'networkidle' });
-      await page.locator('main').waitFor({ state: 'visible' });
-      await page.locator('[data-calendar-state="verified"]').waitFor({ state: 'attached', timeout: 12000 });
-      await page.locator('.booking-gcal').evaluate(details => { details.open = true; });
-      await resetGuide();
+      await cutTransition(async () => {
+        calendarConnected = true;
+        await page.goto(`${baseUrl}/?capture=gestionar-atencion-jefatura&calendarFixture=connected#/jefatura?calendar=connected`, { waitUntil: 'networkidle' });
+        await page.locator('main').waitFor({ state: 'visible' });
+        await page.locator('[data-calendar-state="verified"]').waitFor({ state: 'attached', timeout: 12000 });
+        await page.locator('.booking-gcal').evaluate(details => { details.open = true; });
+        await resetGuide();
+      });
       await cue('Paso siete. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.', 6500, async () => {
         await showStep(page, 7, 'Confirma el estado verificado', 'Revisa cuenta, calendario y fecha de verificación.', '[data-calendar-state="verified"]');
         await page.locator('.booking-gcal').evaluate(details => details.scrollIntoView({ behavior: 'auto', block: 'center' }));
@@ -660,15 +811,18 @@ try {
     intro: { kicker: 'Tutorial para CEAL', title: 'Gestionar el contenido del portal', detail: 'Comunicados, calendario, material y seguimientos.' },
     outputDir: cealWebMediaDir,
     vttName: 'gestionar-portal-ceal.vtt',
-    run: async ({ page, cue, resetGuide }) => {
+    run: async ({ page, cue, cutTransition, resetGuide }) => {
       await cue('Esta guía muestra cómo administrar el contenido del portál desde una cuenta del CEAL.', 4800);
       await prepareLoginForCapture(page, 'internal');
       await hideTitle(page);
       await cue('Paso uno. En Jefatura o CEAL, selecciona Acceder con Google y usa tu cuenta institucional autorizada.', 6000, () => showStep(page, 1, 'Accede con Google', 'Continúa con tu cuenta institucional del CEAL.', '[data-google-redirect="internal"]'));
       await cue('Google abrirá el acceso institucional. Completa el ingreso y vuelve al portál.', 4300, () => showTitle(page, 'Acceso institucional', 'Continúa en Google', 'Usa la cuenta habilitada para el CEAL.'));
-      await enterCaptureSession(page, ceal, 'gestionar-portal-ceal', '/');
-      await resetGuide();
-      await cue('En el teléfono, Gestión aparece al final de la barra inferior.', 4800, () => showMobile(page, 'Vista móvil', 'Gestión está en la barra inferior', 'Las mismas herramientas están disponibles desde el teléfono.'));
+      await cutTransition(async () => {
+        await enterCaptureSession(page, ceal, 'gestionar-portal-ceal', '/', { kicker: 'Acceso institucional', title: 'Continúa en Google', detail: 'Usa la cuenta habilitada para el CEAL.' });
+        await resetGuide();
+        await showMobile(page, 'Vista móvil', 'Gestión está en la barra inferior', 'Las mismas herramientas están disponibles desde el teléfono.');
+      });
+      await cue('En el teléfono, Gestión aparece al final de la barra inferior.', 4800);
       await hideMobile(page);
       await cue('Paso dos. Abre Gestión. Está al final del menú, después de Atención.', 5000, () => showStep(page, 2, 'Abre Gestión', 'Desde aquí se administra el contenido del portal.', 'a[href="#/gestion"]'));
       await page.locator('a[href="#/gestion"]').first().click();

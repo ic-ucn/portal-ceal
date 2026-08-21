@@ -1712,7 +1712,7 @@
         audience: 'Estudiantes',
         title: 'Recorrido por el portal',
         description: 'Inicio, comunicados, calendario, mallas y material académico.',
-        duration: '1 min 21 s',
+        duration: '1 min 26 s',
         href: 'tutorial-portal/'
       },
       {
@@ -1720,7 +1720,7 @@
         audience: 'Estudiantes',
         title: 'Reservar una hora de atención',
         description: 'Revisar cupos, reservar y gestionar una hora con Jefatura.',
-        duration: '1 min',
+        duration: '58 s',
         href: 'tutoriales/'
       }
     ];
@@ -1730,7 +1730,7 @@
         audience: 'CEAL',
         title: 'Gestionar el contenido del portal',
         description: 'Comunicados, calendario académico, material y seguimientos.',
-        duration: '2 min',
+        duration: '1 min 59 s',
         href: 'tutorial-ceal/'
       });
     }
@@ -1740,7 +1740,7 @@
         audience: 'Jefatura',
         title: 'Configurar y gestionar la agenda',
         description: 'Disponibilidad, Calendar y atenciones reservadas.',
-        duration: '2 min 30 s',
+        duration: '2 min 27 s',
         href: 'tutorial-jc/'
       });
     }

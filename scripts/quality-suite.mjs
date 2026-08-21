@@ -49,6 +49,8 @@ const portalTutorialHtml = read('tutorial-portal/index.html');
 const publicStudentTutorialHtml = read('tutorial-estudiantes/index.html');
 const publicJefaturaTutorialHtml = read('tutorial-jefatura/index.html');
 const tutorialJs = read('tutoriales/tutoriales.js');
+const tutorialCaptureJs = read('scripts/capture-tutorial-videos.mjs');
+const tutorialComposePy = read('scripts/compose-tutorial-videos.py');
 const stylesCss = read('src/styles.css');
 const packageJson = JSON.parse(read('package.json'));
 
@@ -87,6 +89,10 @@ assert(publicJefaturaTutorialHtml.includes('../tutorial-jc/media/gestionar-atenc
 assert(tutorialJs.includes("dataset.tutorialPublic === 'true'"), 'tutorial runtime should support explicit public share pages');
 assert(tutorialJs.includes("localStorage.getItem('portal.session')") && tutorialJs.includes('/auth/session'), 'tutorial pages should validate an existing portal session');
 assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => html.includes('class="video-followup"')), 'each tutorial should expose its portal action directly below the video');
+assert(tutorialCaptureJs.includes('const cutTransition = async action'), 'tutorial capture should record technical navigation intervals');
+assert((tutorialCaptureJs.match(/await cutTransition\(/g) || []).length >= 6, 'all tutorial navigation transitions should use clean cuts');
+assert(tutorialComposePy.includes("select='not(") && tutorialComposePy.includes('capture_cuts(raw)'), 'tutorial composition should remove recorded navigation intervals');
+assert(tutorialCaptureJs.includes('exploreMallaNaturally') && tutorialCaptureJs.includes('remaining = startedAt'), 'Mallas tutorial should use a time-corrected natural cursor path');
 
 assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package check should include quality-suite');
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
