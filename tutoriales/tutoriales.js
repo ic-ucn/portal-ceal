@@ -14,8 +14,6 @@
     apply(dark);
   });
   const video = document.querySelector('[data-tutorial-video]');
-  const source = document.querySelector('[data-video-source]');
-  const download = document.querySelector('[data-video-download]');
   const toggle = document.querySelector('[data-video-toggle]');
   const toggleLabel = document.querySelector('[data-video-toggle-label]');
   const time = document.querySelector('[data-video-time]');
@@ -53,26 +51,5 @@
   video?.addEventListener('play', updatePlayback);
   video?.addEventListener('pause', updatePlayback);
   video?.addEventListener('ended', updatePlayback);
-  document.querySelectorAll('[data-video-version]').forEach(button => {
-    button.addEventListener('click', () => {
-      if (!video || !source || button.getAttribute('aria-pressed') === 'true') return;
-      const nextSource = button.dataset.videoVersion;
-      const currentTime = video.currentTime || 0;
-      const wasPlaying = !video.paused;
-      document.querySelectorAll('[data-video-version]').forEach(item => {
-        const active = item === button;
-        item.classList.toggle('is-active', active);
-        item.setAttribute('aria-pressed', String(active));
-      });
-      source.src = nextSource;
-      if (download) download.href = nextSource;
-      video.load();
-      updatePlayback();
-      video.addEventListener('loadedmetadata', () => {
-        video.currentTime = Math.min(currentTime, Math.max(0, video.duration - .25));
-        if (wasPlaying) video.play().catch(() => {});
-      }, { once: true });
-    });
-  });
   updatePlayback();
 })();

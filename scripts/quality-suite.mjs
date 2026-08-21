@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -41,11 +41,20 @@ const driveMaterials = loadBrowserGlobal('data/drive-materials.js', 'PortalDrive
 const appJs = read('src/app.js');
 const serverJs = read('server.mjs');
 const indexHtml = read('index.html');
+const tutorialsHtml = read('tutoriales/index.html');
+const jefaturaTutorialHtml = read('tutorial-jc/index.html');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs']) {
+for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
+assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-narrado.mp4')).size > 500_000, 'student tutorial video should contain a real narrated export');
+assert(statSync(path.join(root, 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4')).size > 500_000, 'Jefatura tutorial video should contain a real narrated export');
+assert(tutorialsHtml.includes('media/solicitar-hora-narrado.mp4'), 'tutorial page should embed the narrated student video');
+assert(jefaturaTutorialHtml.includes('media/gestionar-atencion-jefatura-narrado.mp4'), 'Jefatura tutorial page should embed the narrated video');
+assert(!tutorialsHtml.includes('data-video-version') && !jefaturaTutorialHtml.includes('data-video-version'), 'tutorial pages should expose a single narrated version');
+assert(tutorialsHtml.includes('media/solicitar-hora.vtt'), 'tutorial page should include captions');
+assert(!tutorialsHtml.includes('jc.icivil.afta@ucn.cl'), 'public tutorial should not expose the private Jefatura account');
 
 assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package check should include quality-suite');
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
@@ -310,6 +319,7 @@ assert(indexHtml.includes("Content-Security-Policy"), 'index should declare a co
 assert(serverJs.includes("PORTAL_MAX_SESSIONS"), 'server should support an explicit session capacity');
 assert(serverJs.includes("bookingAvailability"), 'server should persist appointment availability');
 assert(serverJs.includes("sendBookingNotifications"), 'appointment notifications should be derived on the server');
+assert(!appJs.includes('Prof. Zelada'), 'appointment UI should identify Jefatura by role');
 assert(serverJs.includes("aes-256-gcm"), 'Google Calendar tokens should be encrypted at rest');
 assert(serverJs.includes("tokensEncrypted"), 'encrypted Google Calendar token storage should be enabled');
 

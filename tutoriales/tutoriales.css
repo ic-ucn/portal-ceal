@@ -38,11 +38,6 @@ h2{font-size:29px;line-height:1.15;margin-bottom:0}
 .transport-controls button:hover{background:var(--surface-2)}
 .transport-controls [data-video-toggle]{min-width:92px;color:var(--blue)}
 .video-time{min-width:92px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.toolbar-label{color:var(--muted);font-size:13px;font-weight:750}
-.segmented{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
-.segmented button{min-height:34px;padding:0 12px;border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;font-weight:750;cursor:pointer}
-.segmented button:last-child{border-right:0}
-.segmented button.is-active{background:var(--blue);color:#fff}
 .download-link{margin-left:auto;color:var(--blue);font-size:13px;font-weight:750;text-decoration:none}
 .steps-section{padding:52px 0 32px}
 .section-heading{margin-bottom:20px}
@@ -64,5 +59,5 @@ h2{font-size:29px;line-height:1.15;margin-bottom:0}
 .primary-action{min-width:164px;padding:0 17px;background:var(--blue);border-color:var(--blue);color:#fff;text-decoration:none;font-size:14px;font-weight:800}
 .primary-action:hover{background:var(--blue-strong);border-color:var(--blue-strong)}
 footer{padding:24px;text-align:center;color:var(--muted);border-top:1px solid var(--line);font-size:13px}
-@media (max-width:760px){.tutorial-header{padding:9px 14px}.tutorial-brand small{display:none}.portal-link{width:42px;padding:0;font-size:0}.portal-link svg{width:20px;height:20px}main{width:min(100% - 28px,1180px);padding:30px 0 44px}.tutorial-intro{display:block;margin-bottom:18px}.tutorial-meta{justify-content:flex-start;margin-top:18px}h1{font-size:37px}.video-section{border-radius:6px}.video-toolbar{align-items:flex-start;flex-wrap:wrap}.transport-controls{order:1}.video-time{order:2;align-self:center}.toolbar-label{order:3;width:100%}.segmented{order:4}.download-link{order:5;width:100%;margin-left:0}.steps-section{padding-top:38px}.steps-grid,.sync-columns{grid-template-columns:1fr}.steps-grid li{min-height:0}.tutorial-next{align-items:stretch;flex-direction:column}.primary-action{width:100%}}
+@media (max-width:760px){.tutorial-header{padding:9px 14px}.tutorial-brand small{display:none}.portal-link{width:42px;padding:0;font-size:0}.portal-link svg{width:20px;height:20px}main{width:min(100% - 28px,1180px);padding:30px 0 44px}.tutorial-intro{display:block;margin-bottom:18px}.tutorial-meta{justify-content:flex-start;margin-top:18px}h1{font-size:37px}.video-section{border-radius:6px}.video-toolbar{align-items:flex-start;flex-wrap:wrap}.transport-controls{order:1}.video-time{order:2;align-self:center}.download-link{order:3;width:100%;margin-left:0}.steps-section{padding-top:38px}.steps-grid,.sync-columns{grid-template-columns:1fr}.steps-grid li{min-height:0}.tutorial-next{align-items:stretch;flex-direction:column}.primary-action{width:100%}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

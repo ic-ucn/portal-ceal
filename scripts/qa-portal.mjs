@@ -291,6 +291,8 @@ async function runPublicFlowTests(page, studentUser) {
 async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   await loginStudent(page, studentUser);
   await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
+  await page.getByText('Jefe de carrera', { exact: true }).waitFor();
+  if ((await page.locator('body').innerText()).includes('Prof. Zelada')) fail('student booking view should not expose the former personal label');
   await page.locator('[data-book-slot]').first().click();
   await page.locator('[data-booking-reason]').fill('Consulta sobre inscripción de asignaturas.');
   await page.locator('[data-appointment-create]').click();

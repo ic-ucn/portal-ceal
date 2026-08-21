@@ -2819,7 +2819,7 @@
     const email = opts.staff ? (profile.email || 'jc.icivil.afta@ucn.cl') : (profile.email || 'jc.icivil.afta@ucn.cl');
     const hoursHtml = hours.map(h => `<div class="staff-hour-row"><span><strong>${esc(h.day)}</strong><small>${esc(h.mode)} · ${esc(h.place)}</small></span><strong>${esc(h.time)}</strong></div>`).join('');
     return `<section class="card pad staff-hero">
-      <div class="staff-hero-top"><span class="avatar big blue">${nameInitials(profile.contactName || 'Prof. Zelada')}</span><div><span class="kicker">${esc(profile.contactName || 'Prof. Zelada')}</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div></div>
+      <div class="staff-hero-top"><span class="avatar big blue">JC</span><div><span class="kicker">Jefe de carrera</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Jefe de Carrera Ingeniería Civil UCN')}</p></div></div>
       <div class="staff-hero-meta">${icon('user')}<span>${esc(email)}</span></div>
       <div class="divider"></div>
       <h3 class="card-title sm">Horarios de atención</h3>
