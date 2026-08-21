@@ -236,25 +236,45 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
   ];
 
   const events = [
-    { id: 'evt-acad-0619', title: 'Término de renuncia a la Universidad', type: 'Trámite académico', date: '2026-06-19', time: '', description: 'Último plazo para solicitud de renuncias a la Universidad del I semestre 2026.' },
-    { id: 'evt-acad-0622', title: 'Oferta académica Cursos de Invierno', type: 'Cursos de invierno', date: '2026-06-22', time: '', description: 'Inicio de oferta académica para Cursos de Invierno 2026.' },
-    { id: 'evt-acad-0630', title: 'Cierre de postulaciones y actividades DRI', type: 'Fecha académica', date: '2026-06-30', time: '', description: 'Cierre de postulación Minor II semestre y actividades de colaboración virtual DRI.' },
-    { id: 'evt-acad-0704', title: 'Último día de clases I semestre', type: 'Fecha académica', date: '2026-07-04', time: '', description: 'Último día de clases, talleres y laboratorios; término de evaluaciones pendientes I semestre.' },
-    { id: 'evt-acad-0706', title: 'Exámenes por solicitud y recuperación', type: 'Evaluaciones', date: '2026-07-06', time: '', description: 'Inicio de periodo para rendir examen por solicitud y examen de recuperación, del 6 al 11 de julio.' },
-    { id: 'evt-acad-0711', title: 'Cierre de actividades docentes I semestre', type: 'Fecha académica', date: '2026-07-11', time: '13:00', description: 'Último día de actividades docentes y plazo para registrar calificaciones finales en Banner.' },
-    { id: 'evt-acad-0720', title: 'Inicio de solicitudes II semestre', type: 'Trámite académico', date: '2026-07-20', time: '', description: 'Inicio de solicitudes de retiro temporal, renuncias, cambio de nombre legal y rectificación de calificaciones.' },
-    { id: 'evt-acad-0803', title: 'Inscripción de asignaturas II semestre', type: 'Inscripción', date: '2026-08-03', time: '', description: 'Inicio de inscripción de asignaturas para estudiantes matriculados según jornada y sede.' },
-    { id: 'evt-acad-0805', title: 'Levantamiento de prerrequisitos', type: 'Trámite académico', date: '2026-08-05', time: '', description: 'Inicio de solicitudes de levantamiento de prerrequisitos a Jefes de Carrera, hasta el 31 de agosto.' },
-    { id: 'evt-acad-0817', title: 'Inicio de clases II semestre', type: 'Fecha académica', date: '2026-08-17', time: '', description: 'Inicio de clases del II semestre 2026 e inicio de solicitud de anulación de periodo académico.' },
+    { id: 'evt-acad-0801', title: 'Último día de clases I semestre', type: 'Fecha académica', date: '2026-08-01', time: '', description: 'Último día de clases, talleres y laboratorios; término de evaluaciones pendientes del I semestre.' },
+    { id: 'evt-acad-0803', title: 'Exámenes por solicitud y recuperación', type: 'Evaluaciones', date: '2026-08-03', time: '', description: 'Periodo de exámenes por solicitud y recuperación del 3 al 7 de agosto.' },
+    { id: 'evt-acad-0808', title: 'Cierre de actividades docentes I semestre', type: 'Fecha académica', date: '2026-08-08', time: '13:00', description: 'Último día de actividades docentes y plazo para registrar calificaciones finales en Banner.' },
+    { id: 'evt-acad-0815', title: 'Solicitudes para el II semestre', type: 'Trámite académico', date: '2026-08-15', time: '', description: 'Inicio de renuncias a la Universidad, cambio de nombre legal, reintegros y retiro temporal para el II semestre.' },
+    { id: 'evt-acad-0817', title: 'Inscripción de asignaturas', type: 'Inscripción', date: '2026-08-17', time: '', description: 'Inicio del proceso de inscripción de asignaturas para estudiantes matriculados, según jornada y unidad académica.' },
+    { id: 'evt-acad-0818', title: 'Inscripción de Formación General Electiva', type: 'Inscripción', date: '2026-08-18', time: '', description: 'Inicio de inscripción de asignaturas de Formación General Electiva, durante la jornada de la tarde.' },
+    { id: 'evt-acad-0819', title: 'Levantamiento de prerrequisitos', type: 'Trámite académico', date: '2026-08-19', time: '', description: 'Solicitudes de levantamiento de prerrequisitos a Jefatura de carrera, del 19 al 31 de agosto.' },
+    { id: 'evt-acad-0820', title: 'Inicio de clases II semestre', type: 'Fecha académica', date: '2026-08-20', time: '', description: 'Inicio de clases del II semestre 2026 en Antofagasta e inicio de solicitudes de anulación de periodo académico.' },
+    { id: 'evt-acad-0821', title: 'Inscripción por Jefatura de carrera', type: 'Inscripción', date: '2026-08-21', time: '', description: 'Inicio del periodo de inscripción de asignaturas por parte de Jefatura de carrera.' },
+    { id: 'evt-acad-0825', title: 'Comisión de Casos Especiales', type: 'Trámite académico', date: '2026-08-25', time: '', description: 'Reunión de la Comisión de Casos Especiales y habilitación del reporte de estudiantes sin inscripción.' },
+    { id: 'evt-acad-0904', title: 'Cierre de inscripción de asignaturas', type: 'Inscripción', date: '2026-09-04', time: '', description: 'Término del proceso de inscripción de asignaturas por parte de estudiantes.' },
+    { id: 'evt-acad-0905', title: 'Rectificación de calificaciones', type: 'Trámite académico', date: '2026-09-05', time: '', description: 'Término del plazo para rectificar calificaciones de asignaturas del I semestre 2026.' },
+    { id: 'evt-acad-0912', title: 'Cierre de inscripción por Jefatura', type: 'Inscripción', date: '2026-09-12', time: '', description: 'Término del periodo de inscripción de asignaturas por parte de Jefatura de carrera.' },
     { id: 'evt-acad-0914', title: 'Receso Fiestas Patrias', type: 'Receso', date: '2026-09-14', time: '', description: 'Receso de Fiestas Patrias del 14 al 20 de septiembre.' },
+    { id: 'evt-acad-1009', title: 'Cierre de solicitudes de anulación', type: 'Trámite académico', date: '2026-10-09', time: '', description: 'Término del plazo para solicitar anulación del periodo académico.' },
     { id: 'evt-acad-1013', title: 'Renuncia de asignaturas II semestre', type: 'Trámite académico', date: '2026-10-13', time: '', description: 'Inicio del periodo de renuncias de asignaturas del II semestre, hasta el 30 de octubre.' },
     { id: 'evt-acad-1019', title: 'Semana de autocuidado', type: 'Bienestar', date: '2026-10-19', time: '', description: 'Semana de Autocuidado para estudiantes, del 19 al 24 de octubre.' },
     { id: 'evt-acad-1102', title: 'Evaluaciones pendientes II semestre', type: 'Evaluaciones', date: '2026-11-02', time: '', description: 'Inicio del periodo de evaluaciones pendientes del II semestre 2026.' },
+    { id: 'evt-acad-1113', title: 'Cierre de renuncias a la Universidad', type: 'Trámite académico', date: '2026-11-13', time: '', description: 'Término de solicitudes de renuncia a la Universidad para el II semestre 2026.' },
+    { id: 'evt-acad-1116', title: 'Evaluación docente', type: 'Evaluaciones', date: '2026-11-16', time: '', description: 'Inicio de la aplicación de la Encuesta de Evaluación Docente.' },
+    { id: 'evt-acad-1201', title: 'Oferta de Cursos de Verano 2027', type: 'Cursos de verano', date: '2026-12-01', time: '', description: 'Periodo de oferta académica de Cursos de Verano 2027, del 1 al 19 de diciembre.' },
     { id: 'evt-acad-1210', title: 'Postulación y selección de especialidad', type: 'Plan Común', date: '2026-12-10', time: '', description: 'Plazo para postulación y selección de especialidad año 2027 en Ingeniería Civil Plan Común.' },
+    { id: 'evt-acad-1214', title: 'Postulación y matrícula de Cursos de Verano', type: 'Cursos de verano', date: '2026-12-14', time: '', description: 'Inicio de postulación y matrícula de Cursos de Verano 2027 mediante el Sistema de Trámites Curriculares.' },
     { id: 'evt-acad-1219', title: 'Último día de clases II semestre', type: 'Fecha académica', date: '2026-12-19', time: '', description: 'Último día de clases, talleres y laboratorios; término de evaluaciones pendientes II semestre.' },
     { id: 'evt-acad-1221', title: 'Exámenes por solicitud y recuperativos', type: 'Evaluaciones', date: '2026-12-21', time: '', description: 'Periodo para rendir examen por solicitud y exámenes recuperativos, del 21 al 29 de diciembre.' },
-    { id: 'evt-acad-1230', title: 'Cierre académico II semestre', type: 'Fecha académica', date: '2026-12-30', time: '13:00', description: 'Último día de actividades docentes y registro de calificaciones finales en Banner hasta las 13:00.' }
+    { id: 'evt-acad-1230', title: 'Cierre académico II semestre', type: 'Fecha académica', date: '2026-12-30', time: '13:00', description: 'Último día de actividades docentes y registro de calificaciones finales en Banner hasta las 13:00.' },
+    { id: 'evt-acad-20270103', title: 'Cierre de matrícula Cursos de Verano', type: 'Cursos de verano', date: '2027-01-03', time: '', description: 'Término de postulación y matrícula de Cursos de Verano 2027.' },
+    { id: 'evt-acad-20270107', title: 'Inicio de Cursos de Verano 2027', type: 'Cursos de verano', date: '2027-01-07', time: '', description: 'Inicio del periodo de clases de Cursos de Verano 2027, hasta el 28 de enero.' }
   ];
+
+  const calendarSource = {
+    version: 'dgpre-antofagasta-decreto-077-2026-20260713',
+    title: 'Calendario de Actividades Docentes de Pregrado Antofagasta 2026',
+    institution: 'Dirección General de Pregrado UCN',
+    campus: 'Antofagasta',
+    updatedAt: '2026-07-13',
+    decree: 'Decreto N°77/2026',
+    url: 'https://www.ucn.cl/content/uploads/2026/08/077-modifica-Calendario-de-Actividades-Docentes-Antofagasta-DGPRE-090-2026-VF-13-Julio-3.pdf'
+  };
 
   const agreements = [
     {
@@ -359,9 +379,10 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
       bookingUrl: '',
       status: 'Horarios publicados',
       description: 'Horarios de atención e información oficial de Jefatura de carrera.',
+      bookingSettings: { active: true, slotMinutes: 30, bookingWindowDays: 21, minimumNoticeHours: 1, validFrom: '2026-08-20', validUntil: '2026-12-19' },
       officeHours: [
-        { id: 'oh-001', day: 'Martes', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de Ingeniería Civil', status: 'Reserva directa' },
-        { id: 'oh-002', day: 'Jueves', time: '15:00 - 16:30', mode: 'Mixto', place: 'Presencial o videollamada', status: 'Reserva directa' }
+        { id: 'oh-001', day: 'Martes', start: '11:30', end: '13:00', time: '11:30 - 13:00', mode: 'Presencial', place: 'Departamento de Ingeniería Civil', meetingUrl: '', status: 'Reserva directa' },
+        { id: 'oh-002', day: 'Jueves', start: '15:00', end: '16:30', time: '15:00 - 16:30', mode: 'Mixto', place: 'Departamento de Ingeniería Civil', meetingUrl: '', status: 'Reserva directa' }
       ],
       notes: ['Las horas disponibles quedan reservadas de inmediato.', 'Si Jefatura cancela una atención, el estudiante recibe un correo para reagendar.']
     }
@@ -422,5 +443,5 @@ Formulario: https://forms.gle/fb1Xp5XqjPFk3CpW7`,
     ? tutoring.map((item) => ({ ...item, materialId: driveResources.find((resource) => resource.courseCode === item.courseCode)?.id || '' }))
     : tutoring;
 
-  return { users, cealMembers, communications, resources: allResources, cases, events, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
+  return { users, cealMembers, communications, resources: allResources, cases, events, calendarSource, agreements, tutoring: tutoringState, procedures, surveys, staffProfiles, faqs, notifications, saved: savedState, gestion };
 })();

@@ -45,7 +45,7 @@ const tutorialsHtml = read('tutoriales/index.html');
 const jefaturaTutorialHtml = read('tutorial-jc/index.html');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs']) {
+for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
 assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-narrado.mp4')).size > 500_000, 'student tutorial video should contain a real narrated export');
@@ -58,6 +58,7 @@ assert(!tutorialsHtml.includes('jc.icivil.afta@ucn.cl'), 'public tutorial should
 
 assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package check should include quality-suite');
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
+assert(packageJson.scripts['calendar:watch'] === 'node scripts/watch-calendar-updates.mjs', 'calendar watcher script should be registered');
 assert(indexHtml.includes('src/app.js'), 'index should load app.js');
 assert(indexHtml.includes('src/mock-data.js'), 'index should load data seed');
 assert(indexHtml.includes('data/curricula.js'), 'index should load curricula');
@@ -133,6 +134,8 @@ assert(Array.isArray(data.communications) && data.communications.length >= 5, 'c
 assert(Array.isArray(data.resources) && data.resources.length >= 9, 'resources should be seeded');
 assert(Array.isArray(data.cases) && data.cases.length >= 5, 'cases should be seeded');
 assert(Array.isArray(data.events) && data.events.length >= 5, 'events should be seeded');
+assert(data.calendarSource?.version === 'dgpre-antofagasta-decreto-077-2026-20260713', 'academic calendar should identify the current official source');
+assert(data.events.some(event => event.date === '2026-08-20' && /inicio.*(ii|segundo) semestre/i.test(plain(event.title))), 'academic calendar should use the corrected second-semester start');
 assert(Array.isArray(data.agreements) && data.agreements.length >= 3, 'agreements should be seeded');
 assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring should be seeded');
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
@@ -144,6 +147,12 @@ for (const notification of data.notifications || []) {
   assert(notification.route !== '/contingencia', `notification ${notification.id} should not link to removed contingency route`);
 }
 assert(data.staffProfiles.some(profile => profile.email === 'jc.icivil.afta@ucn.cl'), 'career head profile email should be registered');
+assert(data.staffProfiles.every(profile => [15, 20, 30, 45, 60].includes(profile.bookingSettings?.slotMinutes)), 'Jefatura profiles should publish a supported appointment duration');
+assert(data.staffProfiles.every(profile => Array.isArray(profile.officeHours) && profile.officeHours.every(hour => hour.start && hour.end && hour.mode)), 'Jefatura profiles should publish structured weekly hours');
+assert(appJs.includes("path === '/gestion/calendario'"), 'CEAL calendar update route should exist');
+assert(appJs.includes('data-form="booking-config"'), 'Jefatura booking configuration form should exist');
+assert(serverJs.includes('calendarUpdateRequests') && serverJs.includes('requireCalendarWatcher'), 'calendar source inbox should require a private watcher token');
+assert(/calendarUpdateRequests[^\n]+safe/.test(serverJs), 'calendar source files should be excluded from public bootstrap data');
 const cealEmailSet = new Set(data.cealMembers.map((member) => member.email));
 for (const profile of data.staffProfiles) {
   const authorized = [profile.email, ...(profile.authorizedEmails || [])].filter(Boolean);

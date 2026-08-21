@@ -74,6 +74,8 @@ Endpoints principales:
 - `/api/saved`
 - `/api/calendar/appointments`
 - `/api/calendar/availability`
+- `/api/calendar/config`
+- `/api/calendar-updates`
 
 El backend verifica Google ID tokens con la librería oficial `google-auth-library`, revisando audiencia, firma, expiración, correo verificado y `hd=alumnos.ucn.cl`. El login visible del portal usa Google para estudiantes y CEAL, más un modo invitado de solo lectura.
 
@@ -135,9 +137,23 @@ CALENDAR_CONNECTION_NOTIFY_EMAIL=kevin.cortes@alumnos.ucn.cl
 PORTAL_PUBLIC_URL=https://ceicucn.cl
 PORTAL_TOKEN_ENCRYPTION_KEY=...
 PORTAL_MAX_SESSIONS=1200
+CALENDAR_WATCHER_TOKEN=...
 ```
 
 El URI de callback debe registrarse también como `Authorized redirect URI` en Google Cloud. Tras el callback, el backend comprueba la cuenta autorizada, consulta eventos y disponibilidad, y envía el aviso técnico definido en `CALENDAR_CONNECTION_NOTIFY_EMAIL`. Los tokens de Calendar se guardan cifrados con AES-256-GCM; `PORTAL_TOKEN_ENCRYPTION_KEY` debe ser un secreto aleatorio estable de al menos 32 bytes.
+
+## Actualización del calendario académico
+
+CEAL puede adjuntar una nueva fuente desde `Gestión CEAL > Actualizar calendario`. El archivo queda en una cola privada y nunca se incluye en `/api/bootstrap`.
+
+Para descargar nuevas fuentes a `.data/calendar-inbox/`:
+
+```powershell
+npm run calendar:watch -- --once
+npm run calendar:watch
+```
+
+`CALENDAR_WATCHER_TOKEN` debe tener el mismo valor en el backend y en `.env.local`. `PORTAL_API_BASE` es opcional y, si se omite, apunta al backend publicado.
 
 La persistencia compartida requiere un proyecto Supabase activo y estas variables:
 

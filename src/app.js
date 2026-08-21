@@ -2,10 +2,10 @@
   const app = document.getElementById('app');
   let Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const DATA_CONTENT_VERSION = '20260702a';
-  const LOCAL_DATA_KEY = 'portal.data.v47';
+  const DATA_CONTENT_VERSION = '20260821a';
+  const LOCAL_DATA_KEY = 'portal.data.v48';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
-  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46'];
+  const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46', 'portal.data.v47'];
   const URL_PARAMS = new URLSearchParams(location.search);
   const STATIC_MODE = URL_PARAMS.has('static');
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
@@ -87,6 +87,12 @@
     bookingSlotKey: null,
     bookingReason: '',
     bookingSubmitting: false,
+    bookingConfigDraft: null,
+    bookingConfigSaving: false,
+    calendarUpdateRequests: null,
+    calendarUpdatesLoading: false,
+    calendarUpdatesError: '',
+    calendarUpdateSubmitting: false,
     openFAQ: null,
     notificationsOpen: false,
     menuOpen: false,
@@ -220,6 +226,7 @@
     Data.resources ||= [];
     Data.cases ||= [];
     Data.events ||= [];
+    Data.calendarSource ||= null;
     Data.agreements ||= [];
     Data.tutoring ||= [];
     Data.procedures ||= [];
@@ -1204,7 +1211,25 @@
   function afterRender() {
     hydrateMallaEmbed();
     hydrateCalendarStatus();
+    hydrateCalendarUpdates();
     if (FEATURES.tableReservations) hydrateReservations();
+  }
+  async function hydrateCalendarUpdates() {
+    const route = getRoute().path;
+    if (route !== '/gestion/calendario' || !hasCealAccess() || !API_BASE) return;
+    if (state.calendarUpdateRequests !== null || state.calendarUpdatesLoading) return;
+    state.calendarUpdatesLoading = true;
+    state.calendarUpdatesError = '';
+    try {
+      const payload = await apiRequest('/calendar-updates');
+      state.calendarUpdateRequests = Array.isArray(payload.items) ? payload.items : [];
+    } catch (error) {
+      if (!error?.isSessionExpired) state.calendarUpdatesError = error.message || 'No se pudieron cargar las solicitudes.';
+      state.calendarUpdateRequests = [];
+    } finally {
+      state.calendarUpdatesLoading = false;
+      render({ transition: false, scope: 'panel', resetScroll: false });
+    }
   }
   async function hydrateCalendarStatus() {
     const route = getRoute().path;
@@ -1253,7 +1278,8 @@
       state.staffBusyLoading = true;
       try {
         const now = new Date();
-        const timeMax = new Date(now.getTime() + (BOOKING_DAYS_AHEAD + 1) * 86400000);
+        const profile = (Data.staffProfiles || [])[0] || {};
+        const timeMax = new Date(now.getTime() + (bookingSettingsFor(profile).bookingWindowDays + 1) * 86400000);
         const payload = await apiRequest('/calendar/freebusy', { method: 'POST', body: JSON.stringify({ timeMin: now.toISOString(), timeMax: timeMax.toISOString() }) });
         state.staffBusy = Array.isArray(payload.busy) ? payload.busy : [];
       } catch (error) {
@@ -1304,7 +1330,13 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const roleDestination = isGuest() ? ['/calendario', 'calendar', 'Calendario'] : hasJefaturaAccess() ? ['/jefatura', 'users', 'Jefatura'] : ['/atencion', 'users', 'Atención'];
+    const roleDestination = isGuest()
+      ? ['/calendario', 'calendar', 'Calendario']
+      : hasJefaturaAccess()
+        ? ['/jefatura', 'users', 'Jefatura']
+        : hasCealAccess()
+          ? ['/gestion', 'settings', 'Gestión']
+          : ['/atencion', 'users', 'Atención'];
     const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], roleDestination]
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
@@ -1354,6 +1386,7 @@
     if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderBookingPage(false);
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
+    if (path === '/gestion/calendario') return ensureCEAL(renderCalendarUpdatePage());
     if (path === '/gestion/acuerdos/nuevo') return ensureCEAL(renderAgreementForm());
     if (path.startsWith('/gestion/material/') && path.endsWith('/validar')) return ensureCEAL(renderValidateMaterial(path.split('/')[3]));
     if (path.startsWith('/gestion/comunicados/') && path.endsWith('/editar')) return ensureCEAL(renderEditor(path.split('/')[3]));
@@ -1536,7 +1569,9 @@
   function renderFAQ() { return `<div class="vstack">${Data.faqs.slice(0, 5).map((f, i) => `<button class="link-card-row" data-faq="${i}"><span><strong>${esc(f.q)}</strong>${state.openFAQ === i ? `<span class="faq-answer">${esc(f.a)}</span>` : ''}</span>${icon(state.openFAQ === i ? 'x' : 'arrow')}</button>`).join('')}</div>`; }
 
   function renderCalendar() {
-    const calendarAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
+    const exportAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
+    const updateAction = hasCealAccess() ? `<a class="btn primary" href="#/gestion/calendario">${icon('upload')} Actualizar calendario</a>` : '';
+    const calendarAction = `${exportAction}${updateAction}`;
     const todayKey = portalTodayKey();
     const routeDate = String(getRoute().query.date || '').slice(0, 10);
     const validRouteDate = /^\d{4}-\d{2}-\d{2}$/.test(routeDate) ? routeDate : '';
@@ -1553,8 +1588,14 @@
     const agreementRows = Data.agreements.slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
     const monthEventCount = events.filter(event => { const date = parseCalendarDate(event.date); return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth(); }).length;
     const monthActions = `<div class="calendar-month-actions"><button class="icon-btn calendar-prev" type="button" data-calendar-month="-1" aria-label="Mes anterior" title="Mes anterior">${icon('arrow')}</button><button class="btn secondary sm" type="button" data-calendar-today>Hoy</button><button class="icon-btn" type="button" data-calendar-month="1" aria-label="Mes siguiente" title="Mes siguiente">${icon('arrow')}</button></div>`;
+    const source = Data.calendarSource || {};
+    const sourceUrl = safeUrl(source.url);
+    const sourceText = source.updatedAt ? `${source.institution || 'DGPRE UCN'} · actualización ${fmtDate(source.updatedAt)}` : 'DGPRE UCN 2026';
+    const sourceMarkup = sourceUrl
+      ? `<a class="calendar-source-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">${icon('file')} ${esc(sourceText)}</a>`
+      : `<span>${esc(sourceText)}</span>`;
     return `${pageHead('Calendario académico', 'Fechas vigentes y próximas', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel">${renderSelectedCalendarDay(state.calendarSelectedDate, events)}<section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><p class="small muted">Fuente: Calendario DGPRE UCN 2026. Fechas sujetas a actualización.</p></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>`;
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel">${renderSelectedCalendarDay(state.calendarSelectedDate, events)}<section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente vigente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>`;
   }
   function agreementRow(a) { return `<a class="link-card-row" href="#/acuerdos/${a.id}"><span><strong>${esc(a.number || a.title)}</strong><span>${fmtDate(a.date)} - ${esc(a.title)}</span></span>${badge(a.status)}</a>`; }
   function commitRow(c) { return `<div class="commit-row"><span><strong>${esc(c.title)}</strong><span>${esc(c.responsible)} - vence ${fmtDate(c.due)}</span></span>${badge(c.status)}</div>`; }
@@ -2422,29 +2463,51 @@
       <div class="split wide"><section>${responseArea}</section><aside class="card pad"><div class="row-between"><h2 class="card-title">Resumen</h2>${surveyBadge(survey)}</div><p class="small muted" style="line-height:1.55">${esc(survey.description || 'Consulta preparada por CEAL.')}</p><p class="privacy-note compact">${icon('eye')} Resultados agregados. No se publica quién votó qué.</p><div class="detail-block"><div class="detail-row"><span>Privacidad</span><strong>${survey.secret !== false ? 'Voto secreto' : 'Identificada'}</strong></div><div class="detail-row"><span>Respuestas</span><strong>${count}</strong></div><div class="detail-row"><span>Preguntas</span><strong>${questions.length}</strong></div><div class="detail-row"><span>Creada</span><strong>${fmtDate(survey.createdAt)}</strong></div></div>${cealControls}</aside></div>`;
   }
   const WEEKDAY_ES = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
-  const BOOKING_DAYS_AHEAD = 21;
-  const BOOKING_SLOT_MINUTES = 30;
+  const BOOKING_ALLOWED_DURATIONS = [15, 20, 30, 45, 60];
+  const BOOKING_DEFAULTS = Object.freeze({ active: true, slotMinutes: 30, bookingWindowDays: 21, minimumNoticeHours: 1, validFrom: '2026-08-20', validUntil: '2026-12-19' });
+  function bookingSettingsFor(profile = {}) {
+    const raw = profile.bookingSettings || {};
+    const slotMinutes = BOOKING_ALLOWED_DURATIONS.includes(Number(raw.slotMinutes)) ? Number(raw.slotMinutes) : BOOKING_DEFAULTS.slotMinutes;
+    const rawWindow = Number(raw.bookingWindowDays);
+    const rawNotice = Number(raw.minimumNoticeHours);
+    return {
+      active: raw.active !== false,
+      slotMinutes,
+      bookingWindowDays: Math.min(60, Math.max(7, Number.isFinite(rawWindow) ? rawWindow : BOOKING_DEFAULTS.bookingWindowDays)),
+      minimumNoticeHours: Math.min(72, Math.max(0, Number.isFinite(rawNotice) ? rawNotice : BOOKING_DEFAULTS.minimumNoticeHours)),
+      validFrom: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.validFrom || '')) ? raw.validFrom : BOOKING_DEFAULTS.validFrom,
+      validUntil: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.validUntil || '')) ? raw.validUntil : BOOKING_DEFAULTS.validUntil
+    };
+  }
+  function localDateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
   function parseOfficeHours(officeHours) {
     return (officeHours || []).map(oh => {
       const weekday = WEEKDAY_ES[plain(oh.day || '').trim()];
-      const m = String(oh.time || '').match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
+      const range = oh.start && oh.end ? `${oh.start} - ${oh.end}` : oh.time;
+      const m = String(range || '').match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
       if (weekday === undefined || !m) return null;
-      return { weekday, startH: +m[1], startM: +m[2], endH: +m[3], endM: +m[4], mode: oh.mode || '', place: oh.place || '' };
+      return { id: oh.id || '', weekday, startH: +m[1], startM: +m[2], endH: +m[3], endM: +m[4], mode: oh.mode || '', place: oh.place || '', meetingUrl: oh.meetingUrl || '' };
     }).filter(Boolean);
   }
-  function generateBookingSlots(officeHours, now = new Date()) {
-    const avail = parseOfficeHours(officeHours);
-    if (!avail.length) return [];
+  function generateBookingSlots(profile, now = new Date()) {
+    const settings = bookingSettingsFor(profile);
+    const avail = parseOfficeHours(profile.officeHours || []);
+    if (!settings.active || !avail.length) return [];
     const slots = [];
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    for (let d = 0; d <= BOOKING_DAYS_AHEAD; d++) {
+    const noticeThreshold = now.getTime() + settings.minimumNoticeHours * 3600000;
+    for (let d = 0; d <= settings.bookingWindowDays; d++) {
       const date = new Date(base.getFullYear(), base.getMonth(), base.getDate() + d);
+      const dateKey = localDateKey(date);
+      if (dateKey < settings.validFrom || dateKey > settings.validUntil) continue;
       for (const a of avail.filter(x => x.weekday === date.getDay())) {
         let cur = new Date(date.getFullYear(), date.getMonth(), date.getDate(), a.startH, a.startM);
         const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), a.endH, a.endM);
-        while (cur.getTime() + BOOKING_SLOT_MINUTES * 60000 <= end.getTime()) {
-          const slotEnd = new Date(cur.getTime() + BOOKING_SLOT_MINUTES * 60000);
-          if (cur.getTime() > now.getTime() + 60 * 60000) slots.push({ start: new Date(cur), end: slotEnd, mode: a.mode, place: a.place });
+        while (cur.getTime() + settings.slotMinutes * 60000 <= end.getTime()) {
+          const slotEnd = new Date(cur.getTime() + settings.slotMinutes * 60000);
+          if (cur.getTime() >= noticeThreshold) slots.push({ start: new Date(cur), end: slotEnd, mode: a.mode, place: a.place, meetingUrl: a.meetingUrl });
           cur = slotEnd;
         }
       }
@@ -2486,7 +2549,7 @@
   }
   function writeBookingStore(store) { try { localStorage.setItem(BOOKING_STORE_KEY, JSON.stringify(store)); } catch {} }
   function apptSlotKey(a) { return `${a.start}|${a.end}`; }
-  function allBookingSlots(profile) { return generateBookingSlots(profile.officeHours || []); }
+  function allBookingSlots(profile) { return generateBookingSlots(profile); }
   function availableBookingSlots(profile, store) {
     const busy = [
       ...store.appointments.filter(a => APPT_ACTIVE.has(a.status)),
@@ -2844,23 +2907,74 @@
     </section>`;
   }
 
+  function cloneBookingConfig(profile = {}) {
+    return {
+      bookingSettings: { ...bookingSettingsFor(profile) },
+      officeHours: (profile.officeHours || []).map((item, index) => ({
+        id: item.id || `oh-${index + 1}`,
+        day: item.day || 'Lunes',
+        start: item.start || String(item.time || '').match(/\d{1,2}:\d{2}/)?.[0] || '09:00',
+        end: item.end || String(item.time || '').match(/\d{1,2}:\d{2}/g)?.[1] || '10:00',
+        mode: item.mode || 'Presencial',
+        place: item.place || '',
+        meetingUrl: item.meetingUrl || ''
+      }))
+    };
+  }
+  function currentBookingConfig(profile = (Data.staffProfiles || [])[0] || {}) {
+    if (!state.bookingConfigDraft) state.bookingConfigDraft = cloneBookingConfig(profile);
+    return state.bookingConfigDraft;
+  }
+  function bookingScheduleRow(item, index) {
+    const modes = ['Presencial', 'Online', 'Mixto'];
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return `<div class="booking-config-row" data-booking-config-row="${index}">
+      <input type="hidden" name="office-id" value="${esc(item.id || '')}" />
+      <div class="form-field booking-day-field"><label for="f-oh-day-${index}">Día</label><select id="f-oh-day-${index}" class="select" name="office-day" data-booking-row-field="day" data-booking-row-index="${index}">${days.map(day => `<option${plain(item.day) === plain(day) ? ' selected' : ''}>${day}</option>`).join('')}</select></div>
+      <div class="booking-time-fields"><div class="form-field"><label for="f-oh-start-${index}">Desde</label><input id="f-oh-start-${index}" class="input" type="time" name="office-start" value="${esc(item.start || '09:00')}" data-booking-row-field="start" data-booking-row-index="${index}" required /></div><div class="form-field"><label for="f-oh-end-${index}">Hasta</label><input id="f-oh-end-${index}" class="input" type="time" name="office-end" value="${esc(item.end || '10:00')}" data-booking-row-field="end" data-booking-row-index="${index}" required /></div></div>
+      <div class="form-field booking-mode-field"><label for="f-oh-mode-${index}">Modalidad</label><select id="f-oh-mode-${index}" class="select" name="office-mode" data-booking-row-field="mode" data-booking-row-index="${index}">${modes.map(mode => `<option${plain(item.mode) === plain(mode) ? ' selected' : ''}>${mode}</option>`).join('')}</select></div>
+      <div class="form-field booking-place-field"><label for="f-oh-place-${index}">Lugar</label><input id="f-oh-place-${index}" class="input" name="office-place" value="${esc(item.place || '')}" maxlength="180" placeholder="Oficina o sala" data-booking-row-field="place" data-booking-row-index="${index}" /></div>
+      <div class="form-field booking-link-field"><label for="f-oh-link-${index}">Enlace</label><input id="f-oh-link-${index}" class="input" type="url" name="office-link" value="${esc(item.meetingUrl || '')}" maxlength="500" placeholder="https://" data-booking-row-field="meetingUrl" data-booking-row-index="${index}" /></div>
+      <button class="icon-btn booking-row-remove" type="button" data-booking-row-remove="${index}" aria-label="Quitar horario" title="Quitar horario">${icon('x')}</button>
+    </div>`;
+  }
+  function renderBookingConfig(profile) {
+    const config = currentBookingConfig(profile);
+    const settings = config.bookingSettings;
+    const rows = config.officeHours.map(bookingScheduleRow).join('');
+    return `<form class="card pad booking-config" data-form="booking-config">
+      <div class="booking-config-head"><div><span class="kicker">Agenda publicada</span><h2 class="card-title">Configuración de atención</h2></div><label class="booking-active-toggle"><input type="checkbox" name="active" data-booking-setting="active"${settings.active ? ' checked' : ''} /><span>${settings.active ? 'Activa' : 'Pausada'}</span></label></div>
+      <div class="booking-config-primary">
+        <div class="form-field"><label for="f-booking-duration">Duración de todos los bloques</label><select id="f-booking-duration" class="select" name="slotMinutes" data-booking-setting="slotMinutes">${BOOKING_ALLOWED_DURATIONS.map(value => `<option value="${value}"${settings.slotMinutes === value ? ' selected' : ''}>${value} min</option>`).join('')}</select></div>
+        <div class="form-field"><label for="f-booking-from">Desde</label><input id="f-booking-from" class="input" type="date" name="validFrom" value="${esc(settings.validFrom)}" data-booking-setting="validFrom" required /></div>
+        <div class="form-field"><label for="f-booking-until">Hasta</label><input id="f-booking-until" class="input" type="date" name="validUntil" value="${esc(settings.validUntil)}" data-booking-setting="validUntil" required /></div>
+      </div>
+      <div class="booking-config-schedule-head"><div><h3 class="card-title sm">Horarios semanales</h3><p class="small muted">Puedes combinar atención presencial y online.</p></div><button class="btn secondary sm" type="button" data-booking-row-add>${icon('plus')} Agregar horario</button></div>
+      <div class="booking-config-rows">${rows || '<p class="small muted booking-config-no-rows">Agrega un horario para publicar la agenda.</p>'}</div>
+      <details class="booking-config-advanced"><summary>Opciones avanzadas</summary><div class="booking-config-advanced-grid"><div class="form-field"><label for="f-booking-window">Fechas visibles</label><select id="f-booking-window" class="select" name="bookingWindowDays" data-booking-setting="bookingWindowDays">${[7, 14, 21, 30, 45, 60].map(value => `<option value="${value}"${settings.bookingWindowDays === value ? ' selected' : ''}>${value} días</option>`).join('')}</select></div><div class="form-field"><label for="f-booking-notice">Anticipación mínima</label><select id="f-booking-notice" class="select" name="minimumNoticeHours" data-booking-setting="minimumNoticeHours">${[0, 1, 2, 4, 12, 24, 48, 72].map(value => `<option value="${value}"${settings.minimumNoticeHours === value ? ' selected' : ''}>${value === 0 ? 'Sin mínimo' : `${value} h`}</option>`).join('')}</select></div></div></details>
+      <div class="booking-config-actions"><span class="small muted">Los cambios actualizan las horas disponibles para estudiantes.</span><button class="btn primary" type="submit"${state.bookingConfigSaving ? ' disabled aria-busy="true"' : ''}>${state.bookingConfigSaving ? '<span class="btn-spinner"></span><span>Guardando…</span>' : `${icon('check')} Guardar cambios`}</button></div>
+    </form>`;
+  }
+
   function bookingHeroCard(profile, opts = {}) {
     const hours = profile.officeHours || [];
+    const settings = bookingSettingsFor(profile);
     const email = opts.staff ? (profile.email || 'jc.icivil.afta@ucn.cl') : (profile.email || 'jc.icivil.afta@ucn.cl');
-    const hoursHtml = hours.map(h => `<div class="staff-hour-row"><span><strong>${esc(h.day)}</strong><small>${esc(h.mode)} · ${esc(h.place)}</small></span><strong>${esc(h.time)}</strong></div>`).join('');
+    const hoursHtml = hours.map(h => `<div class="staff-hour-row"><span><strong>${esc(h.day)}</strong><small>${esc(h.mode)} · ${esc(h.place || (h.meetingUrl ? 'Videollamada' : 'Por definir'))}</small></span><strong>${esc(h.time || `${h.start} - ${h.end}`)}</strong></div>`).join('');
     return `<section class="card pad staff-hero">
       <div class="staff-hero-top"><span class="avatar big blue">JC</span><div><span class="kicker">Jefe de carrera</span><h2 class="card-title">${esc(profile.displayName || 'Jefatura de carrera')}</h2><p class="small muted">${esc(profile.role || 'Ingeniería Civil UCN')}</p></div></div>
       <div class="staff-hero-meta">${icon('user')}<span>${esc(email)}</span></div>
       <div class="divider"></div>
-      <h3 class="card-title sm">Horarios de atención</h3>
+      <div class="row-between"><h3 class="card-title sm">Horarios de atención</h3><span class="pill ${settings.active ? 'green' : 'gray'}">${settings.active ? `${settings.slotMinutes} min` : 'Pausada'}</span></div>
       <div class="staff-hours-list">${hoursHtml || '<p class="small muted">Sin horarios publicados.</p>'}</div>
     </section>`;
   }
   function bookingKpi(ico, value, label, color) {
     return `<div class="booking-kpi kpi-${color}"><span class="booking-kpi-ico">${icon(ico)}</span><div class="booking-kpi-copy"><span class="booking-kpi-val">${value}</span><span class="booking-kpi-label">${esc(label)}</span></div></div>`;
   }
-  function renderStudentCalendar(slots) {
-    if (!slots.length) return `<div class="booking-empty">${icon('calendar')}<div><strong>No hay horas libres por ahora</strong><p class="small muted">Todas las horas de las próximas semanas están tomadas. Vuelve a revisar más adelante.</p></div></div>`;
+  function renderStudentCalendar(slots, profile) {
+    const settings = bookingSettingsFor(profile);
+    if (!slots.length) return `<div class="booking-empty">${icon('calendar')}<div><strong>${settings.active ? 'No hay horas libres por ahora' : 'Agenda pausada'}</strong><p class="small muted">${settings.active ? 'No quedan bloques disponibles en el periodo publicado. Vuelve a revisar más adelante.' : 'Jefatura publicará nuevos horarios cuando retome la atención.'}</p></div></div>`;
     const byDay = new Map();
     slots.forEach(s => { const k = fmtSlotDayLabel(s.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(s); });
     const cols = [...byDay.entries()].slice(0, 6).map(([day, list]) => {
@@ -2878,7 +2992,7 @@
       const actions = APPT_ACTIVE.has(a.status) ? `<button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar</button>` : '';
       return `<div class="appt-card">
         <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
-        <div class="appt-card-body"><div class="row-between"><strong>${esc(a.mode || 'Presencial')}</strong><span class="status-chip ${color}">${esc(label)}</span></div><p class="small muted">${esc(a.reason || 'Sin motivo indicado')}</p>${a.staffNote ? `<p class="small booking-note">${icon('bell')} <span>${esc(a.staffNote)}</span></p>` : ''}</div>
+        <div class="appt-card-body"><div class="row-between"><strong>${esc(a.mode || 'Presencial')}</strong><span class="status-chip ${color}">${esc(label)}</span></div><span class="small muted">${esc(a.place || '')}</span>${a.meetingUrl && safeUrl(a.meetingUrl) ? `<a class="link small" href="${esc(safeUrl(a.meetingUrl))}" target="_blank" rel="noopener">Abrir videollamada</a>` : ''}<p class="small muted">${esc(a.reason || 'Sin motivo indicado')}</p>${a.staffNote ? `<p class="small booking-note">${icon('bell')} <span>${esc(a.staffNote)}</span></p>` : ''}</div>
         <div class="appt-card-actions">${actions}</div>
       </div>`;
     }).join('');
@@ -2897,7 +3011,7 @@
           <div class="row-between"><h2 class="card-title">Horas disponibles</h2><span class="pill blue">${avail.length} libres</span></div>
           <p class="small muted">Selecciona el día y la hora que prefieras.</p>
           ${confirmBlock}
-          ${renderStudentCalendar(avail)}
+          ${renderStudentCalendar(avail, profile)}
         </section>
         ${bookingHeroCard(profile)}
       </div>
@@ -2907,7 +3021,7 @@
     const start = new Date(a.start);
     return `<div class="appt-card">
       <div class="appt-card-when"><span class="appt-day">${esc(fmtSlotDayLabel(start).split(' ')[0])}</span><span class="appt-date">${esc(fmtSlotDayLabel(start).split(' ').slice(1).join(' '))}</span><span class="appt-time">${fmtSlotTime(start)}</span></div>
-      <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail || '')}</span><p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
+      <div class="appt-card-body"><strong>${esc(a.studentName || a.studentEmail)}</strong><span class="small muted">${esc(a.studentEmail || '')}</span><span class="small muted">${esc(a.mode || 'Presencial')} · ${esc(a.place || '')}</span>${a.meetingUrl && safeUrl(a.meetingUrl) ? `<a class="link small" href="${esc(safeUrl(a.meetingUrl))}" target="_blank" rel="noopener">Abrir videollamada</a>` : ''}<p class="small muted">${esc(a.reason || 'Sin motivo')}</p></div>
       <div class="appt-card-actions"><button class="btn ghost sm" type="button" data-appointment-cancel="${esc(a.id)}">${icon('x')} Cancelar hora</button></div>
     </div>`;
   }
@@ -2948,6 +3062,7 @@
         <section class="card pad"><div class="row-between"><h2 class="card-title">Próximas atenciones</h2>${confirmed.length ? `<span class="pill green">${confirmed.length}</span>` : ''}</div><p class="small muted">Revisa estudiante, horario, modalidad y motivo antes de cada atención.</p><div class="appt-card-list">${agenda}</div></section>
         <aside class="booking-aside">${bookingHeroCard(profile, { staff: true })}</aside>
       </div>
+      ${renderBookingConfig(profile)}
       <section class="card pad"><div class="row-between"><h2 class="card-title">Disponibilidad de la semana</h2><span class="small muted">Cierra o reabre horas libres</span></div>${renderStaffAvailability(profile, store)}</section>
       <details class="card pad booking-gcal"${calendarOpen}><summary><span><strong>Google Calendar</strong><small>Sincronización de la agenda de atención</small></span><span class="pill ${calendarTone}">${calendarLabel}</span></summary><div class="booking-gcal-body">${renderStaffCalendarPanel(profile)}</div></details>`;
   }
@@ -3079,7 +3194,8 @@
     const actions = [
       ['megaphone', 'Publicar comunicado', 'Redacta con ayuda del asistente y avisa por correo.', '/comunicados/nuevo'],
       ['file', 'Registrar seguimiento', 'Acta de acuerdos y compromisos con la carrera.', '/gestion/acuerdos/nuevo'],
-      ['book', 'Validar material', pendingMaterial.length ? `${pendingMaterial.length} recurso${pendingMaterial.length === 1 ? '' : 's'} esperando revisión.` : 'No hay recursos pendientes.', pendingMaterial[0] ? `/gestion/material/${pendingMaterial[0].id}/validar` : '/material']
+      ['book', 'Validar material', pendingMaterial.length ? `${pendingMaterial.length} recurso${pendingMaterial.length === 1 ? '' : 's'} esperando revisión.` : 'No hay recursos pendientes.', pendingMaterial[0] ? `/gestion/material/${pendingMaterial[0].id}/validar` : '/material'],
+      ['calendar', 'Actualizar calendario', 'Envía la nueva fuente académica para revisión.', '/gestion/calendario']
     ];
     const actionCards = actions.map(([ico, title, desc, href]) => `<a class="management-card" href="#${href}"><span class="icon-box">${icon(ico)}</span><strong>${esc(title)}</strong><span>${esc(desc)}</span></a>`).join('');
     const communicationRows = Data.communications.slice(0, 5).map(c => `<a class="link-card-row" href="#/gestion/comunicados/${c.id}/editar"><span><strong>${esc(c.title)}</strong><span>${esc(c.category)} - ${fmtDate(c.date)}</span></span><span class="link">Editar ${icon('arrow')}</span></a>`).join('');
@@ -3099,6 +3215,38 @@
           <section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2><a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a></div><div class="card-list">${agreementRows || '<p class="small muted">No hay seguimientos cargados.</p>'}</div></section>
         </div>
       </div>`;
+  }
+  function calendarUpdateStatus(status) {
+    return {
+      pending: ['Pendiente de revisión', 'orange'],
+      downloaded: ['En revisión', 'blue'],
+      applied: ['Aplicado', 'green'],
+      rejected: ['No aplicado', 'red'],
+      cancelled: ['Cancelado', 'gray']
+    }[status] || ['Pendiente', 'gray'];
+  }
+  function renderCalendarUpdatePage() {
+    const source = Data.calendarSource || {};
+    const sourceUrl = safeUrl(source.url || '');
+    const requests = state.calendarUpdateRequests || [];
+    const requestRows = requests.map(item => {
+      const [label, tone] = calendarUpdateStatus(item.status);
+      const canCancel = ['pending', 'downloaded'].includes(item.status);
+      return `<article class="calendar-update-row"><span class="calendar-update-file">${icon('file')}<span><strong>${esc(item.fileName || 'Archivo de calendario')}</strong><small>${humanSize(item.fileSize || 0)} · ${fmtDate(item.submittedAt)}</small></span></span><span class="status-chip ${tone}">${esc(label)}</span>${item.note ? `<p>${esc(item.note)}</p>` : ''}${canCancel ? `<button class="btn ghost sm" type="button" data-calendar-update-cancel="${esc(item.id)}">${icon('x')} Cancelar envío</button>` : ''}</article>`;
+    }).join('');
+    const unavailable = !API_BASE ? `<div class="google-auth-note"><strong>Envío no disponible</strong><span>Abre esta sección desde el portal publicado para adjuntar una fuente.</span></div>` : '';
+    return `${pageHead('Actualizar calendario', 'Envía una fuente académica para revisión', `<a class="btn secondary" href="#/gestion">Volver</a>`) }
+      <div class="calendar-update-layout">
+        <form class="card pad calendar-update-form" data-form="calendar-update">
+          <div class="row-between"><div><span class="kicker">Nueva fuente</span><h2 class="card-title">Adjuntar calendario</h2></div><span class="icon-box blue">${icon('calendar')}</span></div>
+          ${unavailable}${state.calendarUpdatesError ? `<p class="form-alert">${esc(state.calendarUpdatesError)}</p>` : ''}
+          <label class="upload-zone calendar-upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, imagen, TXT, CSV, DOCX o XLSX · máximo 3 MB</span><input class="sr-only" type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.docx,.xlsx,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/csv" required /></label>
+          <div class="form-field"><label for="f-calendar-update-note">Nota</label><textarea id="f-calendar-update-note" class="textarea compact" name="note" maxlength="1200" placeholder="Qué cambió o qué periodo reemplaza"></textarea></div>
+          <div class="calendar-update-submit"><p class="small muted">La fuente se revisa antes de modificar las fechas públicas.</p><button class="btn primary" type="submit"${!API_BASE || state.calendarUpdateSubmitting ? ' disabled' : ''}>${state.calendarUpdateSubmitting ? '<span class="btn-spinner"></span><span>Enviando…</span>' : `${icon('upload')} Enviar a revisión`}</button></div>
+        </form>
+        <aside class="card pad calendar-source-card"><span class="kicker">Calendario vigente</span><h2 class="card-title">${esc(source.title || 'Calendario académico')}</h2><div class="detail-block"><div class="detail-row"><span>Campus</span><strong>${esc(source.campus || 'Antofagasta')}</strong></div><div class="detail-row"><span>Actualizado</span><strong>${source.updatedAt ? fmtDate(source.updatedAt) : 'Sin fecha'}</strong></div><div class="detail-row"><span>Documento</span><strong>${esc(source.decree || 'Fuente oficial')}</strong></div></div>${sourceUrl ? `<a class="btn secondary full" href="${esc(sourceUrl)}" target="_blank" rel="noopener">${icon('file')} Abrir fuente vigente</a>` : ''}</aside>
+      </div>
+      <section class="card pad calendar-update-history"><div class="row-between"><h2 class="card-title">Envíos recientes</h2>${state.calendarUpdatesLoading ? '<span class="small muted">Actualizando…</span>' : ''}</div><div class="calendar-update-list">${requestRows || '<p class="small muted">Aún no hay archivos enviados.</p>'}</div></section>`;
   }
   function ensureCEAL(content) { return hasCealAccess() ? content : `${pageHead('Sin permisos', 'Esta sección es de uso interno CEAL')}<section class="card pad empty-state"><span class="icon-wrap">${icon('settings')}</span><h3>Acceso restringido</h3><button class="btn secondary" data-logout>Cambiar rol</button></section>`; }
   function renderEditor(id) {
@@ -3402,6 +3550,38 @@
       }
       return;
     }
+    if (e.target.closest('[data-booking-row-add]')) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const draft = currentBookingConfig();
+      if (draft.officeHours.length >= 14) { showToast('Puedes publicar hasta 14 horarios semanales', 'orange'); return; }
+      draft.officeHours.push({ id: `oh-${Date.now()}`, day: 'Lunes', start: '09:00', end: '10:00', mode: 'Presencial', place: 'Departamento de Ingeniería Civil', meetingUrl: '' });
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const removeBookingRow = e.target.closest('[data-booking-row-remove]');
+    if (removeBookingRow) {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const draft = currentBookingConfig();
+      const index = Number(removeBookingRow.dataset.bookingRowRemove);
+      if (Number.isInteger(index)) draft.officeHours.splice(index, 1);
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const cancelCalendarUpdate = e.target.closest('[data-calendar-update-cancel]');
+    if (cancelCalendarUpdate) {
+      if (!hasCealAccess() || !API_BASE) { readonlyToast(); return; }
+      const id = cancelCalendarUpdate.dataset.calendarUpdateCancel;
+      if (!window.confirm('¿Cancelar este envío de calendario?')) return;
+      try {
+        const payload = await apiRequest(`/calendar-updates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        state.calendarUpdateRequests = (state.calendarUpdateRequests || []).map(item => item.id === id ? payload.item : item);
+        showToast('Envío cancelado', 'blue');
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo cancelar el envío', 'orange');
+      }
+      return;
+    }
     const bookSlot = e.target.closest('[data-book-slot]');
     if (bookSlot) {
       state.bookingSlotKey = state.bookingSlotKey === bookSlot.dataset.bookSlot ? null : bookSlot.dataset.bookSlot;
@@ -3424,7 +3604,7 @@
           state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots;
           state.appointmentBusy = payload.availability?.occupied || state.appointmentBusy;
         } else {
-          const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', reason: state.bookingReason, status: 'confirmada', staffNote: '', createdAt: new Date().toISOString() };
+          const appt = { id: `apt-${Date.now()}`, studentEmail: state.user?.email || '', studentName: state.user?.name || 'Estudiante', start: slot.start.toISOString(), end: slot.end.toISOString(), mode: slot.mode || 'Presencial', place: slot.place || 'Departamento de Ingeniería Civil', meetingUrl: slot.meetingUrl || '', reason: state.bookingReason, status: 'confirmada', staffNote: '', createdAt: new Date().toISOString() };
           store.appointments.unshift(appt);
           writeBookingStore(store);
         }
@@ -3815,6 +3995,20 @@
     if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
   }
   function onInput(e) {
+    const bookingRowField = e.target.closest('[data-booking-row-field]');
+    if (bookingRowField) {
+      const draft = currentBookingConfig();
+      const row = draft.officeHours[Number(bookingRowField.dataset.bookingRowIndex)];
+      if (row) row[bookingRowField.dataset.bookingRowField] = bookingRowField.value;
+      return;
+    }
+    const bookingSetting = e.target.closest('[data-booking-setting]');
+    if (bookingSetting && bookingSetting.type !== 'checkbox') {
+      const draft = currentBookingConfig();
+      const key = bookingSetting.dataset.bookingSetting;
+      draft.bookingSettings[key] = ['slotMinutes', 'bookingWindowDays', 'minimumNoticeHours'].includes(key) ? Number(bookingSetting.value) : bookingSetting.value;
+      return;
+    }
     const draftSurvey = state.surveyBuilderResult?.survey || null;
     if (draftSurvey) {
       if (e.target.matches('[data-survey-edit="title"]')) { draftSurvey.title = e.target.value; return; }
@@ -3829,6 +4023,18 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    const bookingActive = e.target.closest('[data-booking-setting="active"]');
+    if (bookingActive) {
+      currentBookingConfig().bookingSettings.active = Boolean(bookingActive.checked);
+      render({ transition: false, scope: 'panel', resetScroll: false });
+      return;
+    }
+    const bookingSelect = e.target.closest('[data-booking-row-field], [data-booking-setting]');
+    if (bookingSelect) {
+      const event = new Event('input', { bubbles: true });
+      bookingSelect.dispatchEvent(event);
+      return;
+    }
     const attachInput = e.target.closest('[data-attach-input]');
     if (attachInput && attachInput.files && attachInput.files[0]) {
       const file = attachInput.files[0];
@@ -3911,6 +4117,83 @@
     const aiForm = form.dataset.form === 'ceal-assistant' || form.dataset.form === 'survey-ai';
     if (!aiForm && submitBtn) { form.dataset.submitting = '1'; submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
     try {
+    if (form.dataset.form === 'booking-config') {
+      if (!hasJefaturaAccess()) { readonlyToast(); return; }
+      const ids = fd.getAll('office-id');
+      const days = fd.getAll('office-day');
+      const starts = fd.getAll('office-start');
+      const ends = fd.getAll('office-end');
+      const modes = fd.getAll('office-mode');
+      const places = fd.getAll('office-place');
+      const links = fd.getAll('office-link');
+      const officeHours = days.map((day, index) => ({
+        id: String(ids[index] || `oh-${Date.now()}-${index}`),
+        day: String(day || ''),
+        start: String(starts[index] || ''),
+        end: String(ends[index] || ''),
+        mode: String(modes[index] || 'Presencial'),
+        place: String(places[index] || '').trim(),
+        meetingUrl: String(links[index] || '').trim()
+      }));
+      const bookingSettings = {
+        active: fd.has('active'),
+        slotMinutes: Number(fd.get('slotMinutes')),
+        bookingWindowDays: Number(fd.get('bookingWindowDays')),
+        minimumNoticeHours: Number(fd.get('minimumNoticeHours')),
+        validFrom: String(fd.get('validFrom') || ''),
+        validUntil: String(fd.get('validUntil') || '')
+      };
+      if (bookingSettings.active && !officeHours.length) { showToast('Agrega al menos un horario para activar la agenda', 'orange'); return; }
+      state.bookingConfigSaving = true;
+      try {
+        const profile = (Data.staffProfiles || [])[0] || {};
+        if (API_BASE) {
+          const payload = await apiRequest('/calendar/config', { method: 'PATCH', body: JSON.stringify({ bookingSettings, officeHours }) });
+          if (payload.profile) Object.assign(profile, payload.profile);
+          state.staffClosedSlots = payload.availability?.closedSlots || state.staffClosedSlots;
+        } else {
+          profile.bookingSettings = bookingSettings;
+          profile.officeHours = officeHours.map(item => ({ ...item, time: `${item.start} - ${item.end}`, status: 'Reserva directa' }));
+          persistSnapshot();
+        }
+        state.bookingConfigDraft = null;
+        state.bookingSlotKey = null;
+        state.staffBusy = null;
+        state.staffBusyError = '';
+        showToast('Configuración guardada', 'green');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo guardar la configuración', 'orange');
+      } finally {
+        state.bookingConfigSaving = false;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
+    if (form.dataset.form === 'calendar-update') {
+      if (!hasCealAccess() || !API_BASE) { readonlyToast(); return; }
+      const file = form.elements.file?.files?.[0];
+      if (!file) { showToast('Selecciona un archivo', 'blue'); return; }
+      if (file.size > 3_000_000) { showToast('El archivo supera 3 MB', 'orange'); return; }
+      state.calendarUpdateSubmitting = true;
+      try {
+        let fileDataUrl = await readFileDataUrl(file);
+        if (/^data:;base64,/.test(fileDataUrl)) {
+          const ext = String(file.name || '').toLowerCase().split('.').pop();
+          const mime = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', txt: 'text/plain', csv: 'text/csv', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }[ext];
+          if (mime) fileDataUrl = fileDataUrl.replace(/^data:;/, `data:${mime};`);
+        }
+        const payload = await apiRequest('/calendar-updates', { method: 'POST', timeoutMs: 60000, body: JSON.stringify({ fileName: file.name, fileDataUrl, note: String(fd.get('note') || '').trim() }) });
+        state.calendarUpdateRequests = [payload.item, ...(state.calendarUpdateRequests || []).filter(item => item.id !== payload.item?.id)].filter(Boolean);
+        form.reset();
+        showToast('Calendario enviado a revisión', 'green');
+      } catch (error) {
+        if (!error?.isSessionExpired) showToast(error.message || 'No se pudo enviar el calendario', 'orange');
+      } finally {
+        state.calendarUpdateSubmitting = false;
+        render({ transition: false, scope: 'panel', resetScroll: false });
+      }
+      return;
+    }
     if (form.dataset.form === 'ceal-assistant') {
       if (!hasCealAccess()) { readonlyToast(); return; }
       const rawText = String(fd.get('rawText') || '').trim();

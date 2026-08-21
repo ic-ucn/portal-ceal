@@ -390,7 +390,7 @@ try {
     mobileSession: jefatura,
     mobileRoute: '/',
     mobileFocusSelector: 'a[href="#/jefatura"]',
-    totalSteps: 10,
+    totalSteps: 12,
     outputDir: jefaturaWebMediaDir,
     vttName: 'gestionar-atencion-jefatura.vtt',
     setupPage: async page => {
@@ -411,7 +411,7 @@ try {
       await page.route('**/api/calendar/freebusy', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, busy: [] }) }));
     },
     run: async ({ page, cue, resetGuide }) => {
-      await cue('Esta guía muestra cómo conectar Calendar y gestionar las horas desde el portál.', 4500, () => showTitle(page, 'Guía para Jefatura', 'Configurar y gestionar la agenda', 'Conexión, verificación y operación diaria.'));
+      await cue('Esta guía muestra cómo configurar los horarios, conectar Calendar y gestionar las atenciones desde el portál.', 5600, () => showTitle(page, 'Guía para Jefatura', 'Configurar y gestionar la agenda', 'Horarios, sincronización y operación diaria.'));
       await hideTitle(page);
       await prepareLoginForCapture(page, 'internal');
       await cue('Paso uno. En Jefatura o CEAL, selecciona Acceder con Google.', 5200, () => showStep(page, 1, 'Accede con Google', 'Usa únicamente la cuenta autorizada de Jefatura.', '[data-google-redirect="internal"]'));
@@ -420,11 +420,19 @@ try {
       await resetGuide();
       await cue('En el teléfono, Jefatura aparece al final de la barra inferior.', 4800, () => showMobile(page, 'Vista móvil', 'Jefatura está en la barra inferior', 'Desde allí puedes abrir el mismo panel de gestión.'));
       await hideMobile(page);
-      await cue('Paso dos. Abre Jefatura. Aquí verás reservas, disponibilidad y Calendar.', 4500, () => showStep(page, 2, 'Abre Jefatura', 'Aquí se administran reservas, cupos y Calendar.', 'a[href="#/jefatura"]'));
+      await cue('Paso dos. Abre Jefatura. Aquí verás las próximas atenciones y la configuración de la agenda.', 5200, () => showStep(page, 2, 'Abre Jefatura', 'Aquí se administran atenciones, horarios y Calendar.', 'a[href="#/jefatura"]'));
       await page.locator('a[href="#/jefatura"]').first().click();
       await page.locator('h1.page-title').filter({ hasText: 'Jefatura' }).waitFor({ state: 'visible' });
-      await cue('Paso tres. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.', 5700, () => showStep(page, 3, 'Revisa Google Calendar', 'Comprueba la cuenta indicada antes de conectar.', '.booking-gcal'));
-      await cue('Paso cuatro. Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.', 5000, () => showStep(page, 4, 'Conecta la agenda', 'Presiona este botón para continuar en Google.', '[data-calendar-connect]'));
+      await cue('Paso tres. En Configuración de atención puedes activar o pausar la agenda, definir su vigencia y elegir una duración general. Todos los nuevos bloques usarán esa duración.', 8200, () => showStep(page, 3, 'Define la agenda', 'La duración elegida se aplica a todos los nuevos bloques.', '.booking-config-primary'));
+      await page.locator('#f-booking-duration').selectOption('15');
+      await cue('Paso cuatro. En cada horario define el día, el rango, la modalidad, el lugar y, si corresponde, el enlace de videollamada.', 7200, () => showStep(page, 4, 'Configura cada horario', 'Día, horas, modalidad, lugar y enlace.', '.booking-config-row'));
+      await page.locator('.booking-config-advanced').evaluate(details => { details.open = true; });
+      await cue('Paso cinco. En Opciones avanzadas ajusta cuántos días se muestran y la anticipación mínima. Luego guarda los cambios.', 7000, () => showStep(page, 5, 'Ajusta y guarda', 'Revisa las opciones avanzadas antes de publicar.', '.booking-config-advanced'));
+      await cue('Guarda la configuración para actualizar inmediatamente los cupos que ven los estudiantes.', 5200, () => showStep(page, 5, 'Guarda los cambios', 'La disponibilidad se recalcula con esta configuración.', '.booking-config-actions .btn'));
+      await page.locator('.booking-config-actions .btn').click();
+      await page.getByText('Configuración guardada', { exact: true }).waitFor({ state: 'visible' });
+      await cue('Paso seis. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.', 6000, () => showStep(page, 6, 'Revisa Google Calendar', 'Comprueba la cuenta indicada antes de conectar.', '.booking-gcal'));
+      await cue('Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.', 5000, () => showStep(page, 6, 'Conecta la agenda', 'Presiona este botón para continuar en Google.', '[data-calendar-connect]'));
       await cue('Continúa con la misma cuenta y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.', 6000, () => showTitle(page, 'Autorización de Google', 'Permite la sincronización', 'Autoriza eventos y consulta de disponibilidad.'));
       calendarConnected = true;
       await page.goto(`${baseUrl}/?capture=gestionar-atencion-jefatura&calendarFixture=connected#/jefatura?calendar=connected`, { waitUntil: 'networkidle' });
@@ -432,29 +440,29 @@ try {
       await page.locator('[data-calendar-state="verified"]').waitFor({ state: 'attached', timeout: 12000 });
       await page.locator('.booking-gcal').evaluate(details => { details.open = true; });
       await resetGuide();
-      await cue('Paso cinco. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.', 6500, async () => {
-        await showStep(page, 5, 'Confirma el estado verificado', 'Revisa cuenta, calendario y fecha de verificación.', '[data-calendar-state="verified"]');
+      await cue('Paso siete. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.', 6500, async () => {
+        await showStep(page, 7, 'Confirma el estado verificado', 'Revisa cuenta, calendario y fecha de verificación.', '[data-calendar-state="verified"]');
         await page.locator('.booking-gcal').evaluate(details => details.scrollIntoView({ behavior: 'auto', block: 'center' }));
         await page.waitForTimeout(500);
       });
-      await cue('Las ocupaciones de Calendar bloquean horarios superpuestos. Cada reserva crea un evento y cada cancelación lo elimina.', 5700, () => showStep(page, 5, 'Qué sincroniza Calendar', 'Evita choques y mantiene los eventos de atención.', '[data-calendar-state="verified"]'));
-      await cue('Los horarios y cupos se administran en el portál. Mover un evento en Calendar no reprograma una reserva.', 6000, () => showStep(page, 5, 'Qué se gestiona en el portal', 'Los cambios operativos se realizan aquí.', '.booking-calendar'));
-      await cue('Paso seis. Antes de atender, revisa estudiante, horario, modalidad, lugar y motivo.', 5000, () => showStep(page, 6, 'Revisa la atención', 'Confirma todos los datos antes de atender.', '.appt-card-list .appt-card'));
-      await cue('Paso siete. Si no puedes atender, cancela desde la tarjeta. El evento se elimina y ese horario queda cerrado.', 6500, () => showStep(page, 7, 'Cancela y cierra ese horario', 'Nadie más podrá reservarlo mientras siga cerrado.', '[data-appointment-cancel]'));
+      await cue('Las ocupaciones de Calendar bloquean horarios superpuestos. Cada reserva crea un evento y cada cancelación lo elimina.', 5700, () => showStep(page, 7, 'Qué sincroniza Calendar', 'Evita choques y mantiene los eventos de atención.', '[data-calendar-state="verified"]'));
+      await cue('Los horarios se configuran en el portál. Mover un evento en Calendar no reprograma una atención ya reservada.', 6200, () => showStep(page, 7, 'Qué se gestiona en el portal', 'La configuración y los cupos se administran aquí.', '.booking-config'));
+      await cue('Paso ocho. Antes de atender, revisa estudiante, horario, modalidad, lugar y motivo.', 5000, () => showStep(page, 8, 'Revisa la atención', 'Confirma todos los datos antes de atender.', '.appt-card-list .appt-card'));
+      await cue('Paso nueve. Si no puedes atender, cancela desde la tarjeta. El evento se elimina y ese horario queda cerrado.', 6500, () => showStep(page, 9, 'Cancela y cierra ese horario', 'Nadie más podrá reservarlo mientras siga cerrado.', '[data-appointment-cancel]'));
       page.once('dialog', dialog => dialog.accept());
       await page.locator('[data-appointment-cancel]').first().click();
       await page.locator('.booking-inline-empty').waitFor({ state: 'visible' });
-      await cue('El estudiante recibe automáticamente un enlace para elegir otra hora. El bloque cancelado no se ofrece a otra persona.', 6500, () => showStep(page, 7, 'El estudiante puede reagendar', 'Ese horario permanece cerrado hasta que lo reabras.', '.booking-inline-empty'));
-      await cue('Paso ocho. Para retirar otra hora que aún está libre, selecciona un bloque verde.', 6000, () => showStep(page, 8, 'Cierra otra hora libre', 'Selecciona un bloque verde para retirarlo.', '[data-availability-close]'));
+      await cue('El estudiante recibe automáticamente un enlace para elegir otra hora. El bloque cancelado no se ofrece a otra persona.', 6500, () => showStep(page, 9, 'El estudiante puede reagendar', 'Ese horario permanece cerrado hasta que lo reabras.', '.booking-inline-empty'));
+      await cue('Paso diez. Para retirar otra hora que aún está libre, selecciona un bloque verde.', 6000, () => showStep(page, 10, 'Cierra otra hora libre', 'Selecciona un bloque verde para retirarlo.', '[data-availability-close]'));
       const closeSlot = page.locator('[data-availability-close]').first();
       const closeSlotKey = await closeSlot.getAttribute('data-availability-close');
       await closeSlot.click();
       const reopenSelector = `[data-availability-open="${closeSlotKey}"]`;
       await page.locator(reopenSelector).waitFor({ state: 'visible' });
-      await cue('Paso nueve. Para volver a ofrecer cualquier bloque cerrado, selecciónalo nuevamente.', 6000, () => showStep(page, 9, 'Reabre la hora', 'El bloque vuelve a quedar disponible.', reopenSelector));
+      await cue('Paso once. Para volver a ofrecer cualquier bloque cerrado, selecciónalo nuevamente.', 6000, () => showStep(page, 11, 'Reabre la hora', 'El bloque vuelve a quedar disponible.', reopenSelector));
       await page.locator(reopenSelector).click();
-      await cue('Paso diez. Realiza una reserva de prueba, confirma el evento en Calendar y cancélala desde Jefatura.', 6000, async () => {
-        await showStep(page, 10, 'Comprueba la sincronización', 'Reserva, evento y cancelación.', '[data-calendar-state="verified"]');
+      await cue('Paso doce. Realiza una reserva de prueba, confirma el evento en Calendar y cancélala desde Jefatura.', 6000, async () => {
+        await showStep(page, 12, 'Comprueba la sincronización', 'Reserva, evento y cancelación.', '[data-calendar-state="verified"]');
         await page.locator('.booking-gcal').evaluate(details => details.scrollIntoView({ behavior: 'auto', block: 'center' }));
         await page.waitForTimeout(500);
       });

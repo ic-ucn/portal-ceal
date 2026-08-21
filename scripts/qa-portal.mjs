@@ -47,7 +47,7 @@ function startServer() {
   rmSync(dbPath, { force: true });
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath, PORTAL_STATE_BACKEND: 'local', QA_TEST_MODE: '1' },
+    env: { ...process.env, PORT: String(port), PORTAL_DB_PATH: dbPath, PORTAL_STATE_BACKEND: 'local', CALENDAR_WATCHER_TOKEN: 'qa-calendar-watcher-token', QA_TEST_MODE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true
   });
@@ -313,6 +313,13 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
     await reopenSlot.waitFor();
     await reopenSlot.click();
   }
+  const bookingConfig = page.locator('form[data-form="booking-config"]');
+  await bookingConfig.waitFor();
+  await bookingConfig.locator('select[name="slotMinutes"]').selectOption('15');
+  await bookingConfig.locator('button[type="submit"]').click();
+  await page.getByText('Configuración guardada', { exact: true }).waitFor();
+  if ((await page.locator('.staff-hero').innerText()).includes('30 min')) fail('Jefatura duration change was not reflected in the published schedule');
+  report.flows.push('Jefatura updates appointment duration and weekly configuration');
 
   await loginStudent(page, studentUser);
   await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
@@ -326,6 +333,15 @@ async function runCealFlowTests(page, cealUser) {
   if (!(await page.locator('text=Acciones del centro').count())) fail('gestion dashboard missing actions section');
   const managementText = await page.locator('main').innerText();
   if (/Encuestas|Reservas de taca-taca|ping-pong/i.test(managementText)) fail('gestion dashboard should not expose disabled surveys or reservations');
+
+  await page.goto(appUrl('/gestion/calendario'), { waitUntil: 'networkidle' });
+  const calendarUpdateForm = page.locator('form[data-form="calendar-update"]');
+  await calendarUpdateForm.locator('input[type="file"]').setInputFiles({ name: 'calendario-qa.txt', mimeType: 'text/plain', buffer: Buffer.from('Calendario docente QA') });
+  await calendarUpdateForm.locator('textarea[name="note"]').fill('Prueba de actualización académica.');
+  await calendarUpdateForm.locator('button[type="submit"]').click();
+  await page.getByText('Pendiente de revisión', { exact: true }).waitFor();
+  if ((await page.locator('main').innerText()).includes('Calendario docente QA')) fail('calendar upload UI should display metadata, not private file content');
+  report.flows.push('CEAL sends a private calendar source for review');
 
   await page.goto(appUrl('/gestion/acuerdos/nuevo'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="new-agreement"] input[name="title"]').fill('Acuerdo QA de seguimiento');
@@ -411,6 +427,7 @@ async function main() {
     await loginCeal(page, cealUser);
     const cealRoutes = [
       ['/gestion', 'gestion'],
+      ['/gestion/calendario', 'gestion-calendario'],
       ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],
       ['/gestion/material/mat-010/validar', 'gestion-material-validar'],
       ['/gestion/comunicados/com-001/editar', 'gestion-comunicado-editar']
@@ -421,6 +438,12 @@ async function main() {
 
     await loginJefatura(page, jefaturaUser);
     await auditRoute(page, '/jefatura', 'jefatura', 'desktop-jefatura', true);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginJefatura(page, jefaturaUser);
+    await auditRoute(page, '/jefatura', 'jefatura', 'mobile-jefatura', true);
+    await loginCeal(page, cealUser);
+    await auditRoute(page, '/gestion/calendario', 'gestion-calendario', 'mobile-ceal', true);
 
     await browser.close();
     report.ok = report.failures.length === 0;

@@ -35,6 +35,8 @@ const tokenEncryptionSecret = process.env.PORTAL_TOKEN_ENCRYPTION_KEY || calenda
 const calendarAccount = (process.env.GOOGLE_CALENDAR_ACCOUNT || 'jc.icivil.afta@ucn.cl').toLowerCase();
 const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 const calendarConnectionNotifyEmail = (process.env.CALENDAR_CONNECTION_NOTIFY_EMAIL || 'kevin.cortes@alumnos.ucn.cl').trim().toLowerCase();
+const calendarWatcherToken = String(process.env.CALENDAR_WATCHER_TOKEN || '').trim();
+const calendarUpdateMaxBytes = 3_000_000;
 const calendarScopes = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
@@ -256,6 +258,7 @@ function ensureDbShape(db, seed) {
   };
   db.data.bookingAvailability ||= { closedSlots: [] };
   db.data.bookingAvailability.closedSlots ||= [];
+  db.data.calendarUpdateRequests ||= [];
   // Si cambia la cuenta de agenda configurada (p. ej. stand-in biblioteca <-> jc real),
   // se resetea la conexion para forzar reconectar con la cuenta correcta.
   if (asText(db.data.integrations.googleCalendar.account).toLowerCase() !== calendarAccount) {
@@ -280,6 +283,14 @@ function ensureDbShape(db, seed) {
   for (const key of ['communications', 'cases', 'resources', 'events', 'agreements', 'tutoring', 'procedures', 'faqs', 'notifications', 'surveys', 'appointments', 'staffProfiles', 'reservations']) {
     db.data[key] ||= seed.data[key] || [];
   }
+  const seedCalendarVersion = asText(seed.data.calendarSource?.version);
+  const storedCalendarVersion = asText(db.data.calendarSource?.version);
+  if (seedCalendarVersion && seedCalendarVersion !== storedCalendarVersion) {
+    db.data.events = (seed.data.events || []).map(event => ({ ...event }));
+    db.data.calendarSource = { ...seed.data.calendarSource };
+  } else if (!db.data.calendarSource && seed.data.calendarSource) {
+    db.data.calendarSource = { ...seed.data.calendarSource };
+  }
   const canonicalStaffId = 'jefatura-ingenieria-civil';
   const legacyStaff = db.data.staffProfiles.find(profile => profile.id === 'zelada');
   const canonicalStaff = db.data.staffProfiles.find(profile => profile.id === canonicalStaffId);
@@ -291,14 +302,18 @@ function ensureDbShape(db, seed) {
       appointment.updatedAt ||= new Date().toISOString();
     }
   }
-  const staffSeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'authorizedEmails', 'calendarUrl', 'bookingUrl', 'status', 'description', 'officeHours', 'notes'];
+  const staffIdentitySeedKeys = ['name', 'displayName', 'contactName', 'role', 'email', 'authorizedEmails', 'calendarUrl', 'bookingUrl', 'status', 'description', 'notes'];
+  const staffConfigSeedKeys = ['officeHours', 'bookingSettings'];
   for (const profile of seed.data.staffProfiles || []) {
     const existing = db.data.staffProfiles.find(current => current.id === profile.id);
     if (!existing) {
       db.data.staffProfiles.push({ ...profile });
     } else {
-      for (const key of staffSeedKeys) {
+      for (const key of staffIdentitySeedKeys) {
         if (key in profile) existing[key] = Array.isArray(profile[key]) ? [...profile[key]] : profile[key];
+      }
+      for (const key of staffConfigSeedKeys) {
+        if (!(key in existing) && key in profile) existing[key] = Array.isArray(profile[key]) ? profile[key].map(item => ({ ...item })) : { ...profile[key] };
       }
     }
   }
@@ -723,6 +738,48 @@ function requireStaffSession(req, db) {
   return { session, profile };
 }
 
+function requireCalendarWatcher(req) {
+  const supplied = asText(req.headers['x-calendar-watcher-token']);
+  if (!calendarWatcherToken || !supplied) throw Object.assign(new Error('calendar watcher token required'), { statusCode: 401 });
+  const expectedBuffer = Buffer.from(calendarWatcherToken);
+  const suppliedBuffer = Buffer.from(supplied);
+  if (expectedBuffer.length !== suppliedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+    throw Object.assign(new Error('calendar watcher token invalid'), { statusCode: 403 });
+  }
+}
+
+const CALENDAR_UPDATE_MIME = new Map([
+  ['application/pdf', '.pdf'],
+  ['image/png', '.png'],
+  ['image/jpeg', '.jpg'],
+  ['image/webp', '.webp'],
+  ['text/plain', '.txt'],
+  ['text/csv', '.csv'],
+  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'],
+  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx']
+]);
+
+function calendarUpdateMeta(item = {}) {
+  const { fileDataUrl, ...safe } = item;
+  return safe;
+}
+
+function parseCalendarUpdateFile(body = {}) {
+  const raw = asText(body.fileDataUrl);
+  const match = raw.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\r\n]+)$/);
+  if (!match || !CALENDAR_UPDATE_MIME.has(match[1].toLowerCase())) {
+    throw Object.assign(new Error('Adjunta un PDF, imagen, TXT, CSV, DOCX o XLSX válido.'), { statusCode: 422 });
+  }
+  const fileType = match[1].toLowerCase();
+  const bytes = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+  if (!bytes.length || bytes.length > calendarUpdateMaxBytes) throw Object.assign(new Error('El archivo debe pesar como máximo 3 MB.'), { statusCode: 413 });
+  const originalName = path.basename(asText(body.fileName, `calendario${CALENDAR_UPDATE_MIME.get(fileType)}`));
+  const baseName = originalName.replace(/[^A-Za-z0-9._ -]/g, '').trim().slice(0, 120) || `calendario${CALENDAR_UPDATE_MIME.get(fileType)}`;
+  const expectedExtension = CALENDAR_UPDATE_MIME.get(fileType);
+  const fileName = baseName.toLowerCase().endsWith(expectedExtension) ? baseName : `${baseName}${expectedExtension}`;
+  return { fileDataUrl: `data:${fileType};base64,${bytes.toString('base64')}`, fileName, fileType, fileSize: bytes.length };
+}
+
 async function verifyGoogleCredential(credential) {
   if (!googleClientId) {
     const err = new Error('google client id not configured');
@@ -1077,9 +1134,13 @@ function calendarEventPayload(body, session) {
   }
   const requester = asText(body.name, session.email.split('@')[0]);
   const reason = asText(body.reason, 'Solicitud de hora de atención').slice(0, 1200);
+  const mode = asText(body.mode, 'Presencial').slice(0, 80);
+  const place = asText(body.place, 'Departamento de Ingeniería Civil').slice(0, 180);
+  const meetingUrl = asText(body.meetingUrl).slice(0, 500);
   return {
     summary: `Atención Jefatura - ${requester}`,
-    description: `Solicitud creada desde Portal CEIC UCN.\n\nSolicitante: ${requester}\nCorreo: ${session.email}\nMotivo: ${reason}`,
+    description: `Solicitud creada desde Portal CEIC UCN.\n\nSolicitante: ${requester}\nCorreo: ${session.email}\nModalidad: ${mode}\nLugar: ${place}${meetingUrl ? `\nEnlace: ${meetingUrl}` : ''}\nMotivo: ${reason}`,
+    location: meetingUrl || place,
     start: { dateTime: startDate.toISOString(), timeZone: 'America/Santiago' },
     end: { dateTime: endDate.toISOString(), timeZone: 'America/Santiago' },
     attendees: [{ email: session.email }],
@@ -1095,9 +1156,115 @@ function calendarEventPayload(body, session) {
 }
 
 const APPOINTMENT_ACTIVE = new Set(['solicitada', 'confirmada']);
-const APPOINTMENT_DAYS_AHEAD = 21;
-const APPOINTMENT_SLOT_MINUTES = 30;
+const BOOKING_ALLOWED_DURATIONS = new Set([15, 20, 30, 45, 60]);
+const BOOKING_DEFAULTS = Object.freeze({
+  active: true,
+  slotMinutes: 30,
+  bookingWindowDays: 21,
+  minimumNoticeHours: 1,
+  validFrom: '2026-08-20',
+  validUntil: '2026-12-19'
+});
 const WEEKDAY_INDEX_ES = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+const WEEKDAY_LABEL_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+function bookingSettings(profile = {}) {
+  const raw = profile.bookingSettings || {};
+  const slotMinutes = BOOKING_ALLOWED_DURATIONS.has(Number(raw.slotMinutes)) ? Number(raw.slotMinutes) : BOOKING_DEFAULTS.slotMinutes;
+  const rawWindow = Number(raw.bookingWindowDays);
+  const rawNotice = Number(raw.minimumNoticeHours);
+  return {
+    active: raw.active !== false,
+    slotMinutes,
+    bookingWindowDays: Math.min(60, Math.max(7, Number.isFinite(rawWindow) ? rawWindow : BOOKING_DEFAULTS.bookingWindowDays)),
+    minimumNoticeHours: Math.min(72, Math.max(0, Number.isFinite(rawNotice) ? rawNotice : BOOKING_DEFAULTS.minimumNoticeHours)),
+    validFrom: /^\d{4}-\d{2}-\d{2}$/.test(asText(raw.validFrom)) ? asText(raw.validFrom) : BOOKING_DEFAULTS.validFrom,
+    validUntil: /^\d{4}-\d{2}-\d{2}$/.test(asText(raw.validUntil)) ? asText(raw.validUntil) : BOOKING_DEFAULTS.validUntil
+  };
+}
+
+function normalizeMeetingUrl(value) {
+  const raw = asText(value);
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:') throw new Error('invalid protocol');
+    return url.toString().slice(0, 500);
+  } catch {
+    throw Object.assign(new Error('El enlace de atención debe comenzar con https://.'), { statusCode: 422 });
+  }
+}
+
+function normalizeOfficeHourEntries(entries) {
+  if (!Array.isArray(entries) || entries.length > 14) throw Object.assign(new Error('Configura entre 1 y 14 horarios semanales.'), { statusCode: 422 });
+  const normalized = entries.map((entry, index) => {
+    const dayValue = plain(entry.day);
+    const weekday = WEEKDAY_INDEX_ES[dayValue];
+    const legacy = asText(entry.time).match(/(\d{1,2}:\d{2})\s*[-–a]+\s*(\d{1,2}:\d{2})/);
+    const start = asText(entry.start || legacy?.[1]);
+    const end = asText(entry.end || legacy?.[2]);
+    if (weekday === undefined || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
+      throw Object.assign(new Error(`Revisa el día y las horas del bloque ${index + 1}.`), { statusCode: 422 });
+    }
+    const validTime = value => Number(value.slice(0, 2)) <= 23 && Number(value.slice(3)) <= 59;
+    const minutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+    if (!validTime(start) || !validTime(end)) throw Object.assign(new Error(`Revisa las horas del bloque ${index + 1}.`), { statusCode: 422 });
+    if (minutes(start) >= minutes(end) || minutes(end) > 24 * 60) throw Object.assign(new Error(`El bloque ${index + 1} debe terminar después de comenzar.`), { statusCode: 422 });
+    const modeKey = plain(entry.mode);
+    const mode = modeKey === 'online' ? 'Online' : modeKey === 'mixto' ? 'Mixto' : 'Presencial';
+    const place = asText(entry.place).slice(0, 180);
+    const meetingUrl = normalizeMeetingUrl(entry.meetingUrl);
+    if (!place && !meetingUrl) throw Object.assign(new Error(`Indica el lugar o enlace del bloque ${index + 1}.`), { statusCode: 422 });
+    return {
+      id: asText(entry.id, `oh-${crypto.randomUUID()}`).slice(0, 80),
+      day: WEEKDAY_LABEL_ES[weekday],
+      start,
+      end,
+      time: `${start} - ${end}`,
+      mode,
+      place: place || 'Videollamada',
+      meetingUrl,
+      status: 'Reserva directa',
+      weekday,
+      startMinutes: minutes(start),
+      endMinutes: minutes(end)
+    };
+  });
+  for (let i = 0; i < normalized.length; i += 1) {
+    for (let j = i + 1; j < normalized.length; j += 1) {
+      const a = normalized[i];
+      const b = normalized[j];
+      if (a.weekday === b.weekday && a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes) {
+        throw Object.assign(new Error(`Hay horarios superpuestos el ${a.day.toLowerCase()}.`), { statusCode: 422 });
+      }
+    }
+  }
+  return normalized.map(({ weekday, startMinutes, endMinutes, ...entry }) => entry);
+}
+
+function validateBookingConfiguration(body = {}) {
+  const slotMinutes = Number(body.bookingSettings?.slotMinutes);
+  const bookingWindowDays = Number(body.bookingSettings?.bookingWindowDays);
+  const minimumNoticeHours = Number(body.bookingSettings?.minimumNoticeHours);
+  const validFrom = asText(body.bookingSettings?.validFrom);
+  const validUntil = asText(body.bookingSettings?.validUntil);
+  if (!BOOKING_ALLOWED_DURATIONS.has(slotMinutes)) throw Object.assign(new Error('Selecciona una duración válida.'), { statusCode: 422 });
+  if (!Number.isInteger(bookingWindowDays) || bookingWindowDays < 7 || bookingWindowDays > 60) throw Object.assign(new Error('Las semanas visibles deben quedar entre 7 y 60 días.'), { statusCode: 422 });
+  if (!Number.isInteger(minimumNoticeHours) || minimumNoticeHours < 0 || minimumNoticeHours > 72) throw Object.assign(new Error('La anticipación debe quedar entre 0 y 72 horas.'), { statusCode: 422 });
+  const validDateKey = value => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  };
+  if (!validDateKey(validFrom) || !validDateKey(validUntil) || validFrom > validUntil) {
+    throw Object.assign(new Error('Revisa el período de vigencia de la agenda.'), { statusCode: 422 });
+  }
+  const officeHours = normalizeOfficeHourEntries(body.officeHours || []);
+  const active = body.bookingSettings?.active !== false;
+  if (active && !officeHours.length) throw Object.assign(new Error('Agrega al menos un horario antes de publicar la agenda.'), { statusCode: 422 });
+  return { bookingSettings: { active, slotMinutes, bookingWindowDays, minimumNoticeHours, validFrom, validUntil }, officeHours };
+}
 
 function santiagoDateParts(date) {
   const values = new Intl.DateTimeFormat('en-CA', {
@@ -1114,27 +1281,32 @@ function appointmentSlotKey(start, end) {
 function officeHourRanges(profile = {}) {
   return (profile.officeHours || []).map((entry) => {
     const weekday = WEEKDAY_INDEX_ES[plain(entry.day)];
-    const match = asText(entry.time).match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
+    const range = entry.start && entry.end ? `${entry.start} - ${entry.end}` : entry.time;
+    const match = asText(range).match(/(\d{1,2}):(\d{2})\s*[-–a]+\s*(\d{1,2}):(\d{2})/);
     if (weekday === undefined || !match) return null;
     return {
       weekday,
       startMinutes: Number(match[1]) * 60 + Number(match[2]),
       endMinutes: Number(match[3]) * 60 + Number(match[4]),
       mode: asText(entry.mode, 'Presencial').slice(0, 80),
-      place: asText(entry.place, 'Departamento de Ingeniería Civil').slice(0, 180)
+      place: asText(entry.place, 'Departamento de Ingeniería Civil').slice(0, 180),
+      meetingUrl: asText(entry.meetingUrl).slice(0, 500)
     };
   }).filter(Boolean);
 }
 
 function validateAppointmentRequest(db, profile, body, session) {
+  const settings = bookingSettings(profile);
+  if (!settings.active) throw Object.assign(new Error('La agenda de Jefatura está pausada.'), { statusCode: 409 });
   const start = validateCalendarDateTime(body.start, 'start');
   const end = validateCalendarDateTime(body.end, 'end');
   const duration = (end.getTime() - start.getTime()) / 60000;
-  if (duration !== APPOINTMENT_SLOT_MINUTES) throw Object.assign(new Error('La atención debe usar un bloque de 30 minutos.'), { statusCode: 422 });
-  if (start.getTime() < Date.now() + 60 * 60000) throw Object.assign(new Error('Elige una hora con al menos una hora de anticipación.'), { statusCode: 422 });
-  if (start.getTime() > Date.now() + APPOINTMENT_DAYS_AHEAD * 86400000) throw Object.assign(new Error('La hora seleccionada queda fuera del periodo disponible.'), { statusCode: 422 });
+  if (duration !== settings.slotMinutes) throw Object.assign(new Error(`La atención debe usar un bloque de ${settings.slotMinutes} minutos.`), { statusCode: 422 });
+  if (start.getTime() < Date.now() + settings.minimumNoticeHours * 60 * 60000) throw Object.assign(new Error(`Elige una hora con al menos ${settings.minimumNoticeHours} h de anticipación.`), { statusCode: 422 });
+  if (start.getTime() > Date.now() + settings.bookingWindowDays * 86400000) throw Object.assign(new Error('La hora seleccionada queda fuera del periodo disponible.'), { statusCode: 422 });
   const startParts = santiagoDateParts(start);
   const endParts = santiagoDateParts(end);
+  if (startParts.dateKey < settings.validFrom || startParts.dateKey > settings.validUntil) throw Object.assign(new Error('La hora queda fuera de la vigencia publicada.'), { statusCode: 422 });
   const startMinutes = startParts.hour * 60 + startParts.minute;
   const endMinutes = endParts.hour * 60 + endParts.minute;
   const officeRange = officeHourRanges(profile).find(range => (
@@ -1170,6 +1342,7 @@ function appointmentView(item = {}) {
     end: item.end,
     mode: item.mode,
     place: item.place,
+    meetingUrl: item.meetingUrl || '',
     reason: item.reason,
     staffNote: item.staffNote || '',
     createdAt: item.createdAt,
@@ -1587,7 +1760,7 @@ function publicIntegrationData(data = {}) {
 
 function publicData(data = {}) {
   // appointments y reservations se excluyen: contienen correos/datos personales y el bootstrap es publico.
-  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, cealMembers, staffProfiles, ...safe } = data;
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
@@ -1945,6 +2118,7 @@ function bookingEmailContent(type, appt, audience) {
   const student = asText(appt.studentName, 'Estudiante');
   const mode = asText(appt.mode, 'Presencial');
   const place = asText(appt.place, 'Departamento de Ingeniería Civil');
+  const meetingUrl = asText(appt.meetingUrl);
   const reason = asText(appt.reason);
   const jefaturaName = 'Jefatura de Carrera de Ingeniería Civil UCN';
   const cancelledByJefatura = type === 'cancelada' && appt.cancelledBy === 'jefatura' && audience === 'student';
@@ -1956,6 +2130,7 @@ function bookingEmailContent(type, appt, audience) {
   else if (cancelledByJefatura) { subject = 'Jefatura canceló tu hora de atención'; heading = 'Hora cancelada por Jefatura'; intro = `Hola ${student}, Jefatura canceló esta atención y cerró ese horario. Elige otro bloque disponible desde el portal.`; tone = '#b42318'; }
   else { subject = 'Tu hora con Jefatura fue cancelada'; heading = 'Hora cancelada'; intro = `Hola ${student}, tu hora de atención quedó cancelada y el cupo fue liberado.`; tone = '#5b6472'; }
   const rows = [['Fecha y hora', when], ['Modalidad', mode], ['Lugar', place]];
+  if (meetingUrl) rows.push(['Enlace', meetingUrl]);
   if (reason) rows.push(['Motivo', reason]);
   if (appt.staffNote) rows.push(['Nota de Jefatura', asText(appt.staffNote)]);
   const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1999,7 +2174,10 @@ async function syncAppointmentToCalendar(req, db, appointment) {
       start: appointment.start,
       end: appointment.end,
       name: appointment.studentName,
-      reason: appointment.reason
+      reason: appointment.reason,
+      mode: appointment.mode,
+      place: appointment.place,
+      meetingUrl: appointment.meetingUrl
     }, { email: appointment.studentEmail || appointment.requesterEmail, role: appointment.requesterRole || 'student' });
     const createdEvent = await calendarApiRequest(req, db, {
       method: 'POST',
@@ -2525,6 +2703,94 @@ async function handleApi(req, res, url) {
     return sendError(res, 404, 'unknown ai action');
   }
 
+  if (resource === 'calendar-updates') {
+    const action = parts[2] || '';
+    try {
+      if (id === 'watcher' && req.method === 'GET') {
+        requireCalendarWatcher(req);
+        const pending = (db.data.calendarUpdateRequests || [])
+          .filter(item => ['pending', 'downloaded'].includes(item.status))
+          .map(calendarUpdateMeta);
+        return sendJson(res, 200, { ok: true, items: pending });
+      }
+      if (id && action === 'file' && req.method === 'GET') {
+        requireCalendarWatcher(req);
+        const item = (db.data.calendarUpdateRequests || []).find(entry => entry.id === id);
+        if (!item?.fileDataUrl) return sendError(res, 404, 'calendar update file not found');
+        const match = item.fileDataUrl.match(/^data:([^;,]+);base64,(.+)$/s);
+        if (!match) return sendError(res, 422, 'calendar update file is invalid');
+        const body = Buffer.from(match[2], 'base64');
+        return sendBinary(res, 200, body, {
+          'content-type': item.fileType || match[1] || 'application/octet-stream',
+          'content-length': body.length,
+          'content-disposition': `attachment; filename="${asText(item.fileName, 'calendario').replace(/["\r\n]/g, '')}"`
+        });
+      }
+      if (id && req.method === 'PATCH') {
+        requireCalendarWatcher(req);
+        const item = (db.data.calendarUpdateRequests || []).find(entry => entry.id === id);
+        if (!item) return sendError(res, 404, 'calendar update request not found');
+        const body = await readBody(req);
+        const operation = asText(body.action);
+        if (!['downloaded', 'applied', 'rejected'].includes(operation)) return sendError(res, 422, 'invalid calendar update action');
+        item.status = operation;
+        item.updatedAt = new Date().toISOString();
+        item.watcherNote = asText(body.note).slice(0, 1000);
+        if (operation === 'downloaded') item.downloadedAt = item.updatedAt;
+        if (operation === 'applied') item.appliedAt = item.updatedAt;
+        if (operation === 'rejected') item.rejectedAt = item.updatedAt;
+        if (operation === 'applied' || operation === 'rejected') delete item.fileDataUrl;
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, item: calendarUpdateMeta(item) });
+      }
+
+      const member = requireCealSession(req, db);
+      if (!id && req.method === 'GET') {
+        return sendJson(res, 200, { ok: true, items: (db.data.calendarUpdateRequests || []).map(calendarUpdateMeta).slice(0, 20) });
+      }
+      if (!id && req.method === 'POST') {
+        const pendingCount = (db.data.calendarUpdateRequests || []).filter(item => ['pending', 'downloaded'].includes(item.status)).length;
+        if (pendingCount >= 1) return sendError(res, 409, 'Ya hay un archivo pendiente de revisión.');
+        const body = await readBody(req, 4_500_000);
+        const file = parseCalendarUpdateFile(body);
+        const checksum = crypto.createHash('sha256').update(file.fileDataUrl).digest('hex');
+        if ((db.data.calendarUpdateRequests || []).some(item => item.checksum === checksum && ['pending', 'downloaded'].includes(item.status))) {
+          return sendError(res, 409, 'Este archivo ya está pendiente de revisión.');
+        }
+        const now = new Date().toISOString();
+        const item = {
+          id: `calupd-${crypto.randomUUID()}`,
+          ...file,
+          checksum,
+          note: asText(body.note).slice(0, 1200),
+          status: 'pending',
+          submittedAt: now,
+          updatedAt: now,
+          submittedBy: asText(member.email).toLowerCase()
+        };
+        db.data.calendarUpdateRequests ||= [];
+        db.data.calendarUpdateRequests.unshift(item);
+        db.data.calendarUpdateRequests = db.data.calendarUpdateRequests.slice(0, 20);
+        await writeDb(db);
+        return sendJson(res, 201, { ok: true, item: calendarUpdateMeta(item) });
+      }
+      if (id && req.method === 'DELETE') {
+        const item = (db.data.calendarUpdateRequests || []).find(entry => entry.id === id);
+        if (!item) return sendError(res, 404, 'calendar update request not found');
+        if (!['pending', 'downloaded'].includes(item.status)) return sendError(res, 409, 'calendar update request cannot be cancelled');
+        item.status = 'cancelled';
+        item.updatedAt = new Date().toISOString();
+        item.cancelledBy = asText(member.email).toLowerCase();
+        delete item.fileDataUrl;
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, item: calendarUpdateMeta(item) });
+      }
+      return sendError(res, 405, 'method not allowed');
+    } catch (error) {
+      return sendError(res, error.statusCode || 500, error.message || 'calendar update failed');
+    }
+  }
+
   if (resource === 'calendar') {
     const action = parts[2] || '';
     if (id === 'status' && req.method === 'GET') {
@@ -2653,6 +2919,7 @@ async function handleApi(req, res, url) {
           end: slot.end.toISOString(),
           mode: slot.mode,
           place: slot.place,
+          meetingUrl: slot.meetingUrl,
           reason: slot.reason,
           staffNote: '',
           googleEventId: null,
@@ -2702,6 +2969,39 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, { ok: true, item: appointmentView(appointment), availability: appointmentAvailability(db), calendarRemoved, notifications });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'appointment update failed');
+      }
+    }
+
+    if (id === 'config' && req.method === 'GET') {
+      try {
+        const { profile } = requireStaffSession(req, db);
+        return sendJson(res, 200, { ok: true, profile: publicStaffProfile(profile), settings: bookingSettings(profile) });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'booking configuration failed');
+      }
+    }
+
+    if (id === 'config' && req.method === 'PATCH') {
+      try {
+        const { session, profile } = requireStaffSession(req, db);
+        const body = await readBody(req);
+        const config = validateBookingConfiguration(body);
+        const slotGrid = (settings, hours) => JSON.stringify({
+          slotMinutes: settings.slotMinutes,
+          validFrom: settings.validFrom,
+          validUntil: settings.validUntil,
+          officeHours: (hours || []).map(item => ({ day: item.day, start: item.start, end: item.end, time: item.time }))
+        });
+        const gridChanged = slotGrid(bookingSettings(profile), profile.officeHours) !== slotGrid(config.bookingSettings, config.officeHours);
+        profile.bookingSettings = config.bookingSettings;
+        profile.officeHours = config.officeHours;
+        profile.updatedAt = new Date().toISOString();
+        profile.updatedBy = session.email;
+        if (gridChanged) db.data.bookingAvailability.closedSlots = [];
+        await writeDb(db);
+        return sendJson(res, 200, { ok: true, profile: publicStaffProfile(profile), settings: bookingSettings(profile), availability: appointmentAvailability(db) });
+      } catch (error) {
+        return sendError(res, error.statusCode || 500, error.message || 'booking configuration failed');
       }
     }
 
