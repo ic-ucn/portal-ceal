@@ -65,7 +65,11 @@ const gmailClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
 const gmailRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 const gmailConfigured = Boolean(gmailClientId && gmailClientSecret && gmailRefreshToken);
 const maxSessions = Math.max(400, Number(process.env.PORTAL_MAX_SESSIONS || 1200));
-const features = Object.freeze({ surveys: false, tableReservations: false });
+const features = Object.freeze({
+  surveys: false,
+  tableReservations: false,
+  appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'
+});
 
 const collectionMap = {
   communications: 'communications',
@@ -2875,6 +2879,7 @@ async function handleApi(req, res, url) {
     if (id === 'oauth' && action === 'start' && req.method === 'POST') {
       try {
         const { session } = requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         if (!calendarConfigured()) return sendError(res, 503, 'google calendar oauth is not configured');
         const state = createCalendarOAuthState(db, session);
         await writeDb(db);
@@ -2895,6 +2900,7 @@ async function handleApi(req, res, url) {
 
     if (id === 'oauth' && action === 'callback' && req.method === 'GET') {
       try {
+        if (!features.appointments) return sendRedirect(res, portalReturnUrl(req, 'error'));
         const error = asText(url.searchParams.get('error'));
         if (error) throw Object.assign(new Error(error), { statusCode: 401 });
         const code = asText(url.searchParams.get('code'));
@@ -2910,6 +2916,7 @@ async function handleApi(req, res, url) {
     if (id === 'disconnect' && req.method === 'POST') {
       try {
         requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const integration = googleCalendarIntegration(db);
         setCalendarTokens(integration, null);
         integration.connected = false;
@@ -2928,6 +2935,7 @@ async function handleApi(req, res, url) {
     if (id === 'verify' && req.method === 'POST') {
       try {
         requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const status = await verifyGoogleCalendarConnection(req, db);
         const noticeSent = await notifyCalendarConnection(db);
         return sendJson(res, 200, { ok: true, status, noticeSent });
@@ -2939,6 +2947,7 @@ async function handleApi(req, res, url) {
     if (id === 'freebusy' && req.method === 'POST') {
       try {
         requirePortalSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const body = await readBody(req);
         const timeMin = validateCalendarDateTime(body.timeMin, 'timeMin').toISOString();
         const timeMax = validateCalendarDateTime(body.timeMax, 'timeMax').toISOString();
@@ -2961,6 +2970,7 @@ async function handleApi(req, res, url) {
     if (id === 'appointments' && req.method === 'GET') {
       try {
         const session = requirePortalSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const all = [...(db.data.appointments || [])].sort((a, b) => new Date(a.start) - new Date(b.start));
         const isJefatura = session.role === 'jefatura' && session.accessMode === 'jefatura';
         const mine = isJefatura ? all : all.filter(a => asText(a.studentEmail || a.requesterEmail).toLowerCase() === asText(session.email).toLowerCase());
@@ -2973,6 +2983,7 @@ async function handleApi(req, res, url) {
     if (id === 'appointments' && req.method === 'POST') {
       try {
         const session = requirePortalSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const emailAllowed = asText(session.email).toLowerCase().endsWith(`@${googleDomain}`);
         const roleAllowed = session.role === 'student' || session.role === 'ceal';
         if (!emailAllowed || !roleAllowed) {
@@ -3013,6 +3024,7 @@ async function handleApi(req, res, url) {
     if (id === 'appointments' && action && req.method === 'PATCH') {
       try {
         const session = requirePortalSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const body = await readBody(req);
         const appointment = (db.data.appointments || []).find(item => item.id === action);
         if (!appointment) return sendError(res, 404, 'appointment not found');
@@ -3049,6 +3061,7 @@ async function handleApi(req, res, url) {
     if (id === 'config' && req.method === 'GET') {
       try {
         const { profile } = requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         return sendJson(res, 200, { ok: true, profile: publicStaffProfile(profile), settings: bookingSettings(profile) });
       } catch (error) {
         return sendError(res, error.statusCode || 500, error.message || 'booking configuration failed');
@@ -3058,6 +3071,7 @@ async function handleApi(req, res, url) {
     if (id === 'config' && req.method === 'PATCH') {
       try {
         const { session, profile } = requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const body = await readBody(req);
         const config = validateBookingConfiguration(body);
         const slotGrid = (settings, hours) => JSON.stringify({
@@ -3082,6 +3096,7 @@ async function handleApi(req, res, url) {
     if (id === 'availability' && req.method === 'PATCH') {
       try {
         const { session } = requireStaffSession(req, db);
+        if (!features.appointments) return sendError(res, 410, 'appointment booking is not enabled');
         const body = await readBody(req);
         const [startRaw, endRaw] = asText(body.slotKey).split('|');
         const start = validateCalendarDateTime(startRaw, 'start');

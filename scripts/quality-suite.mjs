@@ -101,7 +101,7 @@ assert(packageJson.scripts['calendar:watch'] === 'node scripts/watch-calendar-up
 assert(indexHtml.includes('src/app.js'), 'index should load app.js');
 assert(indexHtml.includes('src/mock-data.js'), 'index should load data seed');
 assert(indexHtml.includes('data/curricula.js'), 'index should load curricula');
-assert(indexHtml.includes('data/academic-schedule.js'), 'index should load the current academic schedule');
+assert(!indexHtml.includes('data/academic-schedule.js'), 'retired academic schedule should not load in the public portal');
 assert(!indexHtml.includes('accounts.google.com/gsi/client'), 'index should not load Google Identity Services widget');
 assert(indexHtml.includes('src/config.js'), 'index should load public runtime config');
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
@@ -110,6 +110,12 @@ assert(appJs.includes('!isLocalDevHost()'), 'Google OAuth should stay disabled o
 assert(appJs.includes("state.user.authProvider === 'local-dev'"), 'localhost review sessions should survive direct tutorial navigation');
 assert(appJs.includes("surveys: false"), 'surveys should remain disabled until explicitly re-enabled');
 assert(appJs.includes("tableReservations: false"), 'table reservations should remain disabled until explicitly re-enabled');
+assert(appJs.includes("appointments: captureAppointments"), 'appointment booking should remain disabled outside local tutorial capture');
+assert(appJs.includes("URL_PARAMS.has('captureBooking')") && appJs.includes("['localhost', '127.0.0.1', '::1'].includes(location.hostname)"), 'appointment capture mode should be restricted to local hosts');
+assert(serverJs.includes("appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'"), 'appointment APIs should remain disabled by default in production');
+assert((serverJs.match(/appointment booking is not enabled/g) || []).length >= 9, 'all appointment and Calendar mutations should enforce the server feature gate');
+assert(appJs.includes('data-guest-login') && appJs.includes('jefatura-review'), 'login should expose an ephemeral Jefatura review account');
+assert(appJs.includes('Este acceso no muestra reservas ni permite guardar cambios.'), 'guest Jefatura review should describe its read-only boundary');
 assert(appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'authenticated portal navigation should expose the tutorial library');
 assert(appJs.includes("if (path === '/tutoriales') return renderTutorialLibrary()"), 'portal should render the authenticated tutorial library');
 assert(appJs.includes("apiRequest('/bootstrap', { cache: 'no-store' })"), 'authenticated reloads should bypass a stale browser bootstrap cache');
@@ -208,7 +214,8 @@ assert(serverJs.includes('intro-communication-20260821'), 'backend should publis
 assert(!serverJs.includes("collectionName === 'communications' && id === 'com-001'"), 'backend should not retain a legacy communication fallback');
 assert(!serverJs.includes("hasDriveSeed && /^mat-\\d{3}$/.test"), 'backend should preserve real uploaded materials when Drive resources are present');
 assert(!appJs.includes("hasDriveCatalog && /^mat-\\d{3}$/.test"), 'frontend should preserve real uploaded materials when Drive resources are present');
-assert(appJs.includes("path === '/horarios'"), 'public academic schedule route should exist');
+assert(appJs.includes("path === '/horarios') return routeTo('/calendario')"), 'retired academic schedule route should redirect to the calendar');
+assert(!appJs.includes("['/horarios', 'clock', 'Horario académico']"), 'retired academic schedule should stay out of navigation');
 assert(Array.isArray(academicSchedule?.courses) && academicSchedule.courses.length === 28, 'academic schedule should contain the 28 source rows');
 const academicSessions = academicSchedule.courses.flatMap(course => (course.sessions || []).map(session => ({ ...course, ...session })));
 assert(academicSessions.length === 64, 'academic schedule should preserve all 64 weekly class appearances from the source PDF');

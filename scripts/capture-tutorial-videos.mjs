@@ -38,7 +38,8 @@ const server = spawn(process.execPath, ['server.mjs'], {
     QA_TEST_MODE: '1',
     PORTAL_STATE_BACKEND: 'local',
     PORTAL_DB_PATH: dbPath,
-    PORTAL_ALLOWED_ORIGINS: baseUrl
+    PORTAL_ALLOWED_ORIGINS: baseUrl,
+    PORTAL_APPOINTMENTS_ENABLED: '1'
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -348,7 +349,7 @@ async function captureMobilePreview(browser, { name, session, route = '/', focus
     await addCaptureSession(context, session);
     const page = await context.newPage();
     if (setupPage) await setupPage(page);
-    await page.goto(`${baseUrl}/?capture=${encodeURIComponent(`${name}-mobile`)}#${route}`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/?capture=${encodeURIComponent(`${name}-mobile`)}&captureBooking=1#${route}`, { waitUntil: 'networkidle' });
     await page.locator('main').waitFor({ state: 'visible' });
     await page.evaluate(selector => {
       const target = [...document.querySelectorAll(selector)].find(node => {
@@ -404,7 +405,7 @@ async function captureTutorial({ name, route, session, mobileSession, mobileRout
       await action();
       cuts.push({ start, end: (Date.now() - startedAt) / 1000 });
     };
-    await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}#${route}`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}&captureBooking=1#${route}`, { waitUntil: 'networkidle' });
     await page.locator('main').waitFor({ state: 'visible' });
     await injectTutorialLayer(page, totalSteps, mobilePreviewDataUrl);
     await page.evaluate(() => document.fonts?.ready || Promise.resolve());
@@ -559,7 +560,7 @@ async function enterCaptureSession(page, session, name, route = '/', transition 
     localStorage.setItem('portal.session', JSON.stringify(user));
     if (transition) sessionStorage.setItem('tutorial.capture.transition', JSON.stringify(transition));
   }, { user: session, transition });
-  await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}&session=1#${route}`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/?capture=${encodeURIComponent(name)}&captureBooking=1&session=1#${route}`, { waitUntil: 'networkidle' });
   await page.locator('main').waitFor({ state: 'visible' });
   if (transition) {
     await page.evaluate(meta => {
@@ -649,7 +650,7 @@ try {
 
       await page.evaluate(() => { window.location.hash = '/tutoriales'; });
       await page.locator('.tutorial-library-grid').waitFor({ state: 'visible' });
-      await cue('Paso siete. En Tutoriales encontrarás esta guía y el procedimiento específico para reservar una hora con Jefatura.', 6000, () => showStep(page, 7, 'Consulta los tutoriales', 'Cada guía abre su video y un resumen paso a paso.', '.tutorial-library-grid'));
+      await cue('Paso siete. En Tutoriales puedes volver a este recorrido y consultar las guías disponibles.', 6000, () => showStep(page, 7, 'Consulta los tutoriales', 'Cada guía abre su video y un resumen paso a paso.', '.tutorial-library-grid'));
       await cue('Recorrido completado.', 4200, () => showTitle(page, 'Portal CEIC UCN', 'Ya puedes comenzar', 'Vuelve a Inicio o abre la sección que necesites.'));
     }
   });
@@ -761,7 +762,7 @@ try {
       await cue('Continúa con la misma cuenta y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.', 6000, () => showTitle(page, 'Autorización de Google', 'Permite la sincronización', 'Autoriza eventos y consulta de disponibilidad.'));
       await cutTransition(async () => {
         calendarConnected = true;
-        await page.goto(`${baseUrl}/?capture=gestionar-atencion-jefatura&calendarFixture=connected#/jefatura?calendar=connected`, { waitUntil: 'networkidle' });
+        await page.goto(`${baseUrl}/?capture=gestionar-atencion-jefatura&captureBooking=1&calendarFixture=connected#/jefatura?calendar=connected`, { waitUntil: 'networkidle' });
         await page.locator('main').waitFor({ state: 'visible' });
         await page.locator('[data-calendar-state="verified"]').waitFor({ state: 'attached', timeout: 12000 });
         await page.locator('.booking-gcal').evaluate(details => { details.open = true; });

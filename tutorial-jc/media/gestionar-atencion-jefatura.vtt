@@ -1,89 +1,89 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:05.601
+00:00:00.000 --> 00:00:05.611
 Esta guía muestra cómo configurar los horarios, conectar Calendar y gestionar las atenciones desde el portál.
 
 2
-00:00:06.972 --> 00:00:12.185
+00:00:06.976 --> 00:00:12.190
 Paso uno. En Jefatura o CEAL, selecciona Acceder con Google.
 
 3
-00:00:12.540 --> 00:00:17.243
+00:00:12.546 --> 00:00:17.252
 Continúa únicamente con la cuenta de Jefatura que aparece en pantalla.
 
 4
-00:00:17.243 --> 00:00:22.049
+00:00:17.252 --> 00:00:22.060
 En el teléfono, Jefatura aparece al final de la barra inferior.
 
 5
-00:00:23.411 --> 00:00:28.617
+00:00:23.425 --> 00:00:28.626
 Paso dos. Abre Jefatura. Aquí verás las próximas atenciones y la configuración de la agenda.
 
 6
-00:00:29.616 --> 00:00:37.828
+00:00:29.695 --> 00:00:37.897
 Paso tres. En Configuración de atención puedes activar o pausar la agenda, definir su vigencia y elegir una duración general. Todos los nuevos bloques usarán esa duración.
 
 7
-00:00:38.693 --> 00:00:45.907
+00:00:38.755 --> 00:00:45.970
 Paso cuatro. En cada horario define el día, el rango, la modalidad, el lugar y, si corresponde, el enlace de videollamada.
 
 8
-00:00:46.781 --> 00:00:53.781
+00:00:46.845 --> 00:00:53.847
 Paso cinco. En Opciones avanzadas ajusta cuántos días se muestran y la anticipación mínima. Luego guarda los cambios.
 
 9
-00:00:54.639 --> 00:00:59.842
+00:00:54.702 --> 00:00:59.909
 Guarda la configuración para actualizar inmediatamente los cupos que ven los estudiantes.
 
 10
-00:01:00.788 --> 00:01:06.800
+00:01:00.879 --> 00:01:06.883
 Paso seis. Baja a Google Calendar y abre el bloque. Confirma que aparezca la cuenta institucional correcta.
 
 11
-00:01:07.653 --> 00:01:12.665
+00:01:07.738 --> 00:01:12.745
 Selecciona Conectar agenda. El portál abrirá Google para solicitar autorización.
 
 12
-00:01:13.020 --> 00:01:19.026
+00:01:13.097 --> 00:01:19.105
 Continúa con la misma cuenta y permite consultar disponibilidad y administrar eventos. Luego vuelve al portál.
 
 13
-00:01:20.396 --> 00:01:26.897
+00:01:20.469 --> 00:01:26.979
 Paso siete. Comprueba que el panel diga Calendar conectado y verificado. Revisa la cuenta y la fecha de verificación.
 
 14
-00:01:27.755 --> 00:01:33.459
+00:01:27.839 --> 00:01:33.549
 Las ocupaciones de Calendar bloquean horarios superpuestos. Cada reserva crea un evento y cada cancelación lo elimina.
 
 15
-00:01:34.317 --> 00:01:40.522
+00:01:34.401 --> 00:01:40.603
 Los horarios se configuran en el portál. Mover un evento en Calendar no reprograma una atención ya reservada.
 
 16
-00:01:41.383 --> 00:01:46.395
+00:01:41.461 --> 00:01:46.475
 Paso ocho. Antes de atender, revisa estudiante, horario, modalidad, lugar y motivo.
 
 17
-00:01:47.251 --> 00:01:53.757
+00:01:47.330 --> 00:01:53.841
 Paso nueve. Si no puedes atender, cancela desde la tarjeta. El evento se elimina y ese horario queda cerrado.
 
 18
-00:01:54.705 --> 00:02:01.221
+00:01:54.876 --> 00:02:01.383
 El estudiante recibe automáticamente un enlace para elegir otra hora. El bloque cancelado no se ofrece a otra persona.
 
 19
-00:02:02.078 --> 00:02:08.090
+00:02:02.236 --> 00:02:08.244
 Paso diez. Para retirar otra hora que aún está libre, selecciona un bloque verde.
 
 20
-00:02:09.020 --> 00:02:15.033
+00:02:09.171 --> 00:02:15.175
 Paso once. Para volver a ofrecer cualquier bloque cerrado, selecciónalo nuevamente.
 
 21
-00:02:16.418 --> 00:02:22.419
+00:02:16.582 --> 00:02:22.596
 Paso doce. Realiza una reserva de prueba, confirma el evento en Calendar y cancélala desde Jefatura.
 
 22
-00:02:22.776 --> 00:02:27.282
+00:02:22.951 --> 00:02:27.456
 Con la prueba completa, la agenda queda lista. Las notificaciones se enviarán automáticamente.

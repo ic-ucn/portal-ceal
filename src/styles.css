@@ -533,6 +533,50 @@ body.compact-mode .item-card { padding: 11px 12px; }
   line-height: 1.4;
 }
 
+.attention-stage-card {
+  max-width: 760px;
+}
+
+.attention-stage-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.attention-stage-status .card-title {
+  margin-top: 3px;
+}
+
+.attention-stage-status p {
+  margin: 6px 0 0;
+}
+
+.attention-review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  border-color: var(--border-interactive);
+  background: var(--surface-soft);
+}
+
+.attention-stage-grid .assistant-rule {
+  margin-top: 12px;
+}
+
+body.theme-dark .guest-login-card {
+  border-color: rgba(148, 180, 225, .24);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+body.theme-dark .guest-login-card small {
+  color: var(--text-secondary);
+}
+
 .form-field.compact {
   gap: 6px;
 }
@@ -598,6 +642,11 @@ body.compact-mode .item-card { padding: 11px 12px; }
 
   .form-grid.tight {
     grid-template-columns: 1fr;
+  }
+
+  .attention-review-banner {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .malla-scroll {
@@ -6899,118 +6948,6 @@ body.theme-dark .google-auth-note strong { color: #fed7aa; }
   .calendar-update-row { grid-template-columns: minmax(0, 1fr) auto; }
   .calendar-update-row > .btn { grid-column: 1 / -1; width: 100%; }
   .calendar-update-row > p { margin-left: 0; }
-}
-
-/* Horario académico */
-.academic-schedule-source {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin: -2px 0 18px;
-  padding: 2px 2px 18px;
-  border-bottom: 1px solid var(--border);
-}
-.academic-schedule-source > div { display: grid; gap: 3px; }
-.academic-schedule-source strong { color: var(--text-primary); font-size: 15px; }
-.academic-schedule-source p { margin: 0; color: var(--text-secondary); font-size: 13px; }
-.academic-source-mark { flex: none; color: var(--brand-blue-text); font-size: 13px; font-weight: var(--weight-bold); }
-.academic-schedule-toolbar {
-  display: grid;
-  grid-template-columns: minmax(280px, 1.45fr) minmax(220px, .8fr);
-  gap: 16px 18px;
-  margin-bottom: 18px;
-}
-.academic-search-field,
-.academic-level-field,
-.academic-day-filter { display: grid; gap: 8px; }
-.academic-search-field > label,
-.academic-level-field > label,
-.academic-day-filter > span { color: var(--text-secondary); font-size: 12px; font-weight: var(--weight-semibold); }
-.academic-schedule-toolbar .search-box { position: relative; display: flex; align-items: center; }
-.academic-schedule-toolbar .search-box > .icon {
-  position: absolute;
-  left: 14px;
-  z-index: 1;
-  width: 19px;
-  height: 19px;
-  color: var(--text-tertiary);
-  pointer-events: none;
-}
-.academic-schedule-toolbar .search-box input {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 14px 0 44px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text-primary);
-  font: inherit;
-}
-.academic-schedule-toolbar .search-box input:focus { border-color: var(--brand-blue); outline: 3px solid rgba(38, 111, 224, .14); }
-.academic-level-field .input { min-height: 46px; }
-.academic-day-filter { grid-column: 1 / -1; }
-.academic-day-filter .segmented { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-.academic-day-filter .segmented button { min-width: 0; min-height: 40px; }
-.academic-results-head,
-.academic-day-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.academic-results-head { min-height: 36px; margin-bottom: 10px; color: var(--text-secondary); font-size: 13px; }
-.academic-schedule-results { display: grid; gap: 24px; }
-.academic-day-group { display: grid; gap: 10px; }
-.academic-day-head { padding: 0 2px; }
-.academic-day-head h2 { margin: 0; color: var(--text-primary); font-family: var(--font-display); font-size: 20px; letter-spacing: 0; }
-.academic-day-head span { color: var(--text-tertiary); font-size: 12px; }
-.academic-class-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.academic-class-card {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  min-width: 0;
-  min-height: 172px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
-}
-.academic-class-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.academic-class-time { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.academic-class-time strong {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: var(--brand-blue-soft);
-  color: var(--brand-blue-text);
-  font-size: 13px;
-}
-.academic-class-time span { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
-.academic-level { max-width: 52%; color: #2c5e43; font-size: 11px; font-weight: var(--weight-semibold); line-height: 1.25; text-align: right; }
-.academic-class-card.plan-o .academic-level { color: #78500b; }
-.academic-class-copy { display: grid; gap: 4px; }
-.academic-class-copy h3 { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 15px; line-height: 1.35; letter-spacing: 0; }
-.academic-class-copy p { margin: 0; color: var(--text-secondary); font-size: 12px; }
-.academic-class-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: auto; color: var(--text-secondary); font-size: 12px; }
-.academic-class-meta span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-.academic-class-meta .icon { width: 15px; height: 15px; color: var(--text-tertiary); }
-body.theme-dark .academic-schedule-toolbar,
-body.theme-dark .academic-class-card { border-color: rgba(148, 180, 225, .22); background: #10233a; }
-body.theme-dark .academic-schedule-toolbar .search-box input { border-color: rgba(148, 180, 225, .28); background: #0b1c30; color: #edf5ff; }
-body.theme-dark .academic-class-time strong { background: rgba(105, 164, 255, .15); color: #a9cbff; }
-body.theme-dark .academic-level { color: #9fd7b7; }
-body.theme-dark .academic-class-card.plan-o .academic-level { color: #f2c77c; }
-@media (max-width: 980px) {
-  .academic-class-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 680px) {
-  .academic-schedule-source { align-items: flex-start; margin-bottom: 14px; }
-  .academic-schedule-toolbar { grid-template-columns: 1fr; gap: 14px; padding: 14px; }
-  .academic-day-filter { grid-column: 1; }
-  .academic-day-filter .segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .academic-day-filter .segmented button { width: 100%; padding-inline: 8px; }
-  .academic-class-grid { grid-template-columns: 1fr; }
-  .academic-class-card { min-height: 0; padding: 14px; }
 }
 
 /* Gestión CEAL consolidada */

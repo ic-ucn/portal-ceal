@@ -3,9 +3,12 @@
   const session = (() => {
     try { return JSON.parse(localStorage.getItem('portal.session') || 'null'); } catch { return null; }
   })();
+  const guestReview = (() => {
+    try { return sessionStorage.getItem('portal.guestReview') === '1'; } catch { return false; }
+  })();
   const requiredAccess = document.body.dataset.tutorialAccess || 'student';
-  const effectiveRole = String(session?.accessMode || session?.role || '');
-  const accessAllowed = Boolean(session?.sessionToken) && (
+  const effectiveRole = guestReview ? 'jefatura' : String(session?.accessMode || session?.role || '');
+  const accessAllowed = (guestReview || Boolean(session?.sessionToken)) && (
     requiredAccess === 'student'
     || (requiredAccess === 'ceal' && ['ceal', 'jefatura'].includes(effectiveRole))
     || (requiredAccess === 'jefatura' && effectiveRole === 'jefatura')
@@ -17,7 +20,7 @@
     returnToPortal();
     return;
   }
-  if (!publicTutorial && apiBase && !(isLocal && session.authProvider === 'local-dev')) {
+  if (!publicTutorial && apiBase && !guestReview && !(isLocal && session.authProvider === 'local-dev')) {
     try {
       const response = await fetch(`${apiBase}/auth/session`, {
         cache: 'no-store',

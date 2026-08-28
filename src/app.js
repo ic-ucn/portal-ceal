@@ -2,7 +2,6 @@
   const app = document.getElementById('app');
   let Data = window.PortalMock;
   const Curricula = window.CURRICULA;
-  const AcademicSchedule = window.ACADEMIC_SCHEDULE || { blocks: {}, courses: [] };
   const DATA_CONTENT_VERSION = '20260821c';
   const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
@@ -12,7 +11,8 @@
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
   const API_BASE = !STATIC_MODE && (LOCAL_API_BASE || window.PORTAL_API_BASE || '');
   const AI_ENDPOINT = String(window.PORTAL_AI_ENDPOINT || '').trim();
-  const FEATURES = Object.freeze({ surveys: false, tableReservations: false });
+  const captureAppointments = URL_PARAMS.has('captureBooking') && ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+  const FEATURES = Object.freeze({ surveys: false, tableReservations: false, appointments: captureAppointments });
   const JEFATURA_EMAIL = 'jc.icivil.afta@ucn.cl';
   const CEAL_ASSISTANT_AUDIENCE = 'Estudiantes de Ingeniería Civil UCN';
   const GOOGLE_CLIENT_ID = String(window.PORTAL_GOOGLE_CLIENT_ID || '').trim();
@@ -58,9 +58,6 @@
     materialVisibleCount: 60,
     communicationCategory: 'Todas',
     communicationQuery: '',
-    scheduleQuery: '',
-    scheduleDay: '',
-    scheduleLevel: 'all',
     cealAssistantRequest: { rawText: '', category: 'Auto', audience: CEAL_ASSISTANT_AUDIENCE, urgency: 'normal', extraContext: '' },
     cealAssistantResult: null,
     cealAssistantError: '',
@@ -338,35 +335,46 @@
       const user = JSON.parse(localStorage.getItem('portal.session') || 'null');
       if (user?.role === 'guest') {
         localStorage.removeItem('portal.session');
-        return null;
+        return sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null;
       }
       if (user?.authProvider === 'google' && user.role === 'ceal' && !user.accessMode) {
         localStorage.removeItem('portal.session');
         return null;
       }
-      return user;
+      return user || (sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null);
     } catch { return null; }
   }
-  function saveSession(user) { state.user = user; localStorage.setItem('portal.session', JSON.stringify(user)); }
+  function saveSession(user) {
+    sessionStorage.removeItem('portal.guestReview');
+    state.user = user;
+    localStorage.setItem('portal.session', JSON.stringify(user));
+  }
   function clearSession() {
     try { localStorage.removeItem('portal.session'); } catch {}
+    try { sessionStorage.removeItem('portal.guestReview'); } catch {}
     state.user = null;
   }
-  function buildGuestUser() { return { id: 'guest', name: 'Invitado', initials: 'IN', role: 'guest', label: 'Modo invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
-  function startGuestSession() { localStorage.removeItem('portal.session'); state.user = buildGuestUser(); }
+  function buildGuestUser() { return { id: 'guest-jefatura-review', name: 'Invitado', initials: 'IN', role: 'guest', accessMode: 'jefatura-review', label: 'Invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
+  function startGuestSession() {
+    localStorage.removeItem('portal.session');
+    sessionStorage.setItem('portal.guestReview', '1');
+    state.user = buildGuestUser();
+  }
   function isLocalDevHost() { return ['localhost', '127.0.0.1', '::1'].includes(location.hostname); }
   function isGuest() { return state.user?.role === 'guest'; }
   function hasCealAccess() { return state.user?.role === 'ceal' && (state.user.accessMode === 'ceal' || !state.user.authProvider); }
   function hasJefaturaAccess() { return state.user?.role === 'jefatura' && state.user.accessMode === 'jefatura'; }
+  function canReviewJefatura() { return hasJefaturaAccess() || (isGuest() && state.user?.accessMode === 'jefatura-review'); }
   function hasPermission(permission) { return (state.user?.permissions || []).includes(permission); }
   function canPublishCommunications() { return hasCealAccess() && hasPermission('publish:comunicados'); }
   function accountRoleLabel(user = state.user) {
     if (!user) return '';
+    if (user.role === 'guest') return 'Invitado';
     if (user.role === 'ceal') return 'Miembros CEAL';
     if (user.role === 'jefatura') return 'Jefatura de carrera';
     return 'Estudiante';
   }
-  function readonlyToast() { showToast('Inicia sesión para usar esta acción', 'blue'); }
+  function readonlyToast() { showToast(isGuest() ? 'Este acceso es solo de revisión' : 'Inicia sesión para usar esta acción', 'blue'); }
   function setButtonBusy(btn, label) {
     if (!btn) return;
     btn.disabled = true;
@@ -1012,7 +1020,7 @@
   function captureInputFocus() {
     const el = document.activeElement;
     if (!el || !['INPUT', 'TEXTAREA'].includes(el.tagName)) return null;
-    const attr = ['data-material-search', 'data-com-search', 'data-malla-search', 'data-schedule-search'].find(name => el.hasAttribute(name));
+    const attr = ['data-material-search', 'data-com-search', 'data-malla-search'].find(name => el.hasAttribute(name));
     if (!attr) return null;
     return { selector: `[${attr}]`, start: el.selectionStart, end: el.selectionEnd };
   }
@@ -1122,16 +1130,15 @@
       ['/', 'home', 'Inicio'],
       ['/comunicados', 'megaphone', 'Comunicados'],
       ['/calendario', 'calendar', 'Calendario'],
-      ['/horarios', 'clock', 'Horario académico'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material'],
       ['/tutoriales', 'play', 'Tutoriales']
     ];
     if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
     if (FEATURES.tableReservations && !isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
-    if (hasJefaturaAccess()) {
+    if (canReviewJefatura()) {
       items.push(['/jefatura', 'users', 'Jefatura']);
-    } else if (!isGuest()) {
+    } else {
       items.push(['/atencion', 'users', 'Atención']);
     }
     if (hasCealAccess()) {
@@ -1176,6 +1183,7 @@
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && path === '/contingencia') return routeTo('/comunicados');
+    if (state.user && path === '/horarios') return routeTo('/calendario');
     if (state.user && path === '/mas') return routeTo('/reservas');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
@@ -1271,7 +1279,7 @@
   }
   async function hydrateCalendarStatus() {
     const route = getRoute().path;
-    const canHydrate = (route === '/jefatura' && hasJefaturaAccess()) || (route === '/atencion' && !isGuest());
+    const canHydrate = FEATURES.appointments && ((route === '/jefatura' && hasJefaturaAccess()) || (route === '/atencion' && !isGuest()));
     if (!canHydrate || !API_BASE) return;
     let started = false;
     if (state.myAppointments === null && !state.myApptsLoading && !state.myApptsError) {
@@ -1353,7 +1361,12 @@
               ${googleButton('internal')}
             </div>
           </section>
-        </div>${devAccess}
+        </div>
+        <button class="guest-login-card" type="button" data-guest-login>
+          <span class="role-icon">${icon('eye')}</span>
+          <span><strong>Invitado</strong><small>Revisa el portal y la vista de Jefatura sin realizar cambios.</small></span>
+          ${icon('arrow')}
+        </button>${devAccess}
       </div></section></main>`;
   }
   function canSeeNotifications() { return state.user?.role === 'student'; }
@@ -1368,9 +1381,7 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const roleDestination = isGuest()
-      ? ['/calendario', 'calendar', 'Calendario']
-      : hasJefaturaAccess()
+    const roleDestination = canReviewJefatura()
         ? ['/jefatura', 'users', 'Jefatura']
         : hasCealAccess()
           ? ['/gestion', 'settings', 'Gestión']
@@ -1417,13 +1428,12 @@
       return renderCommunicationDetail(commId);
     }
     if (path === '/calendario') return renderCalendar();
-    if (path === '/horarios') return renderAcademicSchedule();
     if (path === '/tutoriales') return renderTutorialLibrary();
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
-    if (path === '/jefatura') return hasJefaturaAccess() ? renderBookingPage(true) : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
-    if (path === '/atencion') return isGuest() ? renderNotFound('Inicia sesión para agendar atención con Jefatura.') : renderBookingPage(false);
+    if (path === '/jefatura') return canReviewJefatura() ? (FEATURES.appointments && hasJefaturaAccess() ? renderBookingPage(true) : renderAttentionStage(true)) : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
+    if (path === '/atencion') return FEATURES.appointments && !isGuest() ? renderBookingPage(false) : renderAttentionStage(false);
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/comunicados/nuevo') return ensureCEAL(renderEditor());
@@ -1478,7 +1488,7 @@
     const summaryStrip = `<div class="summary-strip">${summaryStat('megaphone', homeUnreadComms, 'Comunicados nuevos', '/comunicados')}${summaryStat('calendar', homeNextEvent ? fmtDate(homeNextEvent.date) : '—', 'Próxima fecha', '/calendario')}${summaryStat('file', homeActiveAgreements, 'Seguimientos activos', '/calendario')}${summaryStat('book', homeResourceCount, 'Recursos', '/material')}</div>`;
     return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}${summaryStrip}
       <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || (noDataYet ? skeletonList(3) : '<p class="small muted">Sin comunicados por ahora.</p>')}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('clock','Horario académico','Clases del segundo semestre.','Consultar','/horarios','blue')}${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}${isGuest() ? '' : access('users','Atención de Jefatura','Consulta horas disponibles.','Abrir',hasJefaturaAccess() ? '/jefatura' : '/atencion','blue')}</div></div></section>${renderHomeDigest()}
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}${access('users','Atención de Jefatura','Información y estado de la atención.','Abrir',canReviewJefatura() ? '/jefatura' : '/atencion','blue')}</div></div></section>${renderHomeDigest()}
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('') || (noDataYet ? skeletonList(3) : '')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${upcomingEvents.slice(0,4).map(dateRow).join('') || (noDataYet ? skeletonList(3) : renderEmpty('Sin fechas próximas', 'No hay hitos futuros publicados.'))}</section></div>`;
 
   }
@@ -1645,60 +1655,6 @@
       <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente vigente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
   }
 
-  function romanSemester(value) {
-    return ({ 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X' })[Number(value)] || '';
-  }
-  function scheduleDefaultDay() {
-    const today = new Date().toLocaleDateString('es-CL', { weekday: 'long' }).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    return ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'].includes(today) ? today : 'all';
-  }
-  function scheduleDayLabel(day) {
-    const labels = { all: 'Semana', lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes' };
-    return labels[day] || day;
-  }
-  function academicScheduleRows() {
-    return (AcademicSchedule.courses || []).flatMap(course => (course.sessions || []).map(session => ({
-      ...course,
-      ...session,
-      day: plain(session.day),
-      level: course.plan && course.semester ? `${course.plan}-${course.semester}` : 'general',
-      blockInfo: AcademicSchedule.blocks?.[session.block] || {}
-    })));
-  }
-  function academicScheduleCard(item) {
-    const level = item.plan && item.semester ? `Plan ${item.plan} · ${romanSemester(item.semester)} semestre` : 'Actividad institucional';
-    const meta = [item.teacher ? `${icon('user')} ${esc(item.teacher)}` : '', item.room ? `${icon('bookmark')} ${esc(item.room)}` : ''].filter(Boolean).map(value => `<span>${value}</span>`).join('');
-    return `<article class="academic-class-card ${item.plan ? `plan-${plain(item.plan)}` : 'general'}"><header><div class="academic-class-time"><strong>${esc(item.block)}</strong><span>${esc(item.blockInfo.start || '')}–${esc(item.blockInfo.end || '')}</span></div><span class="academic-level">${esc(level)}</span></header><div class="academic-class-copy"><h3>${esc(item.course)}</h3>${item.type ? `<p>${esc(item.type)}</p>` : ''}</div>${meta ? `<div class="academic-class-meta">${meta}</div>` : ''}</article>`;
-  }
-  function renderAcademicSchedule() {
-    state.scheduleDay ||= scheduleDefaultDay();
-    const days = ['all', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
-    const allRows = academicScheduleRows();
-    const levels = [...new Map((AcademicSchedule.courses || []).filter(course => course.plan && course.semester).map(course => [`${course.plan}-${course.semester}`, { key: `${course.plan}-${course.semester}`, plan: course.plan, semester: course.semester }])).values()]
-      .sort((a, b) => (a.plan === b.plan ? a.semester - b.semester : a.plan === 'P' ? -1 : 1));
-    const query = plain(state.scheduleQuery);
-    const rows = allRows.filter(item => {
-      const matchesDay = state.scheduleDay === 'all' || item.day === state.scheduleDay;
-      const matchesLevel = state.scheduleLevel === 'all' || item.level === state.scheduleLevel;
-      const matchesQuery = !query || plain([item.course, item.teacher, item.type, item.room, item.block, item.day].join(' ')).includes(query);
-      return matchesDay && matchesLevel && matchesQuery;
-    }).sort((a, b) => days.indexOf(a.day) - days.indexOf(b.day) || String(a.block).localeCompare(String(b.block)) || a.course.localeCompare(b.course, 'es'));
-    const visibleDays = state.scheduleDay === 'all' ? days.slice(1) : [state.scheduleDay];
-    const groups = visibleDays.map(day => {
-      const items = rows.filter(item => item.day === day);
-      if (!items.length) return '';
-      return `<section class="academic-day-group"><div class="academic-day-head"><h2>${esc(scheduleDayLabel(day))}</h2><span>${items.length} ${items.length === 1 ? 'bloque' : 'bloques'}</span></div><div class="academic-class-grid">${items.map(academicScheduleCard).join('')}</div></section>`;
-    }).join('');
-    const sourceFile = String(AcademicSchedule.sourceFile || 'docs/horario-dic-2-2026-v1.pdf');
-    const actions = `<a class="btn secondary" href="${esc(sourceFile)}" target="_blank" rel="noopener">${icon('eye')} Ver PDF</a><a class="btn primary" href="${esc(sourceFile)}" download>${icon('download')} Descargar</a>`;
-    const levelOptions = `<option value="all">Todos los planes y semestres</option>${levels.map(level => `<option value="${esc(level.key)}" ${state.scheduleLevel === level.key ? 'selected' : ''}>Plan ${esc(level.plan)} · ${romanSemester(level.semester)} semestre</option>`).join('')}`;
-    const resultLabel = `${rows.length} ${rows.length === 1 ? 'bloque visible' : 'bloques visibles'}`;
-    return `${pageHead('Horario académico', AcademicSchedule.term || 'Segundo semestre 2026', actions)}
-      <section class="academic-schedule-source"><div><span class="kicker">Fuente vigente</span><strong>${esc(AcademicSchedule.department || 'Departamento de Ingeniería Civil')}</strong><p>Versión ${esc(AcademicSchedule.version || '1')} · ante cambios, prevalece el PDF oficial</p></div><span class="academic-source-mark">2–2026</span></section>
-      <section class="card pad academic-schedule-toolbar" aria-label="Filtros del horario"><div class="academic-search-field"><label for="academic-schedule-search">Buscar ramo, docente o sala</label><div class="search-box">${icon('search')}<input id="academic-schedule-search" data-schedule-search value="${esc(state.scheduleQuery)}" placeholder="Ej: hidráulica, JMT o Y3-103" /></div></div><div class="academic-level-field"><label for="academic-schedule-level">Plan y semestre</label><select id="academic-schedule-level" class="input" data-schedule-level>${levelOptions}</select></div><div class="academic-day-filter"><span>Día</span><div class="segmented" role="group" aria-label="Filtrar por día">${days.map(day => `<button type="button" class="${state.scheduleDay === day ? 'active' : ''}" data-schedule-day="${day}" aria-pressed="${state.scheduleDay === day}">${esc(scheduleDayLabel(day))}</button>`).join('')}</div></div></section>
-      <div class="academic-results-head"><strong>${esc(resultLabel)}</strong>${state.scheduleQuery || state.scheduleLevel !== 'all' || state.scheduleDay !== scheduleDefaultDay() ? `<button class="btn ghost sm" type="button" data-schedule-reset>${icon('x')} Limpiar filtros</button>` : ''}</div>
-      <div class="academic-schedule-results">${groups || renderEmpty('Sin clases para mostrar', 'Cambia el día o los filtros para revisar otros bloques.', `<button class="btn secondary" type="button" data-schedule-reset>Limpiar filtros</button>`, 'clock')}</div>`;
-  }
   function tutorialLibraryCard({ iconName, audience, title, description, duration, href, pending = false }) {
     const action = pending
       ? '<span class="tutorial-library-pending" aria-label="Tutorial pendiente">Próximamente</span>'
@@ -1714,17 +1670,19 @@
         description: 'Inicio, comunicados, calendario, mallas y material académico.',
         duration: '1 min 26 s',
         href: 'tutorial-portal/'
-      },
-      {
+      }
+    ];
+    if (FEATURES.appointments || canReviewJefatura()) {
+      tutorials.push({
         iconName: 'users',
         audience: 'Estudiantes',
         title: 'Reservar una hora de atención',
         description: 'Revisar cupos, reservar y gestionar una hora con Jefatura.',
         duration: '58 s',
         href: 'tutoriales/'
-      }
-    ];
-    if (hasCealAccess() || hasJefaturaAccess()) {
+      });
+    }
+    if (hasCealAccess() || canReviewJefatura()) {
       tutorials.push({
         iconName: 'settings',
         audience: 'CEAL',
@@ -1734,7 +1692,7 @@
         href: 'tutorial-ceal/'
       });
     }
-    if (hasJefaturaAccess()) {
+    if (canReviewJefatura()) {
       tutorials.push({
         iconName: 'calendar',
         audience: 'Jefatura',
@@ -3232,6 +3190,44 @@
     return forStaff ? renderStaffBooking(profile, store) : renderStudentBooking(profile, store);
   }
 
+  function renderAttentionStage(forStaff) {
+    const profile = (Data.staffProfiles || [])[0] || {};
+    if (!forStaff) {
+      return `${pageHead('Atención de Jefatura', 'Información de atención')}
+        <section class="card pad attention-stage-card">
+          <div class="attention-stage-status"><span class="icon-box blue">${icon('clock')}</span><div><span class="kicker">Próxima etapa</span><h2 class="card-title">Agendamiento aún no habilitado</h2><p class="small muted">La reserva de horas se incorporará cuando finalice su revisión con Jefatura.</p></div></div>
+          <div class="divider"></div>
+          <div class="staff-hero-meta">${icon('user')}<span>${esc(profile.email || JEFATURA_EMAIL)}</span></div>
+        </section>`;
+    }
+    const settings = bookingSettingsFor(profile);
+    const hours = (profile.officeHours || []).map(item => `<div class="staff-hour-row"><span><strong>${esc(item.day || '')}</strong><small>${esc(item.mode || 'Presencial')} · ${esc(item.place || (item.meetingUrl ? 'Videollamada' : 'Por definir'))}</small></span><strong>${esc(item.time || `${item.start || ''} - ${item.end || ''}`)}</strong></div>`).join('');
+    const reviewLabel = isGuest() ? 'Acceso invitado' : 'Revisión de Jefatura';
+    return `${pageHead('Jefatura de carrera', 'Vista de la sección de atención', `<a class="btn secondary" href="/tutorial-jc/">${icon('play')} Ver tutorial</a>`)}
+      <section class="card pad attention-review-banner">
+        <div class="attention-stage-status"><span class="icon-box blue">${icon('eye')}</span><div><span class="kicker">${reviewLabel}</span><h2 class="card-title">Agendamiento pendiente de publicación</h2><p class="small muted">Puedes revisar la estructura prevista. Este acceso no muestra reservas ni permite guardar cambios.</p></div></div>
+        <span class="pill blue">Solo lectura</span>
+      </section>
+      <div class="split wide attention-stage-grid">
+        <section class="card pad">
+          <div class="row-between"><h2 class="card-title">Configuración prevista</h2><span class="pill gray">No operativa</span></div>
+          <div class="detail-block">
+            <div class="detail-row"><span>Duración general</span><strong>${settings.slotMinutes} min</strong></div>
+            <div class="detail-row"><span>Periodo</span><strong>${fmtDate(settings.validFrom)} – ${fmtDate(settings.validUntil)}</strong></div>
+            <div class="detail-row"><span>Anticipación mínima</span><strong>${settings.minimumNoticeHours} h</strong></div>
+          </div>
+          <h3 class="card-title sm">Horarios semanales</h3>
+          <div class="staff-hours-list">${hours || '<p class="small muted">Sin horarios definidos.</p>'}</div>
+        </section>
+        <aside class="card pad">
+          <h2 class="card-title">Al habilitarse</h2>
+          <div class="assistant-rule"><span class="icon-box">${icon('settings')}</span><span><strong>Configurar atención</strong><small>Duración, fechas, modalidad y disponibilidad semanal.</small></span></div>
+          <div class="assistant-rule"><span class="icon-box">${icon('users')}</span><span><strong>Revisar horas tomadas</strong><small>Estudiante, motivo, modalidad y horario en una sola vista.</small></span></div>
+          <div class="assistant-rule"><span class="icon-box">${icon('calendar')}</span><span><strong>Sincronizar Calendar</strong><small>La conexión se verificará antes de habilitar reservas.</small></span></div>
+        </aside>
+      </div>`;
+  }
+
   function renderStaffCalendarPanel(profile = {}) {
     const status = state.calendarStatus || Data.integrations?.googleCalendar || {};
     const account = status.account || profile.email || 'jc.icivil.afta@ucn.cl';
@@ -3399,8 +3395,8 @@
   function renderProfile() {
     const u = state.user;
     if (isGuest()) {
-      return `<div class="profile-view">${pageHead('Invitado', 'Vista sin registros', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Salir</span></button>`)}
-        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Modo invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes revisar mallas, material, calendario y comunicados sin dejar registros en el portal.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
+      return `<div class="profile-view">${pageHead('Invitado', 'Acceso de revisión', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Salir</span></button>`)}
+        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes recorrer el portal y revisar la vista de Jefatura sin ver reservas ni realizar cambios.</p></div><a class="btn primary" href="#/jefatura">Ver Jefatura</a></div></section>
         <div class="grid four profile-access-grid">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}</div></div>`;
     }
     const roleLabel = accountRoleLabel(u);
@@ -3416,7 +3412,6 @@
     const rows = q ? [
       ...['planO','planP'].flatMap(plan => getCourses(plan).filter(c => plain([c.name, c.code, c.visibleCode].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('grid', titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `/ramo/${plan}/${encodeURIComponent(c.code)}`))),
       ...Data.resources.filter(r => plain([r.title, r.courseName, r.courseCode, r.type].join(' ')).includes(normalized)).slice(0, 5).map(r => resultRow('book', r.title, `${r.courseName} - ${r.type}`, `/material/${r.id}`)),
-      ...(AcademicSchedule.courses || []).filter(course => plain([course.course, course.teacher, course.type, course.sessions?.map(item => item.room).join(' ')].join(' ')).includes(normalized)).slice(0, 5).map(course => resultRow('clock', course.course, `${course.teacher || 'Actividad institucional'} · ${course.plan ? `Plan ${course.plan}, ${romanSemester(course.semester)} semestre` : AcademicSchedule.term}`, '/horarios')),
       ...Data.communications.filter(c => plain([c.title, c.summary, c.category].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('megaphone', c.title, `${c.category} - ${fmtDate(c.date)}`, `/comunicados/${c.id}`)),
       ...Data.agreements.filter(a => plain([a.title, a.summary, a.origin].join(' ')).includes(normalized)).slice(0, 4).map(a => resultRow('file', a.title, `${a.origin} - ${fmtDate(a.date)}`, `/acuerdos/${a.id}`))
     ] : [];
@@ -3459,14 +3454,18 @@
       }
       return;
     }
+    if (e.target.closest('[data-guest-login]')) {
+      startGuestSession();
+      routeTo('/');
+      return;
+    }
     const googleRedirect = e.target.closest('[data-google-redirect]');
     if (googleRedirect) { startGoogleRedirect(googleRedirect.dataset.googleRedirect); return; }
     const role = e.target.closest('[data-login-role]')?.dataset.loginRole;
     if (role) { routeTo('/login'); return; }
     if (e.target.closest('[data-logout]')) {
       if (API_BASE) apiRequest('/auth/logout', { method: 'POST' }).catch(() => {});
-      localStorage.removeItem('portal.session');
-      state.user = null;
+      clearSession();
       routeTo('/login');
       return;
     }
@@ -3480,19 +3479,6 @@
       state.menuOpen = false;
       render({ transition: true, scope: 'overlay', resetScroll: false });
       document.querySelector('[data-open-menu]')?.focus();
-      return;
-    }
-    const scheduleDay = e.target.closest('[data-schedule-day]');
-    if (scheduleDay) {
-      state.scheduleDay = scheduleDay.dataset.scheduleDay || 'all';
-      render({ transition: true, scope: 'panel', resetScroll: false });
-      return;
-    }
-    if (e.target.closest('[data-schedule-reset]')) {
-      state.scheduleQuery = '';
-      state.scheduleDay = scheduleDefaultDay();
-      state.scheduleLevel = 'all';
-      render({ transition: true, scope: 'panel', resetScroll: false });
       return;
     }
     if (e.target.matches('[data-calendar-modal-backdrop]') || e.target.closest('[data-calendar-modal-close]')) {
@@ -4189,7 +4175,6 @@
     if (e.target.matches('[data-malla-search]')) { state.mallaQuery = e.target.value; scheduleFilterRender(); }
     if (e.target.matches('[data-material-search]')) { state.materialQuery = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; scheduleFilterRender(); }
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
-    if (e.target.matches('[data-schedule-search]')) { state.scheduleQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
     const bookingActive = e.target.closest('[data-booking-setting="active"]');
@@ -4232,7 +4217,6 @@
     if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
     if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
-    if (e.target.matches('[data-schedule-level]')) { state.scheduleLevel = e.target.value; render({ transition: true, scope: 'panel', resetScroll: false }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
   function onFocusOut(e) {

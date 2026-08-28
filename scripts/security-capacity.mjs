@@ -109,6 +109,7 @@ async function main() {
       PORTAL_DB_PATH: dbPath,
       PORTAL_STATE_BACKEND: 'local',
       PORTAL_MAX_SESSIONS: '1200',
+      PORTAL_APPOINTMENTS_ENABLED: '1',
       CALENDAR_WATCHER_TOKEN: 'qa-calendar-watcher-token',
       QA_TEST_MODE: '1'
     },

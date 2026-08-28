@@ -330,17 +330,10 @@ async function runPublicFlowTests(page, studentUser) {
   report.flows.push('calendar selects today and navigates between months');
 
   await page.goto(appUrl('/horarios'), { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Horario académico', exact: true }).waitFor();
-  if (!(await page.locator('[data-schedule-day][aria-pressed="true"]').count())) fail('academic schedule should select a day automatically');
-  await page.locator('[data-schedule-day="all"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('.academic-class-card').length === 64);
-  await page.locator('[data-schedule-level]').selectOption('P-1');
-  await page.waitForFunction(() => document.querySelectorAll('.academic-class-card').length === 4);
-  await page.locator('[data-schedule-search]').fill('R-008B');
-  await page.waitForFunction(() => document.querySelectorAll('.academic-class-card').length === 2);
-  const schedulePdf = await fetch(`${baseUrl}/docs/horario-dic-2-2026-v1.pdf`);
-  if (!schedulePdf.ok || !String(schedulePdf.headers.get('content-type')).startsWith('application/pdf')) fail('academic schedule source PDF should be publicly readable with the correct MIME type');
-  report.flows.push('academic schedule filters 64 source sessions and serves its official PDF');
+  await page.waitForURL(/#\/calendario$/);
+  if ((await page.locator('.sidebar .nav-item').allTextContents()).some(item => item.trim() === 'Horario académico')) fail('academic schedule should not appear in navigation');
+  if ((await page.locator('main').innerText()).includes('Horario académico')) fail('retired academic schedule should not remain visible');
+  report.flows.push('retired academic schedule redirects to the calendar and stays out of navigation');
 
   for (const route of ['/encuestas', '/reservas']) {
     await page.goto(appUrl(route), { waitUntil: 'networkidle' });
@@ -350,42 +343,50 @@ async function runPublicFlowTests(page, studentUser) {
 }
 
 async function runBookingFlowTests(page, studentUser, jefaturaUser) {
+  const disabledList = await fetch(`${baseUrl}/api/calendar/appointments`, { headers: { authorization: `Bearer ${studentUser.sessionToken}` } });
+  const disabledCreate = await fetch(`${baseUrl}/api/calendar/appointments`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${studentUser.sessionToken}` },
+    body: JSON.stringify({ start: new Date(Date.now() + 86400000).toISOString(), end: new Date(Date.now() + 88200000).toISOString(), reason: 'No debe reservar.' })
+  });
+  const disabledConfig = await fetch(`${baseUrl}/api/calendar/config`, { headers: { authorization: `Bearer ${jefaturaUser.sessionToken}` } });
+  if (disabledList.status !== 410 || disabledCreate.status !== 410 || disabledConfig.status !== 410) fail('disabled appointment backend should reject reads, bookings and configuration changes');
+
   await loginStudent(page, studentUser);
   await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
-  await page.getByText('Jefe de carrera', { exact: true }).waitFor();
-  if ((await page.locator('body').innerText()).includes('Prof. Zelada')) fail('student booking view should not expose the former personal label');
-  await page.locator('[data-book-slot]').first().click();
-  await page.locator('[data-booking-reason]').fill('Consulta sobre inscripción de asignaturas.');
-  await page.locator('[data-appointment-create]').click();
-  await page.getByText('Reservada', { exact: true }).waitFor();
+  await page.getByText('Agendamiento aún no habilitado', { exact: true }).waitFor();
+  if (await page.locator('[data-book-slot], [data-appointment-create], [data-booking-reason]').count()) fail('student attention view should not expose booking controls before launch');
+  if ((await page.locator('body').innerText()).includes('Prof. Zelada')) fail('student attention view should not expose the former personal label');
 
   await loginJefatura(page, jefaturaUser);
-  await page.getByText('Próximas atenciones', { exact: true }).waitFor();
-  const closedBeforeCancellation = await page.locator('[data-availability-open]').count();
-  page.once('dialog', dialog => dialog.accept());
-  await page.locator('[data-appointment-cancel]').first().click();
-  await page.getByText('Sin atenciones próximas', { exact: true }).waitFor();
-  await page.waitForFunction(expected => document.querySelectorAll('[data-availability-open]').length > expected, closedBeforeCancellation);
-  const closeSlot = page.locator('[data-availability-close]').first();
-  if (await closeSlot.count()) {
-    const closeSlotKey = await closeSlot.getAttribute('data-availability-close');
-    await closeSlot.click();
-    const reopenSlot = page.locator(`[data-availability-open="${closeSlotKey}"]`);
-    await reopenSlot.waitFor();
-    await reopenSlot.click();
-  }
-  const bookingConfig = page.locator('form[data-form="booking-config"]');
-  await bookingConfig.waitFor();
-  await bookingConfig.locator('select[name="slotMinutes"]').selectOption('15');
-  await bookingConfig.locator('button[type="submit"]').click();
-  await page.getByText('Configuración guardada', { exact: true }).waitFor();
-  if ((await page.locator('.staff-hero').innerText()).includes('30 min')) fail('Jefatura duration change was not reflected in the published schedule');
-  report.flows.push('Jefatura updates appointment duration and weekly configuration');
+  await page.getByText('Agendamiento pendiente de publicación', { exact: true }).waitFor();
+  if (await page.locator('[data-form="booking-config"], [data-appointment-cancel], [data-availability-open], [data-availability-close]').count()) fail('Jefatura review should not expose operational booking controls');
 
-  await loginStudent(page, studentUser);
-  await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
-  await page.getByText('Cancelada', { exact: true }).waitFor();
-  report.flows.push('student reserves immediately and Jefatura can cancel with rescheduling notice');
+  await page.goto(appUrl('/login'), { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.removeItem('portal.session'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-guest-login]').click();
+  await page.waitForURL(/#\/$/);
+  await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+  await page.locator('.sidebar .nav-item').filter({ hasText: 'Jefatura' }).waitFor();
+  const guestNav = await page.locator('.sidebar .nav-item').allTextContents();
+  if (!guestNav.some(item => item.trim() === 'Jefatura') || guestNav.some(item => item.trim() === 'Horario académico')) fail('guest review navigation should expose Jefatura without the retired schedule');
+  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
+  await page.getByText('Acceso invitado', { exact: true }).waitFor();
+  if (await page.locator('[data-form="booking-config"], [data-appointment-cancel], [data-calendar-connect]').count()) fail('guest review must not expose Jefatura mutations');
+  const guestMain = await page.locator('main').innerText();
+  if (/qa\.estudiante|motivo de consulta|próximas reservadas/i.test(guestMain)) fail('guest review must not expose appointment data');
+  await page.goto(`${baseUrl}/tutorial-jc/?qa=guest-review`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
+  if ((await page.locator('h1').innerText()) !== 'Configurar y gestionar la agenda') fail('guest review should open the Jefatura tutorial in the same tab');
+  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
+  await page.getByText('Acceso invitado', { exact: true }).waitFor();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Acceso invitado', { exact: true }).waitFor();
+  await page.goto(appUrl('/perfil'), { waitUntil: 'networkidle' });
+  await page.locator('[data-logout]').first().click();
+  await page.waitForURL(/#\/login$/);
+  report.flows.push('attention backend stays disabled while guest Jefatura review remains sanitized and read-only');
 }
 
 async function runCealFlowTests(page, cealUser) {
@@ -527,7 +528,7 @@ async function runTutorialPageTests(browser, users) {
   await accessPage.goto(`${baseUrl}/tutorial-ceal/?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
   await accessPage.waitForURL(/#\/tutoriales$/);
   await accessPage.waitForSelector('.tutorial-library-card');
-  if ((await accessPage.locator('.tutorial-library-card').count()) !== 2) fail('student tutorial library should not expose internal guides');
+  if ((await accessPage.locator('.tutorial-library-card').count()) !== 1) fail('student tutorial library should expose only the active general guide');
   if ((await accessPage.locator('main').innerText()).includes('Gestionar el contenido del portal')) fail('student should not see the CEAL tutorial');
 
   await accessPage.evaluate(() => localStorage.removeItem('portal.session'));
@@ -552,8 +553,8 @@ async function runTutorialPageTests(browser, users) {
 
 async function runTutorialLibraryTests(page, studentUser, cealUser, jefaturaUser) {
   const cases = [
-    { login: () => loginStudent(page, studentUser), expected: 2, forbidden: 'Gestionar el contenido del portal' },
-    { login: () => loginCeal(page, cealUser), expected: 3, forbidden: 'Configurar y gestionar la agenda' },
+    { login: () => loginStudent(page, studentUser), expected: 1, forbidden: 'Gestionar el contenido del portal' },
+    { login: () => loginCeal(page, cealUser), expected: 2, forbidden: 'Configurar y gestionar la agenda' },
     { login: () => loginJefatura(page, jefaturaUser), expected: 4, forbidden: '' }
   ];
   for (const testCase of cases) {
@@ -709,7 +710,6 @@ async function main() {
       ['/comunicados', 'comunicados'],
       [`/comunicados/${createdCommunicationId}`, 'comunicado-detalle'],
       ['/calendario', 'calendario'],
-      ['/horarios', 'horario-academico'],
       ['/acuerdos/agr-003', 'acuerdo-detalle'],
       ['/material', 'material'],
       ['/material/subir', 'material-subir'],
@@ -765,10 +765,7 @@ async function main() {
     if (!calendarModalMetrics.closeVisible) fail('calendar modal should expose an explicit close control');
     await page.locator('.calendar-detail-modal [data-calendar-modal-close]').first().click();
     await page.locator('.calendar-detail-modal').waitFor({ state: 'detached' });
-    await page.goto(appUrl('/horarios'), { waitUntil: 'networkidle' });
-    const scheduleMetrics = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, cards: document.querySelectorAll('.academic-class-card').length }));
-    if (scheduleMetrics.documentWidth > scheduleMetrics.viewportWidth || !scheduleMetrics.cards) fail('academic schedule should fit and render classes at 360px');
-    report.flows.push('mobile bottom navigation, calendar modal and academic schedule fit at 360px');
+    report.flows.push('mobile bottom navigation and calendar modal fit at 360px');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginCeal(page, cealUser);
