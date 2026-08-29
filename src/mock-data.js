@@ -1,15 +1,15 @@
 window.PortalMock = (() => {
 
   const cealMembers = [
-    { id: 'ceal-martina-briceno', username: 'martina.briceno', name: 'Martina Briceño', initials: 'MB', role: 'ceal', roleName: 'Presidencia', label: 'Presidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'martina.briceno@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'manage:roles', 'review:casos', 'publish:comunicados', 'upload:acuerdos'] },
+    { id: 'ceal-martina-briceno', username: 'martina.briceno', name: 'Martina Briceño', initials: 'MB', role: 'ceal', roleName: 'Presidencia', label: 'Presidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'martina.briceno@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'manage:roles', 'review:casos', 'upload:acuerdos'] },
     { id: 'ceal-camila-villegas', username: 'camila.villegas', name: 'Camila Villegas', initials: 'CV', role: 'ceal', roleName: 'Vicepresidencia', label: 'Vicepresidencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'camila.villegas@alumnos.ucn.cl', passwordSet: false, permissions: ['approve:content', 'review:casos', 'edit:calendario', 'upload:acuerdos'] },
-    { id: 'ceal-matias-gonzalez', username: 'matias.gonzalez11', name: 'Matías González', initials: 'MG', role: 'ceal', roleName: 'Secretaría', label: 'Secretaría', plan: 'planP', yearLabel: 'CEAL 2026', email: 'matias.gonzalez11@alumnos.ucn.cl', passwordSet: false, permissions: ['publish:comunicados', 'edit:calendario', 'upload:acuerdos', 'review:casos', 'manage:forms'] },
+    { id: 'ceal-matias-gonzalez', username: 'matias.gonzalez11', name: 'Matías González', initials: 'MG', role: 'ceal', roleName: 'Secretaría', label: 'Secretaría', plan: 'planP', yearLabel: 'CEAL 2026', email: 'matias.gonzalez11@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'upload:acuerdos', 'review:casos', 'manage:forms'] },
     { id: 'ceal-belen-astudillo', username: 'belen.astudillo', name: 'Belén Astudillo', initials: 'BA', role: 'ceal', roleName: 'Tesorería', label: 'Tesorería', plan: 'planP', yearLabel: 'CEAL 2026', email: 'belen.astudillo@alumnos.ucn.cl', passwordSet: false, permissions: ['review:casos', 'edit:calendario', 'manage:forms'] },
-    { id: 'ceal-gabriel-sanchez', username: 'gabriel.sanchez', name: 'Gabriel Sánchez', initials: 'GS', role: 'ceal', roleName: 'Comunicaciones', label: 'Comunicaciones', plan: 'planP', yearLabel: 'CEAL 2026', email: 'gabriel.sanchez@alumnos.ucn.cl', passwordSet: false, permissions: ['publish:comunicados', 'edit:calendario', 'upload:acuerdos'] },
+    { id: 'ceal-gabriel-sanchez', username: 'gabriel.sanchez', name: 'Gabriel Sánchez', initials: 'GS', role: 'ceal', roleName: 'Comunicaciones', label: 'Comunicaciones', plan: 'planP', yearLabel: 'CEAL 2026', email: 'gabriel.sanchez@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'upload:acuerdos'] },
     { id: 'ceal-bruno-castillo', username: 'bruno.castillo', name: 'Bruno Castillo', initials: 'BC', role: 'ceal', roleName: 'Docencia', label: 'Docencia', plan: 'planP', yearLabel: 'CEAL 2026', email: 'bruno.castillo@alumnos.ucn.cl', passwordSet: false, permissions: ['validate:material', 'review:casos', 'edit:mallas', 'manage:tutoring'] },
-    { id: 'ceal-paolo-cardaniz', username: 'paolo.cardaniz', name: 'Paolo Cardaniz', initials: 'PC', role: 'ceal', roleName: 'Deportes', label: 'Deportes', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.cardaniz@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'publish:comunicados', 'review:casos'] },
-    { id: 'ceal-paolo-ferruzola', username: 'paolo.ferruzola', name: 'Paolo Ferruzola', initials: 'PF', role: 'ceal', roleName: 'Extracurricular', label: 'Extracurricular', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.ferruzola@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'publish:comunicados', 'manage:forms'] },
-    { id: 'ceal-kevin-cortes', username: 'kevin.cortes', name: 'Kevin Cortés', initials: 'KC', role: 'ceal', roleName: 'Tecnología', label: 'Tecnología', plan: 'planP', yearLabel: 'CEAL 2026', email: 'kevin.cortes@alumnos.ucn.cl', passwordSet: false, permissions: ['review:casos', 'publish:comunicados', 'manage:forms'] }
+    { id: 'ceal-paolo-cardaniz', username: 'paolo.cardaniz', name: 'Paolo Cardaniz', initials: 'PC', role: 'ceal', roleName: 'Deportes', label: 'Deportes', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.cardaniz@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'review:casos'] },
+    { id: 'ceal-paolo-ferruzola', username: 'paolo.ferruzola', name: 'Paolo Ferruzola', initials: 'PF', role: 'ceal', roleName: 'Extracurricular', label: 'Extracurricular', plan: 'planP', yearLabel: 'CEAL 2026', email: 'paolo.ferruzola@alumnos.ucn.cl', passwordSet: false, permissions: ['edit:calendario', 'manage:forms'] },
+    { id: 'ceal-kevin-cortes', username: 'kevin.cortes', name: 'Kevin Cortés', initials: 'KC', role: 'ceal', roleName: 'Tecnología', label: 'Tecnología', plan: 'planP', yearLabel: 'CEAL 2026', email: 'kevin.cortes@alumnos.ucn.cl', passwordSet: false, permissions: ['review:casos', 'manage:forms'] }
   ];
 
   const users = {
@@ -27,25 +27,7 @@ window.PortalMock = (() => {
     ceal: { ...cealMembers[2] }
   };
 
-  const communications = [
-    {
-      id: 'com-001',
-      title: 'Bienvenida al Portal CEIC UCN',
-      category: 'Información',
-      date: '2026-08-21T15:00:00-04:00',
-      source: 'CEAL Ingeniería Civil UCN',
-      pinned: true,
-      unread: true,
-      delivery: 'portal',
-      summary: 'Revisa información académica, material y atención de Jefatura desde las secciones del portal.',
-      body: `Este portal reúne la información y los recursos disponibles para estudiantes de Ingeniería Civil UCN.
-
-Desde el menú puedes revisar los comunicados del CEAL, las fechas del calendario académico, las mallas curriculares y el material compartido por ramo. En Atención encontrarás los horarios disponibles para reservar una hora con Jefatura de carrera.
-
-Las próximas novedades se publicarán en esta sección.`,
-      related: []
-    }
-  ];
+  const communications = [];
 
   const resources = [
     {

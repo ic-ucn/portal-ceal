@@ -74,7 +74,8 @@ assert(appJs.includes('data-guest-login') && appJs.includes('portal-review'), 'l
 assert(appJs.includes('Revisa el contenido publicado sin realizar cambios.'), 'guest access should describe its read-only boundary');
 assert(!appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'retired tutorials should stay out of navigation');
 assert(!appJs.includes("['/atencion', 'users', 'Atención']") && !appJs.includes("['/jefatura', 'users', 'Jefatura']"), 'retired attention routes should stay out of navigation');
-assert(appJs.includes("['/tutoriales', '/atencion', '/jefatura'].includes(path)"), 'retired operational routes should redirect to Inicio');
+assert(appJs.includes("'/comunicados/nuevo', '/asistente'].includes(path)"), 'retired operational and communication routes should redirect away from their old pages');
+assert(!appJs.includes("['/comunicados', 'megaphone', 'Comunicados']"), 'retired communications should stay out of navigation');
 assert(appJs.includes("apiRequest('/bootstrap', { cache: 'no-store' })"), 'authenticated reloads should bypass a stale browser bootstrap cache');
 assert(/const initialPortalDark = storedPortalTheme\s*\? storedPortalTheme === 'dark'\s*:\s*false;/.test(appJs), 'new portal sessions should start in light mode');
 assert(stylesCss.includes('color-scheme: only light'), 'light mode should prevent forced browser recoloring');
@@ -94,7 +95,6 @@ const allowedPerms = new Set([
   'approve:content',
   'manage:roles',
   'review:casos',
-  'publish:comunicados',
   'upload:acuerdos',
   'edit:calendario',
   'manage:forms',
@@ -121,6 +121,7 @@ for (const member of data.cealMembers) {
   assert(!('passwordHash' in member), `${member.id} must not expose password hash`);
   assert(!('passwordSalt' in member), `${member.id} must not expose password salt`);
   assert(Array.isArray(member.permissions), `${member.id} should have permissions`);
+  assert(!member.permissions.includes('publish:comunicados'), `${member.id} should not retain retired communication permissions`);
   assert(member.permissions.length >= 2, `${member.id} should have meaningful permissions`);
   for (const perm of member.permissions) assert(allowedPerms.has(perm), `${member.id} unknown permission ${perm}`);
 }
@@ -140,8 +141,7 @@ for (const email of [
 
 assert(data.users.student.role === 'student', 'student user should be student');
 assert(data.users.ceal.role === 'ceal', 'seed CEAL user should be CEAL');
-assert(Array.isArray(data.communications) && data.communications.length === 1, 'communications should start with the official portal introduction');
-assert(data.communications[0].id === 'com-001' && data.communications[0].delivery === 'portal', 'introductory communication should be portal-only');
+assert(Array.isArray(data.communications) && data.communications.length === 0, 'retired communications should not retain seed content');
 assert(!('gestion' in data), 'static data should not include unused management filler');
 assert(Array.isArray(data.resources) && data.resources.length >= 9, 'resources should be seeded');
 assert(Array.isArray(data.cases) && data.cases.length >= 5, 'cases should be seeded');
@@ -163,11 +163,15 @@ assert(data.staffProfiles.some(profile => profile.email === 'jc.icivil.afta@ucn.
 assert(data.staffProfiles.every(profile => [15, 20, 30, 45, 60].includes(profile.bookingSettings?.slotMinutes)), 'Jefatura profiles should publish a supported appointment duration');
 assert(data.staffProfiles.every(profile => Array.isArray(profile.officeHours) && profile.officeHours.every(hour => hour.start && hour.end && hour.mode)), 'Jefatura profiles should publish structured weekly hours');
 assert(appJs.includes("path === '/gestion/calendario'"), 'CEAL calendar update route should exist');
-assert(appJs.includes("path === '/gestion/comunicados/nuevo'"), 'CEAL should have a direct manual communication route');
 assert(appJs.includes('management-console'), 'CEAL management should use the consolidated console');
+assert(appJs.includes('Tráfico del portal') && appJs.includes("apiRequest('/analytics/summary')"), 'CEAL management should include its protected traffic dashboard');
+assert(appJs.includes("fetch(`${API_BASE}/analytics/collect`"), 'portal routes should send aggregate traffic events');
 assert(!appJs.includes("id === 'com-001' ?"), 'app should not retain a legacy communication fallback');
-assert(serverJs.includes('communications-reset-20260821'), 'backend should apply the one-time communication reset migration');
-assert(serverJs.includes('intro-communication-20260821'), 'backend should publish the portal introduction once');
+assert(serverJs.includes('communications-retired-20260829'), 'backend should apply the communication retirement migration');
+assert(serverJs.includes("collectionName === 'communications'") && serverJs.includes('communications not enabled'), 'backend should reject retired communication APIs');
+assert(serverJs.includes("const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe }"), 'traffic analytics should stay out of the public bootstrap');
+assert(serverJs.includes("id === 'summary'") && serverJs.includes('requireCealSession(req, db)'), 'traffic summaries should require a CEAL session');
+assert(!serverJs.includes('requestIp(req), body') && !serverJs.includes('analytics.email'), 'traffic records should not persist IP addresses or email identifiers');
 assert(!serverJs.includes("collectionName === 'communications' && id === 'com-001'"), 'backend should not retain a legacy communication fallback');
 assert(!serverJs.includes("hasDriveSeed && /^mat-\\d{3}$/.test"), 'backend should preserve real uploaded materials when Drive resources are present');
 assert(!appJs.includes("hasDriveCatalog && /^mat-\\d{3}$/.test"), 'frontend should preserve real uploaded materials when Drive resources are present');
@@ -379,7 +383,6 @@ const routeNeedles = [
   "#/material/subir",
   "#/mallas",
   "#/calendario",
-  "#/comunicados",
   "#/perfil"
 ];
 for (const route of routeNeedles) assert(appJs.includes(route), `app should link ${route}`);

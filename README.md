@@ -22,15 +22,15 @@ GitHub Pages puede servir el frontend estático. Para persistencia compartida en
 - Acceso con Google para cuentas `@alumnos.ucn.cl`.
 - Entrada separada para estudiante y CEAL; CEAL valida el correo contra integrantes registrados.
 - Inicio con resumen operativo.
-- Comunicados, detalle y publicación desde Gestión CEAL.
 - Calendario, acuerdos y nuevo acuerdo interno.
 - Biblioteca académica con búsqueda, filtros, subida y descarga local de archivos.
 - Mallas interactivas Plan O Catálogo 2016 y Plan P Catálogo 2025.
 - Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
 - Ayudantías, trámites y perfil.
 - Dashboard Gestión CEAL común para integrantes, con edición de contenido existente.
+- Panel de tráfico agregado para CEAL, con actividad diaria, secciones, dispositivos, navegadores y origen, sin guardar IP, correo ni identificadores de sesión.
 
-Tutoriales, Atención, Horario académico, encuestas y reservas de mesas no forman parte de la versión publicada. La malla no infiere avance académico porque el portal no dispone de registros curriculares individuales.
+Comunicados, Tutoriales, Atención, Horario académico, encuestas y reservas de mesas no forman parte de la versión publicada. La malla no infiere avance académico porque el portal no dispone de registros curriculares individuales.
 
 ## Integrantes CEAL
 
@@ -65,7 +65,8 @@ Endpoints principales:
 
 - `/api/bootstrap`
 - `/api/auth/google`
-- `/api/communications`
+- `/api/analytics/collect`
+- `/api/analytics/summary` (solo CEAL)
 - `/api/cases`
 - `/api/materials`
 - `/api/agreements`

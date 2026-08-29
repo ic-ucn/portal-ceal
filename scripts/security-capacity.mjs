@@ -142,13 +142,21 @@ async function main() {
     const bootstrapNotModified = await fetch(`${baseUrl}/api/bootstrap`, { headers: { 'if-none-match': bootstrap.headers.get('etag') || '' } });
     assert(bootstrapNotModified.status === 304, 'public bootstrap supports conditional requests');
     const publicText = JSON.stringify(bootstrap.payload);
-    for (const forbidden of ['sessionToken', 'passwordHash', 'passwordSalt', 'bookingAvailability', 'appointments', 'reservations', 'calendarUpdateRequests', 'fileDataUrl', 'dbPath']) {
+    for (const forbidden of ['sessionToken', 'passwordHash', 'passwordSalt', 'bookingAvailability', 'appointments', 'reservations', 'calendarUpdateRequests', 'analytics', 'fileDataUrl', 'dbPath']) {
       assert(!publicText.includes(forbidden), `public bootstrap excludes ${forbidden}`);
     }
     assert(!/"rut"\s*:|"ppa"\s*:/i.test(publicText), 'public bootstrap excludes RUT and PPA');
     assert(Array.isArray(bootstrap.payload?.data?.surveys) && bootstrap.payload.data.surveys.length === 0, 'disabled surveys are absent from public data');
+    assert(Array.isArray(bootstrap.payload?.data?.communications) && bootstrap.payload.data.communications.length === 0, 'retired communications are absent from public content');
     assert((await request('/api/surveys')).status === 404, 'survey API is disabled');
     assert((await request('/api/reservations')).status === 404, 'table-reservation API is disabled');
+    assert((await request('/api/communications')).status === 404, 'communication API is disabled');
+    const collectedView = await request('/api/analytics/collect', { method: 'POST', body: {
+      route: '/material/recurso-privado', device: 'Movil', browser: 'Samsung Internet', audience: 'Estudiante',
+      referrer: 'https://www.google.com/search?q=ceic', email: 'must-not-persist@example.com', ip: '203.0.113.15'
+    } });
+    assert(collectedView.status === 202, 'aggregate traffic collection remains available without authentication');
+    assert((await request('/api/analytics/summary')).status === 401, 'traffic summary is not public');
     assert((await request('/api/calendar/appointments')).status === 401, 'appointments require an authenticated session');
     assert((await request('/api/calendar/verify', { method: 'POST' })).status === 401, 'Calendar verification requires Jefatura authentication');
     assert((await request('/api/tutorials/jefatura')).status === 404, 'private Jefatura web tutorial is not exposed');
@@ -162,6 +170,13 @@ async function main() {
     assert(validSession.status === 200 && validSession.payload?.user?.role === 'student', 'valid saved session is restored from server authority');
     assert((await request('/api/auth/session', { token: 'invalid-session-token' })).status === 401, 'invalid saved session is rejected before rendering protected content');
     assert((await request('/api/calendar-updates', { token: jefatura.sessionToken })).status === 403, 'Jefatura session cannot access CEAL calendar-source management');
+    assert((await request('/api/analytics/summary', { token: studentA.sessionToken })).status === 403, 'students cannot access traffic summaries');
+    assert((await request('/api/analytics/summary', { token: jefatura.sessionToken })).status === 403, 'Jefatura cannot access CEAL traffic summaries');
+    const trafficSummary = await request('/api/analytics/summary', { token: ceal.sessionToken });
+    const trafficText = JSON.stringify(trafficSummary.payload || {});
+    assert(trafficSummary.status === 200 && trafficSummary.payload?.summary?.totals?.all >= 1, 'CEAL can review aggregate portal traffic');
+    assert(trafficSummary.payload?.summary?.routes?.some(item => item.name === '/material/detalle'), 'traffic dashboard groups resource identifiers into a safe route');
+    assert(!/must-not-persist|203\.0\.113\.15|sessionToken|@example\.com/i.test(trafficText), 'traffic summary excludes emails, IP addresses and session identifiers');
     assert((await request('/api/auth/logout', { method: 'POST', token: disposable.sessionToken })).status === 200, 'session can be revoked explicitly');
     assert((await request('/api/auth/session', { token: disposable.sessionToken })).status === 401, 'revoked session cannot be restored');
     const initialProfile = bootstrap.payload.data.staffProfiles[0];

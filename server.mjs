@@ -268,6 +268,8 @@ function ensureDbShape(db, seed) {
   db.data.bookingAvailability ||= { closedSlots: [] };
   db.data.bookingAvailability.closedSlots ||= [];
   db.data.calendarUpdateRequests ||= [];
+  db.data.analytics ||= { totalViews: 0, lastViewAt: null, days: {} };
+  db.data.analytics.days ||= {};
   // Si cambia la cuenta de agenda configurada (p. ej. stand-in biblioteca <-> jc real),
   // se resetea la conexion para forzar reconectar con la cuenta correcta.
   if (asText(db.data.integrations.googleCalendar.account).toLowerCase() !== calendarAccount) {
@@ -312,6 +314,13 @@ function ensureDbShape(db, seed) {
     }
     delete db.data.aiCommunicationsDigest;
     db.meta.migrations.push(introCommunicationMigration);
+  }
+  const communicationsRetiredMigration = 'communications-retired-20260829';
+  if (!db.meta.migrations.includes(communicationsRetiredMigration)) {
+    db.data.communications = [];
+    delete db.data.aiCommunicationsDigest;
+    db.data.notifications = (db.data.notifications || []).filter(item => !String(item.route || '').startsWith('/comunicados'));
+    db.meta.migrations.push(communicationsRetiredMigration);
   }
   const seedCalendarVersion = asText(seed.data.calendarSource?.version);
   const storedCalendarVersion = asText(db.data.calendarSource?.version);
@@ -1831,14 +1840,128 @@ function publicIntegrationData(data = {}) {
 }
 
 function publicData(data = {}) {
-  // appointments y reservations se excluyen: contienen correos/datos personales y el bootstrap es publico.
-  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, ...safe } = data;
+  // Datos operativos, personales y estadisticas internas nunca viajan en el bootstrap publico.
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
     surveys: features.surveys && Array.isArray(data.surveys) ? data.surveys.map(publicSurvey) : [],
     cealMembers: Array.isArray(data.cealMembers) ? data.cealMembers.map(publicMember) : [],
     staffProfiles: Array.isArray(data.staffProfiles) ? data.staffProfiles.map(publicStaffProfile) : []
+  };
+}
+
+const analyticsRouteLabels = Object.freeze({
+  '/': 'Inicio',
+  '/login': 'Ingreso',
+  '/calendario': 'Calendario',
+  '/mallas': 'Mallas',
+  '/mallas/ramo': 'Ficha de ramo',
+  '/material': 'Material',
+  '/material/detalle': 'Detalle de material',
+  '/material/subir': 'Subir material',
+  '/perfil': 'Mi cuenta',
+  '/buscar': 'Busqueda',
+  '/gestion': 'Gestion CEAL',
+  '/gestion/calendario': 'Actualizar calendario',
+  '/gestion/material': 'Revision de material',
+  '/gestion/acuerdos': 'Nuevo seguimiento',
+  '/acuerdos': 'Seguimiento',
+  '/otra': 'Otra seccion'
+});
+
+function analyticsDayKey(value = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(value);
+}
+
+function normalizeAnalyticsRoute(value) {
+  const raw = asText(value, '/').split(/[?#]/)[0] || '/';
+  let route = raw.startsWith('/') ? raw : `/${raw}`;
+  route = route.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
+  if (route === '/material/subir') return route;
+  if (route.startsWith('/material/')) return '/material/detalle';
+  if (route.startsWith('/ramo/')) return '/mallas/ramo';
+  if (route.startsWith('/acuerdos/')) return '/acuerdos';
+  if (route.startsWith('/gestion/material/')) return '/gestion/material';
+  if (route === '/gestion/acuerdos/nuevo') return '/gestion/acuerdos';
+  if (Object.hasOwn(analyticsRouteLabels, route)) return route;
+  return '/otra';
+}
+
+function analyticsEnum(value, allowed, fallback = 'Otro') {
+  const text = asText(value).slice(0, 40);
+  return allowed.includes(text) ? text : fallback;
+}
+
+function analyticsReferrer(value) {
+  const text = asText(value).slice(0, 300);
+  if (!text) return 'Directo';
+  try {
+    const host = new URL(text).hostname.toLowerCase().replace(/^www\./, '').slice(0, 120);
+    if (!host || !/^[a-z0-9.-]+$/.test(host) || ['__proto__', 'constructor', 'prototype'].includes(host)) return 'Directo';
+    if (host === 'ceicucn.cl' || host.endsWith('.ceicucn.cl')) return 'Directo';
+    return host;
+  } catch { return 'Directo'; }
+}
+
+function incrementAnalyticsCounter(bucket, key) {
+  let safeKey = key;
+  if (!Object.hasOwn(bucket, safeKey) && Object.keys(bucket).length >= 80) safeKey = 'Otros';
+  const current = Object.hasOwn(bucket, safeKey) ? Number(bucket[safeKey] || 0) : 0;
+  bucket[safeKey] = current + 1;
+}
+
+function collectAnalyticsView(data, body = {}) {
+  const analytics = data.analytics ||= { totalViews: 0, lastViewAt: null, days: {} };
+  analytics.days ||= {};
+  const now = new Date();
+  const dayKey = analyticsDayKey(now);
+  const day = analytics.days[dayKey] ||= { views: 0, routes: {}, devices: {}, browsers: {}, audiences: {}, referrers: {} };
+  day.views = Number(day.views || 0) + 1;
+  incrementAnalyticsCounter(day.routes ||= {}, normalizeAnalyticsRoute(body.route));
+  incrementAnalyticsCounter(day.devices ||= {}, analyticsEnum(body.device, ['Escritorio', 'Movil', 'Tablet'], 'Otro'));
+  incrementAnalyticsCounter(day.browsers ||= {}, analyticsEnum(body.browser, ['Chrome', 'Safari', 'Firefox', 'Samsung Internet', 'Edge'], 'Otro'));
+  incrementAnalyticsCounter(day.audiences ||= {}, analyticsEnum(body.audience, ['Estudiante', 'CEAL', 'Jefatura', 'Invitado', 'Sin sesion'], 'Sin sesion'));
+  incrementAnalyticsCounter(day.referrers ||= {}, analyticsReferrer(body.referrer));
+  analytics.totalViews = Number(analytics.totalViews || 0) + 1;
+  analytics.lastViewAt = now.toISOString();
+  const retainedKeys = Object.keys(analytics.days).sort().slice(-90);
+  const retained = new Set(retainedKeys);
+  for (const key of Object.keys(analytics.days)) if (!retained.has(key)) delete analytics.days[key];
+  return analytics;
+}
+
+function analyticsSummary(data) {
+  const analytics = data.analytics || { totalViews: 0, lastViewAt: null, days: {} };
+  const days = analytics.days || {};
+  const today = new Date();
+  const keys = Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() - (29 - index));
+    return analyticsDayKey(date);
+  });
+  const sumDays = count => keys.slice(-count).reduce((total, key) => total + Number(days[key]?.views || 0), 0);
+  const merge = (field, count = 30) => {
+    const totals = {};
+    for (const key of keys.slice(-count)) {
+      for (const [name, value] of Object.entries(days[key]?.[field] || {})) {
+        totals[name] = Number(totals[name] || 0) + Number(value || 0);
+      }
+    }
+    return Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+  };
+  return {
+    totals: { today: sumDays(1), last7: sumDays(7), last30: sumDays(30), all: Number(analytics.totalViews || 0) },
+    series: keys.slice(-14).map(date => ({ date, views: Number(days[date]?.views || 0) })),
+    routes: merge('routes').slice(0, 8).map(item => ({ ...item, label: analyticsRouteLabels[item.name] || analyticsRouteLabels['/otra'] })),
+    devices: merge('devices'),
+    browsers: merge('browsers'),
+    audiences: merge('audiences'),
+    referrers: merge('referrers').slice(0, 8),
+    lastViewAt: analytics.lastViewAt || null,
+    retentionDays: 90
   };
 }
 
@@ -2569,9 +2692,20 @@ function checkPasswordAttempt(req, res) {
 async function handleApi(req, res, url) {
   if (req.method === 'OPTIONS') return sendJson(res, 204, {});
   if (req.method !== 'GET' && !checkRateLimit(req, res)) return;
-  const db = await loadDb();
   const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   const [resource, id] = parts;
+
+  // Consumir el cuerpo pequeño de telemetría antes de una eventual carga inicial
+  // de la base evita mantener la solicitud del navegador abierta durante el arranque.
+  if (resource === 'analytics' && id === 'collect' && req.method === 'POST') {
+    const body = await readBody(req, 8_000);
+    const db = await loadDb();
+    collectAnalyticsView(db.data, body);
+    writeDb(db).catch(error => console.error('[analytics] persist failed:', error?.message || error));
+    return sendJson(res, 202, { ok: true });
+  }
+
+  const db = await loadDb();
 
   if (!features.surveys && ['surveys', 'encuestas', 'votaciones'].includes(resource)) {
     return sendError(res, 404, 'unknown api resource');
@@ -2594,6 +2728,14 @@ async function handleApi(req, res, url) {
 
   if (resource === 'health') {
     return sendJson(res, 200, { ok: true });
+  }
+
+  if (resource === 'analytics') {
+    if (id === 'summary' && req.method === 'GET') {
+      requireCealSession(req, db);
+      return sendJson(res, 200, { ok: true, summary: analyticsSummary(db.data) });
+    }
+    return sendError(res, 404, 'unknown api resource');
   }
 
   if (resource === 'auth') {
@@ -3317,6 +3459,9 @@ async function handleApi(req, res, url) {
   const collectionName = collectionMap[resource];
   if (!collectionName || !db.data[collectionName]) {
     return sendError(res, 404, 'unknown api resource');
+  }
+  if (collectionName === 'communications') {
+    return sendError(res, 404, 'communications not enabled');
   }
   const collection = db.data[collectionName];
 

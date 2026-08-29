@@ -183,7 +183,9 @@ async function runSessionEdgeTests(browser, studentUser) {
       inspect();
     }, { once: true });
   });
-  await stalePage.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
+  // La telemetría agregada se envía en segundo plano; este caso valida el primer
+  // render y no debe depender de que no exista ninguna solicitud en vuelo.
+  await stalePage.goto(appUrl('/gestion'), { waitUntil: 'domcontentloaded' });
   await stalePage.waitForSelector('.login-shell');
   if (await stalePage.evaluate(() => window.__qaProtectedPainted)) fail('expired local session painted protected content before validation');
   await staleContext.close();
@@ -252,7 +254,7 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   // Rutas que pertenecen a una pestaña del dock: deben marcarla activa.
   // Las rutas secundarias (calendario, perfil, atención…) viven en el menú
   // lateral y no marcan pestaña, pero el dock siempre debe estar visible.
-  const tabbedRoutes = new Set(['inicio', 'comunicados', 'comunicado-detalle', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle']);
+  const tabbedRoutes = new Set(['inicio', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle']);
   if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none')) {
     pushFailure(`${label}: bottom nav missing`);
   }
@@ -353,17 +355,17 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   if (disabledList.status !== 410 || disabledCreate.status !== 410 || disabledConfig.status !== 410) fail('disabled appointment backend should reject reads, bookings and configuration changes');
 
   await loginStudent(page, studentUser);
-  for (const route of ['/tutoriales', '/atencion', '/jefatura']) {
+  for (const route of ['/tutoriales', '/atencion', '/jefatura', '/comunicados', '/notificaciones']) {
     await page.goto(appUrl(route), { waitUntil: 'networkidle' });
     await page.waitForURL(/#\/$/);
     if ((await page.locator('h1.page-title').innerText()) !== 'Inicio') fail(`${route} should redirect to Inicio`);
   }
   const studentNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (studentNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('student navigation should expose only the informational portal');
+  if (studentNav.some(item => ['Comunicados', 'Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('student navigation should expose only the current informational portal');
 
   await loginJefatura(page, jefaturaUser);
   const jefaturaNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (jefaturaNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('Jefatura navigation should expose only the informational portal');
+  if (jefaturaNav.some(item => ['Comunicados', 'Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('Jefatura navigation should expose only the current informational portal');
 
   await page.goto(appUrl('/login'), { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.removeItem('portal.session'));
@@ -372,7 +374,7 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   await page.waitForURL(/#\/$/);
   await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
   const guestNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (guestNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico', 'Gestión'].includes(item.trim()))) fail('guest navigation should expose only public informational sections');
+  if (guestNav.some(item => ['Comunicados', 'Tutoriales', 'Atención', 'Jefatura', 'Horario académico', 'Gestión'].includes(item.trim()))) fail('guest navigation should expose only current public informational sections');
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
   await page.goto(appUrl('/perfil'), { waitUntil: 'networkidle' });
@@ -391,11 +393,15 @@ async function runCealFlowTests(page, cealUser) {
   await loginCeal(page, cealUser);
   await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
   if (!(await page.locator('text=Contenido y fuentes').count())) fail('gestion dashboard missing consolidated console');
+  await page.locator('.analytics-dashboard').waitFor();
+  await page.locator('.analytics-kpis').waitFor();
+  if (!(await page.getByRole('heading', { name: 'Tráfico', exact: true }).count())) fail('gestion dashboard missing protected traffic summary');
+  if ((await page.locator('.analytics-kpis').innerText()).includes('undefined')) fail('traffic metrics should always render numeric values');
   const managementText = await page.locator('main').innerText();
   if (/Encuestas|Reservas de taca-taca|ping-pong/i.test(managementText)) fail('gestion dashboard should not expose disabled surveys or reservations');
-  if (!managementText.includes('1 publicado') || !managementText.includes('Bienvenida al Portal CEIC UCN')) fail('portal introduction should be the first published communication');
+  if (/Comunicados|Bienvenida al Portal CEIC UCN/i.test(managementText)) fail('gestion dashboard should not expose retired communications');
   const cealNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (cealNav.at(-1)?.trim() !== 'Gestión' || cealNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('CEAL management should be the final navigation item without retired sections');
+  if (cealNav.at(-1)?.trim() !== 'Gestión' || cealNav.some(item => ['Comunicados', 'Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('CEAL management should be the final navigation item without retired sections');
 
   await page.goto(appUrl('/gestion/calendario'), { waitUntil: 'networkidle' });
   const calendarUpdateForm = page.locator('form[data-form="calendar-update"]');
@@ -424,29 +430,18 @@ async function runCealFlowTests(page, cealUser) {
   report.flows.push('CEAL validates material');
 
   await page.goto(appUrl('/gestion/comunicados/nuevo'), { waitUntil: 'networkidle' });
-  const communicationForm = page.locator('form[data-form="edit-content"]');
-  await communicationForm.locator('input[name="title"]').fill('Comunicado QA inicial');
-  await communicationForm.locator('select[name="category"]').selectOption({ label: 'Información' });
-  await communicationForm.locator('input[name="summary"]').fill('Resumen breve para validar una publicación nueva.');
-  await communicationForm.locator('textarea[name="body"]').fill('Este contenido valida la creación manual de un comunicado junto a la publicación introductoria.');
-  await communicationForm.locator('button[type="submit"]').click();
-  await page.waitForURL(/#\/comunicados\/com-/);
-  const createdCommunicationId = decodeURIComponent(new URL(page.url()).hash.split('/').filter(Boolean).at(-1) || '');
-  if (!createdCommunicationId) fail('created communication id was not available');
-  await page.waitForSelector('text=Comunicado QA inicial');
-
-  await page.evaluate(() => { window.location.hash = '/gestion'; });
   await page.waitForURL(/#\/gestion$/);
-  const editCommunication = page.locator('.management-inline-links a', { hasText: 'Comunicado QA inicial' });
-  await editCommunication.waitFor();
-  await editCommunication.click();
-  await page.waitForURL(new RegExp(`#\\/gestion\\/comunicados\\/${createdCommunicationId}\\/editar`));
-  await page.locator('form[data-form="edit-content"] input[name="title"]').fill('Comunicado QA publicado');
-  await page.locator('form[data-form="edit-content"] button[type="submit"]').click();
-  await page.waitForURL(new RegExp(`#\\/comunicados\\/${createdCommunicationId}`));
-  await page.waitForSelector('text=Comunicado QA publicado');
-  report.flows.push('CEAL creates and edits a communication while preserving the portal introduction');
-  return createdCommunicationId;
+  if ((await page.locator('main').innerText()).includes('Nuevo comunicado')) fail('retired communication editor should not remain reachable');
+  report.flows.push('CEAL management excludes retired communications');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(appUrl('/gestion'), { waitUntil: 'networkidle' });
+  await page.locator('.analytics-dashboard').waitFor();
+  const analyticsBounds = await page.locator('.analytics-dashboard').boundingBox();
+  const analyticsOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  if (!analyticsBounds || analyticsBounds.x < 0 || analyticsBounds.x + analyticsBounds.width > 390 || analyticsOverflow) fail('traffic dashboard should fit the mobile viewport');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  report.flows.push('CEAL traffic dashboard works on desktop and mobile');
 }
 
 async function runCrossBrowserMobileTests(playwright, studentUser) {
@@ -580,12 +575,10 @@ async function main() {
 
     await runPublicFlowTests(page, studentUser);
     await runBookingFlowTests(page, studentUser, jefaturaUser);
-    const createdCommunicationId = await runCealFlowTests(page, cealUser);
+    await runCealFlowTests(page, cealUser);
 
     const studentRoutes = [
       ['/', 'inicio'],
-      ['/comunicados', 'comunicados'],
-      [`/comunicados/${createdCommunicationId}`, 'comunicado-detalle'],
       ['/calendario', 'calendario'],
       ['/acuerdos/agr-003', 'acuerdo-detalle'],
       ['/material', 'material'],
@@ -616,7 +609,7 @@ async function main() {
     await page.setViewportSize({ width: 360, height: 800 });
     await loginStudent(page, studentUser);
     const bottomItems = await page.locator('.bottom-nav .bottom-item').allTextContents();
-    if (bottomItems.length !== 5 || bottomItems.at(-1)?.trim() !== 'Material' || bottomItems[2]?.trim() !== 'Calendario') fail('student mobile navigation should expose the five informational sections');
+    if (bottomItems.length !== 4 || bottomItems.at(-1)?.trim() !== 'Material' || bottomItems[1]?.trim() !== 'Calendario') fail('student mobile navigation should expose the four current informational sections');
     const bottomBounds = await page.locator('.bottom-nav').boundingBox();
     if (!bottomBounds || bottomBounds.x < 0 || bottomBounds.x + bottomBounds.width > 360) fail('mobile bottom navigation should fit a 360px viewport');
     await page.goto(appUrl('/calendario'), { waitUntil: 'networkidle' });
@@ -648,9 +641,7 @@ async function main() {
       ['/gestion', 'gestion'],
       ['/gestion/calendario', 'gestion-calendario'],
       ['/gestion/acuerdos/nuevo', 'gestion-acuerdo-nuevo'],
-      ['/gestion/material/mat-010/validar', 'gestion-material-validar'],
-      ['/gestion/comunicados/nuevo', 'gestion-comunicado-nuevo'],
-      [`/gestion/comunicados/${createdCommunicationId}/editar`, 'gestion-comunicado-editar']
+      ['/gestion/material/mat-010/validar', 'gestion-material-validar']
     ];
     for (const [route, name] of cealRoutes) {
       await auditRoute(page, route, name, 'desktop-ceal', name === 'gestion');
