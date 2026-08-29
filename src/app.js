@@ -354,7 +354,7 @@
     try { sessionStorage.removeItem('portal.guestReview'); } catch {}
     state.user = null;
   }
-  function buildGuestUser() { return { id: 'guest-jefatura-review', name: 'Invitado', initials: 'IN', role: 'guest', accessMode: 'jefatura-review', label: 'Invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
+  function buildGuestUser() { return { id: 'guest-portal-review', name: 'Invitado', initials: 'IN', role: 'guest', accessMode: 'portal-review', label: 'Invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
   function startGuestSession() {
     localStorage.removeItem('portal.session');
     sessionStorage.setItem('portal.guestReview', '1');
@@ -1131,16 +1131,10 @@
       ['/comunicados', 'megaphone', 'Comunicados'],
       ['/calendario', 'calendar', 'Calendario'],
       ['/mallas', 'grid', 'Mallas'],
-      ['/material', 'book', 'Material'],
-      ['/tutoriales', 'play', 'Tutoriales']
+      ['/material', 'book', 'Material']
     ];
     if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
     if (FEATURES.tableReservations && !isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
-    if (canReviewJefatura()) {
-      items.push(['/jefatura', 'users', 'Jefatura']);
-    } else {
-      items.push(['/atencion', 'users', 'Atención']);
-    }
     if (hasCealAccess()) {
       items.push(['/gestion', 'settings', 'Gestión']);
     }
@@ -1184,6 +1178,7 @@
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && path === '/contingencia') return routeTo('/comunicados');
     if (state.user && path === '/horarios') return routeTo('/calendario');
+    if (state.user && ['/tutoriales', '/atencion', '/jefatura'].includes(path)) return routeTo('/');
     if (state.user && path === '/mas') return routeTo('/reservas');
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
@@ -1350,7 +1345,7 @@
           <section class="google-login-card">
             <span class="role-icon">${icon('user')}</span>
             <div class="google-login-body">
-              <div><strong>Estudiantes</strong><span>Material, mallas, calendario, comunicados y atención.</span></div>
+              <div><strong>Estudiantes</strong><span>Material, mallas, calendario y comunicados.</span></div>
               ${googleButton('student')}
             </div>
           </section>
@@ -1364,7 +1359,7 @@
         </div>
         <button class="guest-login-card" type="button" data-guest-login>
           <span class="role-icon">${icon('eye')}</span>
-          <span><strong>Invitado</strong><small>Revisa el portal y la vista de Jefatura sin realizar cambios.</small></span>
+          <span><strong>Invitado</strong><small>Revisa el contenido publicado sin realizar cambios.</small></span>
           ${icon('arrow')}
         </button>${devAccess}
       </div></section></main>`;
@@ -1381,12 +1376,7 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const roleDestination = canReviewJefatura()
-        ? ['/jefatura', 'users', 'Jefatura']
-        : hasCealAccess()
-          ? ['/gestion', 'settings', 'Gestión']
-          : ['/atencion', 'users', 'Atención'];
-    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material'], roleDestination]
+    const bottom = [['/', 'home', 'Inicio'], ['/comunicados', 'megaphone', 'Comunicados'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material']]
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('');
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${notificationBell()}<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
@@ -1428,12 +1418,9 @@
       return renderCommunicationDetail(commId);
     }
     if (path === '/calendario') return renderCalendar();
-    if (path === '/tutoriales') return renderTutorialLibrary();
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
-    if (path === '/jefatura') return canReviewJefatura() ? (FEATURES.appointments && hasJefaturaAccess() ? renderBookingPage(true) : renderAttentionStage(true)) : renderNotFound('Esta sección es exclusiva de la Jefatura de carrera.');
-    if (path === '/atencion') return FEATURES.appointments && !isGuest() ? renderBookingPage(false) : renderAttentionStage(false);
     if (path === '/asistente') return renderCealAssistant();
     if (path === '/gestion') return ensureCEAL(renderManagement());
     if (path === '/gestion/comunicados/nuevo') return ensureCEAL(renderEditor());
@@ -1488,7 +1475,7 @@
     const summaryStrip = `<div class="summary-strip">${summaryStat('megaphone', homeUnreadComms, 'Comunicados nuevos', '/comunicados')}${summaryStat('calendar', homeNextEvent ? fmtDate(homeNextEvent.date) : '—', 'Próxima fecha', '/calendario')}${summaryStat('file', homeActiveAgreements, 'Seguimientos activos', '/calendario')}${summaryStat('book', homeResourceCount, 'Recursos', '/material')}</div>`;
     return `${pageHead('Inicio', 'Comunicados, calendario, mallas y material académico')}${summaryStrip}
       <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Últimos comunicados</h2><a class="link" href="#/comunicados">Ver todos ${icon('arrow')}</a></div>${(Data.communications || []).slice(0, 3).map(c => `<a class="link-card-row" href="#/comunicados/${c.id}"><span><strong>${esc(c.title)}</strong><span class="small muted">${esc(c.category)} · ${fmtDate(c.date)}</span></span>${icon('arrow')}</a>`).join('') || (noDataYet ? skeletonList(3) : '<p class="small muted">Sin comunicados por ahora.</p>')}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}${access('users','Atención de Jefatura','Información y estado de la atención.','Abrir',canReviewJefatura() ? '/jefatura' : '/atencion','blue')}</div></div></section>${renderHomeDigest()}
+      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}${access('megaphone','Comunicados','Avisos de la carrera.','Abrir','/comunicados')}${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}</div></div></section>${renderHomeDigest()}
       <div class="grid two" style="margin-top:18px"><section class="card pad"><div class="row-between"><h2 class="card-title">Novedades recientes</h2><a class="link" href="#/comunicados">Ver todas ${icon('arrow')}</a></div>${Data.communications.slice(0,4).map(c => newsRow('megaphone', c.title, c.summary, `/comunicados/${c.id}`, c.date)).join('') || (noDataYet ? skeletonList(3) : '')}</section><section class="card pad"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${upcomingEvents.slice(0,4).map(dateRow).join('') || (noDataYet ? skeletonList(3) : renderEmpty('Sin fechas próximas', 'No hay hitos futuros publicados.'))}</section></div>`;
 
   }
@@ -3396,14 +3383,12 @@
     const u = state.user;
     if (isGuest()) {
       return `<div class="profile-view">${pageHead('Invitado', 'Acceso de revisión', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Salir</span></button>`)}
-        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes recorrer el portal y revisar la vista de Jefatura sin ver reservas ni realizar cambios.</p></div><a class="btn primary" href="#/jefatura">Ver Jefatura</a></div></section>
+        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes recorrer el contenido publicado sin realizar cambios.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
         <div class="grid four profile-access-grid">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('megaphone','Comunicados','Avisos y actualizaciones de la carrera.','Abrir','/comunicados')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}</div></div>`;
     }
     const roleLabel = accountRoleLabel(u);
     const profileContext = u.role === 'student' ? `${planShort(u.plan)} - ${u.yearLabel}` : u.yearLabel;
-    const profileAction = hasJefaturaAccess()
-      ? `<a class="btn secondary profile-primary-action" href="#/jefatura">${icon('users')} Ver jefatura</a>`
-      : `<a class="btn secondary profile-primary-action" href="#/mallas">${icon('grid')} Ver mi malla</a>`;
+    const profileAction = `<a class="btn secondary profile-primary-action" href="#/mallas">${icon('grid')} Ver mallas</a>`;
     return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
   }
   function renderSearch(query) {

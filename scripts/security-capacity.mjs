@@ -132,9 +132,8 @@ async function main() {
     const indexResponse = await fetch(`${baseUrl}/`);
     assert(Boolean(indexResponse.headers.get('content-security-policy')), 'static responses include a content security policy');
     assert(indexResponse.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'static responses use a restrictive referrer policy');
-    const mediaRange = await fetch(`${baseUrl}/tutoriales/media/solicitar-hora-narrado.mp4`, { headers: { range: 'bytes=1024-2047' } });
-    assert(mediaRange.status === 206 && mediaRange.headers.get('accept-ranges') === 'bytes', 'tutorial media supports byte-range seeking');
-    assert((await mediaRange.arrayBuffer()).byteLength === 1024, 'tutorial media returns only the requested byte range');
+    const retiredTutorialMedia = await fetch(`${baseUrl}/tutoriales/media/solicitar-hora-narrado.mp4`, { headers: { range: 'bytes=1024-2047' } });
+    assert(retiredTutorialMedia.status !== 206 && !/^video\//i.test(retiredTutorialMedia.headers.get('content-type') || ''), 'retired tutorial media is not publicly served');
 
     const bootstrap = await request('/api/bootstrap');
     assert(bootstrap.status === 200, 'public bootstrap remains available');

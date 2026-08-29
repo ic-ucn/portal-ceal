@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -38,62 +38,18 @@ function plain(value) {
 const data = loadBrowserGlobal('src/mock-data.js', 'PortalMock');
 const curricula = loadBrowserGlobal('data/curricula.js', 'CURRICULA');
 const driveMaterials = loadBrowserGlobal('data/drive-materials.js', 'PortalDriveMaterials') || [];
-const academicSchedule = loadBrowserGlobal('data/academic-schedule.js', 'ACADEMIC_SCHEDULE');
 const appJs = read('src/app.js');
 const serverJs = read('server.mjs');
 const indexHtml = read('index.html');
-const tutorialsHtml = read('tutoriales/index.html');
-const jefaturaTutorialHtml = read('tutorial-jc/index.html');
-const cealTutorialHtml = read('tutorial-ceal/index.html');
-const portalTutorialHtml = read('tutorial-portal/index.html');
-const publicStudentTutorialHtml = read('tutorial-estudiantes/index.html');
-const publicJefaturaTutorialHtml = read('tutorial-jefatura/index.html');
-const tutorialJs = read('tutoriales/tutoriales.js');
-const tutorialCaptureJs = read('scripts/capture-tutorial-videos.mjs');
-const tutorialComposePy = read('scripts/compose-tutorial-videos.py');
 const stylesCss = read('src/styles.css');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', 'tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutorial-portal/index.html', 'tutorial-estudiantes/index.html', 'tutorial-jefatura/index.html', 'tutoriales/tutoriales.css', 'tutoriales/tutoriales.js', 'tutoriales/media/solicitar-hora-narrado.mp4', 'tutoriales/media/solicitar-hora-hombre.mp4', 'tutoriales/media/solicitar-hora-poster.webp', 'tutoriales/media/solicitar-hora.vtt', 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4', 'tutorial-jc/media/gestionar-atencion-jefatura-poster.webp', 'tutorial-jc/media/gestionar-atencion-jefatura.vtt', 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4', 'tutorial-ceal/media/gestionar-portal-ceal-poster.webp', 'tutorial-ceal/media/gestionar-portal-ceal.vtt', 'tutorial-portal/media/recorrido-portal-narrado.mp4', 'tutorial-portal/media/recorrido-portal-hombre.mp4', 'tutorial-portal/media/recorrido-portal-poster.webp', 'tutorial-portal/media/recorrido-portal.vtt', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
+for (const rel of ['index.html', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
-assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-narrado.mp4')).size > 500_000, 'student tutorial video should contain a real narrated export');
-assert(statSync(path.join(root, 'tutoriales/media/solicitar-hora-hombre.mp4')).size > 500_000, 'student tutorial should contain a male narrated export');
-assert(statSync(path.join(root, 'tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4')).size > 500_000, 'Jefatura tutorial video should contain a real narrated export');
-assert(statSync(path.join(root, 'tutorial-jc/media/gestionar-atencion-jefatura-hombre.mp4')).size > 500_000, 'Jefatura tutorial should contain a male narrated export');
-assert(statSync(path.join(root, 'tutorial-ceal/media/gestionar-portal-ceal-narrado.mp4')).size > 500_000, 'CEAL tutorial should contain a real narrated export');
-assert(statSync(path.join(root, 'tutorial-portal/media/recorrido-portal-narrado.mp4')).size > 500_000, 'portal tutorial should contain a real female narrated export');
-assert(statSync(path.join(root, 'tutorial-portal/media/recorrido-portal-hombre.mp4')).size > 500_000, 'portal tutorial should contain a real male narrated export');
-assert(tutorialsHtml.includes('media/solicitar-hora-narrado.mp4'), 'tutorial page should embed the narrated student video');
-assert(jefaturaTutorialHtml.includes('media/gestionar-atencion-jefatura-narrado.mp4'), 'Jefatura tutorial page should embed the narrated video');
-assert(cealTutorialHtml.includes('media/gestionar-portal-ceal-narrado.mp4'), 'CEAL tutorial page should embed the narrated video');
-assert(portalTutorialHtml.includes('media/recorrido-portal-narrado.mp4'), 'portal tutorial page should embed the narrated video');
-assert(tutorialsHtml.includes('data-video-male') && jefaturaTutorialHtml.includes('data-video-male') && portalTutorialHtml.includes('data-video-male'), 'two-voice tutorial pages should expose both narration voices');
-assert([tutorialsHtml, jefaturaTutorialHtml, portalTutorialHtml].every(html => (html.match(/data-video-voice=/g) || []).length === 2), 'each two-voice tutorial should offer exactly two voice choices');
-assert((cealTutorialHtml.match(/data-video-voice=/g) || []).length === 0, 'CEAL tutorial should use its single approved narration without a voice selector');
-assert(!cealTutorialHtml.includes('video-narration-label'), 'CEAL tutorial should not expose internal narration metadata');
-assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => /<video\s+controls\b/.test(html)), 'all tutorials should use the browser-native video player');
-assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => !html.includes('data-video-fullscreen') && !html.includes('data-video-toggle')), 'tutorial pages should not retain the custom transport controls');
-assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml, publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => !/<track\b[^>]*\bdefault\b/i.test(html)), 'tutorial captions should be available but disabled by default');
-assert(tutorialsHtml.includes('media/solicitar-hora.vtt'), 'tutorial page should include captions');
-assert(cealTutorialHtml.includes('media/gestionar-portal-ceal.vtt'), 'CEAL tutorial page should include captions');
-assert(!tutorialsHtml.includes('jc.icivil.afta@ucn.cl'), 'public tutorial should not expose the private Jefatura account');
-assert(!cealTutorialHtml.includes('@alumnos.ucn.cl'), 'CEAL tutorial should not expose an account identifier');
-assert(tutorialsHtml.includes('data-tutorial-access="student"'), 'student tutorial should require a portal session');
-assert(cealTutorialHtml.includes('data-tutorial-access="ceal"'), 'CEAL tutorial should declare internal access');
-assert(jefaturaTutorialHtml.includes('data-tutorial-access="jefatura"'), 'Jefatura tutorial should declare its exclusive access');
-assert(portalTutorialHtml.includes('data-tutorial-access="student"'), 'portal tutorial should require a portal session');
-assert([publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => html.includes('data-tutorial-public="true"')), 'shareable tutorials should explicitly declare public access');
-assert([publicStudentTutorialHtml, publicJefaturaTutorialHtml].every(html => html.includes('rel="canonical"') && html.includes('property="og:title"') && html.includes('property="og:image"')), 'shareable tutorials should include canonical and social metadata');
-assert(publicStudentTutorialHtml.includes('../tutoriales/media/solicitar-hora-narrado.mp4'), 'public student tutorial should reuse the approved narrated video');
-assert(publicJefaturaTutorialHtml.includes('../tutorial-jc/media/gestionar-atencion-jefatura-narrado.mp4'), 'public Jefatura tutorial should reuse the approved narrated video');
-assert(tutorialJs.includes("dataset.tutorialPublic === 'true'"), 'tutorial runtime should support explicit public share pages');
-assert(tutorialJs.includes("localStorage.getItem('portal.session')") && tutorialJs.includes('/auth/session'), 'tutorial pages should validate an existing portal session');
-assert([tutorialsHtml, jefaturaTutorialHtml, cealTutorialHtml, portalTutorialHtml].every(html => html.includes('class="video-followup"')), 'each tutorial should expose its portal action directly below the video');
-assert(tutorialCaptureJs.includes('const cutTransition = async action'), 'tutorial capture should record technical navigation intervals');
-assert((tutorialCaptureJs.match(/await cutTransition\(/g) || []).length >= 6, 'all tutorial navigation transitions should use clean cuts');
-assert(tutorialComposePy.includes("select='not(") && tutorialComposePy.includes('capture_cuts(raw)'), 'tutorial composition should remove recorded navigation intervals');
-assert(tutorialCaptureJs.includes('exploreMallaNaturally') && tutorialCaptureJs.includes('remaining = startedAt'), 'Mallas tutorial should use a time-corrected natural cursor path');
+for (const retired of ['tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutorial-portal/index.html', 'tutorial-estudiantes/index.html', 'tutorial-jefatura/index.html', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf']) {
+  assert(!existsSync(path.join(root, retired)), `${retired} should stay outside the published portal`);
+}
 
 assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package check should include quality-suite');
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
@@ -107,17 +63,18 @@ assert(indexHtml.includes('src/config.js'), 'index should load public runtime co
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
 assert(!appJs.includes('window.google'), 'app should not depend on the legacy GSI global');
 assert(appJs.includes('!isLocalDevHost()'), 'Google OAuth should stay disabled on localhost to avoid an invalid redirect URI');
-assert(appJs.includes("state.user.authProvider === 'local-dev'"), 'localhost review sessions should survive direct tutorial navigation');
+assert(appJs.includes("state.user.authProvider === 'local-dev'"), 'localhost review sessions should survive direct navigation');
 assert(appJs.includes("surveys: false"), 'surveys should remain disabled until explicitly re-enabled');
 assert(appJs.includes("tableReservations: false"), 'table reservations should remain disabled until explicitly re-enabled');
 assert(appJs.includes("appointments: captureAppointments"), 'appointment booking should remain disabled outside local tutorial capture');
 assert(appJs.includes("URL_PARAMS.has('captureBooking')") && appJs.includes("['localhost', '127.0.0.1', '::1'].includes(location.hostname)"), 'appointment capture mode should be restricted to local hosts');
 assert(serverJs.includes("appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'"), 'appointment APIs should remain disabled by default in production');
 assert((serverJs.match(/appointment booking is not enabled/g) || []).length >= 9, 'all appointment and Calendar mutations should enforce the server feature gate');
-assert(appJs.includes('data-guest-login') && appJs.includes('jefatura-review'), 'login should expose an ephemeral Jefatura review account');
-assert(appJs.includes('Este acceso no muestra reservas ni permite guardar cambios.'), 'guest Jefatura review should describe its read-only boundary');
-assert(appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'authenticated portal navigation should expose the tutorial library');
-assert(appJs.includes("if (path === '/tutoriales') return renderTutorialLibrary()"), 'portal should render the authenticated tutorial library');
+assert(appJs.includes('data-guest-login') && appJs.includes('portal-review'), 'login should expose an ephemeral read-only portal account');
+assert(appJs.includes('Revisa el contenido publicado sin realizar cambios.'), 'guest access should describe its read-only boundary');
+assert(!appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'retired tutorials should stay out of navigation');
+assert(!appJs.includes("['/atencion', 'users', 'Atención']") && !appJs.includes("['/jefatura', 'users', 'Jefatura']"), 'retired attention routes should stay out of navigation');
+assert(appJs.includes("['/tutoriales', '/atencion', '/jefatura'].includes(path)"), 'retired operational routes should redirect to Inicio');
 assert(appJs.includes("apiRequest('/bootstrap', { cache: 'no-store' })"), 'authenticated reloads should bypass a stale browser bootstrap cache');
 assert(/const initialPortalDark = storedPortalTheme\s*\? storedPortalTheme === 'dark'\s*:\s*false;/.test(appJs), 'new portal sessions should start in light mode');
 assert(stylesCss.includes('color-scheme: only light'), 'light mode should prevent forced browser recoloring');
@@ -216,13 +173,7 @@ assert(!serverJs.includes("hasDriveSeed && /^mat-\\d{3}$/.test"), 'backend shoul
 assert(!appJs.includes("hasDriveCatalog && /^mat-\\d{3}$/.test"), 'frontend should preserve real uploaded materials when Drive resources are present');
 assert(appJs.includes("path === '/horarios') return routeTo('/calendario')"), 'retired academic schedule route should redirect to the calendar');
 assert(!appJs.includes("['/horarios', 'clock', 'Horario académico']"), 'retired academic schedule should stay out of navigation');
-assert(Array.isArray(academicSchedule?.courses) && academicSchedule.courses.length === 28, 'academic schedule should contain the 28 source rows');
-const academicSessions = academicSchedule.courses.flatMap(course => (course.sessions || []).map(session => ({ ...course, ...session })));
-assert(academicSessions.length === 64, 'academic schedule should preserve all 64 weekly class appearances from the source PDF');
-assert(academicSessions.every(item => ['lunes', 'martes', 'miércoles', 'jueves', 'viernes'].includes(item.day)), 'academic schedule should only contain weekday sessions');
-assert(academicSessions.every(item => academicSchedule.blocks[item.block]?.start && academicSchedule.blocks[item.block]?.end), 'every academic session should reference a valid A-G block');
-assert(academicSchedule.sourceFile === 'docs/horario-dic-2-2026-v1.pdf', 'academic schedule should link to the reviewed source PDF');
-assert(serverJs.includes("'.pdf': 'application/pdf'"), 'static server should send the source schedule with the PDF MIME type');
+assert(serverJs.includes("'.pdf': 'application/pdf'"), 'static server should send published PDF files with the correct MIME type');
 assert(appJs.includes('calendar-detail-modal') && appJs.includes('data-calendar-modal-close'), 'academic calendar should open an accessible detail modal');
 assert(appJs.includes('data-form="booking-config"'), 'Jefatura booking configuration form should exist');
 assert(serverJs.includes('calendarUpdateRequests') && serverJs.includes('requireCalendarWatcher'), 'calendar source inbox should require a private watcher token');

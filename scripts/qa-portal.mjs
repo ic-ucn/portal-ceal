@@ -156,7 +156,7 @@ async function loginJefatura(page, jefaturaUser) {
     localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify(user));
   }, jefaturaUser);
-  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
+  await page.goto(appUrl('/'), { waitUntil: 'networkidle' });
   await page.waitForSelector('.page-title');
 }
 
@@ -194,9 +194,9 @@ async function runSessionEdgeTests(browser, studentUser) {
   const secondTab = await sharedContext.newPage();
   await firstTab.goto(baseUrl, { waitUntil: 'networkidle' });
   await firstTab.evaluate(user => localStorage.setItem('portal.session', JSON.stringify(user)), studentUser);
-  await firstTab.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
+  await firstTab.goto(appUrl('/'), { waitUntil: 'networkidle' });
   await firstTab.waitForSelector('h1.page-title');
-  if ((await firstTab.locator('h1.page-title').innerText()) !== 'Atención de Jefatura') fail('valid saved session was not restored');
+  if ((await firstTab.locator('h1.page-title').innerText()) !== 'Inicio') fail('valid saved session was not restored');
   await secondTab.goto(baseUrl, { waitUntil: 'networkidle' });
   await secondTab.evaluate(() => localStorage.removeItem('portal.session'));
   await firstTab.waitForURL(/#\/login/, { timeout: 5000 });
@@ -353,14 +353,17 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   if (disabledList.status !== 410 || disabledCreate.status !== 410 || disabledConfig.status !== 410) fail('disabled appointment backend should reject reads, bookings and configuration changes');
 
   await loginStudent(page, studentUser);
-  await page.goto(appUrl('/atencion'), { waitUntil: 'networkidle' });
-  await page.getByText('Agendamiento aún no habilitado', { exact: true }).waitFor();
-  if (await page.locator('[data-book-slot], [data-appointment-create], [data-booking-reason]').count()) fail('student attention view should not expose booking controls before launch');
-  if ((await page.locator('body').innerText()).includes('Prof. Zelada')) fail('student attention view should not expose the former personal label');
+  for (const route of ['/tutoriales', '/atencion', '/jefatura']) {
+    await page.goto(appUrl(route), { waitUntil: 'networkidle' });
+    await page.waitForURL(/#\/$/);
+    if ((await page.locator('h1.page-title').innerText()) !== 'Inicio') fail(`${route} should redirect to Inicio`);
+  }
+  const studentNav = await page.locator('.sidebar .nav-item').allTextContents();
+  if (studentNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('student navigation should expose only the informational portal');
 
   await loginJefatura(page, jefaturaUser);
-  await page.getByText('Agendamiento pendiente de publicación', { exact: true }).waitFor();
-  if (await page.locator('[data-form="booking-config"], [data-appointment-cancel], [data-availability-open], [data-availability-close]').count()) fail('Jefatura review should not expose operational booking controls');
+  const jefaturaNav = await page.locator('.sidebar .nav-item').allTextContents();
+  if (jefaturaNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('Jefatura navigation should expose only the informational portal');
 
   await page.goto(appUrl('/login'), { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.removeItem('portal.session'));
@@ -368,25 +371,20 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   await page.locator('[data-guest-login]').click();
   await page.waitForURL(/#\/$/);
   await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-  await page.locator('.sidebar .nav-item').filter({ hasText: 'Jefatura' }).waitFor();
   const guestNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (!guestNav.some(item => item.trim() === 'Jefatura') || guestNav.some(item => item.trim() === 'Horario académico')) fail('guest review navigation should expose Jefatura without the retired schedule');
-  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
-  await page.getByText('Acceso invitado', { exact: true }).waitFor();
-  if (await page.locator('[data-form="booking-config"], [data-appointment-cancel], [data-calendar-connect]').count()) fail('guest review must not expose Jefatura mutations');
-  const guestMain = await page.locator('main').innerText();
-  if (/qa\.estudiante|motivo de consulta|próximas reservadas/i.test(guestMain)) fail('guest review must not expose appointment data');
-  await page.goto(`${baseUrl}/tutorial-jc/?qa=guest-review`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
-  if ((await page.locator('h1').innerText()) !== 'Configurar y gestionar la agenda') fail('guest review should open the Jefatura tutorial in the same tab');
-  await page.goto(appUrl('/jefatura'), { waitUntil: 'networkidle' });
-  await page.getByText('Acceso invitado', { exact: true }).waitFor();
+  if (guestNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico', 'Gestión'].includes(item.trim()))) fail('guest navigation should expose only public informational sections');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('Acceso invitado', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
   await page.goto(appUrl('/perfil'), { waitUntil: 'networkidle' });
+  await page.getByText('Puedes recorrer el contenido publicado sin realizar cambios.', { exact: true }).waitFor();
   await page.locator('[data-logout]').first().click();
   await page.waitForURL(/#\/login$/);
-  report.flows.push('attention backend stays disabled while guest Jefatura review remains sanitized and read-only');
+  for (const pathName of ['/tutoriales/', '/tutorial-jc/', '/tutorial-ceal/', '/tutorial-portal/', '/tutorial-estudiantes/', '/tutorial-jefatura/']) {
+    const response = await fetch(`${baseUrl}${pathName}`);
+    const body = await response.text();
+    if (response.ok && /data-tutorial-video|video tutorial|narración femenina|narración masculina/i.test(body)) fail(`${pathName} should not remain published`);
+  }
+  report.flows.push('retired tutorials and attention routes stay unavailable for students, Jefatura and guests');
 }
 
 async function runCealFlowTests(page, cealUser) {
@@ -397,7 +395,7 @@ async function runCealFlowTests(page, cealUser) {
   if (/Encuestas|Reservas de taca-taca|ping-pong/i.test(managementText)) fail('gestion dashboard should not expose disabled surveys or reservations');
   if (!managementText.includes('1 publicado') || !managementText.includes('Bienvenida al Portal CEIC UCN')) fail('portal introduction should be the first published communication');
   const cealNav = await page.locator('.sidebar .nav-item').allTextContents();
-  if (cealNav.at(-1)?.trim() !== 'Gestión' || cealNav.findIndex(item => item.trim() === 'Atención') > cealNav.findIndex(item => item.trim() === 'Gestión')) fail('CEAL management should be the final navigation item after Atención');
+  if (cealNav.at(-1)?.trim() !== 'Gestión' || cealNav.some(item => ['Tutoriales', 'Atención', 'Jefatura', 'Horario académico'].includes(item.trim()))) fail('CEAL management should be the final navigation item without retired sections');
 
   await page.goto(appUrl('/gestion/calendario'), { waitUntil: 'networkidle' });
   const calendarUpdateForm = page.locator('form[data-form="calendar-update"]');
@@ -449,125 +447,6 @@ async function runCealFlowTests(page, cealUser) {
   await page.waitForSelector('text=Comunicado QA publicado');
   report.flows.push('CEAL creates and edits a communication while preserving the portal introduction');
   return createdCommunicationId;
-}
-
-async function runTutorialPageTests(browser, users) {
-  const tutorials = [
-    { path: '/tutoriales/', label: 'estudiantes', voiceCount: 2, maleSource: 'solicitar-hora-hombre.mp4', user: users.student },
-    { path: '/tutorial-portal/', label: 'portal general', voiceCount: 2, maleSource: 'recorrido-portal-hombre.mp4', user: users.student },
-    { path: '/tutorial-jc/', label: 'Jefatura', voiceCount: 2, maleSource: 'gestionar-atencion-jefatura-hombre.mp4', user: users.jefatura },
-    { path: '/tutorial-ceal/', label: 'CEAL', voiceCount: 0, maleSource: '', user: users.ceal },
-    { path: '/tutorial-estudiantes/', label: 'estudiantes público', voiceCount: 2, maleSource: 'solicitar-hora-hombre.mp4', user: null },
-    { path: '/tutorial-jefatura/', label: 'Jefatura público', voiceCount: 2, maleSource: 'gestionar-atencion-jefatura-hombre.mp4', user: null }
-  ];
-
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-    const page = await browser.newPage({ viewport });
-    page.on('console', message => {
-      if (['error', 'warning'].includes(message.type())) pushFailure(`tutorial console ${message.type()}: ${message.text()}`);
-    });
-    page.on('pageerror', error => pushFailure(`tutorial page error: ${error.message}`));
-
-    for (const tutorial of tutorials) {
-      await page.goto(`${baseUrl}/?qa=tutorial-session`, { waitUntil: 'domcontentloaded' });
-      await page.evaluate(user => {
-        if (user) localStorage.setItem('portal.session', JSON.stringify(user));
-        else localStorage.removeItem('portal.session');
-      }, tutorial.user);
-      await page.goto(`${baseUrl}${tutorial.path}?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
-      if (!tutorial.user && !new URL(page.url()).pathname.startsWith(tutorial.path)) fail(`tutorial ${tutorial.label} should remain public without a session`);
-      const video = page.locator('[data-tutorial-video]');
-      await video.waitFor();
-      await page.waitForFunction(() => {
-        const element = document.querySelector('[data-tutorial-video]');
-        return element instanceof HTMLVideoElement && Number.isFinite(element.duration) && element.duration > 0;
-      });
-
-      const state = await page.evaluate(() => {
-        const element = document.querySelector('[data-tutorial-video]');
-        return {
-          controls: element?.controls,
-          playsInline: element?.playsInline,
-          captionsShowing: [...(element?.textTracks || [])].some(track => track.mode === 'showing'),
-          voiceCount: document.querySelectorAll('[data-video-voice]').length,
-          customControls: document.querySelectorAll('.transport-controls, [data-video-seek], [data-video-toggle], [data-video-fullscreen]').length,
-          viewportWidth: window.innerWidth,
-          documentWidth: document.documentElement.scrollWidth
-        };
-      });
-      if (!state.controls || !state.playsInline) fail(`tutorial ${tutorial.label} should use the native responsive video player`);
-      if (state.captionsShowing) fail(`tutorial ${tutorial.label} should keep captions disabled by default`);
-      if (state.customControls) fail(`tutorial ${tutorial.label} should not expose the former custom playback toolbar`);
-      if (state.voiceCount !== tutorial.voiceCount) fail(`tutorial ${tutorial.label} has an unexpected voice selector`);
-      if (state.documentWidth > state.viewportWidth) fail(`tutorial ${tutorial.label} overflows at ${viewport.width}px`);
-
-      if (tutorial.voiceCount === 2) {
-        await video.evaluate(element => { element.currentTime = 4; });
-        await page.waitForFunction(() => document.querySelector('[data-tutorial-video]')?.currentTime >= 3.5);
-        await page.locator('[data-video-voice="male"]').click();
-        await page.waitForFunction(expected => {
-          const element = document.querySelector('[data-tutorial-video]');
-          return element instanceof HTMLVideoElement && element.currentSrc.includes(expected) && Number.isFinite(element.duration) && element.duration > 0;
-        }, tutorial.maleSource);
-        const switched = await page.evaluate(() => ({
-          currentTime: document.querySelector('[data-tutorial-video]')?.currentTime,
-          malePressed: document.querySelector('[data-video-voice="male"]')?.getAttribute('aria-pressed'),
-          download: document.querySelector('[data-video-download]')?.getAttribute('href') || ''
-        }));
-        if (Math.abs(switched.currentTime - 4) > 0.75) fail(`tutorial ${tutorial.label} should preserve playback position while switching voices`);
-        if (switched.malePressed !== 'true' || !switched.download.includes(tutorial.maleSource)) fail(`tutorial ${tutorial.label} voice selector did not update the active video and download`);
-      }
-    }
-    await page.close();
-  }
-
-  const accessPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await accessPage.goto(`${baseUrl}/?qa=tutorial-access`, { waitUntil: 'domcontentloaded' });
-  await accessPage.evaluate(user => localStorage.setItem('portal.session', JSON.stringify(user)), users.student);
-  await accessPage.goto(`${baseUrl}/tutorial-ceal/?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-  await accessPage.waitForURL(/#\/tutoriales$/);
-  await accessPage.waitForSelector('.tutorial-library-card');
-  if ((await accessPage.locator('.tutorial-library-card').count()) !== 1) fail('student tutorial library should expose only the active general guide');
-  if ((await accessPage.locator('main').innerText()).includes('Gestionar el contenido del portal')) fail('student should not see the CEAL tutorial');
-
-  await accessPage.evaluate(() => localStorage.removeItem('portal.session'));
-  await accessPage.goto(`${baseUrl}/tutoriales/?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-  await accessPage.waitForURL(/#\/login$/);
-  await accessPage.close();
-
-  const reviewPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await reviewPage.goto(`${baseUrl}/?review=local-login#/login`, { waitUntil: 'networkidle' });
-  await reviewPage.evaluate(() => localStorage.clear());
-  await reviewPage.reload({ waitUntil: 'networkidle' });
-  if (!(await reviewPage.locator('[data-google-redirect="student"]').isDisabled())) fail('localhost should not offer Google OAuth with an unregistered redirect URI');
-  await reviewPage.locator('[data-dev-login="jefatura"]').click();
-  await reviewPage.waitForURL(/#\/$/);
-  await reviewPage.goto(`${baseUrl}/tutorial-jc/?review=local-login`, { waitUntil: 'domcontentloaded' });
-  await reviewPage.waitForFunction(() => !document.documentElement.classList.contains('tutorial-auth-pending'));
-  if ((await reviewPage.locator('h1').innerText()) !== 'Configurar y gestionar la agenda') fail('localhost quick access should open the selected role tutorial without another login');
-  await reviewPage.close();
-  report.flows.push('protected tutorials require a valid role and public share pages open without a session');
-  report.flows.push('tutorial pages use native controls with responsive voice switching');
-}
-
-async function runTutorialLibraryTests(page, studentUser, cealUser, jefaturaUser) {
-  const cases = [
-    { login: () => loginStudent(page, studentUser), expected: 1, forbidden: 'Gestionar el contenido del portal' },
-    { login: () => loginCeal(page, cealUser), expected: 2, forbidden: 'Configurar y gestionar la agenda' },
-    { login: () => loginJefatura(page, jefaturaUser), expected: 4, forbidden: '' }
-  ];
-  for (const testCase of cases) {
-    await testCase.login();
-    await page.goto(appUrl('/tutoriales'), { waitUntil: 'networkidle' });
-    const cards = page.locator('.tutorial-library-card');
-    if ((await cards.count()) !== testCase.expected) fail(`tutorial library expected ${testCase.expected} role-filtered guides`);
-    if (!(await page.getByText('Recorrido por el portal', { exact: true }).count())) fail('tutorial library should expose the general portal guide');
-    if (!(await page.locator('a[href="tutorial-portal/"]').count())) fail('general portal guide should link to its tutorial page');
-    if (await page.getByText('Próximamente', { exact: true }).count()) fail('completed portal tutorial should not be labelled as upcoming');
-    if (testCase.forbidden && (await page.locator('main').innerText()).includes(testCase.forbidden)) fail(`tutorial library exposed an unauthorized guide: ${testCase.forbidden}`);
-  }
-  report.flows.push('tutorial library exposes guides according to student, CEAL and Jefatura access');
 }
 
 async function runCrossBrowserMobileTests(playwright, studentUser) {
@@ -688,7 +567,6 @@ async function main() {
     const playwright = await importPlaywright();
     const { chromium } = playwright;
     const browser = await chromium.launch();
-    await runTutorialPageTests(browser, { student: studentUser, ceal: cealUser, jefatura: jefaturaUser });
     await runSessionEdgeTests(browser, studentUser);
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('console', msg => {
@@ -700,7 +578,6 @@ async function main() {
     });
     page.on('pageerror', error => pushFailure(`page error: ${error.message}`));
 
-    await runTutorialLibraryTests(page, studentUser, cealUser, jefaturaUser);
     await runPublicFlowTests(page, studentUser);
     await runBookingFlowTests(page, studentUser, jefaturaUser);
     const createdCommunicationId = await runCealFlowTests(page, cealUser);
@@ -714,24 +591,22 @@ async function main() {
       ['/material', 'material'],
       ['/material/subir', 'material-subir'],
       ['/material/mat-001', 'material-detalle'],
-      ['/tutoriales', 'tutoriales'],
       ['/mallas', 'mallas'],
       ['/ramo/planP/P-0402', 'ramo-detalle'],
       ['/apoyo', 'apoyo'],
       ['/ayudantias/ay-001', 'ayudantia-detalle'],
       ['/tramites/proc-001', 'tramite-detalle'],
-      ['/atencion', 'atencion'],
       ['/perfil', 'perfil']
     ];
     await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
-      await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas', 'tutoriales'].includes(name));
+      await auditRoute(page, route, name, 'desktop', ['inicio', 'material', 'mallas'].includes(name));
     }
 
     await page.setViewportSize({ width: 390, height: 844 });
     await loginStudent(page, studentUser);
     for (const [route, name] of studentRoutes) {
-      await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas', 'tutoriales'].includes(name));
+      await auditRoute(page, route, name, 'mobile', ['inicio', 'material', 'mallas'].includes(name));
     }
     await page.goto(appUrl('/mallas'), { waitUntil: 'networkidle' });
     await page.locator('[data-malla-embed-plan="o"]').click();
@@ -741,7 +616,7 @@ async function main() {
     await page.setViewportSize({ width: 360, height: 800 });
     await loginStudent(page, studentUser);
     const bottomItems = await page.locator('.bottom-nav .bottom-item').allTextContents();
-    if (bottomItems.length !== 5 || bottomItems.at(-1)?.trim() !== 'Atención') fail('student mobile navigation should expose Atención as the fifth item');
+    if (bottomItems.length !== 5 || bottomItems.at(-1)?.trim() !== 'Material' || bottomItems[2]?.trim() !== 'Calendario') fail('student mobile navigation should expose the five informational sections');
     const bottomBounds = await page.locator('.bottom-nav').boundingBox();
     if (!bottomBounds || bottomBounds.x < 0 || bottomBounds.x + bottomBounds.width > 360) fail('mobile bottom navigation should fit a 360px viewport');
     await page.goto(appUrl('/calendario'), { waitUntil: 'networkidle' });
@@ -782,11 +657,11 @@ async function main() {
     }
 
     await loginJefatura(page, jefaturaUser);
-    await auditRoute(page, '/jefatura', 'jefatura', 'desktop-jefatura', true);
+    await auditRoute(page, '/', 'inicio-jefatura', 'desktop-jefatura', true);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await loginJefatura(page, jefaturaUser);
-    await auditRoute(page, '/jefatura', 'jefatura', 'mobile-jefatura', true);
+    await auditRoute(page, '/', 'inicio-jefatura', 'mobile-jefatura', true);
     await loginCeal(page, cealUser);
     await auditRoute(page, '/gestion/calendario', 'gestion-calendario', 'mobile-ceal', true);
 

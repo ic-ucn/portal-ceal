@@ -24,14 +24,13 @@ GitHub Pages puede servir el frontend estático. Para persistencia compartida en
 - Inicio con resumen operativo.
 - Comunicados, detalle y publicación desde Gestión CEAL.
 - Calendario, acuerdos y nuevo acuerdo interno.
-- Atención de Jefatura con horas dinámicas, confirmación y avisos por correo.
 - Biblioteca académica con búsqueda, filtros, subida y descarga local de archivos.
 - Mallas interactivas Plan O Catálogo 2016 y Plan P Catálogo 2025.
 - Detalle de ramo con prerrequisitos, ramos que abre y recursos asociados.
 - Ayudantías, trámites y perfil.
 - Dashboard Gestión CEAL común para integrantes, con edición de contenido existente.
 
-Encuestas y reservas de mesas están deshabilitadas temporalmente en frontend y API. La malla no infiere avance académico porque el portal no dispone de registros curriculares individuales.
+Tutoriales, Atención, Horario académico, encuestas y reservas de mesas no forman parte de la versión publicada. La malla no infiere avance académico porque el portal no dispone de registros curriculares individuales.
 
 ## Integrantes CEAL
 
@@ -116,9 +115,9 @@ $env:PORTAL_GOOGLE_CLIENT_ID='CLIENT_ID.apps.googleusercontent.com'
 npm run serve
 ```
 
-## Atención y Google Calendar
+## Módulo de Atención no publicado
 
-La agenda funciona desde el portal y persiste las reservas en el backend. Al conectar Google Calendar, los bloques ocupados se excluyen de la disponibilidad y las nuevas atenciones se crean en la agenda institucional. Una cancelación del estudiante libera su bloque; una cancelación de Jefatura elimina el evento sincronizado y mantiene ese horario cerrado hasta que Jefatura lo reabra.
+El código de agenda y Google Calendar se conserva para una posible etapa posterior, pero sus rutas no se publican y su API permanece deshabilitada salvo que `PORTAL_APPOINTMENTS_ENABLED=1` se configure explícitamente.
 
 Cuenta autorizada:
 
@@ -173,4 +172,4 @@ npm run qa:security
 node scripts\qa-portal.mjs
 ```
 
-La suite cubre sintaxis, privacidad, permisos, 300 sesiones concurrentes, colisiones de horas, rutas desktop/mobile, login, material, mallas, calendario, Atención, Jefatura y Gestión CEAL.
+La suite cubre sintaxis, privacidad, permisos, 300 sesiones concurrentes, rutas desktop/mobile, login, material, mallas, calendario, perfiles y Gestión CEAL. También verifica que Tutoriales, Atención y Horario académico permanezcan fuera de la publicación.
