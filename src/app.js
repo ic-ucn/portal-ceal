@@ -282,7 +282,8 @@
     syncMallaEmbedTheme();
   }
   function themeToggleMarkup(dark) {
-    return `${icon(dark ? 'sun' : 'moon')}<span>${dark ? 'Claro' : 'Oscuro'}</span>`;
+    const themeIcon = dark ? 'sun' : 'moon';
+    return `${icon(themeIcon, `theme-icon theme-icon-${themeIcon}`)}<span>${dark ? 'Claro' : 'Oscuro'}</span>`;
   }
   function themeToggleButton(extraClass = '', extraAttrs = '') {
     const dark = Boolean(state.portalDark);
@@ -1418,7 +1419,7 @@
         </div>
         <button class="guest-login-card" type="button" data-guest-login>
           <span class="role-icon">${icon('eye')}</span>
-          <span><strong>Invitado</strong><small>Revisa el contenido publicado sin realizar cambios.</small></span>
+          <span><strong>Invitado</strong><small>Revisa el contenido publicado sin iniciar sesión.</small></span>
           ${icon('arrow')}
         </button>${devAccess}
       </div></section></main>`;

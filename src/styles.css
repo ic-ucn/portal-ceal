@@ -5442,8 +5442,10 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
   display: grid;
   place-items: center;
   flex: 0 0 auto;
+  line-height: 0;
 }
 .theme-toggle-btn .icon svg { display: block; width: 100%; height: 100%; }
+.theme-toggle-btn .theme-icon-moon { transform: translateX(-1px); }
 .theme-toggle-btn:hover {
   transform: none;
   background: var(--surface-sunken);
@@ -5462,6 +5464,7 @@ body.theme-dark .breadcrumb a { color: #8fc0ff; }
 .login-theme-toggle {
   width: 42px;
   min-width: 42px;
+  height: 42px;
   min-height: 42px;
   padding: 0;
   justify-content: center;
