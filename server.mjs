@@ -73,14 +73,6 @@ const features = Object.freeze({
   tableReservations: false,
   appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'
 });
-const transferAccount = Object.freeze({
-  holder: 'Belén Alessandra Astudillo Díaz',
-  rut: '21.010.841-6',
-  bank: 'Mercado Pago',
-  accountType: 'Cuenta Vista',
-  accountNumber: '1062801369',
-  email: 'belen.astu24@gmail.com'
-});
 const cajaProducts = Object.freeze([
   { id: 'choripan', name: 'Choripán', category: 'Comida', price: 1500 },
   { id: 'empanada-pino', name: 'Empanada de pino', category: 'Comida', price: 2500 },
@@ -755,7 +747,7 @@ async function handleCajaApi(req, res, url, parts) {
   if (action === 'orders' && orderId && !operation && req.method === 'GET') {
     const order = await getCajaOrder(orderId);
     if (!order) return sendError(res, 404, 'No encontramos esta orden.');
-    return sendJson(res, 200, { ok: true, order: publicCajaOrder(order), transferAccount });
+    return sendJson(res, 200, { ok: true, order: publicCajaOrder(order) });
   }
 
   if (action === 'orders' && orderId && operation === 'webpay' && req.method === 'POST') {

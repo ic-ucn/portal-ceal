@@ -5,7 +5,14 @@ const toastElement = document.querySelector('#toast');
 const localHost = /^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(location.hostname);
 const apiBase = localHost ? '' : 'https://portal-ceic-api.onrender.com';
 let order;
-let account;
+const account = Object.freeze({
+  holder: 'Belén Alessandra Astudillo Díaz',
+  rut: '21.010.841-6',
+  bank: 'Mercado Pago',
+  accountType: 'Cuenta Vista',
+  accountNumber: '1062801369',
+  email: 'belen.astu24@gmail.com'
+});
 
 const money = value => new Intl.NumberFormat('es-CL', {
   style: 'currency',
@@ -159,7 +166,6 @@ async function initialize() {
       api('/api/caja/catalog')
     ]);
     order = orderPayload.order;
-    account = orderPayload.transferAccount;
     document.querySelector('#customer-total').textContent = money(order.total);
     document.querySelector('#test-details').hidden = catalogPayload.paymentMode !== 'test';
     renderSummary();
