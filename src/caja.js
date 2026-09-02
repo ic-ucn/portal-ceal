@@ -118,11 +118,14 @@ function renderProducts() {
     return;
   }
   elements.productGrid.replaceChildren(...products.map(product => {
+    const card = document.createElement('div');
+    card.className = 'product-card';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'product-button';
     const quantity = state.cart.get(product.id)?.quantity || 0;
     if (quantity) {
+      button.classList.add('has-quantity');
       const badge = document.createElement('span');
       badge.className = 'product-quantity';
       badge.textContent = quantity;
@@ -141,7 +144,17 @@ function renderProducts() {
     priceWrap.append(price, promo);
     button.append(name, priceWrap);
     button.addEventListener('click', () => addProduct(product));
-    return button;
+    card.append(button);
+    if (quantity) {
+      const decrement = document.createElement('button');
+      decrement.type = 'button';
+      decrement.className = 'product-decrement';
+      decrement.setAttribute('aria-label', `Quitar una unidad de ${product.name}`);
+      decrement.textContent = '−';
+      decrement.addEventListener('click', () => updateQuantity(product.id, -1));
+      card.append(decrement);
+    }
+    return card;
   }));
 }
 

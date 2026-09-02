@@ -122,7 +122,13 @@ async function run() {
 
     const mobileCashier = await browser.newPage({ viewport: { width: 360, height: 800 } });
     await mobileCashier.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
-    await mobileCashier.locator('.product-button', { hasText: 'Choripán' }).click();
+    const mobileProduct = mobileCashier.locator('.product-card', { hasText: 'Choripán' });
+    await mobileProduct.locator('.product-button').click();
+    await mobileProduct.locator('.product-button').click();
+    await mobileProduct.locator('.product-decrement').click();
+    assert(await mobileProduct.locator('.product-quantity').textContent() === '1', 'La ficha no restó directamente una unidad en móvil.');
+    const decrementBox = await mobileProduct.locator('.product-decrement').boundingBox();
+    assert(decrementBox?.width >= 40 && decrementBox?.height >= 40, 'El control para restar no tiene un área táctil suficiente.');
     assert(await mobileCashier.locator('#mobile-checkout').isVisible(), 'El resumen móvil no está disponible.');
     const cashierOverflow = await mobileCashier.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     assert(!cashierOverflow, 'La caja tiene desborde horizontal en móvil.');
