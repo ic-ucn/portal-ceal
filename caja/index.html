@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>Caja CEIC UCN</title>
+  <link rel="icon" href="../assets/logo-mark-transparent.png">
+  <link rel="stylesheet" href="../src/caja.css?v=20260902a">
+</head>
+<body data-page="caja">
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Caja CEIC UCN">
+      <img src="../assets/logo-horizontal-transparent.png" alt="CEIC UCN">
+    </a>
+    <span class="environment-note" id="environment-note" hidden>Prueba sin cobro real</span>
+  </header>
+
+  <main class="cashier-shell">
+    <section class="catalog-panel" aria-labelledby="page-title">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">Punto de venta</p>
+          <h1 id="page-title">Nueva venta</h1>
+        </div>
+        <label class="search-field">
+          <span class="sr-only">Buscar producto</span>
+          <input id="product-search" type="search" placeholder="Buscar producto" autocomplete="off">
+        </label>
+      </div>
+      <nav class="category-tabs" id="category-tabs" aria-label="Categorías"></nav>
+      <div class="product-grid" id="product-grid" aria-live="polite"></div>
+      <button class="custom-charge" id="custom-charge" type="button">
+        <span class="custom-plus" aria-hidden="true">+</span>
+        <span><strong>Agregar otro cobro</strong><small>Nombre y monto manual</small></span>
+      </button>
+    </section>
+
+    <aside class="cart-panel" aria-labelledby="cart-title">
+      <div class="cart-heading">
+        <div>
+          <p class="eyebrow">Venta actual</p>
+          <h2 id="cart-title">Pedido</h2>
+        </div>
+        <button class="text-button" id="clear-cart" type="button">Limpiar</button>
+      </div>
+      <div class="cart-items" id="cart-items"></div>
+      <div class="cart-footer">
+        <div class="total-row"><span>Total</span><strong id="cart-total">$0</strong></div>
+        <button class="primary-button" id="checkout-button" type="button" disabled>Generar cobro</button>
+      </div>
+    </aside>
+  </main>
+
+  <div class="mobile-checkout" id="mobile-checkout">
+    <button class="mobile-cart-summary" id="open-cart" type="button" disabled>
+      <span><strong id="mobile-count">0 productos</strong><small>Revisar pedido</small></span>
+      <strong id="mobile-total">$0</strong>
+    </button>
+  </div>
+
+  <dialog class="sheet-dialog" id="cart-dialog">
+    <div class="dialog-heading">
+      <h2>Pedido</h2>
+      <button class="icon-button" data-close-dialog="cart-dialog" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="cart-items" id="mobile-cart-items"></div>
+    <div class="cart-footer">
+      <div class="total-row"><span>Total</span><strong id="mobile-dialog-total">$0</strong></div>
+      <button class="primary-button" id="mobile-checkout-button" type="button">Generar cobro</button>
+    </div>
+  </dialog>
+
+  <dialog class="form-dialog" id="custom-dialog">
+    <form id="custom-form">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">Cobro manual</p><h2>Agregar al pedido</h2></div>
+        <button class="icon-button" data-close-dialog="custom-dialog" type="button" aria-label="Cerrar">&times;</button>
+      </div>
+      <label>Nombre<input id="custom-name" maxlength="60" placeholder="Ej. Promoción especial" required></label>
+      <label>Monto<input id="custom-price" inputmode="numeric" pattern="[0-9]*" placeholder="0" required></label>
+      <p class="field-error" id="custom-error" role="alert"></p>
+      <button class="primary-button" type="submit">Agregar</button>
+    </form>
+  </dialog>
+
+  <dialog class="payment-dialog" id="payment-dialog">
+    <div class="dialog-heading">
+      <div><p class="eyebrow">Cobro preparado</p><h2>Escanear para pagar</h2></div>
+      <button class="icon-button" data-close-dialog="payment-dialog" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="payment-ready">
+      <div class="payment-total"><span>Total</span><strong id="payment-total">$0</strong></div>
+      <img id="payment-qr" alt="Código QR para abrir el pago">
+      <p>El enlace muestra el monto, los datos de transferencia y la opción Webpay</p>
+      <div class="payment-actions">
+        <a class="secondary-button" id="open-payment" target="_blank" rel="noopener">Abrir enlace</a>
+        <button class="primary-button" id="new-sale" type="button">Nueva venta</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="../src/caja.js?v=20260902a"></script>
+</body>
+</html>

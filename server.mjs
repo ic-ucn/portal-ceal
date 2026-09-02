@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { strToU8, zipSync } from 'fflate';
 import nodemailer from 'nodemailer';
+import QRCode from 'qrcode';
+import transbankSdk from 'transbank-sdk';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
@@ -16,6 +18,7 @@ loadLocalEnv(path.join(root, '.env.local'));
 loadLocalEnv(path.join(root, '.env'));
 const dataDir = path.join(root, '.data');
 const dbPath = process.env.PORTAL_DB_PATH || path.join(dataDir, 'portal-db.json');
+const cajaOrdersPath = process.env.CAJA_ORDERS_PATH || path.join(dataDir, 'caja-orders.json');
 const port = Number(process.env.PORT || 8080);
 const googleClientId = process.env.PORTAL_GOOGLE_CLIENT_ID || '';
 const googleDomain = process.env.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
@@ -70,6 +73,37 @@ const features = Object.freeze({
   tableReservations: false,
   appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'
 });
+const transferAccount = Object.freeze({
+  holder: 'Belén Alessandra Astudillo Díaz',
+  rut: '21.010.841-6',
+  bank: 'Mercado Pago',
+  accountType: 'Cuenta Vista',
+  accountNumber: '1062801369',
+  email: 'belen.astu24@gmail.com'
+});
+const cajaProducts = Object.freeze([
+  { id: 'choripan', name: 'Choripán', category: 'Comida', price: 1500 },
+  { id: 'empanada-pino', name: 'Empanada de pino', category: 'Comida', price: 2500 },
+  { id: 'anticucho', name: 'Anticucho', category: 'Comida', price: 3500 },
+  { id: 'bebida', name: 'Vaso de bebida', category: 'Sin alcohol', price: 1500 },
+  { id: 'red-bull', name: 'Red Bull', category: 'Sin alcohol', price: 2000 },
+  { id: 'piscola', name: 'Piscola', category: 'Preparados', price: 3000, bundleSize: 2, bundlePrice: 5000 },
+  { id: 'terremoto', name: 'Terremoto', category: 'Preparados', price: 4000, bundleSize: 2, bundlePrice: 7000 },
+  { id: 'gin-bebida', name: 'Gin con bebida', category: 'Preparados', price: 4000, bundleSize: 2, bundlePrice: 7000 },
+  { id: 'gin-red-bull', name: 'Gin con Red Bull', category: 'Preparados', price: 6000, bundleSize: 2, bundlePrice: 10000 },
+  { id: 'becker', name: 'Becker 354 ml', category: 'Cervezas', price: 1000 },
+  { id: 'heineken', name: 'Heineken', category: 'Cervezas', price: 1200 },
+  { id: 'stella', name: 'Stella Artois 354 ml', category: 'Cervezas', price: 2000 },
+  { id: 'chelada', name: 'Preparación chelada', category: 'Extras', price: 1200 },
+  { id: 'michelada', name: 'Preparación michelada', category: 'Extras', price: 1500 }
+]);
+const {
+  Environment,
+  IntegrationApiKeys,
+  IntegrationCommerceCodes,
+  Options,
+  WebpayPlus
+} = transbankSdk;
 
 const collectionMap = {
   communications: 'communications',
@@ -558,8 +592,8 @@ function sendError(res, status, message, details) {
   sendJson(res, status, { ok: false, error: message, details });
 }
 
-function sendRedirect(res, location) {
-  res.writeHead(302, {
+function sendRedirect(res, location, status = 302) {
+  res.writeHead(status, {
     location,
     'cache-control': 'no-store'
   });
@@ -576,11 +610,206 @@ async function readBody(req, limit = 1_500_000) {
   }
   if (!chunks.length) return {};
   const raw = Buffer.concat(chunks).toString('utf8');
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    return Object.fromEntries(new URLSearchParams(raw));
+  }
   try {
     return JSON.parse(raw);
   } catch {
     throw Object.assign(new Error('invalid json'), { statusCode: 400 });
   }
+}
+
+function calculateProductTotal(product, quantity) {
+  if (!product.bundleSize || !product.bundlePrice) return product.price * quantity;
+  const bundles = Math.floor(quantity / product.bundleSize);
+  return (bundles * product.bundlePrice) + ((quantity % product.bundleSize) * product.price);
+}
+
+function normalizeCajaItems(rawItems) {
+  if (!Array.isArray(rawItems) || !rawItems.length || rawItems.length > 30) {
+    throw Object.assign(new Error('Agrega al menos un producto.'), { statusCode: 422 });
+  }
+  const lines = [];
+  for (const raw of rawItems) {
+    const id = asText(raw?.id);
+    const quantity = Number(raw?.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+      throw Object.assign(new Error('La cantidad indicada no es válida.'), { statusCode: 422 });
+    }
+    if (id === 'custom') {
+      const name = asText(raw?.name, 'Cobro adicional').slice(0, 60);
+      const unitPrice = Number(raw?.unitPrice);
+      if (!Number.isInteger(unitPrice) || unitPrice < 100 || unitPrice > 500000) {
+        throw Object.assign(new Error('El monto adicional debe estar entre $100 y $500.000.'), { statusCode: 422 });
+      }
+      lines.push({ id, name, category: 'Adicional', quantity, unitPrice, total: unitPrice * quantity });
+      continue;
+    }
+    const product = cajaProducts.find(item => item.id === id);
+    if (!product) throw Object.assign(new Error('Uno de los productos ya no está disponible.'), { statusCode: 422 });
+    lines.push({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      quantity,
+      unitPrice: product.price,
+      total: calculateProductTotal(product, quantity),
+      ...(product.bundleSize ? { bundleSize: product.bundleSize, bundlePrice: product.bundlePrice } : {})
+    });
+  }
+  const total = lines.reduce((sum, item) => sum + item.total, 0);
+  if (total < 100 || total > 5000000) {
+    throw Object.assign(new Error('El total de la venta no es válido.'), { statusCode: 422 });
+  }
+  return { lines, total };
+}
+
+let cajaWriteChain = Promise.resolve();
+async function readCajaOrders() {
+  try {
+    const parsed = JSON.parse(await fs.readFile(cajaOrdersPath, 'utf8'));
+    return Array.isArray(parsed.orders) ? parsed : { version: 1, orders: [] };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { version: 1, orders: [] };
+    throw error;
+  }
+}
+
+async function mutateCajaOrders(mutator) {
+  let result;
+  cajaWriteChain = cajaWriteChain.then(async () => {
+    const store = await readCajaOrders();
+    const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    store.orders = store.orders.filter(order => Date.parse(order.createdAt) >= cutoff).slice(-999);
+    result = await mutator(store.orders);
+    await fs.mkdir(dataDir, { recursive: true });
+    const temporary = `${cajaOrdersPath}.${process.pid}.tmp`;
+    await fs.writeFile(temporary, JSON.stringify(store, null, 2), 'utf8');
+    await fs.rename(temporary, cajaOrdersPath);
+  });
+  await cajaWriteChain;
+  return result;
+}
+
+function publicCajaOrder(order) {
+  if (!order) return null;
+  const { webpayToken, webpaySessionId, ...safe } = order;
+  return safe;
+}
+
+async function getCajaOrder(orderId) {
+  const store = await readCajaOrders();
+  return store.orders.find(order => order.id === orderId) || null;
+}
+
+function webpayTransaction() {
+  const production = String(process.env.WEBPAY_ENV || '').toLowerCase() === 'production';
+  const commerceCode = production ? asText(process.env.WEBPAY_COMMERCE_CODE) : IntegrationCommerceCodes.WEBPAY_PLUS;
+  const apiKey = production ? asText(process.env.WEBPAY_API_KEY) : IntegrationApiKeys.WEBPAY;
+  if (!commerceCode || !apiKey) {
+    throw Object.assign(new Error('Webpay no está configurado.'), { statusCode: 503 });
+  }
+  return new WebpayPlus.Transaction(new Options(
+    commerceCode,
+    apiKey,
+    production ? Environment.Production : Environment.Integration
+  ));
+}
+
+async function handleCajaApi(req, res, url, parts) {
+  const [, action, orderId, operation] = parts;
+  if (action === 'catalog' && req.method === 'GET') {
+    return sendJson(res, 200, {
+      ok: true,
+      products: cajaProducts,
+      paymentMode: String(process.env.WEBPAY_ENV || '').toLowerCase() === 'production' ? 'live' : 'test'
+    });
+  }
+
+  if (action === 'orders' && !orderId && req.method === 'POST') {
+    const body = await readBody(req);
+    const { lines, total } = normalizeCajaItems(body.items);
+    const now = new Date().toISOString();
+    const order = {
+      id: crypto.randomUUID(),
+      buyOrder: `CEIC-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`.slice(0, 26),
+      items: lines,
+      total,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now
+    };
+    await mutateCajaOrders(orders => orders.push(order));
+    const paymentUrl = `${requestOrigin(req)}/pagar/?orden=${encodeURIComponent(order.id)}`;
+    const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 680,
+      color: { dark: '#08264a', light: '#ffffff' }
+    });
+    return sendJson(res, 201, { ok: true, order: publicCajaOrder(order), paymentUrl, qrDataUrl });
+  }
+
+  if (action === 'orders' && orderId && !operation && req.method === 'GET') {
+    const order = await getCajaOrder(orderId);
+    if (!order) return sendError(res, 404, 'No encontramos esta orden.');
+    return sendJson(res, 200, { ok: true, order: publicCajaOrder(order), transferAccount });
+  }
+
+  if (action === 'orders' && orderId && operation === 'webpay' && req.method === 'POST') {
+    const order = await getCajaOrder(orderId);
+    if (!order) return sendError(res, 404, 'No encontramos esta orden.');
+    if (order.status === 'paid') return sendError(res, 409, 'Esta orden ya fue pagada.');
+    const returnUrl = `${requestOrigin(req)}/api/caja/webpay-return?orden=${encodeURIComponent(order.id)}`;
+    const sessionId = crypto.randomBytes(18).toString('base64url');
+    const response = await webpayTransaction().create(order.buyOrder, sessionId, order.total, returnUrl);
+    await mutateCajaOrders(orders => {
+      const current = orders.find(item => item.id === order.id);
+      if (!current) return;
+      current.webpayToken = response.token;
+      current.webpaySessionId = sessionId;
+      current.status = 'webpay_started';
+      current.updatedAt = new Date().toISOString();
+    });
+    return sendJson(res, 200, { ok: true, url: response.url, token: response.token });
+  }
+
+  if (action === 'webpay-return' && ['GET', 'POST'].includes(req.method)) {
+    const body = req.method === 'POST' ? await readBody(req) : {};
+    const orderIdFromReturn = asText(url.searchParams.get('orden'));
+    const order = await getCajaOrder(orderIdFromReturn);
+    if (!order) return sendRedirect(res, '/pagar/?resultado=no-encontrado', 303);
+    const token = asText(body.token_ws || url.searchParams.get('token_ws'));
+    if (!token) {
+      await mutateCajaOrders(orders => {
+        const current = orders.find(item => item.id === order.id);
+        if (current) { current.status = 'cancelled'; current.updatedAt = new Date().toISOString(); }
+      });
+      return sendRedirect(res, `/pagar/?orden=${encodeURIComponent(order.id)}&resultado=cancelado`, 303);
+    }
+    if (order.webpayToken && order.webpayToken !== token) return sendError(res, 400, 'La respuesta de pago no coincide con la orden.');
+    const result = await webpayTransaction().commit(token);
+    const paid = result.status === 'AUTHORIZED' && Number(result.response_code) === 0 && Number(result.amount) === order.total;
+    await mutateCajaOrders(orders => {
+      const current = orders.find(item => item.id === order.id);
+      if (!current) return;
+      current.status = paid ? 'paid' : 'rejected';
+      current.payment = {
+        method: 'webpay',
+        status: result.status,
+        authorizationCode: asText(result.authorization_code),
+        cardLastDigits: asText(result.card_detail?.card_number),
+        transactionDate: asText(result.transaction_date),
+        amount: Number(result.amount || 0)
+      };
+      current.updatedAt = new Date().toISOString();
+    });
+    return sendRedirect(res, `/pagar/?orden=${encodeURIComponent(order.id)}&resultado=${paid ? 'pagado' : 'rechazado'}`, 303);
+  }
+
+  return sendError(res, 405, 'Operación no disponible.');
 }
 
 function asText(value, fallback = '') {
@@ -902,8 +1131,9 @@ function requestOrigin(req) {
   }
   const forwardedProto = asText(req.headers['x-forwarded-proto']).split(',')[0];
   const proto = forwardedProto || (req.socket?.encrypted ? 'https' : 'http');
-  const host = asText(req.headers.host);
-  if (/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host)) return `${proto}://${host}`;
+  const forwardedHost = asText(req.headers['x-forwarded-host']).split(',')[0];
+  const host = forwardedHost || asText(req.headers.host);
+  if (/^(localhost|127\.0\.0\.1|\[::1\]|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?::\d+)?$/i.test(host)) return `${proto}://${host}`;
   return `http://localhost:${port}`;
 }
 
@@ -2705,6 +2935,8 @@ async function handleApi(req, res, url) {
     return sendJson(res, 202, { ok: true });
   }
 
+  if (resource === 'caja') return handleCajaApi(req, res, url, parts);
+
   const db = await loadDb();
 
   if (!features.surveys && ['surveys', 'encuestas', 'votaciones'].includes(resource)) {
@@ -3685,7 +3917,7 @@ async function serveStatic(req, res, url) {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
     };
     const range = asText(req.headers.range);
     const match = range.match(/^bytes=(\d*)-(\d*)$/);
@@ -3717,7 +3949,7 @@ async function serveStatic(req, res, url) {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
     });
     res.end(await fs.readFile(path.join(root, 'index.html')));
   }
