@@ -251,7 +251,7 @@ button.account-row:focus-visible,
 .copy-all-button {
   width: 100%;
   min-height: 50px;
-  margin-top: 16px;
+  margin: 0 0 16px;
   padding: 12px 16px;
   border: 1px solid transparent;
   border-radius: 7px;
