@@ -8,6 +8,7 @@ import { chromium, firefox, webkit } from 'playwright';
 const root = path.resolve(import.meta.dirname, '..');
 const port = Number(process.env.QA_TRANSFER_PORT || 18082);
 const baseUrl = `http://127.0.0.1:${port}`;
+const transferUrl = `${baseUrl}/transferir/`;
 const screenshotDir = path.join(root, 'qa-screenshots');
 const server = spawn(process.execPath, ['server.mjs'], {
   cwd: root,
@@ -39,7 +40,12 @@ async function verifyPage(browserType, name, viewport, canReadClipboard = false)
   });
   page.on('pageerror', error => errors.push(error.message));
 
-  await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  if (name === 'desktop') {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(`${baseUrl}/transferir/`);
+  } else {
+    await page.goto(transferUrl, { waitUntil: 'networkidle' });
+  }
   await page.getByRole('heading', { name: 'Datos para transferir' }).waitFor();
   await page.getByText('Belén Alessandra Astudillo Díaz', { exact: true }).waitFor();
   await page.getByText('1062801369', { exact: true }).waitFor();

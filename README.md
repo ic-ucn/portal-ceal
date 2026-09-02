@@ -4,7 +4,7 @@ Portal académico para estudiantes e integrantes CEAL de Ingeniería Civil UCN.
 
 ## Modo temporal de transferencia
 
-La raíz pública `https://ceicucn.cl/` muestra temporalmente una pantalla única con los datos de transferencia de la cuenta CEAL. El portal académico permanece en el repositorio, pero `index.html` no carga sus scripts, datos, manifest ni autenticación.
+La ruta pública `https://ceicucn.cl/transferir/` muestra temporalmente una pantalla única con los datos de transferencia de la cuenta CEAL. La raíz redirige allí para mantener funcionando el QR anterior. El portal académico permanece en el repositorio, pero la entrada pública no carga sus scripts, datos, manifest ni autenticación.
 
 Archivos activos de esta experiencia:
 
@@ -25,7 +25,7 @@ npm run quality
 npm run qa:transfer
 ```
 
-El QR fue generado para `https://ceicucn.cl/`. Para restaurar el portal, recuperar el `index.html` anterior a este modo y volver a ejecutar las suites canónicas del portal antes de publicar.
+El QR fue generado para `https://ceicucn.cl/transferir/`. Para restaurar el portal, recuperar el `index.html` anterior a este modo y volver a ejecutar las suites canónicas del portal antes de publicar.
 
 ## Ejecutar
 
