@@ -45,9 +45,10 @@ const indexHtml = read('transferir/index.html');
 const stylesCss = read('src/styles.css');
 const transferJs = read('src/transfer.js');
 const transferCss = read('src/transfer.css');
+const comingSoonCss = read('src/coming-soon.css');
 const packageJson = JSON.parse(read('package.json'));
 
-for (const rel of ['index.html', '404.html', 'transferir/index.html', 'src/transfer.js', 'src/transfer.css', 'scripts/qa-transfer.mjs', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
+for (const rel of ['index.html', '404.html', 'transferir/index.html', 'src/transfer.js', 'src/transfer.css', 'src/coming-soon.css', 'scripts/qa-transfer.mjs', 'src/app.js', 'src/mock-data.js', 'src/styles.css', 'server.mjs', 'data/curricula.js', 'scripts/qa-portal.mjs', 'scripts/watch-calendar-updates.mjs']) {
   assert(existsSync(path.join(root, rel)), `${rel} should exist`);
 }
 for (const retired of ['tutoriales/index.html', 'tutorial-jc/index.html', 'tutorial-ceal/index.html', 'tutorial-portal/index.html', 'tutorial-estudiantes/index.html', 'tutorial-jefatura/index.html', 'data/academic-schedule.js', 'docs/horario-dic-2-2026-v1.pdf']) {
@@ -58,7 +59,8 @@ assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
 assert(packageJson.scripts['qa:transfer'] === 'node scripts/qa-transfer.mjs', 'temporary transfer QA script should be registered');
 assert(packageJson.scripts['calendar:watch'] === 'node scripts/watch-calendar-updates.mjs', 'calendar watcher script should be registered');
-assert(rootHtml.includes('url=/transferir/') && rootHtml.includes('href="/transferir/"'), 'root should redirect to the dedicated transfer route');
+assert(rootHtml.includes('Próximamente') && rootHtml.includes('/assets/ucn-campus-transparent.png'), 'root should show the restrained coming-soon page');
+assert(rootHtml.includes('/src/coming-soon.css') && !rootHtml.includes('http-equiv="refresh"'), 'coming-soon root should load directly without redirecting');
 assert(indexHtml.includes('/src/transfer.js') && indexHtml.includes('/src/transfer.css'), 'transfer route should load only the temporary transfer experience');
 assert(!indexHtml.includes('src/app.js') && !indexHtml.includes('src/mock-data.js') && !indexHtml.includes('data/curricula.js') && !indexHtml.includes('src/config.js'), 'temporary root should not load the portal application');
 assert(!indexHtml.includes('rel="manifest"'), 'temporary transfer page should not install the portal PWA');
@@ -69,6 +71,7 @@ assert(!/Choripán|Piscola|Michelada|\$1\.500/.test(indexHtml), 'temporary trans
 assert(!indexHtml.includes('data/academic-schedule.js'), 'retired academic schedule should not load in the public portal');
 assert(!indexHtml.includes('accounts.google.com/gsi/client'), 'index should not load Google Identity Services widget');
 assert(transferCss.includes('min-width: 320px') && transferCss.includes('@media (max-width: 380px)'), 'transfer page should define stable narrow-mobile behavior');
+assert(comingSoonCss.includes('min-width: 320px') && comingSoonCss.includes('@media (max-width: 380px)'), 'coming-soon page should define stable narrow-mobile behavior');
 assert(!appJs.includes('data-google-button'), 'app should not render legacy GSI button slots');
 assert(!appJs.includes('window.google'), 'app should not depend on the legacy GSI global');
 assert(appJs.includes('!isLocalDevHost()'), 'Google OAuth should stay disabled on localhost to avoid an invalid redirect URI');

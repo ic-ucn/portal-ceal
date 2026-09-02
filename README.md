@@ -4,7 +4,7 @@ Portal académico para estudiantes e integrantes CEAL de Ingeniería Civil UCN.
 
 ## Modo temporal de transferencia
 
-La ruta pública `https://ceicucn.cl/transferir/` muestra temporalmente una pantalla única con los datos de transferencia de la cuenta CEAL. La raíz redirige allí para mantener funcionando el QR anterior. El portal académico permanece en el repositorio, pero la entrada pública no carga sus scripts, datos, manifest ni autenticación.
+La raíz pública `https://ceicucn.cl/` muestra una portada breve de próximamente. La ruta `https://ceicucn.cl/transferir/` contiene la pantalla con los datos de transferencia de la cuenta CEAL. El portal académico permanece en el repositorio, pero la entrada pública no carga sus scripts, datos, manifest ni autenticación.
 
 Archivos activos de esta experiencia:
 
