@@ -6,6 +6,9 @@ const state = {
   paymentMode: 'test'
 };
 
+const localHost = /^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(location.hostname);
+const apiBase = localHost ? '' : 'https://portal-ceic-api.onrender.com';
+
 const elements = {
   categoryTabs: document.querySelector('#category-tabs'),
   productGrid: document.querySelector('#product-grid'),
@@ -36,7 +39,7 @@ const money = value => new Intl.NumberFormat('es-CL', {
 }).format(value);
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(`${apiBase}${path}`, {
     ...options,
     headers: { 'content-type': 'application/json', ...(options.headers || {}) }
   });
@@ -293,7 +296,6 @@ async function initialize() {
     const payload = await api('/api/caja/catalog');
     state.products = payload.products;
     state.paymentMode = payload.paymentMode;
-    document.querySelector('#environment-note').hidden = payload.paymentMode !== 'test';
     renderCategories();
     renderProducts();
     renderCart();

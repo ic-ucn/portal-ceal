@@ -742,7 +742,7 @@ async function handleCajaApi(req, res, url, parts) {
       updatedAt: now
     };
     await mutateCajaOrders(orders => orders.push(order));
-    const paymentUrl = `${requestOrigin(req)}/pagar/?orden=${encodeURIComponent(order.id)}`;
+    const paymentUrl = `${requestOrigin(req)}/pago/orden/?orden=${encodeURIComponent(order.id)}`;
     const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
       errorCorrectionLevel: 'M',
       margin: 2,
@@ -762,7 +762,7 @@ async function handleCajaApi(req, res, url, parts) {
     const order = await getCajaOrder(orderId);
     if (!order) return sendError(res, 404, 'No encontramos esta orden.');
     if (order.status === 'paid') return sendError(res, 409, 'Esta orden ya fue pagada.');
-    const returnUrl = `${requestOrigin(req)}/api/caja/webpay-return?orden=${encodeURIComponent(order.id)}`;
+    const returnUrl = `${apiRequestOrigin(req)}/api/caja/webpay-return?orden=${encodeURIComponent(order.id)}`;
     const sessionId = crypto.randomBytes(18).toString('base64url');
     const response = await webpayTransaction().create(order.buyOrder, sessionId, order.total, returnUrl);
     await mutateCajaOrders(orders => {
@@ -780,14 +780,15 @@ async function handleCajaApi(req, res, url, parts) {
     const body = req.method === 'POST' ? await readBody(req) : {};
     const orderIdFromReturn = asText(url.searchParams.get('orden'));
     const order = await getCajaOrder(orderIdFromReturn);
-    if (!order) return sendRedirect(res, '/pagar/?resultado=no-encontrado', 303);
+    const paymentPage = `${requestOrigin(req)}/pago/orden/`;
+    if (!order) return sendRedirect(res, `${paymentPage}?resultado=no-encontrado`, 303);
     const token = asText(body.token_ws || url.searchParams.get('token_ws'));
     if (!token) {
       await mutateCajaOrders(orders => {
         const current = orders.find(item => item.id === order.id);
         if (current) { current.status = 'cancelled'; current.updatedAt = new Date().toISOString(); }
       });
-      return sendRedirect(res, `/pagar/?orden=${encodeURIComponent(order.id)}&resultado=cancelado`, 303);
+      return sendRedirect(res, `${paymentPage}?orden=${encodeURIComponent(order.id)}&resultado=cancelado`, 303);
     }
     if (order.webpayToken && order.webpayToken !== token) return sendError(res, 400, 'La respuesta de pago no coincide con la orden.');
     const result = await webpayTransaction().commit(token);
@@ -806,7 +807,7 @@ async function handleCajaApi(req, res, url, parts) {
       };
       current.updatedAt = new Date().toISOString();
     });
-    return sendRedirect(res, `/pagar/?orden=${encodeURIComponent(order.id)}&resultado=${paid ? 'pagado' : 'rechazado'}`, 303);
+    return sendRedirect(res, `${paymentPage}?orden=${encodeURIComponent(order.id)}&resultado=${paid ? 'pagado' : 'rechazado'}`, 303);
   }
 
   return sendError(res, 405, 'Operación no disponible.');
@@ -1134,6 +1135,19 @@ function requestOrigin(req) {
   const forwardedHost = asText(req.headers['x-forwarded-host']).split(',')[0];
   const host = forwardedHost || asText(req.headers.host);
   if (/^(localhost|127\.0\.0\.1|\[::1\]|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?::\d+)?$/i.test(host)) return `${proto}://${host}`;
+  return `http://localhost:${port}`;
+}
+
+function apiRequestOrigin(req) {
+  const configured = asText(process.env.PORTAL_API_PUBLIC_URL).replace(/\/$/, '');
+  if (configured) {
+    try { return new URL(configured).origin; } catch {}
+  }
+  const forwardedProto = asText(req.headers['x-forwarded-proto']).split(',')[0];
+  const proto = forwardedProto || (req.socket?.encrypted ? 'https' : 'http');
+  const forwardedHost = asText(req.headers['x-forwarded-host']).split(',')[0];
+  const host = forwardedHost || asText(req.headers.host);
+  if (/^https?$/.test(proto) && /^[a-z0-9.[\]:-]+$/i.test(host)) return `${proto}://${host}`;
   return `http://localhost:${port}`;
 }
 

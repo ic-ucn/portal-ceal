@@ -44,7 +44,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   try {
     const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await desktop.goto(`${baseUrl}/caja/`, { waitUntil: 'networkidle' });
+    await desktop.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
     assert(await desktop.locator('.product-button').count() === 14, 'El catálogo no cargó completo.');
 
     await desktop.locator('.product-button', { hasText: 'Piscola' }).click();
@@ -55,7 +55,7 @@ async function run() {
     await desktop.locator('#payment-dialog[open]').waitFor();
     assert(await desktop.locator('#payment-qr').isVisible(), 'El QR de cobro no está visible.');
     const paymentUrl = await desktop.locator('#open-payment').getAttribute('href');
-    assert(paymentUrl?.includes('/pagar/?orden='), 'El QR no apunta a una orden de pago.');
+    assert(paymentUrl?.includes('/pago/orden/?orden='), 'El QR no apunta a una orden de pago.');
 
     const customer = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await customer.goto(paymentUrl, { waitUntil: 'networkidle' });
@@ -96,12 +96,12 @@ async function run() {
     await customer.waitForURL(/authenticatorProcess\.cgi/, { timeout: 20000 });
     await customer.locator('select').selectOption('TSY');
     await customer.locator('input[type=submit]').click();
-    await customer.waitForURL(new RegExp(`127\\.0\\.0\\.1:${port}/pagar/`), { timeout: 30000 });
+    await customer.waitForURL(new RegExp(`127\\.0\\.0\\.1:${port}/pago/orden/`), { timeout: 30000 });
     await customer.locator('#payment-status.success').waitFor();
     assert((await customer.locator('#payment-status').textContent()).includes('Pago autorizado'), 'El retorno autorizado de Webpay no se confirmó.');
 
     const mobileCashier = await browser.newPage({ viewport: { width: 360, height: 800 } });
-    await mobileCashier.goto(`${baseUrl}/caja/`, { waitUntil: 'networkidle' });
+    await mobileCashier.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
     await mobileCashier.locator('.product-button', { hasText: 'Choripán' }).click();
     assert(await mobileCashier.locator('#mobile-checkout').isVisible(), 'El resumen móvil no está disponible.');
     const cashierOverflow = await mobileCashier.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

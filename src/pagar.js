@@ -2,6 +2,8 @@ const params = new URLSearchParams(location.search);
 const orderId = params.get('orden') || '';
 const resultParam = params.get('resultado') || '';
 const toastElement = document.querySelector('#toast');
+const localHost = /^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(location.hostname);
+const apiBase = localHost ? '' : 'https://portal-ceic-api.onrender.com';
 let order;
 let account;
 
@@ -12,7 +14,7 @@ const money = value => new Intl.NumberFormat('es-CL', {
 }).format(value);
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(`${apiBase}${path}`, {
     ...options,
     headers: { 'content-type': 'application/json', ...(options.headers || {}) }
   });
@@ -159,7 +161,6 @@ async function initialize() {
     order = orderPayload.order;
     account = orderPayload.transferAccount;
     document.querySelector('#customer-total').textContent = money(order.total);
-    document.querySelector('#environment-note').hidden = catalogPayload.paymentMode !== 'test';
     document.querySelector('#test-details').hidden = catalogPayload.paymentMode !== 'test';
     renderSummary();
     renderAccount();
