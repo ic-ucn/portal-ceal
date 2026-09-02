@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f7fb">
   <title>Caja CEIC UCN</title>
   <link rel="icon" href="../assets/logo-mark-transparent.png">
-  <link rel="stylesheet" href="../src/caja.css?v=20260902b">
+  <link rel="stylesheet" href="../src/caja.css?v=20260902c">
 </head>
 <body data-page="caja">
   <header class="site-header">
@@ -28,7 +28,9 @@
         </label>
       </div>
       <nav class="category-tabs" id="category-tabs" aria-label="Categorías"></nav>
-      <div class="product-grid" id="product-grid" aria-live="polite"></div>
+      <div class="product-grid" id="product-grid" aria-live="polite">
+        <div class="catalog-loading"><strong>Cargando productos</strong><span>Un momento</span></div>
+      </div>
       <button class="custom-charge" id="custom-charge" type="button">
         <span class="custom-plus" aria-hidden="true">+</span>
         <span><strong>Agregar otro cobro</strong><small>Nombre y monto manual</small></span>
@@ -100,6 +102,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="../src/caja.js?v=20260902b"></script>
+  <script type="module" src="../src/caja.js?v=20260902c"></script>
 </body>
 </html>

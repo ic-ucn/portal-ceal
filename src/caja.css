@@ -157,6 +157,19 @@ h2 { font-size: 20px; line-height: 1.2; }
   gap: 12px;
 }
 
+.catalog-loading {
+  grid-column: 1 / -1;
+  min-height: 220px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  color: var(--muted);
+  text-align: center;
+}
+.catalog-loading strong { color: var(--ink); }
+.catalog-loading button { margin-top: 8px; border: 0; color: var(--blue); background: transparent; font-weight: 800; cursor: pointer; }
+
 .product-button {
   position: relative;
   min-height: 116px;

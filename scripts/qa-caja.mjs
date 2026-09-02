@@ -43,6 +43,26 @@ async function run() {
   await waitForServer();
   const browser = await chromium.launch({ headless: true });
   try {
+    const retryPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    let catalogAttempts = 0;
+    await retryPage.route('**/api/caja/catalog', async route => {
+      catalogAttempts += 1;
+      if (catalogAttempts === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Servicio iniciando.' })
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await retryPage.goto(`${baseUrl}/pago/`, { waitUntil: 'domcontentloaded' });
+    await retryPage.locator('.product-button').first().waitFor({ timeout: 10000 });
+    assert(catalogAttempts >= 2, 'La caja no reintentó cargar el catálogo tras un fallo inicial.');
+    assert(await retryPage.locator('.product-button').count() === 14, 'El catálogo no se recuperó tras un fallo inicial.');
+    await retryPage.close();
+
     const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await desktop.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
     assert(await desktop.locator('.product-button').count() === 14, 'El catálogo no cargó completo.');
