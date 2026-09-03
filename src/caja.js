@@ -1,4 +1,4 @@
-import { cajaProducts } from '../data/caja-catalog.js';
+import { cajaProducts } from '../data/caja-catalog.mjs';
 
 const state = {
   products: cajaProducts,

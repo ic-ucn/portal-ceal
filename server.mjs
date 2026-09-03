@@ -11,7 +11,7 @@ import { strToU8, zipSync } from 'fflate';
 import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
 import transbankSdk from 'transbank-sdk';
-import { cajaProducts } from './data/caja-catalog.js';
+import { cajaProducts } from './data/caja-catalog.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
