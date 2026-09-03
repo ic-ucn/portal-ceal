@@ -49,6 +49,14 @@ async function api(path, options = {}) {
   return payload;
 }
 
+function warmBackend() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  fetch(`${apiBase}/api/health`, { cache: 'no-store', signal: controller.signal })
+    .catch(() => null)
+    .finally(() => clearTimeout(timeout));
+}
+
 function toast(message) {
   elements.toast.textContent = message;
   elements.toast.classList.add('visible');
@@ -239,6 +247,9 @@ async function checkout() {
   if (!state.cart.size) return;
   const buttons = [elements.checkout, elements.mobileCheckout];
   buttons.forEach(button => { button.disabled = true; button.textContent = 'Preparando…'; });
+  const slowTimer = setTimeout(() => {
+    buttons.forEach(button => { button.textContent = 'Conectando…'; });
+  }, 2000);
   try {
     const items = [...state.cart.values()].map(({ product, quantity }) => product.id === 'custom'
       ? { id: 'custom', name: product.name, unitPrice: product.price, quantity }
@@ -252,6 +263,7 @@ async function checkout() {
   } catch (error) {
     toast(error.message);
   } finally {
+    clearTimeout(slowTimer);
     buttons.forEach(button => { button.textContent = 'Generar cobro'; });
     renderCart();
   }
@@ -308,3 +320,8 @@ for (const dialog of document.querySelectorAll('dialog')) {
 renderCategories();
 renderProducts();
 renderCart();
+warmBackend();
+setInterval(warmBackend, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) warmBackend();
+});

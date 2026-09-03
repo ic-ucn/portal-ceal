@@ -49,16 +49,21 @@ async function run() {
       catalogRequests += 1;
       await route.abort();
     });
+    const warmupResponse = staticPage.waitForResponse(response => (
+      response.url() === `${baseUrl}/api/health` && response.ok()
+    ));
     const catalogStart = Date.now();
     await staticPage.goto(`${baseUrl}/pago/`, { waitUntil: 'domcontentloaded' });
     await staticPage.locator('.product-button').first().waitFor({ timeout: 2000 });
+    await warmupResponse;
     assert(catalogRequests === 0, 'La caja sigue dependiendo del backend para mostrar el catálogo.');
     assert(await staticPage.locator('.product-button').count() === 14, 'El catálogo estático no cargó completo.');
     assert(Date.now() - catalogStart < 2000, 'El catálogo estático demoró más de dos segundos.');
     await staticPage.close();
 
     const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await desktop.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
+    await desktop.goto(`${baseUrl}/pago/`, { waitUntil: 'domcontentloaded' });
+    await desktop.locator('.product-button').first().waitFor();
     assert(await desktop.locator('.product-button').count() === 14, 'El catálogo no cargó completo.');
 
     await desktop.locator('.product-button', { hasText: 'Piscola' }).click();
@@ -115,7 +120,8 @@ async function run() {
     assert((await customer.locator('#payment-status').textContent()).includes('Pago autorizado'), 'El retorno autorizado de Webpay no se confirmó.');
 
     const mobileCashier = await browser.newPage({ viewport: { width: 360, height: 800 } });
-    await mobileCashier.goto(`${baseUrl}/pago/`, { waitUntil: 'networkidle' });
+    await mobileCashier.goto(`${baseUrl}/pago/`, { waitUntil: 'domcontentloaded' });
+    await mobileCashier.locator('.product-button').first().waitFor();
     const mobileProduct = mobileCashier.locator('.product-card', { hasText: 'Choripán' });
     await mobileProduct.locator('.product-button').click();
     await mobileProduct.locator('.product-button').click();
