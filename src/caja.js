@@ -1,9 +1,10 @@
+import { cajaProducts } from '../data/caja-catalog.js';
+
 const state = {
-  products: [],
+  products: cajaProducts,
   cart: new Map(),
   category: 'Todos',
-  search: '',
-  paymentMode: 'test'
+  search: ''
 };
 
 const localHost = /^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(location.hostname);
@@ -304,55 +305,6 @@ for (const dialog of document.querySelectorAll('dialog')) {
   });
 }
 
-let initializeAttempts = 0;
-let initializeTimer = 0;
-let initializing = false;
-
-function renderCatalogLoading(failed = false) {
-  const wrap = document.createElement('div');
-  wrap.className = 'catalog-loading';
-  const title = document.createElement('strong');
-  title.textContent = failed ? 'Cargando productos nuevamente' : 'Cargando productos';
-  const detail = document.createElement('span');
-  detail.textContent = failed ? 'La conexión está demorando más de lo habitual' : 'Un momento';
-  wrap.append(title, detail);
-  if (failed) {
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.textContent = 'Reintentar ahora';
-    retry.addEventListener('click', () => {
-      clearTimeout(initializeTimer);
-      initialize();
-    });
-    wrap.append(retry);
-  }
-  elements.productGrid.replaceChildren(wrap);
-}
-
-async function initialize() {
-  if (initializing) return;
-  initializing = true;
-  initializeAttempts += 1;
-  renderCatalogLoading(initializeAttempts > 1);
-  try {
-    const payload = await api('/api/caja/catalog');
-    state.products = payload.products;
-    state.paymentMode = payload.paymentMode;
-    initializeAttempts = 0;
-    renderCategories();
-    renderProducts();
-    renderCart();
-  } catch (error) {
-    renderCatalogLoading(true);
-    if (initializeAttempts === 1) toast(error.message);
-    if (initializeAttempts < 8) {
-      const delay = Math.min(1500 * initializeAttempts, 5000);
-      clearTimeout(initializeTimer);
-      initializeTimer = setTimeout(initialize, delay);
-    }
-  } finally {
-    initializing = false;
-  }
-}
-
-initialize();
+renderCategories();
+renderProducts();
+renderCart();
