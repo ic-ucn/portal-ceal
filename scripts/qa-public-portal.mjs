@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914d-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914e-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -35,13 +35,18 @@ async function auditNavigationHover(page, theme) {
 try {
   for (const width of [1440, 390, 320, 768, 920]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+    if (width === 320) await context.addInitScript(() => {
+      if (window !== window.top) return;
+      localStorage.setItem('portal.session', JSON.stringify({ role: 'ceal', accessMode: 'ceal', sessionToken: 'expired-qa-session' }));
+    });
     const page = await context.newPage();
+    const authRequests = [];
+    page.on('request', request => { if (/\/auth\//.test(request.url())) authRequests.push(request.url()); });
     page.on('pageerror', error => report.errors.push(error.message));
     await page.goto(url('/login'), { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Portal CEIC', exact: true }).waitFor();
-    await page.screenshot({ path: new URL(`${label}-${width}-login.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await page.locator('[data-guest-login]').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '#/', 'old login links go directly to the portal');
+    assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
     for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
@@ -66,6 +71,7 @@ try {
       });
       assert.ok(metrics.documentWidth <= width, `${name} must fit ${width}px`);
       assert.equal(metrics.privateLinks, 0, 'guests must not see CEAL management');
+      assert.equal(await page.locator('a[href="#/perfil"], [data-google-redirect], [data-save-course]').count(), 0, 'public navigation has no account actions');
       if (label === 'production') assert.ok(!(await page.locator('#main-content').innerText()).includes('Acuerdo QA de seguimiento'), 'legacy test agreements must not appear as public content');
       if (width <= 920) {
         assert.ok(metrics.navVisible, 'mobile navigation must remain visible');
@@ -78,6 +84,7 @@ try {
     if (width === 390) {
       await page.locator('.bottom-more').click();
       await page.getByRole('dialog', { name: 'Menú del portal' }).waitFor();
+      assert.equal(await page.locator('[data-logout], a[href="#/perfil"]').count(), 0);
       await page.screenshot({ path: new URL(`${label}-390-menu.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
       await page.getByRole('button', { name: 'Cerrar menú', exact: true }).click();
       await page.locator('[data-malla-embed-theme]').click();
@@ -92,7 +99,6 @@ try {
     if (width === 390 || width === 1440) {
       if (width === 1440) await page.locator('[data-malla-embed-theme]').click();
       for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/perfil', 'perfil'], ['/login', 'login']]) {
-        if (name === 'login') await page.locator('[data-logout]').click();
         await page.goto(url(route), { waitUntil: 'networkidle' });
         await page.locator('body.theme-dark').waitFor();
         await page.waitForTimeout(300);
@@ -103,12 +109,17 @@ try {
           pageFont: getComputedStyle(document.querySelector('h1')).fontFamily
         }));
         assert.ok(layout.width <= width, `${name} dark layout must fit ${width}px`);
-        if (name === 'login') assert.ok(layout.form > Math.min(250, width - 60), 'login fields have usable width in dark mode');
+        if (name === 'login' || name === 'perfil') assert.equal(new URL(page.url()).hash, '#/');
         assert.ok(layout.pageFont.includes('Instrument Sans'), 'headings use the self-hosted portal font');
         await page.screenshot({ path: new URL(`${label}-${width}-${name}-dark.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
         report.views.push({ width, route, theme: 'dark', overflow: false });
       }
     }
+    await page.goto(url('/gestion'), { waitUntil: 'networkidle' });
+    assert.equal(new URL(page.url()).hash, '#/', 'internal routes remain protected');
+    await page.goto(url('/material/subir'), { waitUntil: 'networkidle' });
+    assert.equal(new URL(page.url()).hash, '#/material', 'retired upload links return to the library');
+    assert.deepEqual(authRequests, [], 'public browsing does not validate or transmit saved credentials');
     await context.close();
   }
   assert.deepEqual(report.errors, []);

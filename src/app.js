@@ -7,6 +7,8 @@
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46', 'portal.data.v47', 'portal.data.v48', 'portal.data.v49'];
   const URL_PARAMS = new URLSearchParams(location.search);
+  // Temporary public-only release. Authentication can be restored through config.
+  const SIGN_IN_ENABLED = window.PORTAL_SIGN_IN_ENABLED === true;
   const STATIC_MODE = URL_PARAMS.has('static');
   const LOCAL_API_BASE = location.protocol !== 'file:' && ['localhost', '127.0.0.1', '::1'].includes(location.hostname) ? '/api' : '';
   const API_BASE = !STATIC_MODE && (LOCAL_API_BASE || window.PORTAL_API_BASE || '');
@@ -328,6 +330,7 @@
     return { path: path || '/', query: Object.fromEntries(new URLSearchParams(queryString)) };
   }
   function loadSession() {
+    if (!SIGN_IN_ENABLED) return buildGuestUser();
     try {
       const user = JSON.parse(localStorage.getItem('portal.session') || 'null');
       if (user?.role === 'guest') {
@@ -1146,7 +1149,7 @@
       mergeDriveResources();
       ensureShape();
       document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
-      await handleGoogleRedirectCallback();
+      if (SIGN_IN_ENABLED) await handleGoogleRedirectCallback();
       await validateInitialSession();
       safeRender();
     } catch (err) {
@@ -1206,6 +1209,11 @@
   function paint(restoring = false) {
     applyPortalTheme();
     const { path, query } = getRoute();
+    if (!SIGN_IN_ENABLED) {
+      state.user = buildGuestUser();
+      if (path === '/login' || path === '/perfil') return routeTo('/');
+      if (path === '/material/subir') return routeTo('/material');
+    }
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
     if (state.user && path === '/login') return routeTo('/');
     if (state.user && path === '/contingencia') return routeTo('/');
@@ -1460,8 +1468,8 @@
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('')
       + `<button class="bottom-item bottom-more ${moreActive ? 'active' : ''}" type="button" data-open-menu aria-label="Más secciones" aria-expanded="${state.menuOpen}" aria-controls="portal-menu" aria-haspopup="dialog"><span class="bottom-item-ico">${icon('menu')}</span><span class="bottom-item-label">Más</span></button>`;
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
-      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
-      <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
+      <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}</div></header>
+      <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a>` : ''}</div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
   }
   function renderMobileMenu(path) {
@@ -1473,15 +1481,15 @@
     return `<div class="menu-sheet-backdrop" data-close-menu></div>
       <aside class="menu-sheet" id="portal-menu" role="dialog" aria-modal="true" aria-label="Menú del portal">
         <header class="menu-sheet-head">
-          <a class="menu-sheet-user" href="#/perfil"><span class="avatar">${esc(u.initials || 'IN')}</span><span class="menu-sheet-user-copy"><strong>${esc(u.name || 'Invitado')}</strong><small>${esc(accountRoleLabel(u) || 'Portal CEIC')}</small></span></a>
+          ${SIGN_IN_ENABLED ? `<a class="menu-sheet-user" href="#/perfil"><span class="avatar">${esc(u.initials || 'IN')}</span><span class="menu-sheet-user-copy"><strong>${esc(u.name || 'Invitado')}</strong><small>${esc(accountRoleLabel(u) || 'Portal CEIC')}</small></span></a>` : '<span class="menu-sheet-user-copy"><strong>Portal CEIC</strong><small>Ingeniería Civil UCN</small></span>'}
           <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
         </header>
         <nav class="menu-sheet-nav" aria-label="Todas las secciones">${items}
-          <a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>
+          ${SIGN_IN_ENABLED ? `<a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>` : ''}
         </nav>
         <footer class="menu-sheet-foot">
           ${themeToggleButton('menu-theme-toggle')}
-          <button class="menu-sheet-logout" type="button" data-logout>${icon('x')}<span>Cerrar sesión</span></button>
+          ${SIGN_IN_ENABLED ? `<button class="menu-sheet-logout" type="button" data-logout>${icon('x')}<span>Cerrar sesión</span></button>` : ''}
         </footer>
       </aside>`;
   }
@@ -1873,7 +1881,7 @@
               <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
-            <a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>
+            ${SIGN_IN_ENABLED ? `<a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}
             <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
         </header>
@@ -2512,7 +2520,7 @@
       ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
       : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
     const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Guardar ramo</button></div>`;
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}${isGuest() ? '' : `<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Guardar ramo</button>`}</div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }

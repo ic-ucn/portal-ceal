@@ -34,6 +34,7 @@ try {
     const { engine, width, mode } = config;
     browser = await (engine === 'webkit' ? webkit : chromium).launch();
     const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.addInitScript(() => { window.PORTAL_SIGN_IN_ENABLED = true; });
     page.on('pageerror', error => report.errors.push({ ...config, message: error.message }));
     await page.route('https://ic-ucn.github.io/**', route => route.abort());
     await page.route('https://drive.google.com/**', route => route.abort());

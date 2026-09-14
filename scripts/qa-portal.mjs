@@ -163,6 +163,7 @@ async function loginJefatura(page, jefaturaUser) {
 async function runSessionEdgeTests(browser, studentUser) {
   const staleContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const stalePage = await staleContext.newPage();
+  await staleContext.addInitScript(() => { window.PORTAL_SIGN_IN_ENABLED = true; });
   await stalePage.addInitScript(() => {
     try {
       localStorage.setItem('portal.session', JSON.stringify({
@@ -193,6 +194,7 @@ async function runSessionEdgeTests(browser, studentUser) {
 
   const sharedContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const firstTab = await sharedContext.newPage();
+  await sharedContext.addInitScript(() => { window.PORTAL_SIGN_IN_ENABLED = true; });
   const secondTab = await sharedContext.newPage();
   await firstTab.goto(baseUrl, { waitUntil: 'networkidle' });
   await firstTab.evaluate(user => localStorage.setItem('portal.session', JSON.stringify(user)), studentUser);
@@ -508,6 +510,7 @@ async function runCrossBrowserMobileTests(playwright, studentUser) {
       userAgent: testCase.userAgent
     });
     const page = await context.newPage();
+    await context.addInitScript(() => { window.PORTAL_SIGN_IN_ENABLED = true; });
     page.on('pageerror', error => pushFailure(`${testCase.label} page error: ${error.message}`));
 
     await page.goto(`${baseUrl}/?qa=${Date.now()}#/login`, { waitUntil: 'networkidle' });
@@ -601,6 +604,7 @@ async function main() {
     const browser = await chromium.launch();
     await runSessionEdgeTests(browser, studentUser);
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.addInitScript(() => { window.PORTAL_SIGN_IN_ENABLED = true; });
     page.on('console', msg => {
       if (['error', 'warning'].includes(msg.type())) {
         const location = msg.location();
