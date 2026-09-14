@@ -251,14 +251,11 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
   if (viewportName === 'mobile' && metrics.scrollWidth > metrics.innerWidth + 4) {
     pushFailure(`${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
   }
-  // Rutas que pertenecen a una pestaña del dock: deben marcarla activa.
-  // Las rutas secundarias (calendario, perfil, atención…) viven en el menú
-  // lateral y no marcan pestaña, pero el dock siempre debe estar visible.
-  const tabbedRoutes = new Set(['inicio', 'mallas', 'ramo-detalle', 'material', 'material-subir', 'material-detalle', 'apoyo', 'ayudantia-detalle', 'tramite-detalle']);
-  if (viewportName === 'mobile' && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none')) {
+  const mobile = viewportName.startsWith('mobile');
+  if (mobile && (!metrics.hasBottomNav || metrics.bottomNavDisplay === 'none')) {
     pushFailure(`${label}: bottom nav missing`);
   }
-  if (viewportName === 'mobile' && tabbedRoutes.has(name) && metrics.activeBottom < 1) {
+  if (mobile && metrics.activeBottom !== 1) {
     pushFailure(`${label}: bottom nav tab inactive`);
   }
   report.routes.push({ viewport: viewportName, route, name, title: metrics.title });
@@ -268,6 +265,46 @@ async function auditRoute(page, route, name, viewportName, screenshot = false) {
     await page.screenshot({ path: file, fullPage: true });
     report.screenshots.push(file);
   }
+}
+
+async function auditMobileMenu(page, width = 390) {
+  await page.locator('.bottom-nav').waitFor({ state: 'visible' });
+  const items = page.locator('.bottom-nav .bottom-item');
+  const labels = (await items.allTextContents()).map(text => text.trim());
+  if (labels.join('|') !== 'Inicio|Calendario|Mallas|Material|Más') fail('mobile navigation must show all five labeled actions');
+  const { bounds, navRight } = await items.evaluateAll(nodes => ({ navRight: document.querySelector('.bottom-nav').getBoundingClientRect().right, bounds: nodes.map(node => {
+    const rect = node.getBoundingClientRect();
+    const label = node.querySelector('.bottom-item-label');
+    const center = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return { x: rect.x, right: rect.right, width: rect.width, height: rect.height, clipped: label.scrollWidth > label.clientWidth, touchable: node.contains(center) };
+  }) }));
+  for (const item of bounds) {
+    if (item.x < 0 || item.right > width || item.width < 44 || item.height < 44 || item.clipped || !item.touchable) fail(`mobile navigation has a clipped, covered or undersized item at ${width}px`);
+  }
+  if (Math.max(...bounds.map(item => item.width)) - Math.min(...bounds.map(item => item.width)) > 1) fail('mobile navigation items should have equal widths');
+  if (navRight - bounds.at(-1).right > 8) fail('mobile navigation must not leave an empty final column');
+  await page.getByRole('button', { name: 'Más secciones' }).click();
+  await page.getByRole('dialog', { name: 'Menú del portal' }).waitFor();
+  if (!(await page.locator('.app-main').evaluate(node => node.inert))) fail('mobile menu must isolate background interactions');
+  const first = page.locator('.menu-sheet-user');
+  await first.focus();
+  await page.keyboard.press('Shift+Tab');
+  if (!(await page.locator('.menu-sheet-logout').evaluate(node => node === document.activeElement))) fail('mobile menu must contain keyboard focus');
+  await page.keyboard.press('Escape');
+  await page.locator('.menu-sheet').waitFor({ state: 'detached' });
+  if (!(await page.locator('.bottom-more').evaluate(node => node === document.activeElement))) fail('closing the menu must return focus to More');
+  await page.locator('.bottom-more').click();
+  await page.locator('.menu-sheet-nav a[href="#/"]').click();
+  await page.locator('.menu-sheet').waitFor({ state: 'detached' });
+  await page.locator('.bottom-more').click();
+  await page.locator('.menu-sheet-nav a[href="#/perfil"]').click();
+  await page.waitForURL(/#\/perfil$/);
+  await page.locator('.bottom-more.active').waitFor();
+  if (await page.locator('.menu-sheet').count()) fail('choosing a section must close the menu');
+  if (await page.locator('.app-main').evaluate(node => node.inert)) fail('page must become interactive after closing the menu');
+  await page.locator('.bottom-nav a[href="#/"]').click();
+  await page.waitForURL(/#\/$/);
+  await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
 }
 
 async function runPublicFlowTests(page, studentUser) {
@@ -605,11 +642,22 @@ async function main() {
     await page.locator('[data-malla-embed-plan="o"]').click();
     const mobilePlanO = await waitForEmbeddedMalla(page, 'o', 'light');
     if (mobilePlanO.cardCount < 55) pushFailure('mobile embedded malla did not load Plan O');
+    const mallaFrame = page.frameLocator('.malla-embed-frame');
+    await mallaFrame.getByRole('combobox', { name: 'Seleccionar semestre' }).selectOption('2');
+    if (await mallaFrame.locator('.mc-semester:not([hidden])').count() !== 1 || await mallaFrame.locator('.mc-semester:not([hidden])').getAttribute('data-semester') !== '2') fail('mobile malla must show the selected semester');
+    const closeBounds = await page.locator('.malla-close').boundingBox();
+    if (!closeBounds || closeBounds.width < 44 || closeBounds.height < 44) fail('malla must expose a touch-sized close action');
+    await page.getByRole('link', { name: 'Cerrar malla y volver al inicio' }).click();
+    await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    report.flows.push('mobile malla switches semesters and closes to Inicio');
 
     await page.setViewportSize({ width: 360, height: 800 });
     await loginStudent(page, studentUser);
-    const bottomItems = await page.locator('.bottom-nav .bottom-item').allTextContents();
-    if (bottomItems.length !== 4 || bottomItems.at(-1)?.trim() !== 'Material' || bottomItems[1]?.trim() !== 'Calendario') fail('student mobile navigation should expose the four current informational sections');
+    for (const width of [320, 360, 390, 430, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await auditMobileMenu(page, width);
+    }
+    await page.setViewportSize({ width: 360, height: 800 });
     const bottomBounds = await page.locator('.bottom-nav').boundingBox();
     if (!bottomBounds || bottomBounds.x < 0 || bottomBounds.x + bottomBounds.width > 360) fail('mobile bottom navigation should fit a 360px viewport');
     await page.goto(appUrl('/calendario'), { waitUntil: 'networkidle' });
@@ -654,6 +702,9 @@ async function main() {
     await loginJefatura(page, jefaturaUser);
     await auditRoute(page, '/', 'inicio-jefatura', 'mobile-jefatura', true);
     await loginCeal(page, cealUser);
+    await page.locator('.bottom-more').click();
+    await page.locator('.menu-sheet-nav a[href="#/gestion"]').click();
+    await page.locator('.bottom-more.active').waitFor();
     await auditRoute(page, '/gestion/calendario', 'gestion-calendario', 'mobile-ceal', true);
 
     await browser.close();

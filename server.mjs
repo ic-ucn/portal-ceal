@@ -244,7 +244,11 @@ async function loadDb() {
       await writeDb(seed);
       return seed;
     }
-  })();
+  })().catch(error => {
+    // A failed initial connection must not poison subsequent requests.
+    dbPromise = undefined;
+    throw error;
+  });
   return dbPromise;
 }
 

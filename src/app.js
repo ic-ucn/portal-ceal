@@ -39,6 +39,7 @@
   let filterRenderTimer = null;
   let localWrites = 0;
   let lastTrackedRoute = '';
+  let menuReturnFocus = '.menu-btn';
 
   try {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -1293,7 +1294,8 @@
     tick();
   }
   function afterRender() {
-    document.body.classList.toggle('modal-open', Boolean(state.calendarDetailOpen && getRoute().path === '/calendario'));
+    document.body.classList.toggle('modal-open', state.menuOpen || Boolean(state.calendarDetailOpen && getRoute().path === '/calendario'));
+    document.querySelectorAll('.app-main, .sidebar').forEach(node => { node.inert = state.menuOpen; });
     hydrateMallaEmbed();
     hydrateCalendarStatus();
     hydrateCalendarUpdates();
@@ -1436,8 +1438,11 @@
     const shellClass = `app-shell ${isMallaRoute ? 'malla-route' : ''}`.trim();
     const nav = navItems().map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="nav-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span></a>`; }).join('');
     const campusNav = `<a class="sidebar-campus-card" href="#/"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><span><strong>Portal académico</strong><small>Ingeniería Civil UCN</small></span></a>`;
-    const bottom = [['/', 'home', 'Inicio'], ['/calendario', 'calendar', 'Calendario'], ['/mallas', 'grid', 'Mallas'], ['/material', 'book', 'Material']]
-      .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('');
+    const bottomRoutes = navItems().slice(0, 4);
+    const moreActive = !bottomRoutes.some(([href]) => isActive(path, href));
+    const bottom = bottomRoutes
+      .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('')
+      + `<button class="bottom-item bottom-more ${moreActive ? 'active' : ''}" type="button" data-open-menu aria-label="Más secciones" aria-expanded="${state.menuOpen}" aria-controls="portal-menu" aria-haspopup="dialog"><span class="bottom-item-ico">${icon('menu')}</span><span class="bottom-item-label">Más</span></button>`;
     return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a></div></header>
       <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a></div></header>
@@ -1450,7 +1455,7 @@
       return `<a class="menu-sheet-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}>${icon(ico)}<span>${label}</span>${icon('arrow', 'menu-item-arrow')}</a>`;
     }).join('');
     return `<div class="menu-sheet-backdrop" data-close-menu></div>
-      <aside class="menu-sheet" role="dialog" aria-modal="true" aria-label="Menú del portal">
+      <aside class="menu-sheet" id="portal-menu" role="dialog" aria-modal="true" aria-label="Menú del portal">
         <header class="menu-sheet-head">
           <a class="menu-sheet-user" href="#/perfil"><span class="avatar">${esc(u.initials || 'IN')}</span><span class="menu-sheet-user-copy"><strong>${esc(u.name || 'Invitado')}</strong><small>${esc(accountRoleLabel(u) || 'Portal CEIC')}</small></span></a>
           <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
@@ -1849,13 +1854,14 @@
             </span>
           </a>
           ${mallaProgressMarkup}
+          <a class="icon-btn malla-close" href="#/" aria-label="Cerrar malla y volver al inicio">${icon('x')}</a>
           <div class="malla-commandbar-actions">
             <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
               <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
               <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
-            <a class="malla-tool-btn" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>
+            <a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>
             <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
         </header>
@@ -1921,7 +1927,7 @@
           <span class="mc-card__meta">${esc(AreaStyle[course.area] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
         </article>`;
       }).join('');
-      return `<section class="mc-semester"><h2>${semester} semestre</h2><div class="mc-semester__cards">${cards}</div></section>`;
+      return `<section class="mc-semester" data-semester="${semester}"><h2>${semester} semestre</h2><div class="mc-semester__cards">${cards}</div></section>`;
     }).join('');
     const localStyles = `<style>
       ${mallaEmbedThemeStyles(theme, plan)}
@@ -1945,7 +1951,9 @@
       .mc-area-general{background:linear-gradient(180deg,var(--mc-area-general-bg),var(--mc-card-bg))}
       .mc-area-proyecto{background:linear-gradient(180deg,var(--mc-area-proyecto-bg),var(--mc-card-bg))}
       .mc-area-electivo{background:linear-gradient(180deg,var(--mc-area-electivo-bg),var(--mc-card-bg))}
-      @media(max-width:640px){.mc-local-shell{padding:12px}.mc-header{display:grid}.mc-grid{display:grid;grid-template-columns:1fr;min-width:0}.mc-semester{content-visibility:auto}.mc-semester h2{position:sticky;top:0;z-index:2}}
+      .mc-semester-select{display:none;width:100%;min-height:44px;margin-bottom:12px;padding:8px 12px;border:1px solid var(--mc-border);border-radius:10px;background:var(--mc-panel);color:var(--mc-text);font:inherit}
+      .mc-semester[hidden]{display:none}
+      @media(max-width:640px){.mc-local-shell{padding:12px}.mc-local-shell .mc-header{display:none}.mc-semester-select{display:block}.mc-local-shell .mc-grid{display:grid;grid-template-columns:1fr;min-width:0;min-height:0;padding:0 0 74px !important}.mc-semester h2{display:none}}
     </style>`;
     const subjectPayload = safeJsonForScript(subjects.map(course => ({ code: course.code, prereqs: course.prereqs || [] })));
     const localScript = `<script>
@@ -1953,6 +1961,14 @@
         document.documentElement.classList.toggle('mc-light', ${JSON.stringify(theme === 'light')});
         var subjects = ${subjectPayload};
         var byCode = Object.fromEntries(subjects.map(function(item){ return [item.code, item]; }));
+        var semesterSelect = document.querySelector('.mc-semester-select');
+        var mobileView = window.matchMedia('(max-width:640px)');
+        function showSemester(){
+          document.querySelectorAll('.mc-semester').forEach(function(column){ column.hidden = mobileView.matches && column.dataset.semester !== semesterSelect.value; });
+        }
+        semesterSelect.addEventListener('change', function(){ showSemester(); window.scrollTo(0, 0); });
+        mobileView.addEventListener('change', showSemester);
+        showSemester();
         function dependents(code){ return subjects.filter(function(item){ return (item.prereqs || []).indexOf(code) >= 0; }).map(function(item){ return item.code; }); }
         function card(code){ return document.querySelector('.mc-card[data-mc-code="' + CSS.escape(code) + '"]'); }
         function clearHighlight(){ document.querySelectorAll('.mc-card--highlight-self,.mc-card--highlight-prereq,.mc-card--highlight-successor').forEach(function(el){ el.classList.remove('mc-card--highlight-self','mc-card--highlight-prereq','mc-card--highlight-successor'); }); }
@@ -1974,7 +1990,7 @@
         });
       })();
     <\/script>`;
-    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${mallaMaterialPayload(plan)}${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
+    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(planName)}</title>${mallaMaterialPayload(plan)}${localStyles}</head><body><main class="mc-local-shell"><header class="mc-header"><div><h1>Malla curricular</h1><p class="mc-header__subtitle">${esc(planName)}</p></div><span class="mc-header__meta">${subjects.length} ramos · ${semesters.length} semestres</span></header><select class="mc-semester-select" aria-label="Seleccionar semestre">${semesters.map(semester => `<option value="${semester}">Semestre ${semester}</option>`).join('')}</select><section class="mc-grid">${columns}</section></main>${localScript}${mallaEmbedGuidanceScript()}</body></html>`;
   }
   function mallaMaterialPayload(plan) {
     const planKey = plan === 'o' ? 'planO' : 'planP';
@@ -3537,6 +3553,9 @@
       return;
     }
     if (e.target.closest('[data-open-menu]')) {
+      menuReturnFocus = e.target.closest('.bottom-more') ? '.bottom-more' : '.menu-btn';
+      scrollResetToken += 1;
+      clearTimeout(pageTopHoldTimer);
       state.menuOpen = true;
       render({ transition: true, scope: 'overlay', resetScroll: false });
       document.querySelector('.menu-sheet [data-close-menu]')?.focus();
@@ -3545,7 +3564,15 @@
     if (e.target.closest('[data-close-menu]')) {
       state.menuOpen = false;
       render({ transition: true, scope: 'overlay', resetScroll: false });
-      document.querySelector('[data-open-menu]')?.focus();
+      document.querySelector(menuReturnFocus)?.focus({ preventScroll: true });
+      return;
+    }
+    const currentMenuLink = e.target.closest('.menu-sheet a[href]');
+    if (state.menuOpen && currentMenuLink?.getAttribute('href') === location.hash) {
+      e.preventDefault();
+      state.menuOpen = false;
+      render({ scope: 'overlay', resetScroll: false });
+      document.querySelector(menuReturnFocus)?.focus({ preventScroll: true });
       return;
     }
     if (e.target.matches('[data-calendar-modal-backdrop]') || e.target.closest('[data-calendar-modal-close]')) {
@@ -4320,13 +4347,13 @@
         requestAnimationFrame(() => document.querySelector(`[data-calendar-date="${returnDate}"]`)?.focus({ preventScroll: true }));
         return;
       }
-      if (state.menuOpen) { state.menuOpen = false; render({ transition: true, scope: 'overlay', resetScroll: false }); document.querySelector('[data-open-menu]')?.focus(); return; }
+      if (state.menuOpen) { state.menuOpen = false; render({ transition: true, scope: 'overlay', resetScroll: false }); document.querySelector(menuReturnFocus)?.focus({ preventScroll: true }); return; }
       if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); document.querySelector('[data-toggle-notifications]')?.focus(); return; }
       if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     }
-    if (e.key === 'Tab' && state.calendarDetailOpen) {
-      const modal = document.querySelector('.calendar-detail-modal');
+    if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen)) {
+      const modal = document.querySelector(state.menuOpen ? '.menu-sheet' : '.calendar-detail-modal');
       const focusable = [...(modal?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])].filter(node => !node.disabled);
       if (!focusable.length) return;
       const first = focusable[0];

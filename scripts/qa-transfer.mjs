@@ -85,32 +85,6 @@ async function verifyPage(browserType, name, viewport, canReadClipboard = false)
   await browser.close();
 }
 
-async function verifyComingSoon(browserType, name, viewport) {
-  const browser = await browserType.launch({ headless: true });
-  const page = await browser.newPage({ viewport });
-  const errors = [];
-  page.on('console', message => {
-    if (message.type() === 'error') errors.push(message.text());
-  });
-  page.on('pageerror', error => errors.push(error.message));
-
-  await page.goto(baseUrl, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Próximamente' }).waitFor();
-  await page.getByRole('img', { name: /Trazado del campus/ }).waitFor();
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-    transferAction: Boolean(document.querySelector('[data-copy-all]')),
-    campusWidth: document.querySelector('.campus-figure img')?.getBoundingClientRect().width || 0
-  }));
-  assert.equal(metrics.scrollWidth, metrics.clientWidth, `${name}: la portada no debe desbordar`);
-  assert.equal(metrics.transferAction, false, `${name}: la portada no debe exponer acciones de transferencia`);
-  assert.ok(metrics.campusWidth > 180, `${name}: el trazado del campus debe ser visible`);
-  assert.deepEqual(errors, [], `${name}: errores en consola`);
-  await page.screenshot({ path: path.join(screenshotDir, `coming-soon-${name}.png`), fullPage: true });
-  await browser.close();
-}
-
 try {
   await mkdir(screenshotDir, { recursive: true });
   await waitForServer();
@@ -119,10 +93,7 @@ try {
   await verifyPage(chromium, 'mobile-320', { width: 320, height: 700 }, true);
   await verifyPage(webkit, 'safari-mobile', { width: 390, height: 844 });
   await verifyPage(firefox, 'firefox-mobile', { width: 390, height: 844 });
-  await verifyComingSoon(chromium, 'desktop', { width: 1440, height: 1000 });
-  await verifyComingSoon(chromium, 'mobile', { width: 390, height: 844 });
-  await verifyComingSoon(webkit, 'safari-mobile', { width: 390, height: 844 });
-  console.log(JSON.stringify({ ok: true, views: 8, clipboard: true, overflow: false }, null, 2));
+  console.log(JSON.stringify({ ok: true, views: 5, clipboard: true, overflow: false }, null, 2));
 } finally {
   server.kill('SIGTERM');
 }

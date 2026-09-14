@@ -59,8 +59,8 @@ assert(packageJson.scripts.check.includes('scripts/quality-suite.mjs'), 'package
 assert(packageJson.scripts.quality === 'node scripts/quality-suite.mjs', 'package quality script should exist');
 assert(packageJson.scripts['qa:transfer'] === 'node scripts/qa-transfer.mjs', 'temporary transfer QA script should be registered');
 assert(packageJson.scripts['calendar:watch'] === 'node scripts/watch-calendar-updates.mjs', 'calendar watcher script should be registered');
-assert(rootHtml.includes('Próximamente') && rootHtml.includes('/assets/ucn-campus-transparent.png'), 'root should show the restrained coming-soon page');
-assert(rootHtml.includes('/src/coming-soon.css') && !rootHtml.includes('http-equiv="refresh"'), 'coming-soon root should load directly without redirecting');
+assert(rootHtml.includes('src/app.js') && rootHtml.includes('src/mock-data.js') && rootHtml.includes('data/curricula.js') && rootHtml.includes('src/config.js'), 'root should load the restored academic portal and its data');
+assert(!rootHtml.includes('coming-soon.css') && !rootHtml.includes('Próximamente') && !rootHtml.includes('http-equiv="refresh"'), 'portal should open directly without the temporary cover or redirects');
 assert(indexHtml.includes('/src/transfer.js') && indexHtml.includes('/src/transfer.css'), 'transfer route should load only the temporary transfer experience');
 assert(!indexHtml.includes('src/app.js') && !indexHtml.includes('src/mock-data.js') && !indexHtml.includes('data/curricula.js') && !indexHtml.includes('src/config.js'), 'temporary root should not load the portal application');
 assert(!indexHtml.includes('rel="manifest"'), 'temporary transfer page should not install the portal PWA');
