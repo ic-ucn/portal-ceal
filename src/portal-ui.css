@@ -6,6 +6,7 @@
   --surface-raised: #ffffff;
   --surface-sunken: #eef1ee;
   --surface-tint: #f2f4f1;
+  --surface-hover: #e1eae6;
   --text-primary: #202f35;
   --text-secondary: #526168;
   --text-tertiary: #68777c;
@@ -46,6 +47,7 @@ body.theme-dark {
   --surface-raised: #26353b;
   --surface-sunken: #121d22;
   --surface-tint: #24343a;
+  --surface-hover: #30474d;
   --text-primary: #edf2ef;
   --text-secondary: #b8c7c8;
   --text-tertiary: #98aeb1;
@@ -98,9 +100,10 @@ h1, h2, h3, .brand-copy strong, .mobile-brand strong, .login-wordmark strong {
   border-radius: 6px; font-size: .94rem; font-weight: 500; background: transparent;
 }
 .nav-item .icon, body.theme-dark .nav-item .icon { width: 19px; height: 19px; color: currentColor; opacity: .8; }
-.nav-item:hover, body.theme-dark .nav-item:hover { background: var(--surface-sunken); color: var(--text-primary); }
 .nav-item.active, body.theme-dark .nav-item.active { background: var(--brand-blue-soft); color: var(--brand-blue-text); font-weight: 600; box-shadow: none; }
 .nav-item.active .icon, body.theme-dark .nav-item.active .icon { color: currentColor; opacity: 1; }
+.nav-item:hover, body.theme-dark .nav-item:hover { background: var(--surface-hover); color: var(--text-primary); }
+.nav-item:hover .icon, body.theme-dark .nav-item:hover .icon { color: currentColor; opacity: 1; }
 .nav-item.active::before { display: none; }
 .topbar, body.theme-dark .topbar { background: var(--surface-canvas); border-bottom: 1px solid var(--border-subtle); box-shadow: none; padding-inline: 44px; }
 .global-search, body.theme-dark .global-search { background: transparent; border: 0; border-radius: 5px; width: min(440px, 100%); }
@@ -310,6 +313,8 @@ body.theme-dark .material-search-box .icon { color: var(--text-secondary); }
 .menu-sheet-user .avatar { background: var(--brand-blue-soft); color: var(--brand-blue-text); border-radius: 50%; }
 .menu-sheet-item { font-weight: 500; border-radius: 6px; }
 .menu-sheet-item.active { background: var(--brand-blue-soft); color: var(--brand-blue-text); }
+.menu-sheet-item:hover, body.theme-dark .menu-sheet-item:hover { background: var(--surface-hover); color: var(--text-primary); }
+.menu-sheet-item:hover .icon, body.theme-dark .menu-sheet-item:hover .icon { color: currentColor; opacity: 1; }
 .menu-sheet-backdrop { background: #172a3673; backdrop-filter: blur(3px); }
 .toast { border-radius: 8px; box-shadow: var(--shadow-md); }
 .malla-commandbar, body.theme-dark .malla-commandbar { background: var(--surface-base); box-shadow: none; border-color: var(--border-subtle); }

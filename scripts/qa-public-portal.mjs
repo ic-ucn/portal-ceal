@@ -11,10 +11,26 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914c-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914d-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
+}
+async function auditNavigationHover(page, theme) {
+  for (const item of await page.locator('.nav-item').all()) {
+    await item.hover();
+    await page.waitForTimeout(250);
+    const contrast = await item.evaluate(node => {
+      const rgb = color => color.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const luminance = color => rgb(color).map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+      const ratio = (a, b) => (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      const style = getComputedStyle(node), icon = getComputedStyle(node.querySelector('.icon'));
+      const background = luminance(style.backgroundColor);
+      return { text: ratio(luminance(style.color), background), icon: ratio(luminance(icon.color), background), opacity: Number(icon.opacity), label: node.textContent.trim() };
+    });
+    assert.ok(contrast.text >= 4.5 && contrast.icon >= 3 && contrast.opacity === 1, `${theme} ${contrast.label} hover must retain text and icon contrast`);
+  }
+  await page.mouse.move(900, 90);
 }
 try {
   for (const width of [1440, 390, 320, 768, 920]) {
@@ -26,6 +42,7 @@ try {
     await page.screenshot({ path: new URL(`${label}-${width}-login.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
     await page.locator('[data-guest-login]').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    if (width === 1440) await auditNavigationHover(page, 'light');
     for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
       if (name === 'mallas') {
@@ -79,6 +96,7 @@ try {
         await page.goto(url(route), { waitUntil: 'networkidle' });
         await page.locator('body.theme-dark').waitFor();
         await page.waitForTimeout(300);
+        if (width === 1440 && name === 'inicio') await auditNavigationHover(page, 'dark');
         const layout = await page.evaluate(() => ({
           width: document.documentElement.scrollWidth,
           form: document.querySelector('.login-form')?.getBoundingClientRect().width,
