@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914b-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914c-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -49,6 +49,7 @@ try {
       });
       assert.ok(metrics.documentWidth <= width, `${name} must fit ${width}px`);
       assert.equal(metrics.privateLinks, 0, 'guests must not see CEAL management');
+      if (label === 'production') assert.ok(!(await page.locator('#main-content').innerText()).includes('Acuerdo QA de seguimiento'), 'legacy test agreements must not appear as public content');
       if (width <= 920) {
         assert.ok(metrics.navVisible, 'mobile navigation must remain visible');
         assert.equal(metrics.items.map(item => item.label).join('|'), 'Inicio|Calendario|Mallas|Material|Más');

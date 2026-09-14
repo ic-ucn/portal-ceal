@@ -1660,9 +1660,14 @@
   function findCommunicationById(id) {
     return Data.communications.find(x => x.id === id);
   }
+  // Older production imports contain this exact end-to-end test fixture.
+  // Hide it from presentation without deleting the stored records.
+  function portalAgreements() {
+    return Data.agreements.filter(item => isLocalDevHost() || item.title !== 'Acuerdo QA de seguimiento');
+  }
   function findAgreementById(id) {
-    return Data.agreements.find(x => x.id === id)
-      || (id === 'agr-003' ? Data.agreements.find(x => x.id === 'agr-paro-003') || Data.agreements[0] : null);
+    return portalAgreements().find(x => x.id === id)
+      || (id === 'agr-003' ? portalAgreements().find(x => x.id === 'agr-paro-003') || portalAgreements()[0] : null);
   }
   function findResourceById(id) {
     return Data.resources.find(x => x.id === id)
@@ -1696,7 +1701,7 @@
     const events = [...(Data.events || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
     const nextEvents = currentAndFutureEvents();
     const agreementAction = hasCealAccess() ? `<a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a>` : '';
-    const agreementRows = Data.agreements.slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
+    const agreementRows = portalAgreements().slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
     const monthEventCount = events.filter(event => { const date = parseCalendarDate(event.date); return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth(); }).length;
     const monthActions = `<div class="calendar-month-actions"><button class="icon-btn calendar-prev" type="button" data-calendar-month="-1" aria-label="Mes anterior" title="Mes anterior">${icon('arrow')}</button><button class="btn secondary sm" type="button" data-calendar-today>Hoy</button><button class="icon-btn" type="button" data-calendar-month="1" aria-label="Mes siguiente" title="Mes siguiente">${icon('arrow')}</button></div>`;
     const source = Data.calendarSource || {};
@@ -3444,7 +3449,7 @@
   }
   function renderManagement() {
     const pendingMaterial = Data.resources.filter(r => r.status === 'pendienteRevision');
-    const activeAgreements = Data.agreements.filter(a => a.status !== 'publicado');
+    const activeAgreements = portalAgreements().filter(a => a.status !== 'publicado');
     const source = Data.calendarSource || {};
     const rows = [
       `<article class="management-console-row"><span class="icon-box">${icon('calendar')}</span><div class="management-console-copy"><strong>Calendario académico</strong><span>${esc(source.title || 'Fuente vigente')}</span></div><div class="management-console-actions"><a class="btn secondary sm" href="#/gestion/calendario">${icon('upload')} Actualizar</a><a class="btn ghost sm" href="#/calendario">Ver</a></div></article>`,
@@ -3515,7 +3520,7 @@
     const rows = q ? [
       ...['planO','planP'].flatMap(plan => getCourses(plan).filter(c => plain([c.name, c.code, c.visibleCode].join(' ')).includes(normalized)).slice(0, 4).map(c => resultRow('grid', titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `/ramo/${plan}/${encodeURIComponent(c.code)}`))),
       ...Data.resources.filter(r => plain([r.title, r.courseName, r.courseCode, r.type].join(' ')).includes(normalized)).slice(0, 5).map(r => resultRow('book', r.title, `${r.courseName} - ${r.type}`, `/material/${r.id}`)),
-      ...Data.agreements.filter(a => plain([a.title, a.summary, a.origin].join(' ')).includes(normalized)).slice(0, 4).map(a => resultRow('file', a.title, `${a.origin} - ${fmtDate(a.date)}`, `/acuerdos/${a.id}`))
+      ...portalAgreements().filter(a => plain([a.title, a.summary, a.origin].join(' ')).includes(normalized)).slice(0, 4).map(a => resultRow('file', a.title, `${a.origin} - ${fmtDate(a.date)}`, `/acuerdos/${a.id}`))
     ] : [];
     return `${pageHead('Búsqueda', q ? `Resultados para ${q}` : 'Busca ramos, material, fechas y acuerdos')}<section class="card pad"><form data-search-page-form class="form-field"><label>Buscar</label><input class="input" name="q" value="${esc(q)}" /></form></section><section class="result-group">${rows.join('') || renderEmpty('Sin resultados', 'Prueba con otro término.')}</section>`;
   }
@@ -4266,7 +4271,7 @@
     const calendarExport = e.target.closest('[data-download-calendar]');
     if (calendarExport) { downloadTextFile('calendario-ceic.txt', calendarDownloadText()); showToast('Agenda exportada', 'blue'); return; }
     const agreementExport = e.target.closest('[data-download-agreement]');
-    if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
+    if (agreementExport) { const a = portalAgreements().find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
     const link = e.target.closest('a[href]');
     const href = link?.getAttribute('href');
     if (href === '#main-content') {
