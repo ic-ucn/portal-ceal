@@ -22,6 +22,7 @@
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
+  let mallaFontPromise;
   // Si el usuario ya eligió tema, se respeta. Una cuenta nueva comienza en claro.
   const storedPortalTheme = localStorage.getItem(PORTAL_THEME_KEY);
   const initialPortalDark = storedPortalTheme
@@ -33,9 +34,8 @@
   let dataReady = !API_BASE;
   let hasRendered = false;
   let lastRenderedRouteKey = '';
-  let pendingScrollReset = false;
-  let scrollResetToken = 0;
-  let pageTopHoldTimer = null;
+  const routeViews = new Map();
+  let calendarReturnFocus = null;
   let filterRenderTimer = null;
   let localWrites = 0;
   let lastTrackedRoute = '';
@@ -312,23 +312,14 @@
     try {
       frame.contentWindow?.postMessage({ __mcPortalTheme: true, theme: dark ? 'dark' : 'light' }, '*');
     } catch {}
-    try {
-      const doc = frame.contentDocument;
-      if (doc?.documentElement) {
-        doc.documentElement.classList.toggle('mc-light', !dark);
-      }
-    } catch {}
   }
-  function routeTo(path, holdTop = false) {
-    pendingScrollReset = true;
-    resetPageScroll();
-    if (holdTop) holdPageTop(1400);
-    const nextHash = `#${path}`;
-    if (window.location.hash === nextHash) {
-      render({ transition: true, scope: 'route' });
-      return;
+  function routeTo(path, restore = false) {
+    let nextHash = `#${path}`;
+    if (restore && !path.includes('?')) {
+      nextHash = [...routeViews.keys()].reverse().find(key => key.split('?')[0] === nextHash) || nextHash;
     }
-    window.location.hash = path;
+    if (location.hash !== nextHash) history.pushState(null, '', nextHash);
+    safeRender({ transition: true, scope: 'route', restoreView: restore });
   }
   function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
   function getRoute() {
@@ -492,8 +483,12 @@
     live.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     live.textContent = '';
     setTimeout(() => { live.textContent = message; }, 60);
-    render();
-    toastTimer = setTimeout(() => { toastTimer = null; state.toast = null; render(); }, isError ? 6000 : 4200);
+    updateToast();
+    toastTimer = setTimeout(() => { toastTimer = null; state.toast = null; updateToast(); }, isError ? 6000 : 4200);
+  }
+  function updateToast() {
+    app.querySelector('.toast')?.remove();
+    (app.querySelector('.app-shell') || app).insertAdjacentHTML('beforeend', renderToast());
   }
   function toastVariantIcon(type) {
     if (type === 'green') return icon('check', 'toast-icon-glyph');
@@ -962,8 +957,7 @@
       state.authMessage = '';
       saveSession(user);
       history.replaceState(null, '', `${location.pathname}${location.search}#${consumePostLoginRoute()}`);
-      pendingScrollReset = true;
-      holdPageTop(1600);
+
       return true;
     } catch (err) {
       state.authMessage = err.message || 'No se pudo iniciar con Google.';
@@ -1154,9 +1148,7 @@
       document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
       await handleGoogleRedirectCallback();
       await validateInitialSession();
-      const shouldHoldInitialTop = state.user && getRoute().path === '/';
       safeRender();
-      if (shouldHoldInitialTop) holdPageTop(1400);
     } catch (err) {
       console.error(err);
       renderBootError();
@@ -1211,7 +1203,7 @@
       return saved && !saved.startsWith('/login') ? saved : '/';
     } catch { return '/'; }
   }
-  function paint() {
+  function paint(restoring = false) {
     applyPortalTheme();
     const { path, query } = getRoute();
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
@@ -1227,75 +1219,99 @@
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
     if (state.user && path.startsWith('/gestion') && !hasCealAccess()) return routeTo('/');
-    app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query), path);
+    app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query, restoring), path);
+    return true;
+  }
+  // A state update is not a navigation. Keep the reader's viewport and focus
+  // across repainting; only a different page starts at the top. History and
+  // explicit return links restore the last view, without delayed scroll timers.
+  function viewLocator(element) {
+    if (!(element instanceof Element) || element === document.body || !app.contains(element)) return null;
+    if (element.id) return `#${CSS.escape(element.id)}`;
+    const parts = [];
+    for (let node = element; node && node !== app; node = node.parentElement) {
+      const siblings = [...node.parentElement.children].filter(sibling => sibling.tagName === node.tagName);
+      parts.unshift(`${node.localName}:nth-of-type(${siblings.indexOf(node) + 1})`);
+    }
+    return `#app > ${parts.join(' > ')}`;
+  }
+  function captureView() {
+    const active = document.activeElement;
+    const focus = viewLocator(active);
+    const positions = [...app.querySelectorAll('*')]
+      .filter(node => node.scrollTop || node.scrollLeft)
+      .map(node => ({ selector: viewLocator(node), top: node.scrollTop, left: node.scrollLeft }));
+    return { top: window.scrollY, left: window.scrollX, positions, focus,
+      material: { materialQuery: state.materialQuery, materialCourse: state.materialCourse, materialType: state.materialType, materialVisibleCount: state.materialVisibleCount },
+      selection: active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+        ? [active.selectionStart, active.selectionEnd, active.selectionDirection] : null };
+  }
+  function restoreView(view, restoreFocus = true) {
+    if (!view) return;
+    if (restoreFocus && view.focus) {
+      const active = document.querySelector(view.focus);
+      active?.focus({ preventScroll: true });
+      if (view.selection && active?.setSelectionRange) {
+        try { active.setSelectionRange(...view.selection); } catch {}
+      }
+    }
+    for (const position of view.positions) {
+      const node = document.querySelector(position.selector);
+      if (node) node.scrollTo({ top: position.top, left: position.left, behavior: 'instant' });
+    }
+    window.scrollTo({ top: view.top, left: view.left, behavior: 'instant' });
+  }
+  function updateOverlays(path) {
+    const shell = app.querySelector('.app-shell');
+    if (!shell) return false;
+    shell.querySelectorAll('.menu-sheet-backdrop, .menu-sheet, .calendar-detail-backdrop, .notification-popover').forEach(node => node.remove());
+    shell.insertAdjacentHTML('beforeend', `${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${state.calendarDetailOpen && path === '/calendario' ? renderCalendarDetailModal(state.calendarSelectedDate, Data.events || []) : ''}`);
     return true;
   }
   function render(options = {}) {
     const opts = options instanceof Event ? { transition: true, scope: 'route' } : options;
-    const routeKey = window.location.hash || '#/';
+    const routeKey = location.hash || '#/';
+    const previousPath = lastRenderedRouteKey.split('?')[0];
+    const samePage = hasRendered && routeKey.split('?')[0] === previousPath;
+    const previousView = hasRendered ? captureView() : null;
     if (hasRendered && routeKey !== lastRenderedRouteKey) {
+      routeViews.delete(lastRenderedRouteKey);
+      routeViews.set(lastRenderedRouteKey, previousView);
+      if (routeViews.size > 80) routeViews.delete(routeViews.keys().next().value);
       state.menuOpen = false;
       state.notificationsOpen = false;
-      if (!routeKey.startsWith('#/calendario')) state.calendarDetailOpen = false;
+      if (!samePage) state.calendarDetailOpen = false;
     }
     const scope = opts.scope === 'route' && routeKey.startsWith('#/perfil') ? 'profile' : (opts.scope || 'state');
     const shouldAnimate = hasRendered && opts.transition && !prefersReducedMotion();
-    const focusState = opts.preserveFocus ? captureInputFocus() : null;
+    const retainedView = opts.restoreView ? routeViews.get(routeKey) : samePage ? previousView : null;
+    if (opts.restoreView && retainedView && getRoute().path === '/material') Object.assign(state, retainedView.material);
     if (shouldAnimate) app.dataset.motionScope = scope;
-    if (!paint()) return;
+    const overlayOnly = samePage && scope === 'overlay' && updateOverlays(getRoute().path);
+    if (!overlayOnly && !paint(Boolean(opts.restoreView && retainedView))) return;
     afterRender();
     trackPortalView(getRoute().path);
-    restoreInputFocus(focusState);
-    const shouldResetScroll = opts.resetScroll !== false && (pendingScrollReset || scope === 'route' || routeKey !== lastRenderedRouteKey);
     lastRenderedRouteKey = routeKey;
-    pendingScrollReset = false;
-    if (shouldResetScroll) resetPageScroll();
+    if (retainedView) restoreView(retainedView, !overlayOnly);
+    else if (!samePage) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      app.querySelector('#main-content')?.focus({ preventScroll: true });
+    }
     hasRendered = true;
     if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
   }
-  function resetPageScroll() {
-    const token = ++scrollResetToken;
-    const apply = () => {
-      if (token !== scrollResetToken) return;
-      applyPageTop();
-    };
-    apply();
-    requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
-    [60, 140, 320, 700].forEach(ms => setTimeout(apply, ms));
-  }
-  function applyPageTop() {
-    try {
-      const active = document.activeElement;
-      if (active && !['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) active.blur?.();
-    } catch {}
-    const scrollers = [
-      document.scrollingElement,
-      document.documentElement,
-      document.body,
-      app,
-      app.querySelector('.app-shell'),
-      app.querySelector('.app-main'),
-      app.querySelector('.content')
-    ].filter(Boolean);
-    scrollers.forEach(el => {
-      el.scrollTop = 0;
-      el.scrollLeft = 0;
-      try { el.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }); } catch {}
-    });
-    try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
-  }
-  function holdPageTop(ms = 1200) {
-    const until = Date.now() + ms;
-    clearTimeout(pageTopHoldTimer);
-    const tick = () => {
-      applyPageTop();
-      if (Date.now() < until) pageTopHoldTimer = setTimeout(tick, 50);
-    };
-    tick();
+  function closeCalendarDetail() {
+    state.calendarDetailOpen = false;
+    history.replaceState(null, '', `${location.pathname}${location.search}#/calendario`);
+    render({ transition: true, scope: 'overlay' });
+    if (calendarReturnFocus) document.querySelector(calendarReturnFocus)?.focus({ preventScroll: true });
+    calendarReturnFocus = null;
   }
   function afterRender() {
     document.body.classList.toggle('modal-open', state.menuOpen || Boolean(state.calendarDetailOpen && getRoute().path === '/calendario'));
-    document.querySelectorAll('.app-main, .sidebar').forEach(node => { node.inert = state.menuOpen; });
+    const calendarOverlay = app.querySelector('.calendar-detail-backdrop');
+    if (calendarOverlay) app.querySelector('.app-shell')?.append(calendarOverlay);
+    document.querySelectorAll('.app-main, .sidebar').forEach(node => { node.inert = state.menuOpen || Boolean(calendarOverlay); });
     hydrateMallaEmbed();
     hydrateCalendarStatus();
     hydrateCalendarUpdates();
@@ -1401,27 +1417,27 @@
     const devAccess = isLocalDevHost() ? `<div class="dev-login-panel"><span class="kicker">Ingreso rápido</span><div class="quick-chip-row"><button class="chip-btn" type="button" data-dev-login="student">Estudiante</button><button class="chip-btn" type="button" data-dev-login="ceal">CEAL</button><button class="chip-btn" type="button" data-dev-login="jefatura">Jefatura</button></div></div>` : '';
     return `<main class="login-shell">${themeToggleButton('login-theme-toggle')}<section class="login-card" aria-label="Ingreso al portal">
       <div class="login-brand"><figure class="login-campus-art"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /></figure><div class="login-brand-copy"><img class="login-logo" src="assets/logo-horizontal-transparent.png" alt="CEIC UCN Ingeniería Civil UCN" /><span class="login-wordmark" role="img" aria-label="CEIC UCN"><strong>CEIC UCN</strong><small>Ingeniería Civil · Universidad Católica del Norte</small></span></div></div>
-      <div class="login-form"><span class="eyebrow">Acceso UCN</span><h1>Portal CEIC</h1><p>Usa tu correo institucional @alumnos.ucn.cl.</p>
+      <div class="login-form"><h1>Portal CEIC</h1><p>Ingeniería Civil · UCN</p>
         ${googlePending}${state.authMessage ? `<p class="form-alert">${esc(state.authMessage)}</p>` : ''}
         <div class="google-login-grid">
           <section class="google-login-card">
             <span class="role-icon">${icon('user')}</span>
             <div class="google-login-body">
-              <div><strong>Estudiantes</strong><span>Material, mallas y calendario académico.</span></div>
+              <div><strong>Estudiantes</strong><span>@alumnos.ucn.cl</span></div>
               ${googleButton('student')}
             </div>
           </section>
           <section class="google-login-card">
             <span class="role-icon">${icon('settings')}</span>
             <div class="google-login-body">
-              <div><strong>Jefatura / CEAL</strong><span>Acceso a la gestión interna del centro.</span></div>
+              <div><strong>Jefatura / CEAL</strong><span>Cuenta institucional</span></div>
               ${googleButton('internal')}
             </div>
           </section>
         </div>
         <button class="guest-login-card" type="button" data-guest-login>
           <span class="role-icon">${icon('eye')}</span>
-          <span><strong>Invitado</strong><small>Revisa el contenido publicado sin iniciar sesión.</small></span>
+          <span><strong>Invitado</strong><small>Continuar sin iniciar sesión</small></span>
           ${icon('arrow')}
         </button>${devAccess}
       </div></section></main>`;
@@ -1469,7 +1485,7 @@
         </footer>
       </aside>`;
   }
-  function renderPage(path, query) {
+  function renderPage(path, query, restoring = false) {
     if (path === '/') return renderHome();
     if (path === '/reservas') return FEATURES.tableReservations && !isGuest() ? renderReservations() : renderNotFound();
     if (path === '/perfil') return renderProfile();
@@ -1485,7 +1501,7 @@
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
-      if (query.course) {
+      if (query.course && !restoring && (location.hash !== lastRenderedRouteKey)) {
         const courseCode = safeDecode(String(query.course));
         if (courseCode !== null) {
           // Filtro ESTRICTO por ramo oficial: se fija el nombre canónico del
@@ -1520,15 +1536,13 @@
   }
 
   function renderHome() {
-    const noDataYet = !dataReady && !Data.events.length;
     const upcomingEvents = currentAndFutureEvents();
-    const homeNextEvent = upcomingEvents[0];
-    const homeResourceCount = (Data.resources || []).length;
-    const summaryStrip = `<div class="summary-strip">${summaryStat('calendar', homeNextEvent ? fmtDate(homeNextEvent.date) : '—', 'Próxima fecha', '/calendario')}${summaryStat('calendar', upcomingEvents.length, 'Fechas próximas', '/calendario')}${summaryStat('grid', 2, 'Planes curriculares', '/mallas')}${summaryStat('book', homeResourceCount, 'Recursos', '/material')}</div>`;
-    return `${pageHead('Inicio', 'Calendario, mallas y material académico')}${summaryStrip}
-      <section class="home-hero"><section class="card pad home-comms-brief"><div class="row-between"><h2 class="card-title">Próximas fechas</h2><a class="link" href="#/calendario">Ver calendario ${icon('arrow')}</a></div>${upcomingEvents.slice(0, 3).map(dateRow).join('') || (noDataYet ? skeletonList(3) : renderEmpty('Sin fechas próximas', 'No hay hitos futuros publicados.'))}</section><section class="home-campus-feature" aria-label="Campus Universidad Católica del Norte"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" loading="eager" /><div class="home-campus-caption"><span>Ingeniería Civil UCN</span><strong>Portal académico CEIC / CEAL</strong></div></section>
-      <div class="card pad home-actions-panel"><h2 class="card-title">Acciones frecuentes</h2><div class="access-grid home-actions-grid">${access('calendar','Ver calendario','Fechas académicas vigentes.','Abrir','/calendario')}${access('grid','Abrir mallas','Plan O y Plan P.','Ver malla','/mallas')}${access('book','Buscar material','Guías, pruebas, apuntes y PPT.','Abrir','/material')}</div></div></section>`;
-
+    const count = (Data.resources || []).length.toLocaleString('es-CL');
+    const today = parseCalendarDate(portalTodayKey());
+    const dateLabel = today.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${portalTodayKey()}">${esc(dateLabel)}</time></div>
+      <div class="home-overview"><section class="home-calendar"><header><h2>Próximas fechas</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><figure class="home-campus-frame"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" width="720" height="460" /><figcaption>Ingeniería Civil <span>Universidad Católica del Norte</span></figcaption></figure></div>
+      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Mallas curriculares</strong><small>Plan O · Plan P</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
   }
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
@@ -1538,11 +1552,12 @@
   function access(ico, title, desc, action, href, tone = '') { return `<a class="access-card" href="#${href}"><span class="icon-box ${tone}">${icon(ico)}</span><span class="access-copy"><strong>${esc(title)}</strong><span>${esc(desc)}</span><em>${esc(action)} ${icon('arrow')}</em></span></a>`; }
   function newsRow(ico, title, desc, href, date) { return `<a class="link-card-row" href="#${href}"><span class="hstack">${icon(ico)}<span><strong>${esc(title)}</strong><span>${esc(desc || '')}</span></span></span><span class="small muted">${fmtDate(date)}</span></a>`; }
   function dateRow(e) {
-    const detail = [fmtDate(e.date), e.time, e.description].filter(Boolean).map(esc).join(' - ');
-    return `<a class="link-card-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${detail}</span></span><span class="pill blue">${esc(e.type || 'Fecha')}</span></a>`;
+    const date = parseCalendarDate(e.date);
+    const month = date.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '');
+    return `<a class="home-date-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><time datetime="${esc(e.date)}"><strong>${date.getDate()}</strong><span>${esc(month)}</span></time><span class="home-date-copy"><strong>${esc(e.title)}</strong><span>${esc(e.type || 'Fecha académica')}${e.time ? ` · ${esc(e.time)}` : ''}</span></span>${icon('arrow')}</a>`;
   }
   function calendarNextRow(e) {
-    return `<a class="link-card-row calendar-next-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${fmtDate(e.date)}${e.time ? ` · ${esc(e.time)}` : ''}</span></span><span class="pill ${calendarEventTone(e.type)}">${esc(e.type || 'Fecha')}</span></a>`;
+    return `<button type="button" class="link-card-row calendar-next-row" data-calendar-date="${esc(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${fmtDate(e.date)}${e.time ? ` · ${esc(e.time)}` : ''}</span></span>${icon('arrow')}</button>`;
   }
   function parseCalendarDate(date) {
     const [year, month, day] = String(date).slice(0, 10).split('-').map(Number);
@@ -1552,7 +1567,8 @@
     return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
   function calendarMonthLabel(date) {
-    return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+    const label = date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+    return label.charAt(0).toUpperCase() + label.slice(1);
   }
   function calendarEventTone(type = '') {
     const value = plain(type);
@@ -1600,7 +1616,7 @@
       return date.getFullYear() === year && date.getMonth() === month;
     });
     if (!monthEvents.length) return renderEmpty('Sin fechas este mes', 'Las próximas actividades aparecen en la agenda lateral.');
-    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<button type="button" class="calendar-agenda-row ${String(event.date).slice(0, 10) === selectedDate ? 'selected' : ''}" data-calendar-date="${esc(String(event.date).slice(0, 10))}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${[event.time, event.description].filter(Boolean).map(esc).join(' - ')}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></button>`).join('')}</div>`;
+    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<button type="button" class="calendar-agenda-row ${String(event.date).slice(0, 10) === selectedDate ? 'selected' : ''}" data-calendar-date="${esc(String(event.date).slice(0, 10))}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${event.time ? esc(event.time) : ''}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></button>`).join('')}</div>`;
   }
 
   function renderCalendarDetailModal(dateKey, events) {
@@ -1611,7 +1627,7 @@
     const body = dayEvents.length
       ? `<div class="calendar-modal-events">${dayEvents.map(event => `<article><div class="calendar-modal-event-head"><strong>${esc(event.title)}</strong><span class="pill ${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</span></div>${event.time ? `<time>${esc(event.time)}</time>` : ''}<p>${esc(event.description || 'Actividad del calendario académico.')}</p></article>`).join('')}</div>`
       : `<div class="calendar-modal-empty">${icon('calendar')}<strong>Sin hitos publicados</strong><span>No hay actividades registradas para este día.</span></div>`;
-    return `<div class="calendar-detail-backdrop" data-calendar-modal-backdrop><section class="calendar-detail-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title" tabindex="-1"><header><div><span class="kicker">Detalle del día</span><h2 id="calendar-detail-title">${esc(heading)}</h2></div><button class="icon-btn" type="button" data-calendar-modal-close aria-label="Cerrar detalle" title="Cerrar">${icon('x')}</button></header>${body}<footer><button class="btn secondary" type="button" data-calendar-modal-close>Cerrar</button></footer></section></div>`;
+    return `<div class="calendar-detail-backdrop" data-calendar-modal-backdrop><section class="calendar-detail-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title" tabindex="-1"><header><div><h2 id="calendar-detail-title">${esc(heading)}</h2></div><button class="icon-btn" type="button" data-calendar-modal-close aria-label="Cerrar detalle" title="Cerrar">${icon('x')}</button></header>${body}<footer><button class="btn secondary" type="button" data-calendar-modal-close>Cerrar</button></footer></section></div>`;
   }
 
   function renderCommunications() {
@@ -1689,8 +1705,8 @@
     const sourceMarkup = sourceUrl
       ? `<a class="calendar-source-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">${icon('file')} ${esc(sourceText)}</a>`
       : `<span>${esc(sourceText)}</span>`;
-    return `${pageHead('Calendario académico', 'Fechas vigentes y próximas', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><span class="kicker">Vista mensual</span><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente vigente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
+    return `${pageHead('Calendario', '', calendarAction)}
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
   }
 
   function tutorialLibraryCard({ iconName, audience, title, description, duration, href, pending = false }) {
@@ -1765,20 +1781,10 @@
     }
     const q = plain(state.materialQuery);
     const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
-    const selected = Data.resources.find(r => r.id === state.selectedResourceId) || items[0];
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
     const typeCounts = {};
     Data.resources.forEach(r => { if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1; });
     const quickTypes = ['Guía', 'Prueba', 'Apunte', 'PPT', 'Resumen'].filter(type => types.includes(type));
-    if (state.materialType !== 'all' && types.includes(state.materialType) && !quickTypes.includes(state.materialType)) quickTypes.unshift(state.materialType);
-    const quickCourses = courseFacets
-      .slice()
-      .sort((a, b) => b.count - a.count || a.semester - b.semester || a.label.localeCompare(b.label, 'es-CL'))
-      .slice(0, 8);
-    if (state.materialCourse !== 'all' && !quickCourses.some(course => plain(course.label) === plain(state.materialCourse))) {
-      const activeCourse = courseFacets.find(course => plain(course.label) === plain(state.materialCourse));
-      if (activeCourse) quickCourses.unshift(activeCourse);
-    }
     const hasActiveFilters = Boolean(state.materialQuery) || state.materialType !== 'all' || state.materialCourse !== 'all';
     const activeFilters = [
       state.materialQuery ? ['search', `Texto: ${state.materialQuery}`] : null,
@@ -1786,7 +1792,7 @@
       state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
     ].filter(Boolean);
     const planPNotice = state.materialCourse !== 'all' && isPlanPCourseName(state.materialCourse)
-      ? `<div class="material-plan-note">${icon('grid')}<span>Plan P está incorporando material de forma progresiva. Cuando exista continuidad con Plan O, la biblioteca muestra recursos equivalentes por nombre de ramo.</span></div>`
+      ? `<div class="material-plan-note">${icon('grid')}<span>Plan P: se incluyen recursos equivalentes de Plan O cuando corresponde.</span></div>`
       : '';
     const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
@@ -1794,11 +1800,12 @@
     const remaining = items.length - visible.length;
     const showMore = remaining > 0 ? `<div class="material-show-more"><button class="btn secondary" type="button" data-material-more>Mostrar más (${remaining} restantes)</button></div>` : '';
     const noDataYet = !dataReady && !Data.resources.length;
-    const appliedFilters = activeFilters.length ? `<div class="applied-filters active-filter-row"><span>Filtros activos</span>${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} <span class="filter-chip-remove">${icon('x')}</span></button>`).join('')}<button class="btn ghost sm applied-filters-clear" data-material-clear="all" type="button">Limpiar todo</button></div>` : '';
-    return `${pageHead('Biblioteca académica', 'Recursos para estudiar por ramo', uploadAction)}
-      <div class="split wide"><section class="card pad material-browser"><div class="material-search-panel"><label for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Ramo, código, prueba, apunte o guía" autocomplete="off" /></div><div class="material-controls"><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>${hasActiveFilters ? `<button class="btn secondary sm material-reset" data-material-clear="all" type="button">${icon('x')} Limpiar</button>` : ''}</div>${appliedFilters}${planPNotice}<div class="material-suggestions"><span>Tipos frecuentes</span><div class="quick-chip-row"><button class="${state.materialType === 'all' ? 'active' : ''}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div></div><div class="material-suggestions"><span>Ramos frecuentes</span><div class="quick-chip-row"><button class="${state.materialCourse === 'all' ? 'active' : ''}" data-material-course="all" type="button">Todos</button>${quickCourses.map(c => `<button class="${state.materialCourse === c.label ? 'active' : ''}" data-material-course="${esc(c.label)}" type="button">${esc(c.label)} <small>${c.count}</small></button>`).join('')}</div></div></div><div class="row-between material-count"><h2 class="card-title">Mostrando ${visible.length} de ${items.length} recursos</h2><span class="pill gray">Orden: recientes</span></div><div class="card table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Sem.</th><th>Año</th><th>Estado</th><th></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="icon-box sm ${resourceFormatClass(r.format)}">${icon('file')}</span><div><strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.type)} - ${esc(r.format)}</span></div></div></td><td>${esc(r.courseName)}<br><span class="small muted">${esc(r.courseCode)}</span></td><td>${esc(r.semester)}</td><td>${esc(r.year)}</td><td>${badge(r.status)}</td><td>${icon('more')}</td></tr>`).join('')}</tbody></table></div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section><aside class="card pad course-detail-panel">${selected ? renderResourceDetail(selected) : (noDataYet ? skeletonList(1) : renderEmptyMaterial())}</aside></div>`;
+    const appliedFilters = activeFilters.length ? `<div class="applied-filters active-filter-row">${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} <span class="filter-chip-remove">${icon('x')}</span></button>`).join('')}<button class="btn ghost sm applied-filters-clear" data-material-clear="all" type="button">Limpiar todo</button></div>` : '';
+    return `${pageHead('Material', '', uploadAction)}
+      <section class="material-library material-browser"><div class="material-search-panel"><label class="sr-only" for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar por título, ramo o código" autocomplete="off" /></div><div class="material-controls"><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div><div class="material-type-tabs quick-chip-row" aria-label="Filtrar por tipo"><button class="${state.materialType === 'all' ? 'active' : ''}" aria-pressed="${state.materialType === 'all'}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" aria-pressed="${state.materialType === t}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div>${appliedFilters}${planPNotice}</div>
+      <div class="row-between material-count"><h2 class="card-title">${visible.length} de ${items.length.toLocaleString('es-CL')} recursos</h2><span>Recientes primero</span></div><div class="table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Año</th><th><span class="sr-only">Abrir</span></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="file-format">${esc(r.format)}</span><div><a class="resource-title-link" href="#/material/${esc(r.id)}">${esc(r.title)}</a><span class="resource-type">${esc(r.type)}${!['validado', 'validadoCeal', 'publicado'].includes(r.status) ? ` · ${esc(Status[r.status]?.[0] || r.status)}` : ''}</span></div></div></td><td><span>${esc(r.courseName)}</span><small class="resource-course-code">${esc(r.courseCode)}</small></td><td>${esc(r.year)}</td><td>${icon('arrow')}</td></tr>`).join('')}</tbody></table>${!visible.length ? (noDataYet ? skeletonList(3) : renderEmptyMaterial()) : ''}</div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section>`;
   }
-  function resourceCard(r) { return `<a class="item-card" href="#/material/${r.id}"><div class="row-between"><span class="icon-box ${resourceFormatClass(r.format)}">${icon('file')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${esc(r.courseName)} - ${esc(r.format)} - ${esc(r.size)}</p></a>`; }
+  function resourceCard(r) { return `<a class="item-card material-list-item" href="#/material/${esc(r.id)}"><span class="file-format">${esc(r.format)}</span><span class="material-list-copy"><h3>${esc(r.title)}</h3><p>${esc(r.courseName)}</p><small>${esc(r.type)} · ${esc(r.year)}</small></span>${icon('arrow')}</a>`; }
   function renderResourcePreview(r) {
     if (QA_MODE) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización omitida</h2><p class="small muted">La revisión automática usa los datos del recurso sin cargar servicios externos.</p></div></section>`;
@@ -1818,9 +1825,9 @@
       : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
       ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
-      : `<button class="btn secondary" data-save-resource="${esc(r.id)}">${icon('bookmark')} Guardar</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}" aria-pressed="${Data.saved.resources.includes(r.id)}">${icon('bookmark')} ${Data.saved.resources.includes(r.id) ? 'Guardado' : 'Guardar'}</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
     const closeControl = options.hideClose ? '' : `<button class="icon-btn" data-clear-panel>${icon('x')}</button>`;
-    return `<div class="row-between"><div><span class="kicker">Recurso seleccionado</span><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap">${badge(r.status)}<span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
+    return `<div class="row-between"><div><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap"><span data-resource-status="${esc(r.id)}">${badge(r.status)}</span><span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
   function renderEmptyMaterial() { return `<div class="empty-state"><span class="icon-wrap">${icon('book')}</span><h3>Sin recursos visibles</h3><p>Prueba limpiar filtros o subir material para revisión.</p></div>`; }
   function renderMaterialDetailPage(id) {
@@ -1898,7 +1905,18 @@
     frame.dataset.loadKey = loadKey;
     const currentTheme = () => (state.portalDark ? 'dark' : 'light');
     wrap?.classList.remove('is-loaded', 'is-fallback');
-    const markLoaded = () => wrap?.classList.add('is-loaded');
+    const markLoaded = () => {
+      wrap?.classList.add('is-loaded');
+      // The sandbox has an opaque origin. Send public font bytes from the
+      // parent so its typography works without weakening the iframe sandbox.
+      mallaFontPromise ||= fetch('assets/fonts/InstrumentSans-latin.woff2').then(response => {
+        if (!response.ok) throw new Error('Font unavailable');
+        return response.arrayBuffer();
+      });
+      mallaFontPromise.then(font => {
+        if (app.contains(frame)) frame.contentWindow?.postMessage({ __mcPortalFont: true, font }, '*');
+      }).catch(() => { mallaFontPromise = null; });
+    };
     frame.addEventListener('load', markLoaded, { once: true });
     try {
       const html = await getMallaEmbedHtml(plan);
@@ -1931,7 +1949,7 @@
     }).join('');
     const localStyles = `<style>
       ${mallaEmbedThemeStyles(theme, plan)}
-      *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--mc-bg);color:var(--mc-text)}
+      *{box-sizing:border-box} body{margin:0;font-family:"Instrument Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--mc-bg);color:var(--mc-text)}
       .mc-local-shell{min-height:100vh;padding:18px}
       .mc-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:0 0 16px}
       .mc-header h1{font-size:22px;line-height:1.15;margin:0;font-weight:800;letter-spacing:0}
@@ -2026,7 +2044,7 @@
       }
       html:not(.mc-light) {
         color-scheme: dark;
-        --mc-bg-base:#061b34; --mc-bg-surface:#092747; --mc-bg-elevated:#123a64; --mc-bg-hover:#174b7d;
+        --mc-bg-base:#172126; --mc-bg-surface:#1d2a30; --mc-bg-elevated:#26353b; --mc-bg-hover:#2b4145;
         --mc-text-primary:#f8fafc; --mc-text-secondary:#d7e2ee; --mc-text-muted:#8fa6c1;
         --mc-area-basica:#60a5fa; --mc-area-basica-bg:rgba(96,165,250,.16);
         --mc-area-ingenieria:#a78bfa; --mc-area-ingenieria-bg:rgba(167,139,250,.16);
@@ -2035,17 +2053,17 @@
         --mc-area-proyecto:#22d3ee; --mc-area-proyecto-bg:rgba(34,211,238,.14);
         --mc-area-electivo:#cbd5e1; --mc-area-electivo-bg:rgba(203,213,225,.14);
         --mc-line:rgba(215,226,238,.12); --mc-line-strong:rgba(215,226,238,.14);
-        --mc-panel-bg:rgba(9,39,71,.94); --mc-header-bg:rgba(9,39,71,.92);
-        --mc-body-bg:linear-gradient(180deg,#061b34 0%,#08213f 100%);
+        --mc-panel-bg:#1d2a30; --mc-header-bg:#1d2a30;
+        --mc-body-bg:#172126;
         --mc-header-shadow:rgba(0,0,0,.18); --mc-card-glow:rgba(0,0,0,.12);
         --mc-scrollbar:#28547f; --mc-hint-line:rgba(215,226,238,.12);
-        --mc-bg:#061b34; --mc-text:#f8fafc; --mc-muted:#8fa6c1;
-        --mc-panel:#092747; --mc-border:rgba(215,226,238,.14);
-        --mc-card-bg:#0b2c50; --mc-card-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 22px rgba(0,0,0,.14);
+        --mc-bg:#172126; --mc-text:#edf2ef; --mc-muted:#98aeb1;
+        --mc-panel:#1d2a30; --mc-border:#33464b;
+        --mc-card-bg:#26353b; --mc-card-shadow:none;
       }
       html.mc-light {
         color-scheme: light;
-        --mc-bg-base:#f5f8fc; --mc-bg-surface:#ffffff; --mc-bg-elevated:#edf4fb; --mc-bg-hover:#e8f2ff;
+        --mc-bg-base:#f8f9f7; --mc-bg-surface:#ffffff; --mc-bg-elevated:#eef1ee; --mc-bg-hover:#e9f1ee;
         --mc-text-primary:#041f3d; --mc-text-secondary:#334155; --mc-text-muted:#64748b;
         --mc-area-basica:#126fe3; --mc-area-basica-bg:rgba(18,111,227,.10);
         --mc-area-ingenieria:#7c3aed; --mc-area-ingenieria-bg:rgba(124,58,237,.10);
@@ -2055,17 +2073,17 @@
         --mc-area-electivo:#475569; --mc-area-electivo-bg:rgba(71,85,105,.10);
         --mc-line:rgba(191,208,227,.82); --mc-line-strong:rgba(191,208,227,.82);
         --mc-panel-bg:rgba(255,255,255,.96); --mc-header-bg:rgba(255,255,255,.92);
-        --mc-body-bg:linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%);
+        --mc-body-bg:#f8f9f7;
         --mc-header-shadow:rgba(15,23,42,.06); --mc-card-glow:rgba(15,23,42,.05);
         --mc-scrollbar:#bfd0e3; --mc-hint-line:rgba(191,208,227,.7);
-        --mc-bg:#f5f8fc; --mc-text:#041f3d; --mc-muted:#64748b;
+        --mc-bg:#f8f9f7; --mc-text:#202f35; --mc-muted:#68777c;
         --mc-panel:#ffffff; --mc-border:rgba(191,208,227,.82);
-        --mc-card-bg:#ffffff; --mc-card-shadow:0 1px 2px rgba(15,23,42,.05), 0 10px 22px rgba(15,23,42,.05);
+        --mc-card-bg:#ffffff; --mc-card-shadow:none;
       }
       body {
         min-height: 100vh;
         background: var(--mc-body-bg) !important;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         transition: background 220ms ease;
       }
       .mc-header {
@@ -2170,7 +2188,7 @@
       .mc-portal-action__btn {
         border: 0; cursor: pointer; white-space: nowrap;
         min-height: 36px; padding: 0 14px; border-radius: 999px;
-        background: linear-gradient(135deg, #2069e0, #0b7a9c);
+        background: #23616a;
         color: #fff; font-weight: 700; font-size: .8rem;
         font-family: inherit; line-height: 1;
       }
@@ -2198,7 +2216,13 @@
       (function() {
         window.addEventListener('message', function(event) {
           var data = event.data;
-          if (event.source !== window.parent || !data || data.__mcPortalTheme !== true) return;
+          if (event.source !== window.parent || !data) return;
+          if (data.__mcPortalFont === true && data.font instanceof ArrayBuffer && data.font.byteLength < 100000) {
+            var font = new FontFace('Instrument Sans', data.font, { weight: '400 700' });
+            font.load().then(function(loaded) { document.fonts.add(loaded); }).catch(function() {});
+            return;
+          }
+          if (data.__mcPortalTheme !== true) return;
           var dark = data.theme === 'dark';
           document.documentElement.classList.toggle('mc-light', !dark);
           try { localStorage.setItem('mc-theme', dark ? 'dark' : 'light'); } catch (err) {}
@@ -3476,14 +3500,14 @@
   function renderProfile() {
     const u = state.user;
     if (isGuest()) {
-      return `<div class="profile-view">${pageHead('Invitado', 'Acceso de revisión', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Salir</span></button>`)}
-        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}<span class="pill gray">No guarda sesión</span></div><p class="small muted">Puedes recorrer el contenido publicado sin realizar cambios.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
+      return `<div class="profile-view">${pageHead('Invitado', '', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Salir</span></button>`)}
+        <section class="card pad profile-card"><div class="profile-hero guest-profile"><span class="avatar big">${esc(u.initials)}</span><div><h2 class="card-title">Invitado</h2><div class="profile-pills">${badge('blue','Solo lectura')}</div><p class="small muted">Accede con tu cuenta UCN para guardar y aportar material.</p></div><a class="btn primary" href="#/mallas">Ver mallas</a></div></section>
         <div class="grid three profile-access-grid">${access('grid','Mallas','Plan O y Plan P integrados.','Abrir','/mallas','blue')}${access('book','Material','Recursos visibles por ramo.','Explorar','/material')}${access('calendar','Calendario','Fechas académicas oficiales.','Revisar','/calendario')}</div></div>`;
     }
     const roleLabel = accountRoleLabel(u);
     const profileContext = u.role === 'student' ? `${planShort(u.plan)} - ${u.yearLabel}` : u.yearLabel;
     const profileAction = `<a class="btn secondary profile-primary-action" href="#/mallas">${icon('grid')} Ver mallas</a>`;
-    return `<div class="profile-view">${pageHead('Mi cuenta', 'Perfil, preferencias y seguimiento personal', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
+    return `<div class="profile-view">${pageHead('Mi cuenta', '', `<button class="btn ghost danger-lite profile-logout" data-logout>${icon('x')}<span class="profile-logout-label">Cerrar sesión</span></button>`)}<section class="card pad profile-card"><div class="profile-hero"><span class="avatar big">${esc(u.initials)}</span><div class="profile-main-copy"><h2 class="card-title">${esc(u.name)}</h2><div class="profile-pills">${badge('green','Cuenta activa')}<span class="pill blue">${esc(roleLabel)}</span><span class="pill gray">${esc(profileContext)}</span></div><p class="small muted">${esc(u.email)}</p></div>${profileAction}</div></section><div class="grid four profile-stats-grid">${stat('grid', Data.saved.courses.length, 'Ramos', 'Seguimiento')}${stat('book', Data.saved.resources.length, 'Recursos', 'Guardados')}${stat('calendar', Data.events.length, 'Fechas', 'Visibles')}${stat('bell', Data.saved.reminders.length, 'Recordatorios', 'Activos')}</div><div class="grid two profile-detail-grid"><section class="card pad profile-card"><h2 class="card-title">Actividad reciente</h2>${Data.notifications.map(n => `<a class="link-card-row" href="#${esc(n.route)}"><span><strong>${esc(n.title)}</strong><span>${esc(n.detail)} - ${esc(n.date)}</span></span>${icon('arrow')}</a>`).join('')}</section><section class="card pad profile-card"><h2 class="card-title">Preferencias</h2>${(() => { const prefs = getPrefs(); return PREF_DEFS.map(([key, label]) => `<label class="link-card-row"><span><strong>${label}</strong><span>${prefs[key] ? 'Activado' : 'Desactivado'}</span></span><input type="checkbox" data-pref="${key}" ${prefs[key] ? 'checked' : ''} /></label>`).join(''); })()}</section></div></div>`;
   }
   function renderSearch(query) {
     const q = String(query || '').trim();
@@ -3517,7 +3541,8 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
-    if (e.target.closest('[data-dismiss-toast]')) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
+    if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;
+    if (e.target.closest('[data-dismiss-toast]')) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; updateToast(); return; }
     if (e.target.closest('[data-portal-theme-toggle]')) {
       setPortalTheme(!state.portalDark);
       return;
@@ -3554,11 +3579,9 @@
     }
     if (e.target.closest('[data-open-menu]')) {
       menuReturnFocus = e.target.closest('.bottom-more') ? '.bottom-more' : '.menu-btn';
-      scrollResetToken += 1;
-      clearTimeout(pageTopHoldTimer);
       state.menuOpen = true;
       render({ transition: true, scope: 'overlay', resetScroll: false });
-      document.querySelector('.menu-sheet [data-close-menu]')?.focus();
+      document.querySelector('.menu-sheet [data-close-menu]')?.focus({ preventScroll: true });
       return;
     }
     if (e.target.closest('[data-close-menu]')) {
@@ -3576,11 +3599,7 @@
       return;
     }
     if (e.target.matches('[data-calendar-modal-backdrop]') || e.target.closest('[data-calendar-modal-close]')) {
-      const returnDate = state.calendarReturnFocusDate || state.calendarSelectedDate;
-      state.calendarDetailOpen = false;
-      history.replaceState(null, '', `${location.pathname}${location.search}#/calendario`);
-      render({ transition: true, scope: 'overlay', resetScroll: false });
-      requestAnimationFrame(() => document.querySelector(`[data-calendar-date="${returnDate}"]`)?.focus({ preventScroll: true }));
+      closeCalendarDetail();
       return;
     }
     if (e.target.closest('[data-toggle-notifications]')) {
@@ -3616,9 +3635,8 @@
     if (calendarDateButton) {
       const date = String(calendarDateButton.dataset.calendarDate || '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-      state.calendarMonth = parseCalendarDate(date);
       state.calendarSelectedDate = date;
-      state.calendarReturnFocusDate = date;
+      calendarReturnFocus = viewLocator(calendarDateButton);
       state.calendarDetailOpen = true;
       history.replaceState(null, '', `${location.pathname}${location.search}#/calendario?date=${encodeURIComponent(date)}`);
       render({ transition: true, scope: 'overlay', resetScroll: false });
@@ -3932,7 +3950,7 @@
     const saveCourse = e.target.closest('[data-save-course]');
     if (saveCourse) { if (isGuest()) { readonlyToast(); return; } const key = saveCourse.dataset.saveCourse; if (!Data.saved.courses.includes(key)) Data.saved.courses.push(key); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'courses', id:key }) }).catch(() => {}); showToast('Ramo agregado a seguimiento'); return; }
     const saveResource = e.target.closest('[data-save-resource]');
-    if (saveResource) { if (isGuest()) { readonlyToast(); return; } const id = saveResource.dataset.saveResource; if (!Data.saved.resources.includes(id)) Data.saved.resources.push(id); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'resources', id }) }).catch(() => {}); showToast('Recurso guardado'); return; }
+    if (saveResource) { if (isGuest()) { readonlyToast(); return; } const id = saveResource.dataset.saveResource; if (!Data.saved.resources.includes(id)) Data.saved.resources.push(id); persistSnapshot(); apiRequest('/saved', { method: 'POST', body: JSON.stringify({ kind:'resources', id }) }).catch(() => {}); saveResource.setAttribute('aria-pressed', 'true'); saveResource.innerHTML = `${icon('bookmark')} Guardado`; showToast('Recurso guardado'); return; }
     const download = e.target.closest('[data-download-resource]');
     if (download) { const r = Data.resources.find(x => x.id === download.dataset.downloadResource); if (r) { downloadResource(r); showToast(r.externalUrl ? 'Abriendo material' : 'Descarga preparada', 'blue'); } return; }
     if (e.target.closest('[data-report-resource]')) { if (isGuest()) { readonlyToast(); return; } showToast('Reporte recibido para revisión CEAL', 'blue'); return; }
@@ -3942,9 +3960,9 @@
     const reminder = e.target.closest('[data-save-reminder]');
     if (reminder) { if (isGuest()) { readonlyToast(); return; } const id = reminder.dataset.saveReminder; if (!Data.saved.reminders.includes(id)) Data.saved.reminders.push(id); persistSnapshot(); apiRequest('/saved', { method:'POST', body:JSON.stringify({ kind:'reminders', id }) }).catch(() => {}); showToast('Recordatorio guardado', 'blue'); return; }
     const approve = e.target.closest('[data-approve-material]');
-    if (approve) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === approve.dataset.approveMaterial); if (r) { r.status = 'validadoCeal'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'validadoCeal' }) }).catch(() => {}); } showToast('Material validado y publicado'); return; }
+    if (approve) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === approve.dataset.approveMaterial); if (r) { r.status = 'validadoCeal'; document.querySelectorAll(`[data-resource-status="${CSS.escape(r.id)}"]`).forEach(node => { node.innerHTML = badge(r.status); }); persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'validadoCeal' }) }).catch(() => {}); } showToast('Material validado y publicado'); return; }
     const observe = e.target.closest('[data-observe-material]');
-    if (observe) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
+    if (observe) { if (isGuest()) { readonlyToast(); return; } const r = Data.resources.find(x => x.id === observe.dataset.observeMaterial); if (r) { r.status = 'observado'; document.querySelectorAll(`[data-resource-status="${CSS.escape(r.id)}"]`).forEach(node => { node.innerHTML = badge(r.status); }); persistSnapshot(); apiRequest(`/materials/${encodeURIComponent(r.id)}`, { method:'PATCH', body:JSON.stringify({ status:'observado' }) }).catch(() => {}); } showToast('Material marcado con observaciones', 'blue'); return; }
     const publish = e.target.closest('[data-publish]');
     if (publish) { if (isGuest()) { readonlyToast(); return; } const form = publish.closest('form'); if (form) form.requestSubmit(); return; }
     if (e.target.closest('[data-attach-remove]')) {
@@ -4228,9 +4246,17 @@
       return;
     }
     const materialMore = e.target.closest('[data-material-more]');
-    if (materialMore) { state.materialVisibleCount = (Number(state.materialVisibleCount) || 60) + 60; render({ scope: 'filter', preserveFocus: true }); return; }
+    if (materialMore) {
+      const previousCount = Number(state.materialVisibleCount) || 60;
+      state.materialVisibleCount = previousCount + 60;
+      render({ scope: 'filter' });
+      const results = matchMedia('(max-width: 920px)').matches
+        ? app.querySelectorAll('.mobile-card-list .material-list-item') : app.querySelectorAll('.resource-title-link');
+      results[previousCount]?.focus({ preventScroll: true });
+      return;
+    }
     const resourceRow = e.target.closest('[data-resource-row]');
-    if (resourceRow) { routeTo(`/material/${resourceRow.dataset.resourceRow}`); return; }
+    if (resourceRow) { e.preventDefault(); routeTo(`/material/${resourceRow.dataset.resourceRow}`); return; }
     const cat = e.target.closest('[data-com-category]');
     if (cat) { state.communicationCategory = cat.dataset.comCategory; render({ transition: true, scope: 'panel' }); return; }
     const faq = e.target.closest('[data-faq]');
@@ -4241,6 +4267,16 @@
     if (calendarExport) { downloadTextFile('calendario-ceic.txt', calendarDownloadText()); showToast('Agenda exportada', 'blue'); return; }
     const agreementExport = e.target.closest('[data-download-agreement]');
     if (agreementExport) { const a = Data.agreements.find(x => x.id === agreementExport.dataset.downloadAgreement); if (a) downloadTextFile(`${slug(a.number || a.title)}.txt`, agreementDownloadText(a)); showToast('Ficha descargada', 'blue'); return; }
+    const link = e.target.closest('a[href]');
+    const href = link?.getAttribute('href');
+    if (href === '#main-content') {
+      e.preventDefault();
+      document.querySelector('#main-content')?.focus();
+    } else if (href?.startsWith('#/') && !link.target && !link.hasAttribute('download')) {
+      e.preventDefault();
+      routeTo(href.slice(1), link.hasAttribute('data-return-view') || /^volver/i.test(link.textContent.trim()));
+    }
+
   }
   function onInput(e) {
     const bookingRowField = e.target.closest('[data-booking-row-field]');
@@ -4340,16 +4376,12 @@
   function onKeydown(e) {
     if (e.key === 'Escape') {
       if (state.calendarDetailOpen) {
-        const returnDate = state.calendarReturnFocusDate || state.calendarSelectedDate;
-        state.calendarDetailOpen = false;
-        history.replaceState(null, '', `${location.pathname}${location.search}#/calendario`);
-        render({ transition: true, scope: 'overlay', resetScroll: false });
-        requestAnimationFrame(() => document.querySelector(`[data-calendar-date="${returnDate}"]`)?.focus({ preventScroll: true }));
+        closeCalendarDetail();
         return;
       }
       if (state.menuOpen) { state.menuOpen = false; render({ transition: true, scope: 'overlay', resetScroll: false }); document.querySelector(menuReturnFocus)?.focus({ preventScroll: true }); return; }
       if (state.notificationsOpen) { state.notificationsOpen = false; render({ transition: true, scope: 'overlay' }); document.querySelector('[data-toggle-notifications]')?.focus(); return; }
-      if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; render({ scope: 'overlay', resetScroll: false }); return; }
+      if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; updateToast(); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     }
     if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen)) {
@@ -4608,7 +4640,12 @@
     }
   }
 
-  window.addEventListener('hashchange', () => safeRender({ transition: true, scope: 'route' }));
+  function restoreHistoryView() {
+    if ((location.hash || '#/') !== lastRenderedRouteKey) safeRender({ transition: true, scope: 'route', restoreView: true });
+  }
+  history.scrollRestoration = 'manual';
+  window.addEventListener('popstate', restoreHistoryView);
+  window.addEventListener('hashchange', restoreHistoryView);
   // Mensajes del iframe de mallas: "Ver material" / "Ficha del ramo" desde la
   // barra de acción. Solo se aceptan mensajes del iframe vigente y con la
   // forma esperada; el código se resuelve contra el catálogo oficial.

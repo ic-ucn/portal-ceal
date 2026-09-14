@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914a-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914b-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -70,6 +70,25 @@ try {
       await frame.waitForFunction(() => !document.documentElement.classList.contains('mc-light'));
       await page.waitForTimeout(300); // Let the finite color transition complete for visual QA.
       await page.screenshot({ path: new URL(`${label}-390-mallas-dark.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
+    }
+    if (width === 390 || width === 1440) {
+      if (width === 1440) await page.locator('[data-malla-embed-theme]').click();
+      for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/perfil', 'perfil'], ['/login', 'login']]) {
+        if (name === 'login') await page.locator('[data-logout]').click();
+        await page.goto(url(route), { waitUntil: 'networkidle' });
+        await page.locator('body.theme-dark').waitFor();
+        await page.waitForTimeout(300);
+        const layout = await page.evaluate(() => ({
+          width: document.documentElement.scrollWidth,
+          form: document.querySelector('.login-form')?.getBoundingClientRect().width,
+          pageFont: getComputedStyle(document.querySelector('h1')).fontFamily
+        }));
+        assert.ok(layout.width <= width, `${name} dark layout must fit ${width}px`);
+        if (name === 'login') assert.ok(layout.form > Math.min(250, width - 60), 'login fields have usable width in dark mode');
+        assert.ok(layout.pageFont.includes('Instrument Sans'), 'headings use the self-hosted portal font');
+        await page.screenshot({ path: new URL(`${label}-${width}-${name}-dark.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
+        report.views.push({ width, route, theme: 'dark', overflow: false });
+      }
     }
     await context.close();
   }

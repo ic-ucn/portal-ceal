@@ -415,7 +415,7 @@ async function runBookingFlowTests(page, studentUser, jefaturaUser) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
   await page.goto(appUrl('/perfil'), { waitUntil: 'networkidle' });
-  await page.getByText('Puedes recorrer el contenido publicado sin realizar cambios.', { exact: true }).waitFor();
+  await page.getByText('Accede con tu cuenta UCN para guardar y aportar material.', { exact: true }).waitFor();
   await page.locator('[data-logout]').first().click();
   await page.waitForURL(/#\/login$/);
   for (const pathName of ['/tutoriales/', '/tutorial-jc/', '/tutorial-ceal/', '/tutorial-portal/', '/tutorial-estudiantes/', '/tutorial-jefatura/']) {

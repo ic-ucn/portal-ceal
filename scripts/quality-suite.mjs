@@ -83,7 +83,7 @@ assert(appJs.includes("URL_PARAMS.has('captureBooking')") && appJs.includes("['l
 assert(serverJs.includes("appointments: process.env.PORTAL_APPOINTMENTS_ENABLED === '1'"), 'appointment APIs should remain disabled by default in production');
 assert((serverJs.match(/appointment booking is not enabled/g) || []).length >= 9, 'all appointment and Calendar mutations should enforce the server feature gate');
 assert(appJs.includes('data-guest-login') && appJs.includes('portal-review'), 'login should expose an ephemeral read-only portal account');
-assert(appJs.includes('Revisa el contenido publicado sin iniciar sesión.'), 'guest access should explain that login is not required');
+assert(appJs.includes('Continuar sin iniciar sesión'), 'guest access should explain that login is not required');
 assert(!appJs.includes("['/tutoriales', 'play', 'Tutoriales']"), 'retired tutorials should stay out of navigation');
 assert(!appJs.includes("['/atencion', 'users', 'Atención']") && !appJs.includes("['/jefatura', 'users', 'Jefatura']"), 'retired attention routes should stay out of navigation');
 assert(appJs.includes("'/comunicados/nuevo', '/asistente'].includes(path)"), 'retired operational and communication routes should redirect away from their old pages');
@@ -94,7 +94,7 @@ assert(stylesCss.includes('color-scheme: only light'), 'light mode should preven
 assert(appJs.includes("portal.data.v6"), 'app should invalidate stale local material snapshots');
 assert(!appJs.includes("'portal.data.v5'"), 'app should not reuse the stale v5 local snapshot');
 assert(appJs.includes('materialCourseOptions'), 'material course filters should be derived from official curricula');
-assert(appJs.includes("!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)"), 'scroll reset should not blur active form controls');
+assert(!appJs.includes('holdPageTop') && !appJs.includes('resetPageScroll'), 'navigation must not schedule repeated scroll resets');
 assert(appJs.includes('routeTo(`/material/${resourceRow.dataset.resourceRow}`)'), 'desktop material rows should open the resource detail route');
 assert(appJs.includes('sandbox="allow-scripts"'), 'embedded curricula should run inside a sandboxed iframe');
 
