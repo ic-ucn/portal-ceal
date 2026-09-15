@@ -56,7 +56,7 @@ button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: 
   .welcome-player video { aspect-ratio: 3 / 4; max-height: min(49dvh, 410px); }
   .welcome-play { font-size: 13px; gap: 10px; }
   .welcome-play-symbol { width: 54px; height: 54px; font-size: 18px; }
-  .welcome-summary > p { display: none; }
+  #welcome-video-help { display: none; }
   .welcome-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border: 0; }
   .welcome-sections a { justify-content: center; min-height: 44px; padding: 8px 0; gap: 5px; border: 1px solid var(--border-subtle); border-radius: 5px; }
   .welcome-sections strong { font-size: 12px; }

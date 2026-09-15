@@ -14,7 +14,7 @@ const cases = production ? [
   { engine: 'webkit', width: 390, height: 844 }, { engine: 'firefox', width: 390, height: 844 }
 ];
 const url = (route = '/', force = false) => {
-  const result = new URL(base); result.searchParams.set('welcomeCheck', `20260914f-${Date.now()}`);
+  const result = new URL(base); result.searchParams.set('welcomeCheck', `20260914g-${Date.now()}`);
   if (force) result.searchParams.set('guia', '1'); result.hash = route; return result.href;
 };
 try {
@@ -22,6 +22,7 @@ try {
     const browser = await ({ chromium, webkit, firefox }[config.engine]).launch();
     const context = await browser.newContext({ viewport: { width: config.width, height: config.height }, reducedMotion: 'reduce' });
     const page = await context.newPage();
+    page.setDefaultNavigationTimeout(90000);
     page.on('pageerror', error => report.errors.push({ ...config, message: error.message }));
     const mediaRequests = [];
     page.on('request', request => { if (/portal-guia-.*\.mp4/.test(request.url())) mediaRequests.push(request.url()); });

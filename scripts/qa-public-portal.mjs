@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914f-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914g-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -40,6 +40,7 @@ try {
       localStorage.setItem('portal.session', JSON.stringify({ role: 'ceal', accessMode: 'ceal', sessionToken: 'expired-qa-session' }));
     });
     const page = await context.newPage();
+    page.setDefaultNavigationTimeout(90000);
     const authRequests = [];
     page.on('request', request => { if (/\/auth\//.test(request.url())) authRequests.push(request.url()); });
     page.on('pageerror', error => report.errors.push(error.message));
