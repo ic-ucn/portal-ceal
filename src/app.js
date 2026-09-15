@@ -1306,6 +1306,7 @@
       app.querySelector('#main-content')?.focus({ preventScroll: true });
     }
     hasRendered = true;
+    window.PortalWelcome?.onRender();
     if (shouldAnimate) setTimeout(() => { delete app.dataset.motionScope; }, 260);
   }
   function closeCalendarDetail() {
@@ -1467,7 +1468,7 @@
     const bottom = bottomRoutes
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('')
       + `<button class="bottom-item bottom-more ${moreActive ? 'active' : ''}" type="button" data-open-menu aria-label="Más secciones" aria-expanded="${state.menuOpen}" aria-controls="portal-menu" aria-haspopup="dialog"><span class="bottom-item-ico">${icon('menu')}</span><span class="bottom-item-label">Más</span></button>`;
-    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav></aside>
+    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav><button class="portal-guide-link" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span></button></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}</div></header>
       <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a>` : ''}</div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
@@ -1485,6 +1486,7 @@
           <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
         </header>
         <nav class="menu-sheet-nav" aria-label="Todas las secciones">${items}
+          <button class="menu-sheet-item" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span>${icon('arrow', 'menu-item-arrow')}</button>
           ${SIGN_IN_ENABLED ? `<a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>` : ''}
         </nav>
         <footer class="menu-sheet-foot">
@@ -1881,6 +1883,7 @@
               <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
+            <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Guía del portal">${icon('play')}<span>Guía</span></button>
             ${SIGN_IN_ENABLED ? `<a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}
             <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
@@ -3554,6 +3557,17 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const guideTrigger = e.target.closest('[data-open-welcome]');
+    if (guideTrigger) {
+      let returnTarget = guideTrigger;
+      if (state.menuOpen) {
+        state.menuOpen = false;
+        render({ scope: 'overlay' });
+        returnTarget = document.querySelector(menuReturnFocus);
+      }
+      window.PortalWelcome?.open(returnTarget);
+      return;
+    }
     if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;
     if (e.target.closest('[data-dismiss-toast]')) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; updateToast(); return; }
     if (e.target.closest('[data-portal-theme-toggle]')) {

@@ -1,0 +1,10 @@
+[
+  {"id":"inicio","label":"Inicio","minimum":5,"text":"Inicio reúne las próximas fechas y los accesos principales. No necesitas iniciar sesión."},
+  {"id":"planes","label":"Mallas","minimum":5,"text":"En Mallas, elige tu plan: O o P."},
+  {"id":"ramo","label":"Mallas","minimum":6,"text":"Selecciona un ramo para revisar sus prerrequisitos y encontrar material relacionado."},
+  {"id":"buscar","label":"Material","minimum":6,"text":"En Material, busca por nombre o filtra por ramo y tipo de archivo."},
+  {"id":"recurso","label":"Material","minimum":5,"text":"Abre un recurso. Su enlace permite consultarlo y, según el archivo, descargarlo."},
+  {"id":"mes","label":"Calendario","minimum":5,"text":"En Calendario, revisa el mes y las próximas actividades académicas."},
+  {"id":"fecha","label":"Calendario","minimum":6,"text":"Toca una fecha para ver sus detalles. Al cerrar, vuelves al mismo lugar."},
+  {"id":"guia","label":"Guía del portal","minimum":5,"text":"Puedes volver a esta guía desde la barra lateral o desde Más, en el teléfono."}
+]

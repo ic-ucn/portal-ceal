@@ -1,19 +1,19 @@
-# Guion: reservar una hora de atención
+# Guion único: cómo usar el portal
 
-Duración final: 0:59. Voz femenina chilena, música discreta e indicaciones en pantalla.
+Revisión 2026-09-14. Sustituye el tutorial anterior de atención, una sección retirada.
+Un recorrido público de aproximadamente 49 segundos; voz chilena, subtítulos y lectura alternativa. Sin música ni pantallas de acceso o gestión interna.
 
-| Tiempo | Pantalla | Indicación |
+| Tiempo | Sección | Narración e indicación |
 | --- | --- | --- |
-| 00:00-00:05 | Título | Reservar una hora de atención. |
-| 00:05-00:12 | Acceso | Selecciona Acceder con Google para estudiantes. |
-| 00:12-00:17 | Google | Usa la cuenta institucional; no se muestra el selector privado. |
-| 00:17-00:22 | Móvil | Atención aparece al final de la barra inferior. |
-| 00:22-00:27 | Inicio | Abre Atención desde el menú principal. |
-| 00:27-00:33 | Disponibilidad | Revisa día, modalidad y lugar. |
-| 00:33-00:38 | Selección | Elige un bloque disponible. |
-| 00:38-00:43 | Motivo | Describe la consulta sin datos sensibles. |
-| 00:43-00:48 | Reserva | Reserva la hora; queda confirmada de inmediato. |
-| 00:48-00:54 | Estado | Revisa o cancela desde Mis horas. También recibirás un correo. |
-| 00:54-00:59 | Cierre | Hora reservada. |
+| 0.0–7.3 s | Inicio | Inicio reúne las próximas fechas y los accesos principales. No necesitas iniciar sesión. |
+| 7.3–12.3 s | Mallas | En Mallas, elige tu plan: O o P. |
+| 12.3–18.3 s | Mallas | Selecciona un ramo para revisar sus prerrequisitos y encontrar material relacionado. |
+| 18.3–24.3 s | Material | En Material, busca por nombre o filtra por ramo y tipo de archivo. |
+| 24.3–31.6 s | Material | Abre un recurso. Su enlace permite consultarlo y, según el archivo, descargarlo. |
+| 31.6–37.2 s | Calendario | En Calendario, revisa el mes y las próximas actividades académicas. |
+| 37.2–43.7 s | Calendario | Toca una fecha para ver sus detalles. Al cerrar, vuelves al mismo lugar. |
+| 43.7–49.2 s | Guía del portal | Puedes volver a esta guía desde la barra lateral o desde Más, en el teléfono. |
 
-Texto final en pantalla: `Hora reservada`.
+La fuente operativa del guion es `scripts/portal-tutorial-story.json`. La captura muestra interacciones reales a dos anchos; ambos archivos son encuadres del mismo tutorial, con idéntica narración. No son dos guías distintas.
+
+En Material se muestra el enlace del recurso: las opciones de descarga dependen del archivo y de su proveedor. No se promete una función de guardado de cuenta.

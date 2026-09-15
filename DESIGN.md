@@ -52,3 +52,12 @@ Antes de publicar: npm run check, npm run quality, npm run qa:portal, npm run qa
 - [Instrument Sans](https://github.com/Instrument/instrument-sans): familia de interfaz distribuida bajo SIL Open Font License; licencia incluida con los archivos.
 
 Estos criterios orientan la revisión; no equivalen a una certificación de accesibilidad ni sustituyen pruebas con estudiantes.
+
+
+## Bienvenida y guía pública
+
+Desde 2026-09-14, el portal no ofrece inicio de sesión en su interfaz pública. Una única guía audiovisual breve presenta las secciones al llegar por primera vez. Reproducción voluntaria, sin descarga inicial del video, con Saltar y Entrar al portal siempre disponibles; recuerdo por navegador y acceso posterior desde Guía del portal. No reiniciar el recorrido al publicar cambios menores.
+
+La captura es real, con encuadres de escritorio y teléfono, voz y subtítulos integrados. La alternativa de lectura y los enlaces por sección permiten avanzar sin ver el video. El diálogo está fuera de #app para que la carga de datos no interrumpa la reproducción ni mueva el foco.
+
+La elección de un recorrido corto y recuperable sigue [NN/g](https://www.nngroup.com/articles/onboarding-tutorials/); el foco y cierre siguen [W3C APG](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). Subtítulos/lectura según [W3C Media](https://www.w3.org/WAI/media/av/), y cartel/carga bajo demanda según [web.dev](https://web.dev/learn/performance/video-performance). Los guiones anteriores de módulos retirados no forman parte del producto actual.

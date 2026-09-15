@@ -1,49 +1,30 @@
-# Plan de producción de tutoriales
+# Tutorial público del portal
 
-## Entregables
+Revisión 2026-09-14. Un solo tutorial explica Inicio, Mallas, Material y Calendario. Los guiones y grabaciones anteriores de atención/gestión son históricos y no forman parte de la bienvenida ni se publican con esta entrega.
 
-| Audiencia | Video | Material de apoyo | Distribución |
-| --- | --- | --- | --- |
-| Estudiantes | Cómo solicitar una hora de atención | Pasos breves bajo el reproductor | `https://ceicucn.cl/tutoriales/` |
-| Jefatura de carrera | Configuración de Calendar y gestión de la agenda | Web separada con video narrado y pasos breves | Enlace directo administrado por Kevin |
+## Experiencia
 
-El tutorial estudiantil no incluye pantallas internas. La guía de Jefatura usa una URL separada con `noindex`; Kevin administra su distribución. Web, PDF y videos se revisan localmente antes de publicar o subir a Drive.
+- Bienvenida inicial con video voluntario y cartel de la interfaz real. No descargar el MP4 ni iniciar audio antes de pulsar reproducir.
+- Saltar, cerrar con Escape o entrar al portal sin completar el video; recordar la elección en ese navegador.
+- Reabrir la misma guía desde la barra lateral, la cabecera de Mallas o Más en móvil. El enlace `/?guia=1` permite volver a verla.
+- Una frase por sección y enlaces directos; alternativa textual descriptiva disponible aunque el video falle.
+- Diálogo nativo fuera de los repintados de la aplicación. Mantener foco, ruta profunda, desplazamiento y reproducción al actualizar contenido; pausar al cerrar.
 
-## Criterio audiovisual
+## Producción reproducible
 
-- Captura de la interfaz real, no una recreación generativa de la pantalla.
-- Duración objetivo: 40 a 60 segundos para estudiantes y hasta 150 segundos para Jefatura.
-- Una acción principal por escena, con pausas breves antes y después de cada clic.
-- Indicaciones compactas ubicadas lejos del control señalado y subtítulos WebVTT opcionales.
-- Resolución 1920 × 1080, 30 fps y H.264 Main con fotogramas clave frecuentes. Ambos videos usan una sola voz femenina chilena y música discreta.
-- Sin frases promocionales. Los textos indicarán acción, resultado y siguiente paso.
-- Puntero visible, foco de teclado perceptible y ampliaciones solo cuando mejoren lectura.
-- Datos ficticios: `Estudiante UCN`; nunca RUT, PPA, tokens, claves ni correos personales.
+1. `npm run tutorial:audio`: genera voz chilena y WebVTT a partir del guion. Cache por texto y voz en `.data/portal-guide/`.
+2. Servir el proyecto con estado aislado y `TUTORIAL_URL` apuntando a ese servidor.
+3. `npm run tutorial:capture`: graba interacciones públicas en escritorio y móvil, sin cuentas ni escrituras. No ejecutar el productor histórico de atención.
+4. `npm run tutorial:compose`: monta H.264/AAC con faststart, subtítulos integrados debajo de la captura y poster; descarta tiempos de carga entre escenas.
+5. Revisar fotogramas y narración; verificar duración, legibilidad y ausencia de información personal. Ejecutar QA de bienvenida y las comprobaciones del portal.
 
-## Fundamento
+Salidas: `assets/tutorial/portal-guia-desktop.mp4`, `portal-guia-mobile.mp4`, carteles JPEG y `portal-guia.vtt`. El móvil recibe un encuadre vertical del mismo contenido. Los subtítulos están integrados; la pista adicional es opcional para evitar mostrarlos dos veces.
 
-- W3C recomienda subtítulos, transcripción y descripción de la información visual relevante: <https://www.w3.org/WAI/media/av/>.
-- TechSmith recomienda ajustar la duración a la tarea y eliminar contenido que no contribuya al objetivo: <https://www.techsmith.com/blog/video-length/>.
-- Wistia observa que la retención depende más de la claridad y del propósito que de extender artificialmente el video: <https://wistia.com/blog/optimal-video-length>.
-- Loom recomienda grabaciones de pantalla estructuradas, con guion breve y edición centrada en el flujo: <https://www.loom.com/blog/how-to-do-a-screen-recording>.
+## Criterios consultados
 
-La decisión de usar capturas reales es una inferencia de producción: un generador de video puede alterar textos, estados o controles, lo que reduce la confiabilidad de un tutorial operativo. La IA se usa para guion, ritmo, indicaciones, revisión y montaje.
+- [NN/g: tutoriales y ayuda contextual](https://www.nngroup.com/articles/onboarding-tutorials/): interrupción mínima, posibilidad de saltar y volver a consultar.
+- [W3C: diálogo modal](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/): foco contenido, Escape y retorno al elemento de origen.
+- [W3C: medios accesibles](https://www.w3.org/WAI/media/av/): subtítulos y alternativa descriptiva de la información audiovisual.
+- [web.dev: rendimiento de video](https://web.dev/learn/performance/video-performance): cartel y carga diferida para evitar consumo innecesario.
 
-## Gate previo a grabación
-
-- Producción responde correctamente en `ceicucn.cl` y en la API de Render.
-- Supabase persiste las horas entre sesiones.
-- El correo final de Jefatura es `jc.icivil.afta@ucn.cl`.
-- Google Calendar debe mostrar la cuenta correcta como conectada y verificada.
-- Estudiante puede reservar y cancelar su hora.
-- Una reserva controlada crea un evento en el Calendar de Jefatura.
-- Jefatura puede cancelar una hora tomada; ese bloque queda cerrado hasta que Jefatura lo reabra manualmente.
-- Una cancelación iniciada por el estudiante libera el bloque para una nueva reserva.
-- Una cancelación de Jefatura envía al estudiante un correo con acceso para reagendar.
-- La cancelación controlada elimina el evento sincronizado.
-- Kevin recibe el aviso técnico de conexión en `kevin.cortes@alumnos.ucn.cl`.
-- Los tres roles pasan QA en claro/oscuro y escritorio/móvil.
-- No quedan Encuestas, Reservas ni avance inferido de malla.
-- Los archivos finales no contienen metadatos personales.
-
-Los tutoriales documentan únicamente funciones verificadas y disponibles.
+Es una decisión de diseño informada por estas fuentes, no una prueba de usabilidad con estudiantes ni una certificación de accesibilidad.

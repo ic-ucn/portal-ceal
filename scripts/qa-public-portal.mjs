@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914e-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260914f-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -45,6 +45,8 @@ try {
     page.on('pageerror', error => report.errors.push(error.message));
     await page.goto(url('/login'), { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    await page.getByRole('dialog', { name: 'Así funciona el portal' }).waitFor();
+    await page.getByRole('button', { name: 'Saltar', exact: true }).click();
     assert.equal(new URL(page.url()).hash, '#/', 'old login links go directly to the portal');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
