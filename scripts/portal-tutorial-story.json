@@ -1,10 +1,15 @@
 [
-  {"id":"inicio","label":"Inicio","minimum":5,"text":"Inicio reúne las próximas fechas y los accesos principales. No necesitas iniciar sesión."},
-  {"id":"planes","label":"Mallas","minimum":5,"text":"En Mallas, elige tu plan: O o P."},
-  {"id":"ramo","label":"Mallas","minimum":6,"text":"Selecciona un ramo para revisar sus prerrequisitos y encontrar material relacionado."},
-  {"id":"buscar","label":"Material","minimum":6,"text":"En Material, busca por nombre o filtra por ramo y tipo de archivo."},
-  {"id":"recurso","label":"Material","minimum":5,"text":"Abre un recurso. Su enlace permite consultarlo y, según el archivo, descargarlo."},
-  {"id":"mes","label":"Calendario","minimum":5,"text":"En Calendario, revisa el mes y las próximas actividades académicas."},
-  {"id":"fecha","label":"Calendario","minimum":6,"text":"Toca una fecha para ver sus detalles. Al cerrar, vuelves al mismo lugar."},
-  {"id":"guia","label":"Guía del portal","minimum":5,"text":"Puedes volver a esta guía desde la barra lateral o desde Más, en el teléfono."}
+  {"id":"bienvenida","label":"Bienvenida","minimum":7,"text":"Bienvenido al portal de Ingeniería Civil. Desde aquí puedes abrir la sección que necesitas."},
+  {"id":"inicio","label":"Inicio","minimum":7,"text":"Entremos a Inicio. Aquí están las próximas fechas y los accesos del portal."},
+  {"id":"mallas","label":"Abrir Mallas","minimum":7,"text":"Para revisar tus ramos, abre Mallas desde el menú."},
+  {"id":"planes","label":"Elegir plan","minimum":6,"text":"Elige tu plan de estudios. En este ejemplo usaremos el Plan O."},
+  {"id":"ramo","label":"Consultar un ramo","minimum":7,"text":"Ahora abre Cálculo uno. La ficha muestra sus prerrequisitos y los ramos que permite cursar después."},
+  {"id":"material","label":"Material del ramo","minimum":7,"text":"Pulsa Material del ramo. Así llegas directamente a los recursos relacionados con Cálculo."},
+  {"id":"buscar","label":"Buscar una guía","minimum":6,"text":"Escribe Guía en el buscador para encontrar los ejercicios disponibles."},
+  {"id":"recurso","label":"Abrir el recurso","minimum":8,"text":"Abre uno de los resultados. El botón Abrir material lleva al archivo para consultarlo o descargarlo."},
+  {"id":"calendario","label":"Abrir Calendario","minimum":7,"text":"Volvamos al menú y entremos a Calendario. Las fechas corresponden a Antofagasta."},
+  {"id":"mes","label":"Cambiar de mes","minimum":6,"text":"Con las flechas puedes cambiar de mes. Pasemos a octubre."},
+  {"id":"fecha","label":"Revisar un periodo","minimum":8,"text":"Selecciona una fecha. Aquí vemos la Semana de Autocuidado, del diecinueve al veinticuatro de octubre."},
+  {"id":"fuente","label":"Consultar la fuente","minimum":7,"text":"Los detalles incluyen el periodo completo y un enlace a la página del documento oficial."},
+  {"id":"volver","label":"Volver a la bienvenida","minimum":7,"text":"Cierra el detalle y pulsa el logo para volver a la bienvenida. Puedes repetir este recorrido cuando quieras."}
 ]

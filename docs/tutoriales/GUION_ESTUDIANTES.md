@@ -1,19 +1,55 @@
-# Guion único: cómo usar el portal
+# Guion del recorrido publico
 
-Revisión 2026-09-14. Sustituye el tutorial anterior de atención, una sección retirada.
-Un recorrido público de aproximadamente 49 segundos; voz chilena, subtítulos y lectura alternativa. Sin música ni pantallas de acceso o gestión interna.
+Revision 21 de septiembre de 2026. Una sola toma por encuadre, aproximadamente 1 min 32 s. Voz chilena, musica del tutorial antiguo del portal y subtitulos. Todas las transiciones se realizan mediante clics visibles.
 
-| Tiempo | Sección | Narración e indicación |
-| --- | --- | --- |
-| 0.0–7.3 s | Inicio | Inicio reúne las próximas fechas y los accesos principales. No necesitas iniciar sesión. |
-| 7.3–12.3 s | Mallas | En Mallas, elige tu plan: O o P. |
-| 12.3–18.3 s | Mallas | Selecciona un ramo para revisar sus prerrequisitos y encontrar material relacionado. |
-| 18.3–24.3 s | Material | En Material, busca por nombre o filtra por ramo y tipo de archivo. |
-| 24.3–31.6 s | Material | Abre un recurso. Su enlace permite consultarlo y, según el archivo, descargarlo. |
-| 31.6–37.2 s | Calendario | En Calendario, revisa el mes y las próximas actividades académicas. |
-| 37.2–43.7 s | Calendario | Toca una fecha para ver sus detalles. Al cerrar, vuelves al mismo lugar. |
-| 43.7–49.2 s | Guía del portal | Puedes volver a esta guía desde la barra lateral o desde Más, en el teléfono. |
+## 1. Bienvenida
 
-La fuente operativa del guion es `scripts/portal-tutorial-story.json`. La captura muestra interacciones reales a dos anchos; ambos archivos son encuadres del mismo tutorial, con idéntica narración. No son dos guías distintas.
+Bienvenido al portal de Ingeniería Civil. Desde aquí puedes abrir la sección que necesitas.
 
-En Material se muestra el enlace del recurso: las opciones de descarga dependen del archivo y de su proveedor. No se promete una función de guardado de cuenta.
+## 2. Inicio
+
+Entremos a Inicio. Aquí están las próximas fechas y los accesos del portal.
+
+## 3. Abrir Mallas
+
+Para revisar tus ramos, abre Mallas desde el menú.
+
+## 4. Elegir plan
+
+Elige tu plan de estudios. En este ejemplo usaremos el Plan O.
+
+## 5. Consultar un ramo
+
+Ahora abre Cálculo uno. La ficha muestra sus prerrequisitos y los ramos que permite cursar después.
+
+## 6. Material del ramo
+
+Pulsa Material del ramo. Así llegas directamente a los recursos relacionados con Cálculo.
+
+## 7. Buscar una guía
+
+Escribe Guía en el buscador para encontrar los ejercicios disponibles.
+
+## 8. Abrir el recurso
+
+Abre uno de los resultados. El botón Abrir material lleva al archivo para consultarlo o descargarlo.
+
+## 9. Abrir Calendario
+
+Volvamos al menú y entremos a Calendario. Las fechas corresponden a Antofagasta.
+
+## 10. Cambiar de mes
+
+Con las flechas puedes cambiar de mes. Pasemos a octubre.
+
+## 11. Revisar un periodo
+
+Selecciona una fecha. Aquí vemos la Semana de Autocuidado, del diecinueve al veinticuatro de octubre.
+
+## 12. Consultar la fuente
+
+Los detalles incluyen el periodo completo y un enlace a la página del documento oficial.
+
+## 13. Volver a la bienvenida
+
+Cierra el detalle y pulsa el logo para volver a la bienvenida. Puedes repetir este recorrido cuando quieras.

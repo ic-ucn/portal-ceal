@@ -1,30 +1,27 @@
 # Tutorial público del portal
 
-Revisión 2026-09-14. Un solo tutorial explica Inicio, Mallas, Material y Calendario. Los guiones y grabaciones anteriores de atención/gestión son históricos y no forman parte de la bienvenida ni se publican con esta entrega.
+Revisión del 21 de septiembre de 2026. Un solo recorrido de aproximadamente 1 min 32 s, con encuadres de escritorio y teléfono, explica el portal público. Sustituye el video de 50 s, cuyos cambios de página no mostraban cómo navegar.
 
 ## Experiencia
 
-- Bienvenida inicial con video voluntario y cartel de la interfaz real. No descargar el MP4 ni iniciar audio antes de pulsar reproducir.
-- Saltar, cerrar con Escape o entrar al portal sin completar el video; recordar la elección en ese navegador.
-- Reabrir la misma guía desde la barra lateral, la cabecera de Mallas o Más en móvil. El enlace `/?guia=1` permite volver a verla.
-- Una frase por sección y enlaces directos; alternativa textual descriptiva disponible aunque el video falle.
-- Diálogo nativo fuera de los repintados de la aplicación. Mantener foco, ruta profunda, desplazamiento y reproducción al actualizar contenido; pausar al cerrar.
+- `ceicucn.cl` abre siempre la página de bienvenida; no un popup que desaparece después de la primera visita.
+- Mallas, Material y Calendario tienen accesos directos. Inicio es una sección independiente en `#/inicio`.
+- El tutorial está integrado en la bienvenida y también se abre desde Guía del portal. Los enlaces profundos mantienen su destino.
+- Reproducción voluntaria: no descargar el MP4 ni iniciar audio antes del clic. Cartel, controles, texto alternativo, subtítulos integrados y pista VTT opcional.
+- El tema o una actualización de datos no deben reemplazar el reproductor en curso. Al abandonar la página se detiene; un diálogo se pausa al cerrarse y devuelve foco y desplazamiento.
 
 ## Producción reproducible
 
-1. `npm run tutorial:audio`: genera voz chilena y WebVTT a partir del guion. Cache por texto y voz en `.data/portal-guide/`.
-2. Servir el proyecto con estado aislado y `TUTORIAL_URL` apuntando a ese servidor.
-3. `npm run tutorial:capture`: graba interacciones públicas en escritorio y móvil, sin cuentas ni escrituras. No ejecutar el productor histórico de atención.
-4. `npm run tutorial:compose`: monta H.264/AAC con faststart, subtítulos integrados debajo de la captura y poster; descarta tiempos de carga entre escenas.
-5. Revisar fotogramas y narración; verificar duración, legibilidad y ausencia de información personal. Ejecutar QA de bienvenida y las comprobaciones del portal.
+1. `npm run tutorial:audio`: voz `es-CL-CatalinaNeural` a ritmo normal, a partir de `scripts/portal-tutorial-story.json`. Los tiempos reservan navegación y pausas.
+2. Servir el proyecto con estado aislado en el puerto 18084 o especificar `TUTORIAL_URL`. El guion muestra septiembre/octubre de 2026; revisar ese contexto si se vuelve a grabar en otro mes.
+3. `npm run tutorial:capture`: prepara los planes fuera de la toma y graba una sola navegación continua por encuadre. Curvas de mouse con aceleración/desaceleración, pausa antes del clic y scroll suave. El manifest conserva los movimientos y tiempos reales. `TUTORIAL_FORMAT=mobile` permite repetir un encuadre.
+4. `npm run tutorial:compose`: monta la toma completa con subtítulos y música, sin pegar visitas hechas fuera de cámara. H.264 a 30 fps, AAC estéreo, faststart. Usa FFmpeg 7.1 disponible en `.data/media-tools/imageio_ffmpeg/binaries`; se puede instalar `imageio-ffmpeg==0.6.0` en ese directorio aislado. No alterar el Python global.
+5. Revisar los cambios de sección, el movimiento del puntero, legibilidad, mezcla y reproducción. Ejecutar `qa:welcome`, `qa:calendar`, controles generales y revisión productiva.
 
-Salidas: `assets/tutorial/portal-guia-desktop.mp4`, `portal-guia-mobile.mp4`, carteles JPEG y `portal-guia.vtt`. El móvil recibe un encuadre vertical del mismo contenido. Los subtítulos están integrados; la pista adicional es opcional para evitar mostrarlos dos veces.
+La música es la misma composición del antiguo tutorial del portal, variación 3 de `make_music` en `scripts/compose-tutorial-videos.py`, antes exportada como `.data/tutorial-production/portal-narrated-music.wav`. Se extiende la duración de la partitura sin reiniciar una pista con fundido a mitad del video. La mezcla normaliza la voz y atenúa la música durante la narración.
 
-## Criterios consultados
+Salidas en `assets/tutorial/`: `portal-guia-desktop.mp4`, `portal-guia-mobile.mp4`, carteles JPEG y VTT por encuadre. Capturas, voz, música y manifests intermedios permanecen en `.data/portal-guide-v2/`, fuera de Git. Los tutoriales históricos de atención/gestión no se reactivan ni se publican con esta entrega.
 
-- [NN/g: tutoriales y ayuda contextual](https://www.nngroup.com/articles/onboarding-tutorials/): interrupción mínima, posibilidad de saltar y volver a consultar.
-- [W3C: diálogo modal](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/): foco contenido, Escape y retorno al elemento de origen.
-- [W3C: medios accesibles](https://www.w3.org/WAI/media/av/): subtítulos y alternativa descriptiva de la información audiovisual.
-- [web.dev: rendimiento de video](https://web.dev/learn/performance/video-performance): cartel y carga diferida para evitar consumo innecesario.
+## Fuentes y límites
 
-Es una decisión de diseño informada por estas fuentes, no una prueba de usabilidad con estudiantes ni una certificación de accesibilidad.
+Investigación sobre Astra, herramientas y edición en [ASTRA_Y_PRODUCCION.md](ASTRA_Y_PRODUCCION.md). Se mantienen los criterios de [NN/g](https://www.nngroup.com/articles/onboarding-tutorials/), [diálogos W3C](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), [medios accesibles W3C](https://www.w3.org/WAI/media/av/) y [rendimiento de video](https://web.dev/learn/performance/video-performance). No constituyen certificación de accesibilidad ni prueba de usabilidad con estudiantes.

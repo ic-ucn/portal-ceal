@@ -21,8 +21,8 @@
       <header class="welcome-head"><div><span class="welcome-brand">CEIC UCN · GUÍA RÁPIDA</span><h2 id="welcome-title" tabindex="-1">Así funciona el portal</h2></div><button class="welcome-close" type="button" data-welcome-close aria-label="Cerrar guía"><span aria-hidden="true">×</span></button></header>
       <div class="welcome-body">
         <div class="welcome-player">
-          <video controls playsinline preload="none" aria-label="Video tutorial del portal CEIC UCN" aria-describedby="welcome-video-help"><track kind="captions" src="${MEDIA}portal-guia.vtt" srclang="es" label="Español">Tu navegador no puede reproducir este video. Puedes leer la guía debajo.</video>
-          <button type="button" class="welcome-play" data-welcome-play aria-label="Reproducir guía del portal"><span class="welcome-play-symbol" aria-hidden="true">▶</span><span class="welcome-play-label">Ver recorrido · 50 s</span></button>
+          <video controls playsinline preload="none" aria-label="Video tutorial del portal CEIC UCN" aria-describedby="welcome-video-help"><track kind="captions" src="${MEDIA}portal-guia.vtt?v=20260921" srclang="es" label="Español">Tu navegador no puede reproducir este video. Puedes leer la guía debajo.</video>
+          <button type="button" class="welcome-play" data-welcome-play aria-label="Reproducir guía del portal"><span class="welcome-play-symbol" aria-hidden="true">▶</span><span class="welcome-play-label">Ver recorrido</span></button>
         </div>
         <aside class="welcome-summary"><p id="welcome-video-help">Mallas, material y fechas académicas, en un recorrido breve.</p>
           <nav class="welcome-sections" aria-label="Ir directamente a una sección">
@@ -80,14 +80,15 @@
     if (dialog.open || typeof dialog.showModal !== 'function') return;
     returnFocus = trigger;
     routeAtOpen = location.hash;
-    const format = matchMedia('(max-width: 600px)').matches ? 'mobile' : 'desktop';
+    const format = matchMedia('(max-width: 920px)').matches ? 'mobile' : 'desktop';
     if (video.dataset.format !== format) {
       video.dataset.format = format;
+      video.querySelector('track').src = `${MEDIA}portal-guia-${format}.vtt?v=20260921`;
       video.removeAttribute('src');
       video.load();
       video.controls = false;
-      video.dataset.source = `${MEDIA}portal-guia-${format}.mp4`;
-      video.poster = `${MEDIA}portal-guia-${format}.jpg`;
+      video.dataset.source = `${MEDIA}portal-guia-${format}.mp4?v=20260921`;
+      video.poster = `${MEDIA}portal-guia-${format}.jpg?v=20260921`;
       dialog.querySelector('[data-welcome-play]').hidden = false;
       dialog.querySelector('.welcome-video-error').hidden = true;
     }
@@ -96,14 +97,50 @@
     dialog.showModal();
     dialog.querySelector('#welcome-title').focus({ preventScroll: true });
   }
+  const boundPlayers = new WeakSet();
+  function renderReception(themeControl) {
+    return `<div class="portal-reception"><a class="skip-link" href="#reception-sections">Saltar a las secciones</a>
+      <header class="reception-header"><a class="reception-brand" href="#/" aria-label="Bienvenida CEIC UCN"><img src="assets/logo-mark-transparent.png" alt=""><strong>CEIC UCN</strong></a><span class="reception-campus">Antofagasta</span>${themeControl}</header>
+      <main class="reception-main" id="main-content" tabindex="-1"><section class="reception-intro"><span class="reception-eyebrow">UNIVERSIDAD CATÓLICA DEL NORTE</span><h1>Ingeniería<br> Civil.</h1><p>Mallas, material y fechas académicas.</p>
+        <nav class="reception-sections" id="reception-sections" aria-label="Secciones principales">
+          <a href="#/mallas"><span><strong>Mallas</strong><small>Planes O y P · ramos y prerrequisitos</small></span><span aria-hidden="true">↗</span></a>
+          <a href="#/material"><span><strong>Material</strong><small>Guías, apuntes y evaluaciones</small></span><span aria-hidden="true">↗</span></a>
+          <a href="#/calendario"><span><strong>Calendario</strong><small>Actividades y plazos de Antofagasta</small></span><span aria-hidden="true">↗</span></a>
+        </nav><a class="reception-home" href="#/inicio">Ir a Inicio <span aria-hidden="true">→</span></a>
+      </section><section class="reception-guide" aria-labelledby="reception-guide-title"><div class="reception-guide-head"><h2 id="reception-guide-title">Conoce el portal</h2><span>1 min 32 s</span></div>
+        <div class="welcome-player"><video playsinline preload="none" aria-label="Video tutorial del portal CEIC UCN"><track kind="captions" src="${MEDIA}portal-guia.vtt?v=20260921" srclang="es" label="Español"></video><button type="button" class="welcome-play" data-reception-play aria-label="Reproducir guía del portal"><span class="welcome-play-symbol" aria-hidden="true">▶</span><span class="welcome-play-label">Ver recorrido</span></button></div>
+        <p class="reception-video-error" role="status" hidden>No se pudo cargar el video. Puedes leer la guía o abrir una sección.</p>
+        <details class="welcome-transcript"><summary>Leer la guía</summary><ol><li>Desde la bienvenida, abre una sección o entra a Inicio para ver las próximas fechas.</li><li>En Mallas, elige Plan O o Plan P y abre un ramo para consultar sus prerrequisitos.</li><li>Usa Material del ramo para encontrar recursos relacionados. Busca una guía y abre el archivo.</li><li>En Calendario, cambia de mes y selecciona una fecha para consultar sus detalles, la duración y el documento oficial de Antofagasta.</li><li>Vuelve a esta bienvenida desde el logo CEIC UCN. El tutorial también está en Guía del portal.</li></ol></details>
+      </section></main><footer class="reception-footer"><span>Centro de Estudiantes · Ingeniería Civil</span><span>Universidad Católica del Norte</span></footer></div>`;
+  }
   function onRender() {
     if (dialog?.open && location.hash !== routeAtOpen) close({ navigate: true });
-    if (checked || window.PORTAL_SIGN_IN_ENABLED === true || !document.querySelector('.app-shell')) return;
+    const reception = document.querySelector('.portal-reception');
+    if (reception) {
+      const player = reception.querySelector('video');
+      if (!boundPlayers.has(player)) {
+        boundPlayers.add(player);
+        const format = matchMedia('(max-width: 920px)').matches ? 'mobile' : 'desktop';
+        player.dataset.format = format;
+        player.querySelector('track').src = `${MEDIA}portal-guia-${format}.vtt?v=20260921`;
+        player.poster = `${MEDIA}portal-guia-${format}.jpg?v=20260921`;
+        const play = reception.querySelector('[data-reception-play]'), error = reception.querySelector('.reception-video-error');
+        play.addEventListener('click', () => {
+          if (!player.getAttribute('src')) player.src = `${MEDIA}portal-guia-${format}.mp4?v=20260921`;
+          player.controls = true;
+          player.play().catch(() => { error.hidden = false; });
+        });
+        player.addEventListener('play', () => { play.hidden = true; });
+        player.addEventListener('error', () => { play.hidden = true; error.hidden = false; });
+      }
+    }
+    if (checked) return;
     checked = true;
     const url = new URL(location.href);
-    const requested = url.searchParams.get('guia') === '1';
-    if (requested) { url.searchParams.delete('guia'); history.replaceState(null, '', url); }
-    if (requested || !seen()) open(document.querySelector('#main-content'));
+    if (url.searchParams.get('guia') === '1') {
+      url.searchParams.delete('guia'); history.replaceState(null, '', url);
+      if (!reception) open(document.querySelector('#main-content'));
+    }
   }
-  window.PortalWelcome = Object.freeze({ open, onRender });
+  window.PortalWelcome = Object.freeze({ open, onRender, renderReception });
 })();

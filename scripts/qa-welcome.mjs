@@ -1,92 +1,43 @@
 import assert from 'node:assert/strict';
-import { chromium, webkit, firefox } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
-const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1';
-const production = new URL(base).hostname === 'ceicucn.cl';
-const output = new URL('../qa-screenshots/', import.meta.url);
-await mkdir(output, { recursive: true });
-const report = { ok: false, production, cases: [], errors: [] };
-const cases = production ? [
-  { engine: 'chromium', width: 1440, height: 900 }, { engine: 'chromium', width: 390, height: 844 }
-] : [
-  { engine: 'chromium', width: 1440, height: 900 }, { engine: 'chromium', width: 390, height: 844 },
-  { engine: 'chromium', width: 320, height: 568 }, { engine: 'chromium', width: 844, height: 390 },
-  { engine: 'webkit', width: 390, height: 844 }, { engine: 'firefox', width: 390, height: 844 }
-];
-const url = (route = '/', force = false) => {
-  const result = new URL(base); result.searchParams.set('welcomeCheck', `20260914g-${Date.now()}`);
-  if (force) result.searchParams.set('guia', '1'); result.hash = route; return result.href;
-};
-try {
-  for (const config of cases) {
-    const browser = await ({ chromium, webkit, firefox }[config.engine]).launch();
-    const context = await browser.newContext({ viewport: { width: config.width, height: config.height }, reducedMotion: 'reduce' });
-    const page = await context.newPage();
-    page.setDefaultNavigationTimeout(90000);
-    page.on('pageerror', error => report.errors.push({ ...config, message: error.message }));
-    const mediaRequests = [];
-    page.on('request', request => { if (/portal-guia-.*\.mp4/.test(request.url())) mediaRequests.push(request.url()); });
-    const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' });
-    await page.goto(url('/calendario'), { waitUntil: 'networkidle' });
-    await dialog.waitFor();
-    assert.deepEqual(mediaRequests, [], 'first visit does not download the video');
-    assert.equal(new URL(page.url()).hash, '#/calendario', 'welcome preserves a deep link');
-    assert.equal(await page.locator('video').evaluate(v => v.paused && !v.autoplay), true);
-    assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true, 'focus starts inside dialog');
-    const fit = await dialog.evaluate(node => {
-      const r = node.getBoundingClientRect();
-      return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:innerWidth, height:innerHeight, overflow:node.scrollWidth > node.clientWidth };
-    });
-    assert.ok(fit.left >= 0 && fit.right <= fit.width && fit.top >= 0 && fit.bottom <= fit.height && !fit.overflow, 'welcome fits viewport');
-    for (let i=0; i<12; i++) { await page.keyboard.press('Tab'); assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true, 'Tab stays in dialog'); }
-    await page.screenshot({ path: new URL(`welcome-${production ? 'production-' : ''}${config.engine}-${config.width}-light.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'hidden' });
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'main-content');
-    await page.reload({ waitUntil: 'networkidle' });
-    assert.equal(await dialog.isVisible(), false, 'dismissal persists on reload');
-
-    // Manual reopening from both layouts preserves the underlying viewport.
-    await page.evaluate(() => window.scrollTo(0, 700));
-    const scrollBefore = await page.evaluate(() => window.scrollY);
-    if (config.width <= 920) {
-      await page.locator('.bottom-more').click();
-      await page.locator('.menu-sheet [data-open-welcome]').click();
-    } else await page.locator('.sidebar [data-open-welcome]').click();
-    await dialog.waitFor();
-    await page.getByRole('button', { name: 'Cerrar guía', exact: true }).click();
-    assert.ok(Math.abs((await page.evaluate(() => window.scrollY)) - scrollBefore) <= 2, 'manual close preserves scroll');
-    assert.equal(await page.evaluate(() => document.activeElement.matches('[data-open-welcome], .bottom-more')), true, 'returns to invoking control');
-
-    await page.evaluate(() => { document.querySelector('[data-portal-theme-toggle]').click(); });
-    await page.goto(url('/material', true), { waitUntil: 'networkidle' });
-    await dialog.waitFor();
-    assert.equal(await page.locator('body.theme-dark').count(), 1);
-    await page.screenshot({ path: new URL(`welcome-${production ? 'production-' : ''}${config.engine}-${config.width}-dark.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    // Windows headless audio output can suspend otherwise valid media (also in
-    // an isolated native video). Decode silently; the shipped player keeps sound.
-    await page.locator('video').evaluate(v => { v.muted = true; });
-    await page.getByRole('button', { name: 'Reproducir guía del portal', exact: true }).click();
-    await page.waitForFunction(() => { const v=document.querySelector('.portal-welcome video'); return v.currentTime > .4 && v.videoWidth > 0; }, null, { timeout: 10000 }).catch(async error => {
-      console.log(JSON.stringify(await page.locator('video').evaluate(v => ({ source:v.currentSrc, time:v.currentTime, paused:v.paused, ready:v.readyState, error:v.error?.message, dialog:v.closest('dialog').open, location:location.href }))));
-      throw error;
-    });
-    const playing = await page.locator('video').evaluate(v => ({ duration:v.duration, width:v.videoWidth, height:v.videoHeight, source:v.currentSrc }));
-    assert.ok(playing.duration > 35 && playing.duration < 65, 'tutorial is concise');
-    assert.ok(playing.source.includes(config.width <= 600 ? '-mobile.mp4' : '-desktop.mp4'), 'uses correct video framing');
-    // A data refresh repaints #app but must not replace or restart the video.
-    await page.locator('video').evaluate(v => { v.dataset.testIdentity = 'same-player'; });
-    await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    assert.equal(await page.locator('video').getAttribute('data-test-identity'), 'same-player');
-    assert.equal(await page.locator('video').evaluate(v => v.paused), false);
-    await dialog.locator('a[href="#/material"]').click();
-    assert.equal(await dialog.isVisible(), false);
-    assert.equal(await page.locator('video').evaluate(v => v.paused), true, 'closing pauses narration');
-    assert.equal(new URL(page.url()).hash, '#/material');
-    report.cases.push({ ...config, fit: true, noAutoplay: true, noInitialDownload: true, playback: playing, dismiss: true });
-    await context.close(); await browser.close();
-  }
-  assert.deepEqual(report.errors, []);
-  report.ok = true;
-  console.log(JSON.stringify(report));
-} finally { await writeFile(new URL(`welcome-${production ? 'production' : 'local'}-report.json`, output), JSON.stringify(report, null, 2)); }
+import {chromium,webkit,firefox} from 'playwright';
+import {mkdir,writeFile} from 'node:fs/promises';
+const base=process.env.QA_WELCOME_URL||'http://127.0.0.1:18084/?static=1';
+const production=new URL(base).hostname==='ceicucn.cl';
+const configs=production?[['chromium',1440,900],['chromium',390,844]]:[['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
+const out=new URL('../qa-screenshots/',import.meta.url);await mkdir(out,{recursive:true});
+const report={ok:false,production,cases:[],errors:[]};
+const url=(route='/')=>{const u=new URL(base);u.searchParams.set('review','20260921a');u.hash=route;return u.href;};
+try{
+ for(const [engine,width,height] of configs){
+  const browser=await({chromium,webkit,firefox}[engine]).launch();const context=await browser.newContext({viewport:{width,height}});const page=await context.newPage();page.setDefaultNavigationTimeout(90000);
+  page.on('pageerror',e=>report.errors.push(e.message));const media=[];page.on('request',r=>{if(/portal-guia-.*\.mp4/.test(r.url()))media.push(r.url());});
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  assert.equal(await page.getByRole('dialog').count(),0,'entry is a page, not a modal');assert.deepEqual(media,[],'no initial video download');
+  assert.equal(await page.locator('.reception-sections a').count(),3);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'receiving page has no horizontal overflow');
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-light.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  await page.evaluate(()=>localStorage.setItem('portal.welcome.v1','done'));await page.reload({waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await page.locator('body.theme-dark').count(),1);
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-dark.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  // Headless Windows audio can suspend playback: decode silently for automation.
+  const player=page.locator('.portal-reception video');await player.evaluate(v=>{v.muted=true;v.dataset.identity='preserved';});
+  await page.locator('[data-reception-play]').click();await page.waitForFunction(()=>document.querySelector('.portal-reception video')?.currentTime>.5,null,{timeout:20000});
+  const duration=await player.evaluate(v=>v.duration);assert.ok(duration>80&&duration<110,'unhurried short tutorial');
+  const expectedFormat=width<=920?'mobile':'desktop';
+  assert.ok((await player.getAttribute('src')).includes(`portal-guia-${expectedFormat}.mp4`),'video matches portal layout');
+  assert.ok((await player.getAttribute('poster')).includes(`portal-guia-${expectedFormat}.jpg`));
+  assert.ok((await player.locator('track').getAttribute('src')).includes(`portal-guia-${expectedFormat}.vtt`));
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await player.getAttribute('data-identity'),'preserved');assert.equal(await player.evaluate(v=>v.paused),false,'theme does not interrupt video');
+  await page.locator('.reception-sections a[href="#/calendario"]').click();await page.locator('.month-grid').waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
+  await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/calendario','deep links remain direct');assert.equal(await page.getByRole('dialog').count(),0);
+  await page.locator(width<=920?'.mobile-brand':'.sidebar-brand').click();await page.locator('.portal-reception').waitFor();
+  await page.locator('.reception-home').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(new URL(page.url()).hash,'#/inicio');
+  if(width<=920){await page.locator('.bottom-more').click();await page.locator('.menu-sheet [data-open-welcome]').click();}else await page.locator('.sidebar [data-open-welcome]').click();
+  const dialog=page.getByRole('dialog',{name:'Así funciona el portal'});await dialog.waitFor();
+  assert.ok((await dialog.locator('video').getAttribute('data-source')).includes(`portal-guia-${expectedFormat}.mp4`),'manual guide uses the same device format');
+  for(let i=0;i<12;i++){await page.keyboard.press('Tab');assert.ok(await dialog.evaluate(d=>d.contains(document.activeElement)));}
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  report.cases.push({engine,width,height,permanentReception:true,noInitialDownload:true,deepLink:true,playback:duration,themePreservesPlayback:true});await context.close();await browser.close();
+ }
+ assert.deepEqual(report.errors,[]);report.ok=true;console.log(JSON.stringify(report));
+}finally{await writeFile(new URL(`welcome-${production?'production':'local'}-report.json`,out),JSON.stringify(report,null,2));}

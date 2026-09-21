@@ -8,9 +8,9 @@ import edge_tts, imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-WORK = ROOT / '.data' / 'portal-guide'
+WORK = ROOT / '.data' / 'portal-guide-v2'
 OUT = ROOT / 'assets' / 'tutorial'
-FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+FFMPEG = str(next(iter((ROOT/'.data/media-tools/imageio_ffmpeg/binaries').glob('ffmpeg*.exe')), imageio_ffmpeg.get_ffmpeg_exe()))
 STORY = ROOT / 'scripts' / 'portal-tutorial-story.json'
 VOICE = 'es-CL-CatalinaNeural'
 WORK.mkdir(parents=True, exist_ok=True)
@@ -34,9 +34,9 @@ async def audio():
     story = json.loads(STORY.read_text(encoding='utf-8'))
     cursor = 0
     for cue in story:
-        key=hashlib.sha256((VOICE+cue['text']).encode()).hexdigest()[:12]
+        key=hashlib.sha256((VOICE+'+0%'+cue['text']).encode()).hexdigest()[:12]
         file=WORK/f'{cue["id"]}-{key}.mp3'
-        if not file.exists(): await edge_tts.Communicate(cue['text'],VOICE,rate='+5%').save(str(file))
+        if not file.exists(): await edge_tts.Communicate(cue['text'],VOICE,rate='+0%').save(str(file))
         cue.update(audio=str(file), start=cursor, duration=max(cue['minimum'],math.ceil((duration(file)+.65)*10)/10))
         cursor+=cue['duration']
         cue['end']=cursor
@@ -65,29 +65,50 @@ def caption(cue,width,height,file):
     image.save(file)
 
 def compose():
+    import importlib.util, numpy as np, wave
     story=json.loads((WORK/'story.json').read_text(encoding='utf-8'))
-    outputs=[]
+    music_spec=importlib.util.spec_from_file_location('legacy_music',ROOT/'scripts/compose-tutorial-videos.py')
+    legacy=importlib.util.module_from_spec(music_spec);music_spec.loader.exec_module(legacy)
+    outputs=[]; sr=48000
     for format in ['desktop','mobile']:
         capture=json.loads((WORK/f'{format}-capture.json').read_text())
-        width,height=capture['width'],capture['height']
-        # Keep the complete viewport visible; captions sit below it, not over controls.
-        strip=100 if format=='desktop' else 110
-        parts=[]
-        assert len(story) == len(capture['segments']), 'Incomplete capture'
-        for i,(cue,segment) in enumerate(zip(story,capture['segments'])):
-            card=WORK/f'{format}-{i}-caption.png'; caption(cue,width,strip,card)
-            part=WORK/f'{format}-{i}.mp4'; parts.append(part)
-            run('-ss',segment['start'],'-i',capture['raw'],'-loop','1','-i',card,'-i',cue['audio'],
-                '-filter_complex',f'[0:v]setpts=PTS-STARTPTS,fps=24,pad=iw:ih+{strip}:0:0:color=white[v];[v][1:v]overlay=0:{height}:shortest=1,format=yuv420p[out];[2:a]apad,alimiter=limit=0.95[a]',
-                '-map','[out]','-map','[a]','-t',cue['duration'],'-c:v','libx264','-preset','fast','-crf','22','-c:a','aac','-b:a','96k','-map_metadata','-1',part)
-        listing=WORK/f'{format}-concat.txt'
-        listing.write_text(''.join(f"file '{p.as_posix()}'\n" for p in parts),encoding='utf-8')
+        assert capture['continuous'], 'Require a continuous user journey'
+        width,height=capture['width'],capture['height']; strip=90 if format=='desktop' else 120
+        seconds=capture['end']-capture['start']; count=int((seconds+.1)*sr)
+        narration=np.zeros(count,dtype=np.float32); segments=capture['segments']
+        for cue,segment in zip(story,segments):
+            pcm=subprocess.run([FFMPEG,'-loglevel','error','-i',cue['audio'],'-f','f32le','-ac','1','-ar',str(sr),'-'],capture_output=True,check=True).stdout
+            voice=np.frombuffer(pcm,dtype='<f4');start=round((segment['start']-capture['start']+.12)*sr)
+            length=min(len(voice),count-start); narration[start:start+length]+=voice[:length]
+        voice_path=WORK/f'{format}-voice.wav'
+        with wave.open(str(voice_path),'wb') as file:
+            file.setnchannels(1);file.setsampwidth(2);file.setframerate(sr);file.writeframes((np.clip(narration,-1,1)*32767).astype('<i2').tobytes())
+        # Reuse the exact score/variation from the old portal tutorial. Extend its
+        # phrases to the new running time instead of looping across a fade-out.
+        music=WORK/f'{format}-original-music.wav';legacy.make_music(music,seconds,3)
+        audio_path=WORK/f'{format}-mix.m4a'
+        run('-i',voice_path,'-i',music,'-filter_complex',
+            f'[0:a]loudnorm=I=-18:TP=-2:LRA=9,aresample={sr},aformat=sample_fmts=dbl:channel_layouts=stereo,asplit=2[voice][key];[1:a]aformat=sample_fmts=dbl:channel_layouts=stereo,volume=0.28[music];[music][key]sidechaincompress=threshold=0.018:ratio=4:attack=80:release=600[bed];[voice]aresample=osf=flt[vf];[bed]aresample=osf=flt[bf];[vf][bf]amix=inputs=2:duration=first,volume=2,alimiter=limit=0.9,afade=t=out:st={seconds-.35}:d=0.35[a]',
+            '-map','[a]','-t',seconds,'-c:a','aac','-b:a','160k',audio_path)
+        args=['-ss',capture['start'],'-i',capture['raw'],'-i',audio_path]
+        filters=[f'[0:v]setpts=PTS-STARTPTS,fps=30,pad=iw:ih+{strip}:0:0:color=0xf8f9f7[v0]']
+        captions=[]
+        for i,(cue,segment) in enumerate(zip(story,segments)):
+            card=WORK/f'{format}-{i}-caption.png';caption(cue,width,strip,card)
+            args+=['-loop','1','-i',card]
+            begin=segment['start']-capture['start'];end=(segments[i+1]['start']-capture['start']) if i+1<len(segments) else seconds
+            filters.append(f"[v{i}][{i+2}:v]overlay=0:{height}:enable='between(t,{begin:.3f},{end:.3f})':eof_action=repeat[v{i+1}]")
+            captions.append(f'{i+1}\n{vtt_time(begin)} --> {vtt_time(end)}\n{cue["text"]}')
+        filters.append(f'[v{len(story)}]format=yuv420p,fade=t=in:d=0.25,fade=t=out:st={seconds-.4}:d=0.4[out]')
         target=OUT/f'portal-guia-{format}.mp4'
-        run('-f','concat','-safe','0','-i',listing,'-c','copy','-movflags','+faststart','-map_metadata','-1',target)
-        run('-ss','1.5','-i',target,'-frames:v','1','-q:v','3',OUT/f'portal-guia-{format}.jpg')
-        outputs.append({'format':format,'duration':duration(target),'bytes':target.stat().st_size})
-    (WORK/'build-report.json').write_text(json.dumps(outputs,indent=2),encoding='utf-8')
-    print(json.dumps(outputs))
+        run(*args,'-filter_complex',';'.join(filters),'-map','[out]','-map','1:a','-t',seconds,'-c:v','libx264','-preset','fast','-crf','20','-c:a','copy','-movflags','+faststart','-map_metadata','-1',target)
+        # Preview a real course, not a recursive image of the receiving page.
+        poster_time=segments[4]['start']-capture['start']+4
+        run('-ss',poster_time,'-i',target,'-frames:v','1','-q:v','3',OUT/f'portal-guia-{format}.jpg')
+        (OUT/f'portal-guia-{format}.vtt').write_text('WEBVTT\n\n'+'\n\n'.join(captions)+'\n',encoding='utf-8')
+        outputs.append({'format':format,'duration':duration(target),'bytes':target.stat().st_size,'continuous':True,'music':'original portal score, variation 3','voice':'es-CL-CatalinaNeural','captureStart':capture['start'],'captureEnd':capture['end']})
+    (OUT/'portal-guia.vtt').write_text((OUT/'portal-guia-desktop.vtt').read_text(encoding='utf-8'),encoding='utf-8')
+    (WORK/'build-report.json').write_text(json.dumps(outputs,indent=2),encoding='utf-8');print(json.dumps(outputs))
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(); parser.add_argument('--audio',action='store_true');parser.add_argument('--compose',action='store_true');args=parser.parse_args()

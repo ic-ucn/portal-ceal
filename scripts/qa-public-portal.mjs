@@ -11,7 +11,7 @@ const browser = await chromium.launch();
 const report = { ok: false, mode: label, views: [], errors: [] };
 function url(route) {
   const target = new URL(base);
-  target.searchParams.set('deployCheck', `20260914g-${Date.now()}`);
+  target.searchParams.set('deployCheck', `20260921a-${Date.now()}`);
   if (staticMode) target.searchParams.set('static', '1');
   target.hash = route;
   return target.href;
@@ -45,13 +45,13 @@ try {
     page.on('request', request => { if (/\/auth\//.test(request.url())) authRequests.push(request.url()); });
     page.on('pageerror', error => report.errors.push(error.message));
     await page.goto(url('/login'), { waitUntil: 'networkidle' });
+    await page.locator('.portal-reception').waitFor();
+    await page.locator('.reception-home').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-    await page.getByRole('dialog', { name: 'Así funciona el portal' }).waitFor();
-    await page.getByRole('button', { name: 'Saltar', exact: true }).click();
-    assert.equal(new URL(page.url()).hash, '#/', 'old login links go directly to the portal');
+    assert.equal(new URL(page.url()).hash, '#/inicio', 'welcome leads to the home section');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
-    for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
+    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
       if (name === 'mallas') {
         await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
@@ -101,7 +101,7 @@ try {
     }
     if (width === 390 || width === 1440) {
       if (width === 1440) await page.locator('[data-malla-embed-theme]').click();
-      for (const [route, name] of [['/', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/perfil', 'perfil'], ['/login', 'login']]) {
+      for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/perfil', 'perfil'], ['/login', 'login']]) {
         await page.goto(url(route), { waitUntil: 'networkidle' });
         await page.locator('body.theme-dark').waitFor();
         await page.waitForTimeout(300);

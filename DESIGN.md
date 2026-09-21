@@ -61,3 +61,12 @@ Desde 2026-09-14, el portal no ofrece inicio de sesión en su interfaz pública.
 La captura es real, con encuadres de escritorio y teléfono, voz y subtítulos integrados. La alternativa de lectura y los enlaces por sección permiten avanzar sin ver el video. El diálogo está fuera de #app para que la carga de datos no interrumpa la reproducción ni mueva el foco.
 
 La elección de un recorrido corto y recuperable sigue [NN/g](https://www.nngroup.com/articles/onboarding-tutorials/); el foco y cierre siguen [W3C APG](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). Subtítulos/lectura según [W3C Media](https://www.w3.org/WAI/media/av/), y cartel/carga bajo demanda según [web.dev](https://web.dev/learn/performance/video-performance). Los guiones anteriores de módulos retirados no forman parte del producto actual.
+
+
+## Recibimiento permanente y tutorial continuo (2026-09-21)
+
+La entrada publica en / o #/ siempre presenta una pagina de recibimiento. Sustituye la bienvenida inicial omisible descrita en la revision anterior. Composicion editorial sobria: tres enlaces principales, video integrado y acceso a Inicio en #/inicio. Los enlaces profundos conservan su destino; el logo devuelve al recibimiento. Sin dependencia de localStorage para decidir si mostrarlo.
+
+Video de aproximadamente 1 min 32 s, con cada clic de navegacion visible, puntero curvo y scroll suave. Misma musica del tutorial antiguo del portal, atenuada durante la narracion. Reproduccion voluntaria, texto alternativo y subtitulos por encuadre. Implementacion y fuentes en docs/tutoriales/ASTRA_Y_PRODUCCION.md.
+
+Calendario exclusivo de Antofagasta, revisado contra el documento aportado. Periodos inclusivos, fuente por pagina, enero provisional y filtro que separa actividades para estudiantes de plazos de las unidades academicas. Reconciliacion en docs/CALENDARIO_ANTOFAGASTA_2026.md.

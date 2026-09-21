@@ -340,7 +340,7 @@ function ensureDbShape(db, seed) {
   const seedCalendarVersion = asText(seed.data.calendarSource?.version);
   const storedCalendarVersion = asText(db.data.calendarSource?.version);
   if (seedCalendarVersion && seedCalendarVersion !== storedCalendarVersion) {
-    db.data.events = (seed.data.events || []).map(event => ({ ...event }));
+    db.data.events = [...(seed.data.events || []).map(event => ({ ...event })), ...(db.data.events || []).filter(event => !String(event.id).startsWith('evt-acad-'))];
     db.data.calendarSource = { ...seed.data.calendarSource };
   } else if (!db.data.calendarSource && seed.data.calendarSource) {
     db.data.calendarSource = { ...seed.data.calendarSource };

@@ -1,4 +1,44 @@
 /* One optional public tutorial, outside app repaints. */
+.portal-reception { min-height: 100dvh; color: var(--text-primary); background: var(--surface-base); padding: 0 clamp(24px, 5vw, 84px); }
+.reception-header { max-width: 1320px; margin: auto; height: 104px; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid var(--border-subtle); }
+.reception-brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.reception-brand img { width: 38px; height: 38px; object-fit: contain; }
+.reception-brand strong { font-size: 17px; font-weight: 600; letter-spacing: -.04em; }
+.reception-campus { margin-left: auto; font-size: 12px; color: var(--text-secondary); }
+.reception-main { display: grid; grid-template-columns: minmax(280px,.8fr) minmax(0,1.4fr); gap: clamp(40px,7vw,110px); max-width: 1320px; margin: auto; padding: clamp(36px,6vh,72px) 0; align-items: center; }
+.reception-main:focus { outline: none; }
+.reception-eyebrow { font-size: 10px; font-weight: 550; letter-spacing: .08em; color: var(--text-secondary); }
+.reception-intro h1 { font-size: clamp(46px,5.2vw,76px); line-height: 1.03; letter-spacing: -.055em; font-weight: 500; margin: 18px 0; }
+.reception-intro > p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin: 0 0 28px; }
+.reception-sections { border-top: 1px solid var(--border-subtle); }
+.reception-sections a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; color: inherit; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
+.reception-sections strong { font-size: 18px; font-weight: 550; }
+.reception-sections small { display: block; margin-top: 4px; font-size: 12px; color: var(--text-secondary); }
+.reception-sections a > span:last-child { font-size: 22px; color: var(--brand-blue-text); }
+.reception-sections a:hover { background: var(--surface-hover); color: var(--brand-blue-text); }
+.reception-home { display: inline-flex; align-items: center; gap: 28px; margin-top: 22px; min-height: 44px; color: var(--brand-blue-text); text-decoration: none; font-size: 14px; font-weight: 550; }
+.reception-home:hover { text-decoration: underline; }
+.reception-guide { min-width: 0; }
+.reception-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.reception-guide-head h2 { margin: 0; font-size: 17px; font-weight: 550; letter-spacing: -.02em; }
+.reception-guide-head > span { font-size: 11px; color: var(--text-secondary); }
+.reception-guide .welcome-player { border-radius: 9px; }
+.reception-guide .welcome-transcript { margin-top: 10px; }
+.reception-footer { max-width: 1320px; margin: auto; display: flex; justify-content: space-between; gap: 14px; padding: 24px 0; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--text-secondary); }
+.reception-video-error { font-size: 13px; color: var(--text-secondary); }
+.portal-reception :is(a,button,summary,video):focus-visible { outline: 3px solid var(--brand-blue-text); outline-offset: 4px; }
+.calendar-audience { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; }
+.calendar-audience [aria-pressed=true] { color: var(--brand-blue-text); background: var(--surface-tint); border-color: var(--brand-blue-text); }
+.calendar-event-source { display: inline-block; min-height: 32px; padding-top: 7px; font-size: 12px; color: var(--brand-blue-text); }
+@media (max-width: 760px) {
+  .reception-header { height: 78px; gap: 14px; }
+  .reception-main { grid-template-columns: minmax(0,1fr); gap: 36px; padding: 32px 0; }
+  .reception-intro h1 { font-size: clamp(44px,10vw,64px); }
+  .reception-intro h1 br { display: none; }
+  .reception-sections a { padding: 15px 0; }
+  .reception-footer { flex-direction: column; gap: 7px; }
+  .reception-guide .welcome-player video { max-height: none; }
+}
 body.welcome-open { overflow: hidden; }
 .portal-welcome { width: min(1120px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--border-interactive); border-radius: 12px; background: var(--surface-base); color: var(--text-primary); box-shadow: 0 28px 100px #0d232b40; overflow: auto; overscroll-behavior: contain; }
 .portal-welcome::backdrop { background: #10272fd1; backdrop-filter: blur(5px); }
@@ -53,7 +93,7 @@ button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: 
   .welcome-head h2 { font-size: 22px; }
   .welcome-close { margin: -6px -9px 0 0; }
   .welcome-body { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 18px 10px; }
-  .welcome-player video { aspect-ratio: 3 / 4; max-height: min(49dvh, 410px); }
+  .welcome-player video { aspect-ratio: 24 / 41; max-height: min(49dvh, 410px); }
   .welcome-play { font-size: 13px; gap: 10px; }
   .welcome-play-symbol { width: 54px; height: 54px; font-size: 18px; }
   #welcome-video-help { display: none; }

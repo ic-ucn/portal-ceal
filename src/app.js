@@ -1,6 +1,7 @@
 (() => {
   const app = document.getElementById('app');
   let Data = window.PortalMock;
+  const bundledCalendar = { source: { ...Data.calendarSource }, events: Data.events.map(event => ({ ...event })) };
   const Curricula = window.CURRICULA;
   const DATA_CONTENT_VERSION = '20260821c';
   const LOCAL_DATA_KEY = 'portal.data.v50';
@@ -236,6 +237,11 @@
     Data.cases ||= [];
     Data.events ||= [];
     Data.calendarSource ||= null;
+    // A previous API/snapshot release must not replace the reviewed calendar.
+    if (!Data.calendarSource || Data.calendarSource.version === 'dgpre-antofagasta-decreto-077-2026-20260713') {
+      Data.events = [...bundledCalendar.events.map(event => ({ ...event })), ...Data.events.filter(event => !String(event.id).startsWith('evt-acad-'))];
+      Data.calendarSource = { ...bundledCalendar.source };
+    }
     Data.agreements ||= [];
     Data.tutoring ||= [];
     Data.procedures ||= [];
@@ -440,7 +446,7 @@
   function currentAndFutureEvents() {
     const today = portalTodayKey();
     return [...(Data.events || [])]
-      .filter(event => String(event.date || '').slice(0, 10) >= today)
+      .filter(event => String(event.endDate || event.date || '').slice(0, 10) >= today && event.audience !== 'unidades')
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
   }
   function titleCase(str) {
@@ -1163,7 +1169,7 @@
 
   function navItems() {
     const items = [
-      ['/', 'home', 'Inicio'],
+      [SIGN_IN_ENABLED ? '/' : '/inicio', 'home', 'Inicio'],
       ['/calendario', 'calendar', 'Calendario'],
       ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
@@ -1227,6 +1233,10 @@
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
     if (state.user && path.startsWith('/gestion') && !hasCealAccess()) return routeTo('/');
+    if (!SIGN_IN_ENABLED && (path === '/' || path === '/bienvenida')) {
+      if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception(themeToggleButton('reception-theme'));
+      return true;
+    }
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query, restoring), path);
     return true;
   }
@@ -1273,7 +1283,7 @@
     const shell = app.querySelector('.app-shell');
     if (!shell) return false;
     shell.querySelectorAll('.menu-sheet-backdrop, .menu-sheet, .calendar-detail-backdrop, .notification-popover').forEach(node => node.remove());
-    shell.insertAdjacentHTML('beforeend', `${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${state.calendarDetailOpen && path === '/calendario' ? renderCalendarDetailModal(state.calendarSelectedDate, Data.events || []) : ''}`);
+    shell.insertAdjacentHTML('beforeend', `${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${state.calendarDetailOpen && path === '/calendario' ? renderCalendarDetailModal(state.calendarSelectedDate, (Data.events || []).filter(event => state.calendarAudience === 'all' || event.audience !== 'unidades')) : ''}`);
     return true;
   }
   function render(options = {}) {
@@ -1496,7 +1506,7 @@
       </aside>`;
   }
   function renderPage(path, query, restoring = false) {
-    if (path === '/') return renderHome();
+    if (path === '/' || path === '/inicio') return renderHome();
     if (path === '/reservas') return FEATURES.tableReservations && !isGuest() ? renderReservations() : renderNotFound();
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
@@ -1566,8 +1576,11 @@
     const month = date.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '');
     return `<a class="home-date-row" href="#/calendario?date=${encodeURIComponent(String(e.date || '').slice(0, 10))}"><time datetime="${esc(e.date)}"><strong>${date.getDate()}</strong><span>${esc(month)}</span></time><span class="home-date-copy"><strong>${esc(e.title)}</strong><span>${esc(e.type || 'Fecha académica')}${e.time ? ` · ${esc(e.time)}` : ''}</span></span>${icon('arrow')}</a>`;
   }
+  function eventOnDate(event, key) { return event.date <= key && (event.endDate || event.date) >= key; }
+  function eventInMonth(event, month) { const first = isoCalendarDate(month.getFullYear(), month.getMonth(), 1); const last = isoCalendarDate(month.getFullYear(), month.getMonth(), new Date(month.getFullYear(), month.getMonth()+1, 0).getDate()); return event.date <= last && (event.endDate || event.date) >= first; }
+  function eventDateLabel(event) { return `${fmtDate(event.date)}${event.endDate ? ` — ${fmtDate(event.endDate)}` : ''}`; }
   function calendarNextRow(e) {
-    return `<button type="button" class="link-card-row calendar-next-row" data-calendar-date="${esc(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${fmtDate(e.date)}${e.time ? ` · ${esc(e.time)}` : ''}</span></span>${icon('arrow')}</button>`;
+    return `<button type="button" class="link-card-row calendar-next-row" data-calendar-date="${esc(String(e.date || '').slice(0, 10))}"><span><strong>${esc(e.title)}</strong><span>${eventDateLabel(e)}${e.time ? ` · ${esc(e.time)}` : ''}</span></span>${icon('arrow')}</button>`;
   }
   function parseCalendarDate(date) {
     const [year, month, day] = String(date).slice(0, 10).split('-').map(Number);
@@ -1596,18 +1609,13 @@
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
     const previousMonthDays = new Date(year, month, 0).getDate();
-    const eventsByDate = events.reduce((acc, event) => {
-      const key = String(event.date).slice(0, 10);
-      (acc[key] ||= []).push(event);
-      return acc;
-    }, {});
     const heads = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => `<div class="day-head">${day}</div>`).join('');
     const cells = Array.from({ length: totalCells }, (_, index) => {
       const dayNumber = index - startOffset + 1;
       const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
       const visibleDay = inMonth ? dayNumber : dayNumber < 1 ? previousMonthDays + dayNumber : dayNumber - daysInMonth;
       const dateKey = inMonth ? isoCalendarDate(year, month, visibleDay) : '';
-      const dayEvents = inMonth ? (eventsByDate[dateKey] || []) : [];
+      const dayEvents = inMonth ? events.filter(event => eventOnDate(event, dateKey)) : [];
       const classes = ['day-cell', inMonth ? '' : 'outside', dateKey === todayKey ? 'today' : '', dateKey === selectedDate ? 'selected' : '', dateKey && dateKey < todayKey ? 'past' : '', dayEvents.length ? 'has-event' : ''].filter(Boolean).join(' ');
       const eventsMarkup = dayEvents.slice(0, 2).map(event => `<span class="day-event ${calendarEventTone(event.type)}" title="${esc(event.title)}">${esc(event.title)}</span>`).join('');
       const extra = dayEvents.length > 2 ? `<span class="day-more">+${dayEvents.length - 2}</span>` : '';
@@ -1621,21 +1629,18 @@
   function renderMonthEventAgenda(monthDate, events, selectedDate) {
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
-    const monthEvents = events.filter(event => {
-      const date = parseCalendarDate(event.date);
-      return date.getFullYear() === year && date.getMonth() === month;
-    });
+    const monthEvents = events.filter(event => eventInMonth(event, monthDate));
     if (!monthEvents.length) return renderEmpty('Sin fechas este mes', 'Las próximas actividades aparecen en la agenda lateral.');
-    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<button type="button" class="calendar-agenda-row ${String(event.date).slice(0, 10) === selectedDate ? 'selected' : ''}" data-calendar-date="${esc(String(event.date).slice(0, 10))}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${event.time ? esc(event.time) : ''}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></button>`).join('')}</div>`;
+    return `<div class="calendar-month-agenda">${monthEvents.map(event => `<button type="button" class="calendar-agenda-row ${eventOnDate(event, selectedDate) ? 'selected' : ''}" data-calendar-date="${esc(String(event.date).slice(0, 10))}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' })}</span></time><span><strong>${esc(event.title)}</strong><small>${event.endDate ? `Hasta ${fmtDate(event.endDate)}` : ''}${event.time ? ` · ${esc(event.time)}` : ''}${event.provisional ? ' · Sujeto a cambios' : ''}</small></span><em class="${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</em></button>`).join('')}</div>`;
   }
 
   function renderCalendarDetailModal(dateKey, events) {
     const date = parseCalendarDate(dateKey);
-    const dayEvents = events.filter(event => String(event.date || '').slice(0, 10) === dateKey);
+    const dayEvents = events.filter(event => eventOnDate(event, dateKey));
     const rawHeading = date.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
     const heading = rawHeading.charAt(0).toUpperCase() + rawHeading.slice(1);
     const body = dayEvents.length
-      ? `<div class="calendar-modal-events">${dayEvents.map(event => `<article><div class="calendar-modal-event-head"><strong>${esc(event.title)}</strong><span class="pill ${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</span></div>${event.time ? `<time>${esc(event.time)}</time>` : ''}<p>${esc(event.description || 'Actividad del calendario académico.')}</p></article>`).join('')}</div>`
+      ? `<div class="calendar-modal-events">${dayEvents.map(event => `<article><div class="calendar-modal-event-head"><strong>${esc(event.title)}</strong><span class="pill ${calendarEventTone(event.type)}">${esc(event.type || 'Fecha')}</span></div>${event.time ? `<time>${esc(event.time)}</time>` : ''}<p>${esc(event.description || 'Actividad del calendario académico.')}</p>${event.endDate ? `<p class="small muted">${eventDateLabel(event)} · ambas fechas incluidas</p>` : ''}${event.provisional ? '<p class="small muted">Enero de 2027 está sujeto a modificaciones.</p>' : ''}${event.sourcePage ? `<a class="calendar-event-source" href="${esc(safeUrl(new URL(Data.calendarSource?.fileUrl || Data.calendarSource?.url, location.href).href))}#page=${event.sourcePage}" target="_blank" rel="noopener">Documento oficial · página ${event.sourcePage}</a>` : ''}</article>`).join('')}</div>`
       : `<div class="calendar-modal-empty">${icon('calendar')}<strong>Sin hitos publicados</strong><span>No hay actividades registradas para este día.</span></div>`;
     return `<div class="calendar-detail-backdrop" data-calendar-modal-backdrop><section class="calendar-detail-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title" tabindex="-1"><header><div><h2 id="calendar-detail-title">${esc(heading)}</h2></div><button class="icon-btn" type="button" data-calendar-modal-close aria-label="Cerrar detalle" title="Cerrar">${icon('x')}</button></header>${body}<footer><button class="btn secondary" type="button" data-calendar-modal-close>Cerrar</button></footer></section></div>`;
   }
@@ -1708,20 +1713,20 @@
     state.calendarSelectedDate ||= todayKey;
     state.calendarMonth ||= parseCalendarDate(state.calendarSelectedDate);
     const currentMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth(), 1);
-    const events = [...(Data.events || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
+    const events = [...(Data.events || [])].filter(event => state.calendarAudience === 'all' || event.audience !== 'unidades').sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
     const nextEvents = currentAndFutureEvents();
     const agreementAction = hasCealAccess() ? `<a class="btn secondary sm" href="#/gestion/acuerdos/nuevo">Nuevo seguimiento</a>` : '';
     const agreementRows = portalAgreements().slice(0, 4).map(agreementRow).join('') || '<p class="small muted">Sin seguimientos publicados.</p>';
-    const monthEventCount = events.filter(event => { const date = parseCalendarDate(event.date); return date.getFullYear() === currentMonth.getFullYear() && date.getMonth() === currentMonth.getMonth(); }).length;
+    const monthEventCount = events.filter(event => eventInMonth(event, currentMonth)).length;
     const monthActions = `<div class="calendar-month-actions"><button class="icon-btn calendar-prev" type="button" data-calendar-month="-1" aria-label="Mes anterior" title="Mes anterior">${icon('arrow')}</button><button class="btn secondary sm" type="button" data-calendar-today>Hoy</button><button class="icon-btn" type="button" data-calendar-month="1" aria-label="Mes siguiente" title="Mes siguiente">${icon('arrow')}</button></div>`;
     const source = Data.calendarSource || {};
-    const sourceUrl = safeUrl(source.url);
+    const sourceUrl = safeUrl(new URL(source.fileUrl || source.url, location.href).href);
     const sourceText = source.updatedAt ? `${source.institution || 'DGPRE UCN'} · actualización ${fmtDate(source.updatedAt)}` : 'DGPRE UCN 2026';
     const sourceMarkup = sourceUrl
       ? `<a class="calendar-source-link" href="${esc(sourceUrl)}" target="_blank" rel="noopener">${icon('file')} ${esc(sourceText)}</a>`
       : `<span>${esc(sourceText)}</span>`;
-    return `${pageHead('Calendario', '', calendarAction)}
-      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
+    return `${pageHead('Calendario', 'Antofagasta', calendarAction)}<div class="calendar-audience" role="group" aria-label="Actividades del calendario"><button class="chip-btn" data-calendar-audience="students" aria-pressed="${state.calendarAudience !== 'all'}">Estudiantes</button><button class="chip-btn" data-calendar-audience="all" aria-pressed="${state.calendarAudience === 'all'}">Todas las actividades</button></div>
+      <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small><small>${esc(source.note || '')}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
   }
 
   function tutorialLibraryCard({ iconName, audience, title, description, duration, href, pending = false }) {
@@ -1876,7 +1881,7 @@
             </span>
           </a>
           ${mallaProgressMarkup}
-          <a class="icon-btn malla-close" href="#/" aria-label="Cerrar malla y volver al inicio">${icon('x')}</a>
+          <a class="icon-btn malla-close" href="#${SIGN_IN_ENABLED ? '/' : '/inicio'}" aria-label="Cerrar malla y volver al inicio">${icon('x')}</a>
           <div class="malla-commandbar-actions">
             <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
               <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
@@ -3557,6 +3562,8 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const audience = e.target.closest('[data-calendar-audience]');
+    if (audience) { state.calendarAudience = audience.dataset.calendarAudience; render(); return; }
     const guideTrigger = e.target.closest('[data-open-welcome]');
     if (guideTrigger) {
       let returnTarget = guideTrigger;
