@@ -2,10 +2,11 @@
 
 Panel privado: https://ceicucn.goatcounter.com/ (requiere la cuenta administradora).
 
-- **Pages**: visitas a Bienvenida, Inicio, Calendario, Mallas, Material, fichas y búsqueda. Los detalles de material se agrupan; no se envían nombres de estudiantes ni identificadores de documentos.
-- **Events**: acciones del tutorial, calendario, mallas y biblioteca. Filtrar por `tutorial/`, `calendario/`, `mallas/` o `material/`. Cada clic cuenta; no representa una persona diferente.
+- **Páginas**: visitas a Bienvenida, Inicio, Calendario, Mallas, Material, fichas y búsqueda. Los detalles de material se agrupan; sus enlaces vuelven a la biblioteca, sin identificadores de documentos.
+- **Acciones**: también aparecen en Páginas, con la etiqueta «evento». Filtrar por `tutorial/`, `calendario/`, `mallas/` o `material/`. Cada clic cuenta; no representa una persona diferente.
+- **Totales**: configurado para excluir eventos; los clics no inflan el total de visitantes. El encabezado de Páginas sí incluye los eventos mostrados.
 - **Tutorial**: inicio, avance hasta 25/50/75%, final y errores, separados entre móvil y escritorio. El avance indica posición alcanzada, no tiempo visto sin saltos.
-- **Referrers, Browsers, Systems y Sizes**: origen externo, navegador, sistema y tamaño de pantalla. El origen de un evento indica la sección en la que ocurrió.
+- **Referentes, Navegadores, Sistemas y Tamaños**: origen externo, navegador, sistema y tamaño de pantalla. El origen de un evento indica la sección en la que ocurrió. Panel en español de Chile, zona America/Santiago.
 
 GoatCounter cuenta visitas únicas a cada página dentro de su ventana de sesión; recargar o volver no necesariamente suma otra visita. Los eventos usan `no_session` para contar repeticiones. No es una grabación de sesiones, un mapa de calor ni una reconstrucción del recorrido individual. No mide interacciones dentro del visor externo de Google Drive ni confirma que una descarga externa terminó.
 
