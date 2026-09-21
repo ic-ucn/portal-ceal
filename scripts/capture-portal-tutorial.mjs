@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = process.cwd(), base = process.env.TUTORIAL_URL || 'http://127.0.0.1:18084/';
-const work = path.join(root, '.data', 'portal-guide-v4');
+const work = path.join(root, '.data', 'portal-guide-v5');
 const story = JSON.parse(await readFile(path.join(work, 'story.json'), 'utf8'));
 await mkdir(path.join(work, 'raw'), { recursive: true });
 const browser = await chromium.launch();
@@ -13,7 +13,7 @@ try {
     const width = format === 'desktop' ? 1440 : 480, height = format === 'desktop' ? 810 : 700;
     const context = await browser.newContext({ viewport:{width,height}, recordVideo:{dir:path.join(work,'raw'),size:{width,height}}, reducedMotion:'no-preference' });
     await context.addInitScript(() => { if (window === top) localStorage.setItem('portal.theme','light'); });
-    const page = await context.newPage(), video=page.video(), epoch=Date.now(), segments=[], moves=[];
+    const page = await context.newPage(), video=page.video(), epoch=Date.now(), segments=[], moves=[], evidence={hover:[]};
     await page.goto(`${base}?static=1#/mallas`, {waitUntil:'networkidle'});
     await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
     for (const plan of ['o','p']) { await page.locator(`[data-malla-embed-plan="${plan}"]`).click(); await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor(); }
@@ -32,15 +32,19 @@ try {
       const start=await page.evaluate(()=>window.guidePoint);
       const duration=Math.min(1350,Math.max(500,Math.hypot(x-start.x,y-start.y)*1.5));
       const at=(Date.now()-epoch)/1000-traceStart;
-      await page.evaluate(async ({x,y,duration}) => {
-        const from=window.guidePoint, cursor=document.querySelector('#guide-cursor'), dx=x-from.x,dy=y-from.y;
-        const bend=Math.min(28,Math.hypot(dx,dy)*.045), length=Math.max(1,Math.hypot(dx,dy));
-        const c1={x:from.x+dx*.3-dy/length*bend,y:from.y+dy*.3+dx/length*bend};
-        const c2={x:from.x+dx*.72+dy/length*bend*.4,y:from.y+dy*.72-dx/length*bend*.4};
-        await new Promise(resolve=>{let first;function frame(t){first??=t;const u=Math.min(1,(t-first)/duration),q=u*u*(3-2*u),r=1-q;const px=r*r*r*from.x+3*r*r*q*c1.x+3*r*q*q*c2.x+q*q*q*x,py=r*r*r*from.y+3*r*r*q*c1.y+3*r*q*q*c2.y+q*q*q*y;cursor.style.left=px+'px';cursor.style.top=py+'px';if(u<1)requestAnimationFrame(frame);else resolve();}requestAnimationFrame(frame);});
-        window.guidePoint={x,y};
-      },{x,y,duration});
-      await page.mouse.move(x,y);moves.push({at,from:start,to:{x,y},duration:duration/1000,kind:'bezier-ease-in-out'});
+      const dx=x-start.x,dy=y-start.y,length=Math.max(1,Math.hypot(dx,dy)),bend=Math.min(28,length*.045);
+      const c1={x:start.x+dx*.3-dy/length*bend,y:start.y+dy*.3+dx/length*bend};
+      const c2={x:start.x+dx*.72+dy/length*bend*.4,y:start.y+dy*.72-dx/length*bend*.4};
+      const began=Date.now(),steps=Math.ceil(duration/35);
+      for(let step=1;step<=steps;step++){
+        const u=step/steps,q=u*u*(3-2*u),r=1-q;
+        const px=r*r*r*start.x+3*r*r*q*c1.x+3*r*q*q*c2.x+q*q*q*x;
+        const py=r*r*r*start.y+3*r*r*q*c1.y+3*r*q*q*c2.y+q*q*q*y;
+        await page.mouse.move(px,py);
+        await page.evaluate(({x,y})=>{const cursor=document.querySelector('#guide-cursor');cursor.style.left=x+'px';cursor.style.top=y+'px';window.guidePoint={x,y};},{x:px,y:py});
+        const remaining=duration*u-(Date.now()-began);if(remaining>0)await page.waitForTimeout(remaining);
+      }
+      moves.push({at,from:start,to:{x,y},duration:duration/1000,kind:'bezier-ease-in-out'});
     };
     const point = async (target, click=true) => {
       await target.waitFor({state:'visible'});
@@ -62,7 +66,7 @@ try {
       const item=story.find(c=>c.id===id), start=(Date.now()-epoch)/1000;
       await page.waitForTimeout(500);await action();
       const elapsed=(Date.now()-epoch)/1000-start;
-      const duration=Math.max(item.duration,elapsed+1.5);
+      const duration=Math.max(item.duration,elapsed+.5);
       await page.waitForTimeout((duration-elapsed)*1000);
       segments.push({id,start,duration});console.log(JSON.stringify({format,cue:id,duration}));
     };
@@ -74,6 +78,18 @@ try {
     await cue('mallas',async()=>{await point(nav('mallas'));await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();});
     await cue('planes',async()=>{await point(page.locator('[data-malla-embed-plan="o"]'));await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();});
     const frame=await (await page.locator('.malla-embed-frame').elementHandle()).contentFrame();
+    await cue('relaciones',async()=>{
+      const codes=format==='desktop'?['DAMA-00135','DAFI-00203','DAMA-00236','DAMA-00309','DAIC-00400']:['DAMA-00135','DAFI-00103','DAMA-00235','DAFI-00203'];
+      for(const code of codes){
+        await point(frame.locator(`[data-mc-code="${code}"].mc-card`),false);
+        await frame.locator('.mc-card--highlight-self').waitFor();
+        const relations=await frame.locator('.mc-card--highlight-prereq, .mc-card--highlight-successor').count();
+        if(!relations)throw new Error(`No highlighted relationships for ${code}`);
+        evidence.hover.push({code,relations});
+        await page.waitForTimeout(500);
+      }
+      await page.screenshot({path:path.join(work,`${format}-malla-relations.png`)});
+    });
     await cue('ramo',async()=>{await point(frame.locator('.mc-card').filter({hasText:'Cálculo I'}).first());await frame.locator('.mc-modal').waitFor();});
     await cue('material',async()=>{await point(nav('material'));await page.locator('[data-material-search]').waitFor();});
     await cue('buscar',async()=>{const input=page.locator('[data-material-search]');await point(input);await input.pressSequentially('estructural',{delay:145});await page.waitForTimeout(500);});
@@ -83,17 +99,17 @@ try {
       const embedded=page.locator('.resource-preview-frame');await point(embedded,false);
       preview=await (await embedded.elementHandle()).contentFrame();
       await preview.waitForFunction(()=>[...document.images].some(img=>img.complete&&img.naturalWidth>500),null,{timeout:60000});
+      evidence.previewReady=(Date.now()-epoch)/1000;
       await page.screenshot({path:path.join(work,`${format}-preview-loaded.png`)});
-    });
-    await cue('leer',async()=>{
-      const embedded=page.locator('.resource-preview-frame');await point(embedded,false);
+      await page.waitForTimeout(Math.max(0,2000-((Date.now()-epoch)/1000-evidence.previewReady)*1000));
+      evidence.previewScroll=(Date.now()-epoch)/1000;
       for(let i=0;i<12;i++){await page.mouse.wheel(0,65);await page.waitForTimeout(110);}
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(300);
       await page.screenshot({path:path.join(work,`${format}-preview-scrolled.png`)});
     });
     await cue('archivo',async()=>{await point(page.getByRole('link',{name:'Abrir material',exact:true}),false);});
     await cue('volver',async()=>{await point(nav('inicio'));await page.locator('.home-date-row').first().waitFor();});
     const raw=await video.path();await context.close();
-    await writeFile(path.join(work,`${format}-capture.json`),JSON.stringify({width,height,raw,segments,moves,continuous:true,start:segments[0].start,end:segments.at(-1).start+segments.at(-1).duration},null,2));
+    await writeFile(path.join(work,`${format}-capture.json`),JSON.stringify({width,height,raw,segments,moves,evidence,continuous:true,start:segments[0].start,end:segments.at(-1).start+segments.at(-1).duration},null,2));
   }
 }finally{await browser.close();}

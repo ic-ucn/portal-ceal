@@ -2,85 +2,85 @@
   {
     "id": "inicio",
     "label": "Inicio",
-    "minimum": 7,
-    "text": "Este es el inicio del portal. Aquí encuentras las próximas fechas y los accesos principales."
+    "minimum": 5,
+    "text": "Inicio reúne las próximas fechas y los accesos principales del portal."
   },
   {
     "id": "calendario",
     "label": "Calendario",
-    "minimum": 7,
-    "text": "La primera sección del menú es Calendario. Aquí puedes consultar las fechas académicas de Antofagasta."
+    "minimum": 6,
+    "text": "En Calendario puedes consultar las fechas académicas de Antofagasta."
   },
   {
     "id": "mes",
     "label": "Cambiar de mes",
-    "minimum": 6,
-    "text": "Usa las flechas para revisar otro mes o pulsa Hoy para volver a la fecha actual."
+    "minimum": 5,
+    "text": "Las flechas permiten cambiar de mes. Hoy te lleva a la fecha actual."
   },
   {
     "id": "fecha",
     "label": "Consultar una fecha",
-    "minimum": 7,
-    "text": "Abre una fecha para ver sus actividades. Si abarcan varios días, encontrarás el período completo."
+    "minimum": 6,
+    "text": "Cada fecha muestra sus actividades y el período completo cuando abarcan varios días."
   },
   {
     "id": "fuente",
     "label": "Documento oficial",
-    "minimum": 6,
-    "text": "También puedes consultar el documento oficial. Cierra el detalle para continuar."
+    "minimum": 5,
+    "text": "También encontrarás un enlace al documento oficial."
   },
   {
     "id": "mallas",
     "label": "Mallas",
-    "minimum": 7,
-    "text": "La siguiente sección es Mallas. Aquí puedes explorar los ramos de tu carrera."
+    "minimum": 5,
+    "text": "En Mallas puedes explorar los ramos de la carrera."
   },
   {
     "id": "planes",
-    "label": "Tu plan de estudios",
-    "minimum": 6,
-    "text": "Selecciona el plan de estudios que te corresponde para ver su malla."
+    "label": "Planes de estudio",
+    "minimum": 5,
+    "text": "Puedes alternar entre los planes O y P."
+  },
+  {
+    "id": "relaciones",
+    "label": "Ramos relacionados",
+    "minimum": 8,
+    "text": "Al recorrer la malla, se destacan los prerrequisitos y los ramos relacionados."
   },
   {
     "id": "ramo",
     "label": "Consultar un ramo",
-    "minimum": 8,
-    "text": "Abre cualquier ramo para ver su descripción, los prerrequisitos y las asignaturas que permite cursar después."
+    "minimum": 6,
+    "text": "La ficha de cada ramo reúne su descripción, sus prerrequisitos y las asignaturas que habilita."
   },
   {
     "id": "material",
     "label": "Material",
-    "minimum": 7,
-    "text": "Por último, entra a Material desde el menú. Aquí encuentras apuntes, guías y evaluaciones."
+    "minimum": 6,
+    "text": "En Material encuentras apuntes, guías y evaluaciones de la carrera."
   },
   {
     "id": "buscar",
     "label": "Buscar material",
-    "minimum": 8,
-    "text": "El buscador sirve para encontrar un tema, nombre o código. Por ejemplo, escribe estructural."
+    "minimum": 6,
+    "text": "Puedes buscar por tema, nombre o código; por ejemplo, estructural."
   },
   {
     "id": "recurso",
     "label": "Abrir un archivo",
-    "minimum": 10,
-    "text": "Abre uno de los resultados y espera a que cargue la vista previa del documento."
-  },
-  {
-    "id": "leer",
-    "label": "Recorrer el documento",
-    "minimum": 8,
-    "text": "Cuando aparezcan las páginas, puedes desplazarte dentro de la vista previa para leer el documento."
+    "minimum": 7,
+    "text": "Aquí puedes consultar el documento y recorrer sus páginas."
   },
   {
     "id": "archivo",
     "label": "Abrir o descargar",
-    "minimum": 9,
-    "text": "Más abajo está Abrir material. Este botón abre el archivo completo, donde puedes consultarlo o descargarlo según sus opciones."
+    "minimum": 7,
+    "text": "Abrir material te lleva al archivo completo para consultarlo o descargarlo, según sus opciones."
   },
   {
     "id": "volver",
     "label": "Volver a Inicio",
-    "minimum": 7,
-    "text": "Puedes volver a Inicio desde el menú. Si necesitas repetir el tutorial, lo encontrarás en Guía del portal."
+    "minimum": 6,
+    "text": "La Guía del portal siempre está disponible en el menú para repetir el tutorial."
   }
 ]

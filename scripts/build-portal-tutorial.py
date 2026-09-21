@@ -8,7 +8,7 @@ import edge_tts, imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-WORK = ROOT / '.data' / 'portal-guide-v4'
+WORK = ROOT / '.data' / 'portal-guide-v5'
 OUT = ROOT / 'assets' / 'tutorial'
 FFMPEG = str(next(iter((ROOT/'.data/media-tools/imageio_ffmpeg/binaries').glob('ffmpeg*.exe')), imageio_ffmpeg.get_ffmpeg_exe()))
 STORY = ROOT / 'scripts' / 'portal-tutorial-story.json'
@@ -32,6 +32,8 @@ def vtt_time(value):
 
 async def audio():
     story = json.loads(STORY.read_text(encoding='utf-8'))
+    public_text=' '.join(cue['text'] for cue in story).lower()
+    assert not re.search(r'tu carrera|espera.*carg|cuando aparezcan|zigzag|dos segundos',public_text), 'Keep production directions out of the public narration'
     cursor = 0
     for cue in story:
         spoken=re.sub(r'\bportal\b','portál',cue['text'],flags=re.IGNORECASE)

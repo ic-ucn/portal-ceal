@@ -1,6 +1,6 @@
 # Tutorial público del portal
 
-Revisión del 21 de septiembre de 2026. Un solo recorrido de aproximadamente 1 min 50 s, con encuadres de escritorio y teléfono, explica el portal público. Sustituye el video de 50 s, cuyos cambios de página no mostraban cómo navegar.
+Revisión del 21 de septiembre de 2026. Un solo recorrido de aproximadamente 1 min 30 s, con encuadres de escritorio y teléfono, explica el portal público. Sustituye el video de 50 s, cuyos cambios de página no mostraban cómo navegar.
 
 ## Experiencia
 
@@ -20,7 +20,7 @@ Revisión del 21 de septiembre de 2026. Un solo recorrido de aproximadamente 1 m
 
 La música es la misma composición del antiguo tutorial del portal, variación 3 de `make_music` en `scripts/compose-tutorial-videos.py`, antes exportada como `.data/tutorial-production/portal-narrated-music.wav`. Se extiende la duración de la partitura sin reiniciar una pista con fundido a mitad del video. La mezcla normaliza la voz y atenúa la música durante la narración.
 
-Salidas en `assets/tutorial/`: `portal-guia-desktop.mp4`, `portal-guia-mobile.mp4`, carteles JPEG y VTT por encuadre. Capturas, voz, música y manifests intermedios permanecen en `.data/portal-guide-v4/`, fuera de Git. Los tutoriales históricos de atención/gestión no se reactivan ni se publican con esta entrega.
+Salidas en `assets/tutorial/`: `portal-guia-desktop.mp4`, `portal-guia-mobile.mp4`, carteles JPEG y VTT por encuadre. Capturas, voz, música y manifests intermedios permanecen en `.data/portal-guide-v5/`, fuera de Git. Los tutoriales históricos de atención/gestión no se reactivan ni se publican con esta entrega.
 
 ## Fuentes y límites
 
@@ -30,3 +30,10 @@ Investigación sobre Astra, herramientas y edición en [ASTRA_Y_PRODUCCION.md](A
 ## Revisión de Material
 
 Buscar «estructural» por tema y abrir Análisis Estructural Kassimall. Esperar imágenes del documento con ancho natural mayor a 500 px en el iframe real, conservar captura de evidencia, desplazar dentro del visor y bajar al botón Abrir material. Los tiempos de captura se amplían si una acción o carga lo exige; nunca avanzar por un temporizador sobre una vista previa vacía. El montaje alinea narración con tiempos reales. Mallas ya no muestra Original.
+
+
+## Revisión editorial y ritmo
+
+La narración y los textos públicos describen solo funciones del portal. Las instrucciones de grabación, esperas y tiempos pertenecen únicamente a esta documentación interna. No trasladarlas al guion público. La carrera es común a todos: usar «la carrera». Búsqueda expresada como posibilidad: «Puedes buscar…; por ejemplo, estructural».
+
+En la captura, recorrer varios ramos en zigzag y verificar los resaltados reales. Al mostrarse el libro, iniciar scroll a los dos segundos sin un bloque adicional de espera. El manifest conserva las marcas previewReady/previewScroll y los resaltados para comprobarlo.

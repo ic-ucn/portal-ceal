@@ -1,61 +1,57 @@
 # Guía del portal
 
-Orden: Inicio → Calendario → Mallas → Material → Inicio. Ejemplo de búsqueda temática: estructural. El tipo de recurso se elige con el filtro correspondiente.
-
 ## Inicio
 
-Este es el inicio del portal. Aquí encuentras las próximas fechas y los accesos principales.
+Inicio reúne las próximas fechas y los accesos principales del portal.
 
 ## Calendario
 
-La primera sección del menú es Calendario. Aquí puedes consultar las fechas académicas de Antofagasta.
+En Calendario puedes consultar las fechas académicas de Antofagasta.
 
 ## Cambiar de mes
 
-Usa las flechas para revisar otro mes o pulsa Hoy para volver a la fecha actual.
+Las flechas permiten cambiar de mes. Hoy te lleva a la fecha actual.
 
 ## Consultar una fecha
 
-Abre una fecha para ver sus actividades. Si abarcan varios días, encontrarás el período completo.
+Cada fecha muestra sus actividades y el período completo cuando abarcan varios días.
 
 ## Documento oficial
 
-También puedes consultar el documento oficial. Cierra el detalle para continuar.
+También encontrarás un enlace al documento oficial.
 
 ## Mallas
 
-La siguiente sección es Mallas. Aquí puedes explorar los ramos de tu carrera.
+En Mallas puedes explorar los ramos de la carrera.
 
-## Tu plan de estudios
+## Planes de estudio
 
-Selecciona el plan de estudios que te corresponde para ver su malla.
+Puedes alternar entre los planes O y P.
+
+## Ramos relacionados
+
+Al recorrer la malla, se destacan los prerrequisitos y los ramos relacionados.
 
 ## Consultar un ramo
 
-Abre cualquier ramo para ver su descripción, los prerrequisitos y las asignaturas que permite cursar después.
+La ficha de cada ramo reúne su descripción, sus prerrequisitos y las asignaturas que habilita.
 
 ## Material
 
-Por último, entra a Material desde el menú. Aquí encuentras apuntes, guías y evaluaciones.
+En Material encuentras apuntes, guías y evaluaciones de la carrera.
 
 ## Buscar material
 
-El buscador sirve para encontrar un tema, nombre o código. Por ejemplo, escribe estructural.
+Puedes buscar por tema, nombre o código; por ejemplo, estructural.
 
 ## Abrir un archivo
 
-Abre uno de los resultados y espera a que cargue la vista previa del documento.
-
-## Recorrer el documento
-
-Cuando aparezcan las páginas, puedes desplazarte dentro de la vista previa para leer el documento.
+Aquí puedes consultar el documento y recorrer sus páginas.
 
 ## Abrir o descargar
 
-Más abajo está Abrir material. Este botón abre el archivo completo, donde puedes consultarlo o descargarlo según sus opciones.
+Abrir material te lleva al archivo completo para consultarlo o descargarlo, según sus opciones.
 
 ## Volver a Inicio
 
-Puedes volver a Inicio desde el menú. Si necesitas repetir el tutorial, lo encontrarás en Guía del portal.
-
-La voz usa «portál» y «tutoriál» para marcar el acento solicitado. Pantalla y subtítulos conservan la escritura correcta. La captura espera imágenes cargadas en el visor real antes de recorrer el documento; después muestra Abrir material.
+La Guía del portal siempre está disponible en el menú para repetir el tutorial.

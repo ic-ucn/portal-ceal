@@ -6,7 +6,7 @@ const production=new URL(base).hostname==='ceicucn.cl';
 const configs=production?[['chromium',1440,900],['chromium',390,844]]:[['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
 const out=new URL('../qa-screenshots/',import.meta.url);await mkdir(out,{recursive:true});
 const report={ok:false,production,cases:[],errors:[]};
-const url=(route='/')=>{const u=new URL(base);u.searchParams.set('review','20260921c');u.hash=route;return u.href;};
+const url=(route='/')=>{const u=new URL(base);u.searchParams.set('review','20260921d');u.hash=route;return u.href;};
 try{
  for(const [engine,width,height] of configs){
   const browser=await({chromium,webkit,firefox}[engine]).launch();const context=await browser.newContext({viewport:{width,height}});const page=await context.newPage();page.setDefaultNavigationTimeout(90000);
@@ -22,7 +22,7 @@ try{
   // Headless Windows audio can suspend playback: decode silently for automation.
   const player=page.locator('.portal-reception video');await player.evaluate(v=>{v.muted=true;v.dataset.identity='preserved';});
   await page.locator('[data-reception-play]').click();await page.waitForFunction(()=>document.querySelector('.portal-reception video')?.currentTime>.5,null,{timeout:20000});
-  const duration=await player.evaluate(v=>v.duration);assert.ok(duration>80&&duration<160,'unhurried short tutorial');
+  const duration=await player.evaluate(v=>v.duration);assert.ok(duration>60&&duration<160,'unhurried short tutorial');
   const expectedFormat=width<=920?'mobile':'desktop';
   assert.ok((await player.getAttribute('src')).includes(`portal-guia-${expectedFormat}.mp4`),'video matches portal layout');
   assert.ok((await player.getAttribute('poster')).includes(`portal-guia-${expectedFormat}.jpg`));
