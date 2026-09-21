@@ -46,7 +46,7 @@ try {
     page.on('pageerror', error => report.errors.push(error.message));
     await page.goto(url('/login'), { waitUntil: 'networkidle' });
     await page.locator('.portal-reception').waitFor();
-    await page.locator('.reception-home').click();
+    await page.locator('.reception-enter').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
     assert.equal(new URL(page.url()).hash, '#/inicio', 'welcome leads to the home section');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);

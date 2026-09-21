@@ -40,6 +40,31 @@
   .reception-guide .welcome-player video { max-height: none; }
 }
 body.welcome-open { overflow: hidden; }
+.reception-video-only .reception-header { max-width: 960px; height: 80px; }
+.reception-video-only .reception-theme { margin-left: auto; }
+.reception-skip { color: var(--text-secondary); font-size: 13px; padding: 12px 0; }
+.reception-video-only .reception-main { display: block; max-width: 800px; padding: 28px 0; }
+.reception-video-only h1 { font-size: clamp(22px,4vw,30px); font-weight: 500; letter-spacing: -.035em; margin: 0; }
+.reception-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 12px; }
+.reception-dismiss { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 12px 0; font-size: 13px; text-align: left; }
+.reception-dismiss:hover, .reception-skip:hover { color: var(--text-primary); text-decoration: underline; }
+.reception-video-only video[data-format=mobile] { aspect-ratio: 24 / 35; max-height: none; }
+.reception-video-only .welcome-player:has(video[data-format=mobile]) { width: 100%; margin-inline: auto; }
+.reception-video-only .reception-dismiss { white-space: nowrap; font-size: 12px; }
+.reception-video-only .reception-enter { width: auto; flex: none; }
+@media (max-width: 600px) {
+  .reception-video-only { padding: 0 20px; }
+  .reception-video-only .reception-header { height: 68px; gap: 12px; }
+  .reception-video-only .reception-brand strong { font-size: 13px; }
+  .reception-video-only .reception-brand img { width: 28px; height: 28px; }
+  .reception-video-only .reception-theme { padding: 8px; }
+  .reception-video-only .reception-theme span:not(.icon) { display: none; }
+  .reception-video-only .reception-skip { margin-left: auto; font-size: 12px; }
+  .reception-video-only .reception-guide-head > span { display: none; }
+  .reception-video-only .reception-main { padding: 22px 0; }
+  .reception-actions { gap: 10px; }
+  .reception-enter { font-size: 13px; }
+}
 .portal-welcome { width: min(1120px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--border-interactive); border-radius: 12px; background: var(--surface-base); color: var(--text-primary); box-shadow: 0 28px 100px #0d232b40; overflow: auto; overscroll-behavior: contain; }
 .portal-welcome::backdrop { background: #10272fd1; backdrop-filter: blur(5px); }
 .portal-welcome[open] { display: flex; flex-direction: column; overflow: hidden; }
@@ -93,7 +118,7 @@ button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: 
   .welcome-head h2 { font-size: 22px; }
   .welcome-close { margin: -6px -9px 0 0; }
   .welcome-body { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 18px 10px; }
-  .welcome-player video { aspect-ratio: 24 / 41; max-height: min(49dvh, 410px); }
+  .welcome-player video { aspect-ratio: 24 / 35; max-height: min(49dvh, 410px); }
   .welcome-play { font-size: 13px; gap: 10px; }
   .welcome-play-symbol { width: 54px; height: 54px; font-size: 18px; }
   #welcome-video-help { display: none; }

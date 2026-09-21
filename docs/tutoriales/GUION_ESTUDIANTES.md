@@ -1,55 +1,53 @@
-# Guion del recorrido publico
+# Guía del portal
 
-Revision 21 de septiembre de 2026. Una sola toma por encuadre, aproximadamente 1 min 32 s. Voz chilena, musica del tutorial antiguo del portal y subtitulos. Todas las transiciones se realizan mediante clics visibles.
+Orden: Inicio → Calendario → Mallas → Material → Inicio. Acciones generales, sin prescribir una asignatura, plan o mes concreto al espectador.
 
-## 1. Bienvenida
+## Inicio
 
-Bienvenido al portal de Ingeniería Civil. Desde aquí puedes abrir la sección que necesitas.
+Este es el inicio del portal. Aquí encuentras las próximas fechas y los accesos principales.
 
-## 2. Inicio
+## Calendario
 
-Entremos a Inicio. Aquí están las próximas fechas y los accesos del portal.
+La primera sección del menú es Calendario. Aquí puedes consultar las fechas académicas de Antofagasta.
 
-## 3. Abrir Mallas
+## Cambiar de mes
 
-Para revisar tus ramos, abre Mallas desde el menú.
+Usa las flechas para revisar otro mes o pulsa Hoy para volver a la fecha actual.
 
-## 4. Elegir plan
+## Consultar una fecha
 
-Elige tu plan de estudios. En este ejemplo usaremos el Plan O.
+Abre una fecha para ver sus actividades. Si abarcan varios días, encontrarás el período completo.
 
-## 5. Consultar un ramo
+## Documento oficial
 
-Ahora abre Cálculo uno. La ficha muestra sus prerrequisitos y los ramos que permite cursar después.
+También puedes consultar el documento oficial. Cierra el detalle para continuar.
 
-## 6. Material del ramo
+## Mallas
 
-Pulsa Material del ramo. Así llegas directamente a los recursos relacionados con Cálculo.
+La siguiente sección es Mallas. Aquí puedes explorar los ramos de tu carrera.
 
-## 7. Buscar una guía
+## Tu plan de estudios
 
-Escribe Guía en el buscador para encontrar los ejercicios disponibles.
+Selecciona el plan de estudios que te corresponde para ver su malla.
 
-## 8. Abrir el recurso
+## Consultar un ramo
 
-Abre uno de los resultados. El botón Abrir material lleva al archivo para consultarlo o descargarlo.
+Abre cualquier ramo para ver su descripción, los prerrequisitos y las asignaturas que permite cursar después.
 
-## 9. Abrir Calendario
+## Material
 
-Volvamos al menú y entremos a Calendario. Las fechas corresponden a Antofagasta.
+Por último, entra a Material desde el menú. Aquí encuentras apuntes, guías y evaluaciones.
 
-## 10. Cambiar de mes
+## Buscar material
 
-Con las flechas puedes cambiar de mes. Pasemos a octubre.
+Busca por nombre o usa los filtros de ramo y tipo de archivo para encontrar lo que necesitas.
 
-## 11. Revisar un periodo
+## Abrir un archivo
 
-Selecciona una fecha. Aquí vemos la Semana de Autocuidado, del diecinueve al veinticuatro de octubre.
+Elige un resultado y pulsa Abrir material para consultar el archivo o descargarlo, según sus opciones.
 
-## 12. Consultar la fuente
+## Volver a Inicio
 
-Los detalles incluyen el periodo completo y un enlace a la página del documento oficial.
+Puedes volver a Inicio desde el menú. Si necesitas repetir el tutorial, lo encontrarás en Guía del portal.
 
-## 13. Volver a la bienvenida
-
-Cierra el detalle y pulsa el logo para volver a la bienvenida. Puedes repetir este recorrido cuando quieras.
+La entrada de voz transforma únicamente «portal» en «portál» para marcar el acento solicitado; el texto visible y los subtítulos conservan la ortografía correcta.

@@ -8,7 +8,7 @@ import edge_tts, imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-WORK = ROOT / '.data' / 'portal-guide-v2'
+WORK = ROOT / '.data' / 'portal-guide-v3'
 OUT = ROOT / 'assets' / 'tutorial'
 FFMPEG = str(next(iter((ROOT/'.data/media-tools/imageio_ffmpeg/binaries').glob('ffmpeg*.exe')), imageio_ffmpeg.get_ffmpeg_exe()))
 STORY = ROOT / 'scripts' / 'portal-tutorial-story.json'
@@ -34,9 +34,10 @@ async def audio():
     story = json.loads(STORY.read_text(encoding='utf-8'))
     cursor = 0
     for cue in story:
-        key=hashlib.sha256((VOICE+'+0%'+cue['text']).encode()).hexdigest()[:12]
+        spoken=re.sub(r'\bportal\b','portál',cue['text'],flags=re.IGNORECASE)
+        key=hashlib.sha256((VOICE+'+0%'+spoken).encode()).hexdigest()[:12]
         file=WORK/f'{cue["id"]}-{key}.mp3'
-        if not file.exists(): await edge_tts.Communicate(cue['text'],VOICE,rate='+0%').save(str(file))
+        if not file.exists(): await edge_tts.Communicate(spoken,VOICE,rate='+0%').save(str(file))
         cue.update(audio=str(file), start=cursor, duration=max(cue['minimum'],math.ceil((duration(file)+.65)*10)/10))
         cursor+=cue['duration']
         cue['end']=cursor
@@ -73,9 +74,10 @@ def compose():
     for format in ['desktop','mobile']:
         capture=json.loads((WORK/f'{format}-capture.json').read_text())
         assert capture['continuous'], 'Require a continuous user journey'
-        width,height=capture['width'],capture['height']; strip=90 if format=='desktop' else 120
+        width,height=capture['width'],capture['height']; strip=90 if format=='desktop' else 0
         seconds=capture['end']-capture['start']; count=int((seconds+.1)*sr)
         narration=np.zeros(count,dtype=np.float32); segments=capture['segments']
+        assert [c['id'] for c in story] == [s['id'] for s in segments], 'Capture must follow the narration order'
         for cue,segment in zip(story,segments):
             pcm=subprocess.run([FFMPEG,'-loglevel','error','-i',cue['audio'],'-f','f32le','-ac','1','-ar',str(sr),'-'],capture_output=True,check=True).stdout
             voice=np.frombuffer(pcm,dtype='<f4');start=round((segment['start']-capture['start']+.12)*sr)
@@ -94,16 +96,17 @@ def compose():
         filters=[f'[0:v]setpts=PTS-STARTPTS,fps=30,pad=iw:ih+{strip}:0:0:color=0xf8f9f7[v0]']
         captions=[]
         for i,(cue,segment) in enumerate(zip(story,segments)):
-            card=WORK/f'{format}-{i}-caption.png';caption(cue,width,strip,card)
-            args+=['-loop','1','-i',card]
             begin=segment['start']-capture['start'];end=(segments[i+1]['start']-capture['start']) if i+1<len(segments) else seconds
-            filters.append(f"[v{i}][{i+2}:v]overlay=0:{height}:enable='between(t,{begin:.3f},{end:.3f})':eof_action=repeat[v{i+1}]")
+            if strip:
+                card=WORK/f'{format}-{i}-caption.png';caption(cue,width,strip,card)
+                args+=['-loop','1','-i',card]
+                filters.append(f"[v{i}][{i+2}:v]overlay=0:{height}:enable='between(t,{begin:.3f},{end:.3f})':eof_action=repeat[v{i+1}]")
             captions.append(f'{i+1}\n{vtt_time(begin)} --> {vtt_time(end)}\n{cue["text"]}')
-        filters.append(f'[v{len(story)}]format=yuv420p,fade=t=in:d=0.25,fade=t=out:st={seconds-.4}:d=0.4[out]')
+        filters.append(f'[v{len(story) if strip else 0}]format=yuv420p,fade=t=in:d=0.25,fade=t=out:st={seconds-.4}:d=0.4[out]')
         target=OUT/f'portal-guia-{format}.mp4'
         run(*args,'-filter_complex',';'.join(filters),'-map','[out]','-map','1:a','-t',seconds,'-c:v','libx264','-preset','fast','-crf','20','-c:a','copy','-movflags','+faststart','-map_metadata','-1',target)
         # Preview a real course, not a recursive image of the receiving page.
-        poster_time=segments[4]['start']-capture['start']+4
+        poster_time=segments[0]['start']-capture['start']+3
         run('-ss',poster_time,'-i',target,'-frames:v','1','-q:v','3',OUT/f'portal-guia-{format}.jpg')
         (OUT/f'portal-guia-{format}.vtt').write_text('WEBVTT\n\n'+'\n\n'.join(captions)+'\n',encoding='utf-8')
         outputs.append({'format':format,'duration':duration(target),'bytes':target.stat().st_size,'continuous':True,'music':'original portal score, variation 3','voice':'es-CL-CatalinaNeural','captureStart':capture['start'],'captureEnd':capture['end']})

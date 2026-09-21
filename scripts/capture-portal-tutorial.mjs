@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = process.cwd(), base = process.env.TUTORIAL_URL || 'http://127.0.0.1:18084/';
-const work = path.join(root, '.data', 'portal-guide-v2');
+const work = path.join(root, '.data', 'portal-guide-v3');
 const story = JSON.parse(await readFile(path.join(work, 'story.json'), 'utf8'));
 await mkdir(path.join(work, 'raw'), { recursive: true });
 const browser = await chromium.launch();
@@ -18,8 +18,7 @@ try {
     await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
     for (const plan of ['o','p']) { await page.locator(`[data-malla-embed-plan="${plan}"]`).click(); await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor(); }
     await page.locator('.malla-close').click();
-    await page.locator(format==='mobile'?'.mobile-brand':'.sidebar-brand').click();
-    await page.locator('.portal-reception').waitFor();
+    await page.locator('.home-date-row').first().waitFor();
     await page.evaluate(() => {
       const cursor=document.createElement('div');cursor.id='guide-cursor';
       cursor.style.cssText='position:fixed;left:64%;top:34%;z-index:2147483647;width:22px;height:28px;pointer-events:none;filter:drop-shadow(0 1px 2px #0005)';
@@ -67,20 +66,19 @@ try {
       await page.waitForTimeout((item.duration-elapsed)*1000);
       segments.push({id,start,duration:item.duration});console.log(JSON.stringify({format,cue:id,duration:item.duration}));
     };
-    await cue('bienvenida');
-    await cue('inicio',async()=>{await point(page.locator('.reception-home'));await page.locator('.home-date-row').first().waitFor();});
+    await cue('inicio');
+    await cue('calendario',async()=>{await point(nav('calendario'));await page.locator('.month-grid').waitFor();});
+    await cue('mes',async()=>{await point(page.locator('[data-calendar-month="1"]'));});
+    await cue('fecha',async()=>{await point(page.locator('[data-calendar-date="2026-10-19"]').first());await page.locator('.calendar-detail-modal').waitFor();});
+    await cue('fuente',async()=>{await point(page.locator('.calendar-detail-modal .calendar-event-source').last(),false);await point(page.locator('[data-calendar-modal-close]').first());});
     await cue('mallas',async()=>{await point(nav('mallas'));await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();});
     await cue('planes',async()=>{await point(page.locator('[data-malla-embed-plan="o"]'));await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();});
     const frame=await (await page.locator('.malla-embed-frame').elementHandle()).contentFrame();
     await cue('ramo',async()=>{await point(frame.locator('.mc-card').filter({hasText:'Cálculo I'}).first());await frame.locator('.mc-modal').waitFor();});
-    await cue('material',async()=>{await point(frame.locator('.mc-modal .mc-portal-action__btn:visible').first());await page.locator('[data-material-search]').waitFor();});
+    await cue('material',async()=>{await point(nav('material'));await page.locator('[data-material-search]').waitFor();});
     await cue('buscar',async()=>{const input=page.locator('[data-material-search]');await point(input);await input.pressSequentially('Guía',{delay:145});await page.waitForTimeout(500);});
     await cue('recurso',async()=>{await point(page.locator('a[href^="#/material/"]:visible').first());await point(page.getByRole('link',{name:'Abrir material',exact:true}),false);});
-    await cue('calendario',async()=>{await point(nav('calendario'));await page.locator('.month-grid').waitFor();});
-    await cue('mes',async()=>{await point(page.locator('[data-calendar-month="1"]'));});
-    await cue('fecha',async()=>{await point(page.locator('[data-calendar-date="2026-10-19"]').first());await page.locator('.calendar-detail-modal').waitFor();});
-    await cue('fuente',async()=>{await point(page.locator('.calendar-detail-modal .calendar-event-source').last(),false);});
-    await cue('volver',async()=>{await point(page.locator('[data-calendar-modal-close]').first());await point(page.locator(format==='mobile'?'.mobile-brand':'.sidebar-brand'));await page.locator('.portal-reception').waitFor();});
+    await cue('volver',async()=>{await point(nav('inicio'));await page.locator('.home-date-row').first().waitFor();});
     const raw=await video.path();await context.close();
     await writeFile(path.join(work,`${format}-capture.json`),JSON.stringify({width,height,raw,segments,moves,continuous:true,start:segments[0].start,end:segments.at(-1).start+segments.at(-1).duration},null,2));
   }

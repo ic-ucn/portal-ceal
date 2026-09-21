@@ -1233,6 +1233,10 @@
     if (state.user && (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/'))) return routeTo('/mallas');
     if (state.user && (path === '/apoyo' || path.startsWith('/ayudantias/') || path.startsWith('/tramites/'))) return routeTo('/material');
     if (state.user && path.startsWith('/gestion') && !hasCealAccess()) return routeTo('/');
+    if (!SIGN_IN_ENABLED && path === '/' && window.PortalWelcome.skipReception() && new URL(location.href).searchParams.get('guia') !== '1') {
+      history.replaceState(null, '', '#/inicio');
+      return routeTo('/inicio');
+    }
     if (!SIGN_IN_ENABLED && (path === '/' || path === '/bienvenida')) {
       if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception(themeToggleButton('reception-theme'));
       return true;

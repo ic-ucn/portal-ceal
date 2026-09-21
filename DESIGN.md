@@ -70,3 +70,8 @@ La entrada publica en / o #/ siempre presenta una pagina de recibimiento. Sustit
 Video de aproximadamente 1 min 32 s, con cada clic de navegacion visible, puntero curvo y scroll suave. Misma musica del tutorial antiguo del portal, atenuada durante la narracion. Reproduccion voluntaria, texto alternativo y subtitulos por encuadre. Implementacion y fuentes en docs/tutoriales/ASTRA_Y_PRODUCCION.md.
 
 Calendario exclusivo de Antofagasta, revisado contra el documento aportado. Periodos inclusivos, fuente por pagina, enero provisional y filtro que separa actividades para estudiantes de plazos de las unidades academicas. Reconciliacion en docs/CALENDARIO_ANTOFAGASTA_2026.md.
+
+
+## Bienvenida revisada — 2026-09-21
+
+Sustituye la composición anterior con enlaces a secciones: video como único contenido principal, Saltar tutorial, No volver a mostrar e Ir al portal. Las tres acciones entran a Inicio; solo No volver a mostrar persiste la elección. Guía del portal sigue accesible. Tutorial genérico en orden Inicio, Calendario, Mallas, Material.
