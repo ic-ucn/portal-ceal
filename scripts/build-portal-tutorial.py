@@ -8,7 +8,7 @@ import edge_tts, imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-WORK = ROOT / '.data' / 'portal-guide-v3'
+WORK = ROOT / '.data' / 'portal-guide-v4'
 OUT = ROOT / 'assets' / 'tutorial'
 FFMPEG = str(next(iter((ROOT/'.data/media-tools/imageio_ffmpeg/binaries').glob('ffmpeg*.exe')), imageio_ffmpeg.get_ffmpeg_exe()))
 STORY = ROOT / 'scripts' / 'portal-tutorial-story.json'
@@ -35,6 +35,7 @@ async def audio():
     cursor = 0
     for cue in story:
         spoken=re.sub(r'\bportal\b','portál',cue['text'],flags=re.IGNORECASE)
+        spoken=re.sub(r'\btutorial\b','tutoriál',spoken,flags=re.IGNORECASE)
         key=hashlib.sha256((VOICE+'+0%'+spoken).encode()).hexdigest()[:12]
         file=WORK/f'{cue["id"]}-{key}.mp3'
         if not file.exists(): await edge_tts.Communicate(spoken,VOICE,rate='+0%').save(str(file))
@@ -60,8 +61,8 @@ def caption(cue,width,height,file):
         if draw.textlength(candidate,font=font)>width-2*x and line: lines.append(line);line=word
         else: line=candidate
     lines.append(line)
-    line_height=27 if mobile else 31
-    y=(height-len(lines)*line_height)//2 if mobile else 38
+    line_height=27 if mobile else 26
+    y=(height-len(lines)*line_height)//2 if mobile else 32
     for line in lines: draw.text((x,y),line,fill='#202f35',font=font); y+=line_height
     image.save(file)
 

@@ -56,14 +56,26 @@
   {
     "id": "buscar",
     "label": "Buscar material",
-    "minimum": 7,
-    "text": "Busca por nombre o usa los filtros de ramo y tipo de archivo para encontrar lo que necesitas."
+    "minimum": 8,
+    "text": "El buscador sirve para encontrar un tema, nombre o código. Por ejemplo, escribe estructural."
   },
   {
     "id": "recurso",
     "label": "Abrir un archivo",
+    "minimum": 10,
+    "text": "Abre uno de los resultados y espera a que cargue la vista previa del documento."
+  },
+  {
+    "id": "leer",
+    "label": "Recorrer el documento",
     "minimum": 8,
-    "text": "Elige un resultado y pulsa Abrir material para consultar el archivo o descargarlo, según sus opciones."
+    "text": "Cuando aparezcan las páginas, puedes desplazarte dentro de la vista previa para leer el documento."
+  },
+  {
+    "id": "archivo",
+    "label": "Abrir o descargar",
+    "minimum": 9,
+    "text": "Más abajo está Abrir material. Este botón abre el archivo completo, donde puedes consultarlo o descargarlo según sus opciones."
   },
   {
     "id": "volver",

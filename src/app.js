@@ -1872,7 +1872,6 @@
     const planKey = plan === 'o' ? 'planO' : 'planP';
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
     const accountLabel = 'Mi cuenta';
-    const originalUrl = `${MALLA_BASE_URL}malla-${plan}.html`;
     const mallaTotalCourses = getCourses(planKey).length;
     const mallaProgressMarkup = mallaTotalCourses ? `<span class="malla-progress-label">${mallaTotalCourses} ramos</span>` : '';
     return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
@@ -1894,7 +1893,6 @@
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
             <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Guía del portal">${icon('play')}<span>Guía</span></button>
             ${SIGN_IN_ENABLED ? `<a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}
-            <a class="malla-tool-btn subtle" href="${originalUrl}" target="_blank" rel="noopener">${icon('arrow')}<span>Original</span></a>
           </div>
         </header>
         <div class="malla-embed-frame-wrap" data-malla-frame-wrap>

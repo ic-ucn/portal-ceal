@@ -1,6 +1,6 @@
 # Guía del portal
 
-Orden: Inicio → Calendario → Mallas → Material → Inicio. Acciones generales, sin prescribir una asignatura, plan o mes concreto al espectador.
+Orden: Inicio → Calendario → Mallas → Material → Inicio. Ejemplo de búsqueda temática: estructural. El tipo de recurso se elige con el filtro correspondiente.
 
 ## Inicio
 
@@ -40,14 +40,22 @@ Por último, entra a Material desde el menú. Aquí encuentras apuntes, guías y
 
 ## Buscar material
 
-Busca por nombre o usa los filtros de ramo y tipo de archivo para encontrar lo que necesitas.
+El buscador sirve para encontrar un tema, nombre o código. Por ejemplo, escribe estructural.
 
 ## Abrir un archivo
 
-Elige un resultado y pulsa Abrir material para consultar el archivo o descargarlo, según sus opciones.
+Abre uno de los resultados y espera a que cargue la vista previa del documento.
+
+## Recorrer el documento
+
+Cuando aparezcan las páginas, puedes desplazarte dentro de la vista previa para leer el documento.
+
+## Abrir o descargar
+
+Más abajo está Abrir material. Este botón abre el archivo completo, donde puedes consultarlo o descargarlo según sus opciones.
 
 ## Volver a Inicio
 
 Puedes volver a Inicio desde el menú. Si necesitas repetir el tutorial, lo encontrarás en Guía del portal.
 
-La entrada de voz transforma únicamente «portal» en «portál» para marcar el acento solicitado; el texto visible y los subtítulos conservan la ortografía correcta.
+La voz usa «portál» y «tutoriál» para marcar el acento solicitado. Pantalla y subtítulos conservan la escritura correcta. La captura espera imágenes cargadas en el visor real antes de recorrer el documento; después muestra Abrir material.

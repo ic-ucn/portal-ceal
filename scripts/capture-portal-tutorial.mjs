@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = process.cwd(), base = process.env.TUTORIAL_URL || 'http://127.0.0.1:18084/';
-const work = path.join(root, '.data', 'portal-guide-v3');
+const work = path.join(root, '.data', 'portal-guide-v4');
 const story = JSON.parse(await readFile(path.join(work, 'story.json'), 'utf8'));
 await mkdir(path.join(work, 'raw'), { recursive: true });
 const browser = await chromium.launch();
@@ -62,9 +62,9 @@ try {
       const item=story.find(c=>c.id===id), start=(Date.now()-epoch)/1000;
       await page.waitForTimeout(500);await action();
       const elapsed=(Date.now()-epoch)/1000-start;
-      if(elapsed>item.duration-.1)throw new Error(`${format}/${id}: action ${elapsed.toFixed(2)} > cue ${item.duration}`);
-      await page.waitForTimeout((item.duration-elapsed)*1000);
-      segments.push({id,start,duration:item.duration});console.log(JSON.stringify({format,cue:id,duration:item.duration}));
+      const duration=Math.max(item.duration,elapsed+1.5);
+      await page.waitForTimeout((duration-elapsed)*1000);
+      segments.push({id,start,duration});console.log(JSON.stringify({format,cue:id,duration}));
     };
     await cue('inicio');
     await cue('calendario',async()=>{await point(nav('calendario'));await page.locator('.month-grid').waitFor();});
@@ -76,8 +76,22 @@ try {
     const frame=await (await page.locator('.malla-embed-frame').elementHandle()).contentFrame();
     await cue('ramo',async()=>{await point(frame.locator('.mc-card').filter({hasText:'Cálculo I'}).first());await frame.locator('.mc-modal').waitFor();});
     await cue('material',async()=>{await point(nav('material'));await page.locator('[data-material-search]').waitFor();});
-    await cue('buscar',async()=>{const input=page.locator('[data-material-search]');await point(input);await input.pressSequentially('Guía',{delay:145});await page.waitForTimeout(500);});
-    await cue('recurso',async()=>{await point(page.locator('a[href^="#/material/"]:visible').first());await point(page.getByRole('link',{name:'Abrir material',exact:true}),false);});
+    await cue('buscar',async()=>{const input=page.locator('[data-material-search]');await point(input);await input.pressSequentially('estructural',{delay:145});await page.waitForTimeout(500);});
+    let preview;
+    await cue('recurso',async()=>{
+      await point(page.locator('a[href^="#/material/"]:visible').filter({hasText:'Análisis Estructural Kassimall'}).first());
+      const embedded=page.locator('.resource-preview-frame');await point(embedded,false);
+      preview=await (await embedded.elementHandle()).contentFrame();
+      await preview.waitForFunction(()=>[...document.images].some(img=>img.complete&&img.naturalWidth>500),null,{timeout:60000});
+      await page.screenshot({path:path.join(work,`${format}-preview-loaded.png`)});
+    });
+    await cue('leer',async()=>{
+      const embedded=page.locator('.resource-preview-frame');await point(embedded,false);
+      for(let i=0;i<12;i++){await page.mouse.wheel(0,65);await page.waitForTimeout(110);}
+      await page.waitForTimeout(1000);
+      await page.screenshot({path:path.join(work,`${format}-preview-scrolled.png`)});
+    });
+    await cue('archivo',async()=>{await point(page.getByRole('link',{name:'Abrir material',exact:true}),false);});
     await cue('volver',async()=>{await point(nav('inicio'));await page.locator('.home-date-row').first().waitFor();});
     const raw=await video.path();await context.close();
     await writeFile(path.join(work,`${format}-capture.json`),JSON.stringify({width,height,raw,segments,moves,continuous:true,start:segments[0].start,end:segments.at(-1).start+segments.at(-1).duration},null,2));
