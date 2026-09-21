@@ -7,7 +7,7 @@
     "start": "node server.mjs",
     "serve": "node server.mjs",
     "serve:static": "python -m http.server 8080",
-    "check": "node --check src/transfer.js && node --check src/welcome.js && node --check scripts/qa-academic-calendar.mjs && node --check scripts/capture-portal-tutorial.mjs && node --check scripts/qa-welcome.mjs && node --check src/app.js && node --check src/mock-data.js && node --check src/caja.js && node --check src/pagar.js && node --check data/caja-catalog.mjs && node --check data/curricula.js && node --check data/drive-materials.js && node --check scripts/qa-transfer.mjs && node --check scripts/qa-interactions.mjs && node --check scripts/qa-portal.mjs && node --check scripts/qa-public-portal.mjs && node --check scripts/qa-recovery.mjs && node --check scripts/qa-caja.mjs && node --check scripts/quality-suite.mjs && node --check scripts/security-capacity.mjs && node --check scripts/capture-tutorial-videos.mjs && node --check scripts/watch-calendar-updates.mjs && node --check scripts/drive-import.mjs && node --check scripts/build-drive-materials.mjs && node --check scripts/build-recipients.mjs && node --check server.mjs",
+    "check": "node --check src/analytics.js && node --check scripts/qa-analytics.mjs && node --check src/transfer.js && node --check src/welcome.js && node --check scripts/qa-academic-calendar.mjs && node --check scripts/capture-portal-tutorial.mjs && node --check scripts/qa-welcome.mjs && node --check src/app.js && node --check src/mock-data.js && node --check src/caja.js && node --check src/pagar.js && node --check data/caja-catalog.mjs && node --check data/curricula.js && node --check data/drive-materials.js && node --check scripts/qa-transfer.mjs && node --check scripts/qa-interactions.mjs && node --check scripts/qa-portal.mjs && node --check scripts/qa-public-portal.mjs && node --check scripts/qa-recovery.mjs && node --check scripts/qa-caja.mjs && node --check scripts/quality-suite.mjs && node --check scripts/security-capacity.mjs && node --check scripts/capture-tutorial-videos.mjs && node --check scripts/watch-calendar-updates.mjs && node --check scripts/drive-import.mjs && node --check scripts/build-drive-materials.mjs && node --check scripts/build-recipients.mjs && node --check server.mjs",
     "drive:init": "node scripts/drive-import.mjs init",
     "drive:inventory": "node scripts/drive-import.mjs inventory",
     "drive:download": "node scripts/drive-import.mjs download",
@@ -28,7 +28,8 @@
     "tutorial:capture": "node scripts/capture-portal-tutorial.mjs",
     "tutorial:compose": "python scripts/build-portal-tutorial.py --compose",
     "qa:calendar": "node scripts/qa-academic-calendar.mjs",
-    "calendar:build": "python scripts/build-academic-calendar.py"
+    "calendar:build": "python scripts/build-academic-calendar.py",
+    "qa:analytics": "node scripts/qa-analytics.mjs"
   },
   "devDependencies": {
     "playwright": "^1.60.0"

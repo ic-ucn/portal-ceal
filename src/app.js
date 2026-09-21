@@ -1312,6 +1312,7 @@
     const overlayOnly = samePage && scope === 'overlay' && updateOverlays(getRoute().path);
     if (!overlayOnly && !paint(Boolean(opts.restoreView && retainedView))) return;
     afterRender();
+    window.PortalAnalytics?.page(getRoute().path);
     trackPortalView(getRoute().path);
     lastRenderedRouteKey = routeKey;
     if (retainedView) restoreView(retainedView, !overlayOnly);
@@ -2480,7 +2481,10 @@
           }
           if (e.target.closest?.('.mc-portal-action') || e.target.closest?.('.mc-portal-modal-cta')) return;
           var card = e.target.closest?.('.mc-card[data-mc-code]');
-          if (card) activeCode = card.dataset.mcCode;
+          if (card) {
+            activeCode = card.dataset.mcCode;
+            if (e.isTrusted) window.parent.postMessage({ __mcPortal: true, type: 'select-course', code: activeCode }, '*');
+          }
           else if (!e.target.closest?.('.mc-portal-scroll-hint') && !e.target.closest?.('.mc-peek')) activeCode = null;
           setTimeout(function() { updateHints(); updateActionBar(); observeModal(); injectModalCta(); }, 90);
           setTimeout(injectModalCta, 380);
@@ -2490,6 +2494,7 @@
           var card = e.target.closest && e.target.closest('.mc-card[data-mc-code]');
           if (!card) return;
           activeCode = card.dataset.mcCode;
+          if (e.isTrusted) window.parent.postMessage({ __mcPortal: true, type: 'select-course', code: activeCode }, '*');
           setTimeout(function() { updateHints(); updateActionBar(); }, 90);
         }, true);
         ['pointerdown', 'touchstart', 'touchend', 'mousedown'].forEach(function(type) {
@@ -4687,7 +4692,7 @@
   // forma esperada; el código se resuelve contra el catálogo oficial.
   window.addEventListener('message', (event) => {
     const data = event.data;
-    if (!data || data.__mcPortal !== true || !['open-material', 'open-course'].includes(data.type)) return;
+    if (!data || data.__mcPortal !== true || !['open-material', 'open-course', 'select-course'].includes(data.type)) return;
     const frame = app.querySelector('[data-malla-frame]');
     if (!frame || event.source !== frame.contentWindow) return;
     const code = String(data.code || '').trim().slice(0, 40);
@@ -4696,9 +4701,12 @@
     const inPlan = findCourse(planKey, code);
     const match = inPlan ? { plan: planKey, course: inPlan } : officialCourseByCode(code);
     if (!match) { showToast('No encontramos ese ramo en el catálogo oficial.', 'blue'); return; }
+    if (data.type === 'select-course') { window.PortalAnalytics?.event('mallas/ramo'); return; }
     if (data.type === 'open-material') {
+      window.PortalAnalytics?.event('mallas/material');
       routeTo(`/material?course=${encodeURIComponent(match.course.visibleCode || match.course.code)}`);
     } else {
+      window.PortalAnalytics?.event('mallas/ficha');
       routeTo(`/ramo/${match.plan}/${encodeURIComponent(match.course.code)}`);
     }
   });

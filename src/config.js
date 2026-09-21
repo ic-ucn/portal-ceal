@@ -4,3 +4,4 @@ window.PORTAL_GOOGLE_DOMAIN = window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl';
 window.PORTAL_GOOGLE_CLIENT_ID = window.PORTAL_GOOGLE_CLIENT_ID || '26073251977-1amsfcbqnrhmb1sluij59ia5pmv0dleq.apps.googleusercontent.com';
 window.PORTAL_API_BASE = window.PORTAL_API_BASE || 'https://portal-ceic-api.onrender.com/api';
 window.PORTAL_AI_ENDPOINT = window.PORTAL_AI_ENDPOINT || '';
+window.PORTAL_GOATCOUNTER_ENDPOINT = 'https://ceicucn.goatcounter.com/count';
