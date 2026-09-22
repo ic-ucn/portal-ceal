@@ -121,7 +121,8 @@ try {
     await page.goto(url('/gestion'), { waitUntil: 'networkidle' });
     assert.equal(new URL(page.url()).hash, '#/', 'internal routes remain protected');
     await page.goto(url('/material/subir'), { waitUntil: 'networkidle' });
-    assert.equal(new URL(page.url()).hash, '#/material', 'retired upload links return to the library');
+    assert.equal(new URL(page.url()).hash, '#/material/subir', 'public material contribution route stays available');
+    assert.equal(await page.locator('form[data-form="upload-material"]').count(), 1, 'public material contribution form is visible');
     assert.deepEqual(authRequests, [], 'public browsing does not validate or transmit saved credentials');
     await context.close();
   }

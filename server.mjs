@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { OAuth2Client } from 'google-auth-library';
+import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { strToU8, zipSync } from 'fflate';
 import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
@@ -41,6 +41,17 @@ const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 const calendarConnectionNotifyEmail = (process.env.CALENDAR_CONNECTION_NOTIFY_EMAIL || 'kevin.cortes@alumnos.ucn.cl').trim().toLowerCase();
 const calendarWatcherToken = String(process.env.CALENDAR_WATCHER_TOKEN || '').trim();
 const calendarUpdateMaxBytes = 3_000_000;
+const materialDriveFolderId = String(process.env.MATERIAL_DRIVE_FOLDER_ID || '').trim();
+const materialDriveServiceAccountJson = String(process.env.MATERIAL_DRIVE_SERVICE_ACCOUNT_JSON || '').trim();
+const materialDriveClientId = String(process.env.MATERIAL_DRIVE_CLIENT_ID || '').trim();
+const materialDriveClientSecret = String(process.env.MATERIAL_DRIVE_CLIENT_SECRET || '').trim();
+const materialDriveRefreshToken = String(process.env.MATERIAL_DRIVE_REFRESH_TOKEN || '').trim();
+const materialUploadNotifyEmails = [...new Set(String(
+  process.env.MATERIAL_UPLOAD_NOTIFY_EMAILS
+  || process.env.MATERIAL_UPLOAD_NOTIFY_EMAIL
+  || `${calendarConnectionNotifyEmail || 'kevin.cortes@alumnos.ucn.cl'},ceal.ingenieriacivil@ucn.cl`
+).split(/[;,\s]+/).map(value => value.trim().toLowerCase()).filter(value => /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)))];
+const materialUploadMaxBytes = Math.max(1_000_000, Number(process.env.MATERIAL_UPLOAD_MAX_BYTES || 8_000_000));
 const calendarScopes = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
@@ -320,6 +331,14 @@ function ensureDbShape(db, seed) {
     delete db.data.aiCommunicationsDigest;
     db.data.notifications = (db.data.notifications || []).filter(item => !String(item.route || '').startsWith('/comunicados'));
     db.meta.migrations.push(communicationsResetMigration);
+  }
+  const agreementsCleanupMigration = 'agreements-cleanup-20260921';
+  if (!db.meta.migrations.includes(agreementsCleanupMigration)) {
+    db.data.agreements = (db.data.agreements || []).filter(item => (
+      !String(item.id || '').startsWith('agr-paro-')
+      && !/\bqa\b|prueba|demo/i.test([item.title, item.summary, item.origin].join(' '))
+    ));
+    db.meta.migrations.push(agreementsCleanupMigration);
   }
   const introCommunicationMigration = 'intro-communication-20260821';
   if (!db.meta.migrations.includes(introCommunicationMigration)) {
@@ -602,6 +621,84 @@ async function readBody(req, limit = 1_500_000) {
   }
 }
 
+const MATERIAL_UPLOAD_MIME = new Map([
+  ['application/pdf', '.pdf'],
+  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'],
+  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', '.pptx'],
+  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx'],
+  ['image/png', '.png'],
+  ['image/jpeg', '.jpg'],
+  ['application/zip', '.zip']
+]);
+
+function parseMaterialUpload(body = {}) {
+  const raw = asText(body.fileDataUrl);
+  const match = raw.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\r\n]+)$/);
+  const fileType = asText(match?.[1]).toLowerCase();
+  if (!match || !MATERIAL_UPLOAD_MIME.has(fileType)) {
+    throw Object.assign(new Error('Adjunta un PDF, DOCX, PPTX, XLSX, PNG, JPG o ZIP valido.'), { statusCode: 422 });
+  }
+  const bytes = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+  if (!bytes.length || bytes.length > materialUploadMaxBytes) {
+    throw Object.assign(new Error(`El archivo debe pesar como maximo ${Math.floor(materialUploadMaxBytes / 1_000_000)} MB.`), { statusCode: 413 });
+  }
+  const suppliedName = path.basename(asText(body.fileName, `material${MATERIAL_UPLOAD_MIME.get(fileType)}`));
+  const cleanName = suppliedName.replace(/[^A-Za-z0-9À-ÿ._ ()-]/g, '').trim().slice(0, 140) || `material${MATERIAL_UPLOAD_MIME.get(fileType)}`;
+  const expectedExtension = MATERIAL_UPLOAD_MIME.get(fileType);
+  const fileName = cleanName.toLowerCase().endsWith(expectedExtension) ? cleanName : `${cleanName}${expectedExtension}`;
+  return { bytes, fileType, fileName, fileSize: bytes.length };
+}
+
+let materialDriveAuth = null;
+function getMaterialDriveAuth() {
+  if (materialDriveAuth) return materialDriveAuth;
+  if (materialDriveServiceAccountJson) {
+    let credentials;
+    try {
+      credentials = JSON.parse(materialDriveServiceAccountJson);
+    } catch {
+      throw new Error('MATERIAL_DRIVE_SERVICE_ACCOUNT_JSON no contiene JSON valido');
+    }
+    materialDriveAuth = new GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive.file'] });
+    return materialDriveAuth;
+  }
+  if (materialDriveClientId && materialDriveClientSecret && materialDriveRefreshToken) {
+    materialDriveAuth = new OAuth2Client(materialDriveClientId, materialDriveClientSecret);
+    materialDriveAuth.setCredentials({ refresh_token: materialDriveRefreshToken });
+    return materialDriveAuth;
+  }
+  return materialDriveAuth;
+}
+
+async function uploadMaterialToDrive(file, metadata) {
+  if (qaTestMode) return { id: `qa-drive-${Date.now()}`, webViewLink: '' };
+  const auth = getMaterialDriveAuth();
+  if (!auth || !materialDriveFolderId) throw Object.assign(new Error('La recepcion de archivos aun no esta configurada.'), { statusCode: 503 });
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  const accessToken = typeof token === 'string' ? token : token?.token;
+  if (!accessToken) throw new Error('No se pudo autenticar la carpeta de materiales.');
+  const boundary = `portal_${crypto.randomBytes(12).toString('hex')}`;
+  const driveMetadata = JSON.stringify({
+    name: file.fileName,
+    parents: [materialDriveFolderId],
+    description: `Aporte desde ceicucn.cl\nTitulo: ${metadata.title}\nRamo: ${metadata.courseName}\nTipo: ${metadata.type}\nOrigen: ${metadata.origin}\nAporta: ${metadata.contributorName} <${metadata.contributorEmail}>`
+  });
+  const payload = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${driveMetadata}\r\n--${boundary}\r\nContent-Type: ${file.fileType}\r\n\r\n`, 'utf8'),
+    file.bytes,
+    Buffer.from(`\r\n--${boundary}--`, 'utf8')
+  ]);
+  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': `multipart/related; boundary=${boundary}` },
+    body: payload
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.id) throw new Error(`Google Drive rechazo la carga (${response.status}).`);
+  return result;
+}
+
 function calculateProductTotal(product, quantity) {
   if (!product.bundleSize || !product.bundlePrice) return product.price * quantity;
   const bundles = Math.floor(quantity / product.bundleSize);
@@ -796,6 +893,10 @@ async function handleCajaApi(req, res, url, parts) {
 
 function asText(value, fallback = '') {
   return String(value ?? fallback).trim();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function requireFields(input, fields) {
@@ -2325,9 +2426,6 @@ function patchItem(items, id, patch) {
 function resolveLegacyItem(collectionName, collection, id) {
   const direct = collection.find(entry => entry.id === id);
   if (direct) return direct;
-  if (collectionName === 'agreements' && id === 'agr-003') {
-    return collection.find(entry => entry.id === 'agr-paro-003') || collection[0] || null;
-  }
   if (collectionName === 'resources' && /^mat-\d{3}$/.test(id || '')) {
     return collection.find(entry => entry.status === 'pendienteRevision') || collection[0] || null;
   }
@@ -2883,6 +2981,7 @@ function resolveCorsOrigin(origin) {
 }
 const rateBuckets = new Map();
 const authFailureBuckets = new Map();
+const materialUploadBuckets = new Map();
 function requestIp(req) {
   return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
 }
@@ -2911,6 +3010,20 @@ function checkPasswordAttempt(req, res) {
   bucket.count += 1;
   authFailureBuckets.set(ip, bucket);
   if (bucket.count > max) { sendError(res, 429, 'Demasiados intentos. Espera unos minutos.'); return false; }
+  return true;
+}
+
+function checkMaterialUploadLimit(req, res) {
+  const ip = requestIp(req);
+  if (qaTestMode || ['::1', '127.0.0.1', '::ffff:127.0.0.1', 'localhost'].includes(ip)) return true;
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const max = Math.max(1, Number(process.env.MATERIAL_UPLOADS_PER_HOUR || 5));
+  let bucket = materialUploadBuckets.get(ip);
+  if (!bucket || now > bucket.reset) bucket = { count: 0, reset: now + windowMs };
+  bucket.count += 1;
+  materialUploadBuckets.set(ip, bucket);
+  if (bucket.count > max) { sendError(res, 429, 'Alcanzaste el limite de aportes por ahora. Intenta nuevamente mas tarde.'); return false; }
   return true;
 }
 
@@ -2955,6 +3068,74 @@ async function handleApi(req, res, url) {
 
   if (resource === 'health') {
     return sendJson(res, 200, { ok: true });
+  }
+
+  if (resource === 'material-contributions' && req.method === 'POST') {
+    if (!checkMaterialUploadLimit(req, res)) return;
+    try {
+      const body = await readBody(req, Math.ceil(materialUploadMaxBytes * 1.45) + 100_000);
+      // Campo invisible: los navegadores reales lo dejan vacio; reduce envios automatizados simples.
+      if (asText(body.website)) return sendJson(res, 201, { ok: true });
+      requireFields(body, ['title', 'courseName', 'description', 'origin', 'contributorName', 'contributorEmail', 'fileDataUrl']);
+      const contributorEmail = asText(body.contributorEmail).trim().toLowerCase();
+      if (!EMAIL_RE.test(contributorEmail)) return sendError(res, 422, 'Ingresa un correo valido.');
+      const file = parseMaterialUpload(body);
+      const metadata = {
+        title: asText(body.title).slice(0, 140),
+        type: asText(body.type, 'Apunte').slice(0, 40),
+        courseName: asText(body.courseName).slice(0, 120),
+        plan: ['planO', 'planP', 'both'].includes(asText(body.plan)) ? asText(body.plan) : 'planP',
+        year: asText(body.year, new Date().getFullYear()).slice(0, 4),
+        origin: asText(body.origin).slice(0, 160),
+        description: asText(body.description).slice(0, 1000),
+        contributorName: asText(body.contributorName).slice(0, 100),
+        contributorEmail
+      };
+      const drive = await uploadMaterialToDrive(file, metadata);
+      const created = {
+        id: nextNumericId(db.data.resources, 'mat-'),
+        title: metadata.title,
+        type: metadata.type,
+        courseCode: metadata.courseName,
+        plan: metadata.plan,
+        courseName: metadata.courseName,
+        semester: '-',
+        year: metadata.year,
+        format: path.extname(file.fileName).slice(1).toUpperCase(),
+        size: `${(file.fileSize / 1_000_000).toFixed(1)} MB`,
+        origin: metadata.origin,
+        status: 'pendienteRevision',
+        uploadedBy: metadata.contributorName,
+        contributorEmail: metadata.contributorEmail,
+        uploadedAt: new Date().toISOString().slice(0, 10),
+        description: metadata.description,
+        fileName: file.fileName,
+        fileType: file.fileType,
+        driveFileId: drive.id,
+        driveWebViewLink: asText(drive.webViewLink)
+      };
+      db.data.resources.unshift(created);
+      await writeDb(db);
+      let notified = false;
+      if (materialUploadNotifyEmails.length) {
+        const driveLine = drive.webViewLink ? `\nAbrir en Drive: ${drive.webViewLink}` : '';
+        try {
+          await sendDirectEmail({
+            to: materialUploadNotifyEmails.join(', '),
+            subject: `[Portal CEIC] Nuevo material: ${metadata.title}`.slice(0, 180),
+            text: `Se recibio un nuevo aporte de material.\n\nTitulo: ${metadata.title}\nRamo: ${metadata.courseName}\nTipo: ${metadata.type}\nArchivo: ${file.fileName}\nOrigen: ${metadata.origin}\nAporta: ${metadata.contributorName} <${metadata.contributorEmail}>\n\n${metadata.description}${driveLine}`,
+            html: `<p>Se recibio un nuevo aporte de material.</p><ul><li><strong>Titulo:</strong> ${escapeHtml(metadata.title)}</li><li><strong>Ramo:</strong> ${escapeHtml(metadata.courseName)}</li><li><strong>Tipo:</strong> ${escapeHtml(metadata.type)}</li><li><strong>Archivo:</strong> ${escapeHtml(file.fileName)}</li><li><strong>Aporta:</strong> ${escapeHtml(metadata.contributorName)} &lt;${escapeHtml(metadata.contributorEmail)}&gt;</li></ul>${drive.webViewLink ? `<p><a href="${escapeHtml(drive.webViewLink)}">Abrir archivo en Drive</a></p>` : ''}`
+          });
+          notified = true;
+        } catch (error) {
+          console.error('[material] archivo recibido, pero fallo el aviso:', error.message);
+        }
+      }
+      return sendJson(res, 201, { ok: true, item: { id: created.id, status: created.status }, notified });
+    } catch (error) {
+      console.error('[material] error de recepcion:', error.message);
+      return sendError(res, error.statusCode || 500, error.message || 'No se pudo recibir el material.');
+    }
   }
 
   if (resource === 'analytics') {

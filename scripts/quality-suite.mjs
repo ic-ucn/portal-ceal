@@ -160,7 +160,7 @@ assert(Array.isArray(data.cases) && data.cases.length >= 5, 'cases should be see
 assert(Array.isArray(data.events) && data.events.length >= 5, 'events should be seeded');
 assert(data.calendarSource?.version === 'dgpre-antofagasta-decreto-077-2026-reviewed-20260921', 'academic calendar should identify the current official source');
 assert(data.events.some(event => event.date === '2026-08-20' && /inicio.*(ii|segundo) semestre/i.test(plain(event.title))), 'academic calendar should use the corrected second-semester start');
-assert(Array.isArray(data.agreements) && data.agreements.length >= 3, 'agreements should be seeded');
+assert(Array.isArray(data.agreements) && data.agreements.length === 0, 'static seed should not publish outdated agreements');
 assert(Array.isArray(data.tutoring) && data.tutoring.length >= 2, 'tutoring should be seeded');
 assert(Array.isArray(data.procedures) && data.procedures.length >= 3, 'procedures should be seeded');
 assert(Array.isArray(data.surveys) && data.surveys.length === 0, 'disabled surveys should not retain sample content');

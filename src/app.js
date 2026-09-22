@@ -1218,7 +1218,6 @@
     if (!SIGN_IN_ENABLED) {
       state.user = buildGuestUser();
       if (path === '/login' || path === '/perfil') return routeTo('/');
-      if (path === '/material/subir') return routeTo('/material');
     }
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
     if (state.user && path === '/login') return routeTo('/');
@@ -1680,14 +1679,14 @@
   function findCommunicationById(id) {
     return Data.communications.find(x => x.id === id);
   }
-  // Older production imports contain this exact end-to-end test fixture.
-  // Hide it from presentation without deleting the stored records.
   function portalAgreements() {
-    return Data.agreements.filter(item => isLocalDevHost() || item.title !== 'Acuerdo QA de seguimiento');
+    return Data.agreements.filter(item => QA_MODE || (
+      !String(item.id || '').startsWith('agr-paro-')
+      && !/\bqa\b|prueba|demo/i.test([item.title, item.summary, item.origin].join(' '))
+    ));
   }
   function findAgreementById(id) {
-    return portalAgreements().find(x => x.id === id)
-      || (id === 'agr-003' ? portalAgreements().find(x => x.id === 'agr-paro-003') || portalAgreements()[0] : null);
+    return portalAgreements().find(x => x.id === id);
   }
   function findResourceById(id) {
     return Data.resources.find(x => x.id === id)
@@ -1819,7 +1818,7 @@
     const planPNotice = state.materialCourse !== 'all' && isPlanPCourseName(state.materialCourse)
       ? `<div class="material-plan-note">${icon('grid')}<span>Plan P: se incluyen recursos equivalentes de Plan O cuando corresponde.</span></div>`
       : '';
-    const uploadAction = isGuest() ? '' : `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
+    const uploadAction = API_BASE ? `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>` : '';
     const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
     const visible = items.slice(0, visibleCount);
     const remaining = items.length - visible.length;
@@ -1863,8 +1862,8 @@
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
-    if (isGuest()) return `${pageHead('Subir material', 'Modo invitado en solo lectura', `<a class="btn secondary" href="#/material">Volver</a>`)}<section class="card pad empty-state"><span class="icon-wrap">${icon('eye')}</span><h3>Vista sin registros</h3><p>El modo invitado permite revisar contenido sin guardar actividad ni enviar aportes.</p><a class="btn primary" href="#/material">Volver a material</a></section>`;
-    return `${pageHead('Subir material', 'Comparte un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material"><div class="form-field"><label id="f-upload-type-label">Tipo de recurso</label><div class="segmented" role="group" aria-labelledby="f-upload-type-label">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-title">Título</label><input id="f-upload-title" class="input" name="title" required minlength="6" /></div><div class="form-field"><label for="f-upload-course">Ramo</label><input id="f-upload-course" class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label for="f-upload-plan">Plan</label><select id="f-upload-plan" class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label for="f-upload-year">Año</label><select id="f-upload-year" class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label for="f-upload-description">Descripción</label><textarea id="f-upload-description" class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label for="f-upload-file">Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, PNG, JPG o ZIP</span><input id="f-upload-file" class="sr-only" type="file" name="file" accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.zip" /></label></div><div class="form-field"><label for="f-upload-origin">Fuente u origen</label><input id="f-upload-origin" class="input" name="origin" required /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit">Enviar a revisión</button></div></form><aside class="card pad"><h2 class="card-title">Proceso</h2>${timeline([{ title:'Enviado', detail:'Recibimos el aporte.', at:new Date() }, { title:'Revisión CEAL', detail:'Se revisa formato y ramo asociado.', at:new Date() }, { title:'Publicado u observado', detail:'Queda disponible o con observaciones.', at:new Date() }])}</aside></div>`;
+    const unavailable = !API_BASE ? `<div class="google-auth-note"><strong>Envío no disponible</strong><span>Abre esta sección desde el portal publicado para aportar material.</span></div>` : '';
+    return `${pageHead('Subir material', 'Envía un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material">${unavailable}<div class="form-field"><label id="f-upload-type-label">Tipo de recurso</label><div class="segmented" role="group" aria-labelledby="f-upload-type-label">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-title">Título</label><input id="f-upload-title" class="input" name="title" required minlength="6" /></div><div class="form-field"><label for="f-upload-course">Ramo</label><input id="f-upload-course" class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label for="f-upload-plan">Plan</label><select id="f-upload-plan" class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label for="f-upload-year">Año</label><select id="f-upload-year" class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label for="f-upload-description">Descripción</label><textarea id="f-upload-description" class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label for="f-upload-file">Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, XLSX, PNG, JPG o ZIP · máximo 8 MB</span><input id="f-upload-file" class="sr-only" type="file" name="file" accept=".pdf,.docx,.pptx,.xlsx,.png,.jpg,.jpeg,.zip" required /></label></div><div class="form-field"><label for="f-upload-origin">Fuente u origen</label><input id="f-upload-origin" class="input" name="origin" required placeholder="Apuntes propios, profesor, ayudantía…" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-name">Tu nombre</label><input id="f-upload-name" class="input" name="contributorName" required autocomplete="name" /></div><div class="form-field"><label for="f-upload-email">Tu correo</label><input id="f-upload-email" class="input" type="email" name="contributorEmail" required autocomplete="email" /></div></div><div class="sr-only" aria-hidden="true"><label for="f-upload-website">Sitio web</label><input id="f-upload-website" name="website" tabindex="-1" autocomplete="off" /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit"${!API_BASE ? ' disabled' : ''}>${icon('upload')} Enviar a revisión</button></div></form><aside class="card pad"><h2 class="card-title">Cómo funciona</h2>${timeline([{ title:'Archivo recibido', detail:'Se guarda directamente en la carpeta de revisión.', at:new Date() }, { title:'Aviso al CEAL', detail:'El equipo recibe un correo para revisarlo.', at:new Date() }, { title:'Publicación', detail:'Solo se incorpora a la biblioteca después de validarlo.', at:new Date() }])}</aside></div>`;
   }
 
   function renderMallas() {
@@ -4450,7 +4449,7 @@
     if (!form.checkValidity()) { form.reportValidity(); return; }
     if (form.dataset.submitting === '1') return;
     const fd = new FormData(form);
-    if (isGuest() && ['upload-material', 'edit-content', 'new-agreement'].includes(form.dataset.form)) { readonlyToast(); return; }
+    if (isGuest() && ['edit-content', 'new-agreement'].includes(form.dataset.form)) { readonlyToast(); return; }
     const submitBtn = form.querySelector('button[type="submit"], [type="submit"], button:not([type])');
     const aiForm = form.dataset.form === 'ceal-assistant' || form.dataset.form === 'survey-ai';
     if (!aiForm && submitBtn) { form.dataset.submitting = '1'; submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
@@ -4616,23 +4615,23 @@
     }
     if (form.dataset.form === 'upload-material') {
       const file = form.elements.file?.files?.[0];
-      if (file && file.size > 1_000_000) {
-        showToast('El archivo supera 1 MB. Comprime el PDF o comparte un enlace de Drive en el campo de enlace.', 'orange');
+      if (!API_BASE) { showToast('El envío está disponible desde el portal publicado.', 'blue'); return; }
+      if (!file) { showToast('Selecciona un archivo.', 'orange'); return; }
+      if (file.size > 8_000_000) {
+        showToast('El archivo supera 8 MB. Comprímelo antes de enviarlo.', 'orange');
         return;
       }
       const courseName = String(fd.get('course') || 'Ramo por asociar');
-      let item = { id:`mat-${Date.now()}`, title:fd.get('title'), type:fd.get('type') || 'Apunte', courseCode:courseName, plan:fd.get('plan') || 'planP', courseName, semester:'-', year:fd.get('year') || '2026', format:file?.name?.split('.').pop()?.toUpperCase() || 'LINK', size:file ? humanSize(file.size) : 'Sin archivo', origin:fd.get('origin'), status:'pendienteRevision', uploadedBy:state.user.name, uploadedAt:new Date().toISOString().slice(0,10), description:fd.get('description'), fileName:file?.name || '', fileType:file?.type || '', fileDataUrl: await readFileDataUrl(file) };
-      if (API_BASE) {
-        try {
-          const payload = await apiRequest('/materials', { method:'POST', body:JSON.stringify(item) });
-          if (payload.item) item = payload.item;
-        } catch (err) {
-          if (err && err.isSessionExpired) return;
-          showToast('No se pudo subir el material. Inténtalo de nuevo.', 'red');
-          return;
-        }
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) { submit.disabled = true; submit.innerHTML = '<span class="btn-spinner"></span><span>Enviando…</span>'; }
+      try {
+        await apiRequest('/material-contributions', { method:'POST', body:JSON.stringify({ title:fd.get('title'), type:fd.get('type') || 'Apunte', courseName, plan:fd.get('plan') || 'planP', year:fd.get('year') || '2026', origin:fd.get('origin'), description:fd.get('description'), contributorName:fd.get('contributorName'), contributorEmail:fd.get('contributorEmail'), website:fd.get('website'), fileName:file.name, fileType:file.type, fileDataUrl:await readFileDataUrl(file) }) }, 45000);
+      } catch (err) {
+        showToast(err.message || 'No se pudo enviar el material. Inténtalo de nuevo.', 'red');
+        if (submit) { submit.disabled = false; submit.innerHTML = `${icon('upload')} Enviar a revisión`; }
+        return;
       }
-      Data.resources.unshift(item); persistSnapshot(); showToast('Material enviado a revisión'); routeTo('/material/' + item.id); return;
+      showToast('Material recibido. Te avisaremos si necesitamos más información.', 'blue'); routeTo('/material'); return;
     }
     if (form.dataset.form === 'edit-content') {
       const id = String(fd.get('id') || '');

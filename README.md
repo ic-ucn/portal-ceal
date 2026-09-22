@@ -175,6 +175,22 @@ npm run calendar:watch
 
 `CALENDAR_WATCHER_TOKEN` debe tener el mismo valor en el backend y en `.env.local`. `PORTAL_API_BASE` es opcional y, si se omite, apunta al backend publicado.
 
+### Recepcion de material en Drive
+
+La ruta publica `#/material/subir` envia cada aporte a una carpeta privada de revision y avisa por correo. En Render configura:
+
+```env
+MATERIAL_DRIVE_FOLDER_ID=ID_DE_LA_CARPETA_DE_REVISION
+MATERIAL_DRIVE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+MATERIAL_UPLOAD_NOTIFY_EMAILS=kevin.cortes@alumnos.ucn.cl,ceal.ingenieriacivil@ucn.cl
+MATERIAL_UPLOAD_MAX_BYTES=8000000
+MATERIAL_UPLOADS_PER_HOUR=5
+```
+
+La carpeta de Drive debe compartirse como editora con la cuenta de servicio indicada en el JSON. El aviso reutiliza la configuracion Gmail/SMTP del portal. Los archivos quedan pendientes de revision y nunca se publican automaticamente.
+
+Como alternativa a una cuenta de servicio se pueden definir `MATERIAL_DRIVE_CLIENT_ID`, `MATERIAL_DRIVE_CLIENT_SECRET` y `MATERIAL_DRIVE_REFRESH_TOKEN` con permiso `drive.file`.
+
 La persistencia compartida requiere un proyecto Supabase activo y estas variables:
 
 ```txt

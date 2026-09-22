@@ -1326,62 +1326,7 @@ window.PortalMock = (() => {
   "note": "Julio 2026 a enero 2027. La planificación de enero está sujeta a modificaciones."
 };
 
-  const agreements = [
-    {
-      id: 'agr-paro-003', number: 'Seguimiento N°03/2026', status: 'enSeguimiento', date: '2026-06-17T10:00:00', origin: 'Mesa de negociación y petitorio estudiantil', responsible: 'CEAL Ingeniería Civil UCN',
-      title: 'Negociación diaria y resguardo de recalendarización académica',
-      summary: 'Se informa que la recalendarización académica ya fue planteada y que las mesas de trabajo sesionarán diariamente entre 10:00 y 17:00 para buscar respuestas concretas al petitorio.',
-      currentState: 'En seguimiento. CEAL mantendrá informada a la carrera sobre avances, pleno eventual y respuestas de autoridad.',
-      nextStep: 'Esperar avances formales de la mesa de negociación y comunicar cualquier pleno o decisión relevante.',
-      documents: [
-        { name: 'Comunicado estado de movilización 17-06-2026', type: 'Comunicado', size: 'Portal' }
-      ],
-      commitments: [
-        { title: 'Informar avances de negociación', responsible: 'Comunicaciones CEAL', due: '2026-06-18', status: 'enSeguimiento' },
-        { title: 'Mantener coordinación de turnos y porterías', responsible: 'CEAL Ingeniería Civil UCN', due: '2026-06-18', status: 'enSeguimiento' }
-      ],
-      history: [
-        { at: '2026-06-17T10:00:00', title: 'Petitorio revisado', detail: 'Se revisó el petitorio completo y se informó que las respuestas aún no incorporan avances significativos.' },
-        { at: '2026-06-16T20:00:00', title: 'Recalendarización planteada', detail: 'La recalendarización de actividades académicas fue incorporada a las conversaciones.' }
-      ]
-    },
-    {
-      id: 'agr-paro-002', number: 'Seguimiento N°02/2026', status: 'actualizado', date: '2026-06-16T18:30:00', origin: 'Organización de toma universitaria', responsible: 'CEAL Ingeniería Civil UCN',
-      title: 'Turnos de resguardo del departamento',
-      summary: 'Se coordinan turnos de mañana, tarde y noche para resguardar el departamento durante la toma institucional.',
-      currentState: 'Turnos abiertos para estudiantes que puedan apoyar presencialmente.',
-      nextStep: 'Recibir disponibilidad de estudiantes y ajustar cobertura de mañana, tarde y noche.',
-      documents: [
-        { name: 'Comunicado turnos de resguardo 16-06-2026', type: 'Comunicado', size: 'Portal' }
-      ],
-      commitments: [
-        { title: 'Consolidar disponibilidad de turnos', responsible: 'CEAL Ingeniería Civil UCN', due: '2026-06-17', status: 'enSeguimiento' },
-        { title: 'Coordinar insumos para permanencia', responsible: 'CEAL Ingeniería Civil UCN', due: '2026-06-17', status: 'pendiente' }
-      ],
-      history: [
-        { at: '2026-06-16T18:30:00', title: 'Turnos difundidos', detail: 'Se publicaron bloques de mañana, tarde y noche para apoyar el resguardo.' }
-      ]
-    },
-    {
-      id: 'agr-paro-001', number: 'Seguimiento N°01/2026', status: 'publicado', date: '2026-06-15T15:30:00', origin: 'Pleno universitario', responsible: 'CEAL Ingeniería Civil UCN',
-      title: 'Inicio de toma institucional e incorporación de Ingeniería Civil',
-      summary: 'Tras el pleno universitario del lunes 15, Ingeniería Civil se suma oficialmente a la toma institucional y CEAL inicia coordinación de turnos e insumos.',
-      currentState: 'Publicado e informado a la carrera mediante los canales oficiales.',
-      nextStep: 'Mantener canales oficiales actualizados y levantar impacto académico mediante formulario.',
-      documents: [
-        { name: 'Formulario impacto instructivo académico', type: 'Formulario', size: 'Google Forms' },
-        { name: 'Comunicado inicio de toma 15-06-2026', type: 'Comunicado', size: 'Portal' }
-      ],
-      commitments: [
-        { title: 'Levantar impacto académico por ramo', responsible: 'CEAL Ingeniería Civil UCN', due: '2026-06-16', status: 'completado' },
-        { title: 'Publicar actualizaciones por canales oficiales', responsible: 'Comunicaciones CEAL', due: '2026-06-17', status: 'enSeguimiento' }
-      ],
-      history: [
-        { at: '2026-06-15T15:30:00', title: 'Ingeniería Civil se suma a la toma', detail: 'Se comunicó la incorporación de la carrera a la toma institucional.' },
-        { at: '2026-06-14T19:30:00', title: 'Formulario publicado', detail: 'Se abrió formulario para conocer postura e impacto del instructivo académico.' }
-      ]
-    }
-  ];
+  const agreements = [];
 
   const tutoring = [
     { id: 'ay-001', title: 'Ayudantía de Estática', courseCode: 'DAIC-00403', courseName: 'Estática', date: '2026-05-29', time: '15:30 - 17:00', location: 'Aula 210 · Edificio IC', mode: 'Presencial', tutor: 'Francisca Rojas', materialId: 'mat-001' },

@@ -332,26 +332,21 @@ async function runPublicFlowTests(page, studentUser) {
   report.flows.push('embedded malla loads plans and theme');
 
   mkdirSync(uploadDir, { recursive: true });
-  const uploadFile = path.join(uploadDir, 'guia-qa.txt');
-  writeFileSync(uploadFile, 'Contenido de prueba para validar subida real de archivo.');
+  const uploadFile = path.join(uploadDir, 'guia-qa.pdf');
+  writeFileSync(uploadFile, '%PDF-1.4\n% Archivo QA del portal\n%%EOF');
   await page.goto(appUrl('/material/subir'), { waitUntil: 'networkidle' });
   await page.locator('form[data-form="upload-material"] input[name="title"]').fill('Guía QA de materiales');
   await page.locator('form[data-form="upload-material"] input[name="course"]').fill('Estática');
   await page.locator('form[data-form="upload-material"] textarea[name="description"]').fill('Material de prueba para validar una subida real, persistencia y descarga posterior.');
   await page.locator('form[data-form="upload-material"] input[name="origin"]').fill('Aporte estudiantil QA');
+  await page.locator('form[data-form="upload-material"] input[name="contributorName"]').fill('Estudiante QA');
+  await page.locator('form[data-form="upload-material"] input[name="contributorEmail"]').fill('qa.material@alumnos.ucn.cl');
   await page.locator('form[data-form="upload-material"] input[name="file"]').setInputFiles(uploadFile);
   await page.locator('form[data-form="upload-material"] input[name="permission"]').check();
   await page.locator('form[data-form="upload-material"] button[type="submit"]').click();
-  await page.waitForURL(/#\/material\/mat-/);
-  await page.waitForSelector('text=Guía QA de materiales');
-  const uploadedMaterialId = decodeURIComponent(new URL(page.url()).hash.split('/').filter(Boolean).at(-1) || '');
-  const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
-  await page.locator('[data-download-resource]').first().click();
-  const download = await downloadPromise;
-  if (!download) pushFailure('uploaded material did not trigger browser download event');
-  await page.goto(appUrl(`/material/${uploadedMaterialId}`), { waitUntil: 'networkidle' });
-  await page.getByText('Guía QA de materiales', { exact: true }).waitFor();
-  report.flows.push('student uploads material and triggers download');
+  await page.waitForURL(/#\/material$/);
+  await page.getByText('Material recibido. Te avisaremos si necesitamos más información.', { exact: true }).waitFor();
+  report.flows.push('student uploads material to private review intake');
 
   await page.goto(appUrl('/ramo/planP/P-0402'), { waitUntil: 'networkidle' });
   await page.locator('a.btn.primary[href*="/material?course="]').click();
