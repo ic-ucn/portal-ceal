@@ -29,7 +29,8 @@ try{
   assert.ok((await player.locator('track').getAttribute('src')).includes(`portal-guia-${expectedFormat}.vtt`));
   if(expectedFormat==='mobile') assert.ok(await player.evaluate(v=>Math.abs(v.videoWidth/v.videoHeight-480/700)<.005),'mobile video preserves the full screen ratio without a text strip');
   await page.locator('[data-portal-theme-toggle]').click();assert.equal(await player.getAttribute('data-identity'),'preserved');assert.equal(await player.evaluate(v=>v.paused),false,'theme does not interrupt video');
-  await page.locator('.reception-enter').click();await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/calendario"]`).click();await page.locator('.month-grid').waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
+  await player.evaluate(v=>v.addEventListener('pause',()=>{window.__receptionPausedBeforeLeaving=true},{once:true}));
+  await page.locator('.reception-enter').click();assert.equal(await page.evaluate(()=>window.__receptionPausedBeforeLeaving),true,'Ir al portal pauses the tutorial before navigating');await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/calendario"]`).click();await page.locator('.month-grid').waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
   await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/calendario','deep links remain direct');assert.equal(await page.getByRole('dialog').count(),0);
   await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/mallas"]`).click();
   await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();

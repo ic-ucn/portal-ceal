@@ -134,6 +134,7 @@
         });
         player.addEventListener('play', () => { play.hidden = true; });
         player.addEventListener('error', () => { play.hidden = true; error.hidden = false; });
+        reception.querySelector('.reception-enter').addEventListener('click', () => { player.pause(); });
       }
     }
     if (checked) return;
