@@ -3,6 +3,7 @@
   let Data = window.PortalMock;
   const bundledCalendar = { source: { ...Data.calendarSource }, events: Data.events.map(event => ({ ...event })) };
   const Curricula = window.CURRICULA;
+  const MyCourses = window.PortalMyCourses;
   const DATA_CONTENT_VERSION = '20260821c';
   const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
@@ -22,12 +23,14 @@
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
   const PORTAL_THEME_KEY = 'portal.theme';
+  function safeStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+  function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch {} }
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
   let mallaFontPromise;
   // Si el usuario ya eligió tema, se respeta. Una cuenta nueva comienza en claro.
-  const storedPortalTheme = localStorage.getItem(PORTAL_THEME_KEY);
+  const storedPortalTheme = safeStorageGet(PORTAL_THEME_KEY);
   const initialPortalDark = storedPortalTheme
     ? storedPortalTheme === 'dark'
     : false;
@@ -50,8 +53,8 @@
 
   const state = {
     user: loadSession(),
-    activePlan: localStorage.getItem('portal.activePlan') || 'planP',
-    mobileSemester: Number(localStorage.getItem('portal.mobileSemester') || 4),
+    activePlan: safeStorageGet('portal.activePlan') || 'planP',
+    mobileSemester: Number(safeStorageGet('portal.mobileSemester') || 4),
     selectedCourse: null,
     selectedResourceId: null,
     selectedAgreementId: null,
@@ -60,6 +63,11 @@
     materialQuery: '',
     materialType: 'all',
     materialCourse: 'all',
+    materialPlan: '',
+    materialCode: '',
+    myCoursesPlan: MyCourses.read().activePlan,
+    myCoursesQuery: '',
+    myCoursesSemester: 'all',
     materialVisibleCount: 60,
     communicationCategory: 'Todas',
     communicationQuery: '',
@@ -117,7 +125,7 @@
     rsvSubmitting: false,
     rsvActionBusy: '',
     rsvJustCreated: null,
-    mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
+    mallaEmbedPlan: safeStorageGet('portal.malla.embedPlan') || 'p',
     portalDark: initialPortalDark,
     mallaEmbedDark: initialPortalDark,
     loginMemberId: null,
@@ -281,8 +289,8 @@
   function setPortalTheme(dark) {
     state.portalDark = Boolean(dark);
     state.mallaEmbedDark = state.portalDark;
-    localStorage.setItem(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
-    localStorage.setItem('portal.malla.embedDark', state.portalDark ? '1' : '0');
+    safeStorageSet(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
+    safeStorageSet('portal.malla.embedDark', state.portalDark ? '1' : '0');
     // Cambio de tema SIN re-render: así la vista actual (scroll, malla abierta,
     // formularios a medio llenar) no se pierde. Solo se actualizan clases y
     // los botones de toggle existentes, y el iframe de mallas cambia en vivo.
@@ -568,13 +576,17 @@
     return courseIndex().byName.get(normalized) || null;
   }
   function canonicalizeResourceCourse(resource) {
-    const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
-    if (!match) return resource;
-    const { plan, course } = match;
+    const sourcePlan = Curricula[resource.plan] ? resource.plan : '';
+    const match = sourcePlan
+      ? (findCourse(sourcePlan, resource.courseCode) || getCourses(sourcePlan).find(c => plain(c.name) === plain(resource.courseName)))
+      : null;
+    const fallback = sourcePlan ? null : officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
+    const course = match || fallback?.course;
+    if (!course) return resource;
     return {
       ...resource,
-      courseCode: course.visibleCode || course.code,
-      plan: Curricula[resource.plan] ? resource.plan : plan,
+      courseCode: resource.courseCode === course.code || resource.courseCode === course.visibleCode ? (course.visibleCode || course.code) : resource.courseCode,
+      plan: resource.plan,
       courseName: titleCase(course.name),
       semester: course.semester || resource.semester
     };
@@ -628,12 +640,10 @@
   }
   function getSuccessors(plan, code) { return getCourses(plan).filter(c => (c.prereqs || []).includes(code)); }
   function getResourcesForCourse(plan, code) {
-    const course = findCourse(plan, code);
-    const courseName = plain(course?.name || '');
-    return Data.resources.filter(r => (
-      r.courseCode === code
-      || (courseName && plain(r.courseName) === courseName)
-    ));
+    return MyCourses.resourcesForCourse(Curricula, Data.resources, plan, code);
+  }
+  function isRelatedCourseResource(plan, course, resource) {
+    return resource.courseCode !== course.code && resource.courseCode !== course.visibleCode;
   }
   function cealMembers() { return Data.cealMembers || []; }
   function getCealMember(id) { return cealMembers().find(m => m.id === id) || cealMembers()[0]; }
@@ -1172,7 +1182,8 @@
       [SIGN_IN_ENABLED ? '/' : '/inicio', 'home', 'Inicio'],
       ['/calendario', 'calendar', 'Calendario'],
       ['/mallas', 'grid', 'Mallas'],
-      ['/material', 'book', 'Material']
+      ['/material', 'book', 'Material'],
+      ['/mis-ramos', 'check', 'Mis ramos']
     ];
     if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
     if (FEATURES.tableReservations && !isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
@@ -1263,7 +1274,7 @@
       .filter(node => node.scrollTop || node.scrollLeft)
       .map(node => ({ selector: viewLocator(node), top: node.scrollTop, left: node.scrollLeft }));
     return { top: window.scrollY, left: window.scrollX, positions, focus,
-      material: { materialQuery: state.materialQuery, materialCourse: state.materialCourse, materialType: state.materialType, materialVisibleCount: state.materialVisibleCount },
+      material: { materialQuery: state.materialQuery, materialCourse: state.materialCourse, materialPlan: state.materialPlan, materialCode: state.materialCode, materialType: state.materialType, materialVisibleCount: state.materialVisibleCount },
       selection: active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
         ? [active.selectionStart, active.selectionEnd, active.selectionDirection] : null };
   }
@@ -1515,6 +1526,7 @@
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/calendario') return renderCalendar();
+    if (path === '/mis-ramos') return renderMyCourses();
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
@@ -1525,6 +1537,7 @@
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
+      if (!query.course && !restoring && location.hash !== lastRenderedRouteKey) { state.materialPlan = ''; state.materialCode = ''; }
       if (query.course && !restoring && (location.hash !== lastRenderedRouteKey)) {
         const courseCode = safeDecode(String(query.course));
         if (courseCode !== null) {
@@ -1532,13 +1545,18 @@
           // curso (los recursos están canonicalizados a ese mismo nombre) y
           // NO se usa búsqueda de texto, para que solo aparezca material que
           // pertenece de verdad al ramo.
-          const match = officialCourseByCode(courseCode.trim());
+          const requestedPlan = Curricula[query.plan] ? query.plan : '';
+          const match = requestedPlan ? findCourse(requestedPlan, courseCode.trim()) : officialCourseByCode(courseCode.trim())?.course;
           if (match) {
-            state.materialCourse = titleCase(match.course.name);
+            state.materialCourse = titleCase(match.name);
+            state.materialPlan = requestedPlan;
+            state.materialCode = requestedPlan ? match.code : '';
             state.materialQuery = '';
             state.materialType = 'all';
           } else {
             state.materialCourse = 'all';
+            state.materialPlan = '';
+            state.materialCode = '';
             state.materialQuery = courseCode;
           }
           state.selectedResourceId = null;
@@ -1566,7 +1584,7 @@
     const dateLabel = today.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${portalTodayKey()}">${esc(dateLabel)}</time></div>
       <div class="home-overview"><section class="home-calendar"><header><h2>Próximas fechas</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><figure class="home-campus-frame"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" width="720" height="460" /><figcaption>Ingeniería Civil <span>Universidad Católica del Norte</span></figcaption></figure></div>
-      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Mallas curriculares</strong><small>Plan O · Plan P</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
+      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Mallas curriculares</strong><small>Plan O · Plan P</small></span>${icon('arrow')}</a><a href="#/mis-ramos"><span class="home-service-symbol">${icon('check')}</span><span><strong>Mis ramos</strong><small>Selección y avance personal</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
   }
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
@@ -1684,6 +1702,45 @@
       !String(item.id || '').startsWith('agr-paro-')
       && !/\bqa\b|prueba|demo/i.test([item.title, item.summary, item.origin].join(' '))
     ));
+  }
+  function myCourseMaterial(plan, course) {
+    const resources = getResourcesForCourse(plan, course.code);
+    const related = resources.filter(resource => isRelatedCourseResource(plan, course, resource)).length;
+    return resources.length
+      ? `<a class="link" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">${resources.length} ${resources.length === 1 ? 'recurso' : 'recursos'}${related ? ` · ${related} ${related === 1 ? 'material relacionado' : 'materiales relacionados'}` : ''} ${icon('arrow')}</a>`
+      : `<span class="small muted">Sin material asociado. <a href="#/material/subir">Aportar material</a></span>`;
+  }
+  function renderMyCourseCard(plan, code, record, locked) {
+    const course = findCourse(plan, code);
+    if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
+    const status = record.statuses[code] || 'pendiente';
+    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · ${course.semester} semestre</small><h3><a href="#/ramo/${plan}/${encodeURIComponent(code)}">${esc(titleCase(course.name))}</a></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot"><label>Estado <select class="select" data-my-course-status="${esc(code)}" aria-label="Estado de ${esc(titleCase(course.name))}"${locked ? ' disabled' : ''}>${[['pendiente', 'Pendiente'], ['cursando', 'Cursando'], ['aprobado', 'Aprobado']].map(([value, label]) => `<option value="${value}"${status === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label>${myCourseMaterial(plan, course)}</div></article>`;
+  }
+  function renderMyCourses() {
+    const stored = MyCourses.read();
+    const health = MyCourses.status();
+    const plan = state.myCoursesPlan;
+    const semesters = [...new Set(getCourses(plan).map(course => course.semester))].sort((a, b) => a - b);
+    if (state.myCoursesSemester !== 'all' && !semesters.includes(Number(state.myCoursesSemester))) state.myCoursesSemester = 'all';
+    const record = stored.plans[plan];
+    const selected = record.selected;
+    const valid = selected.filter(code => findCourse(plan, code));
+    const approved = valid.filter(code => record.statuses[code] === 'aprobado').length;
+    const query = plain(state.myCoursesQuery);
+    const courses = getCourses(plan).filter(course =>
+      (state.myCoursesSemester === 'all' || course.semester === Number(state.myCoursesSemester)) &&
+      (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
+    );
+    const notice = myCoursesNotice(health);
+    return `${pageHead('Mis ramos', 'Organiza tus ramos y el avance que registras.')}
+      <div class="my-courses-page">${notice}<p class="my-courses-privacy">Tu selección se guarda en este navegador. Los estados son personales y no representan avance académico oficial.</p>
+      <div class="segmented my-courses-plans" role="group" aria-label="Plan curricular"><button type="button" data-my-courses-plan="planO" aria-pressed="${plan === 'planO'}" class="${plan === 'planO' ? 'active' : ''}">Plan O</button><button type="button" data-my-courses-plan="planP" aria-pressed="${plan === 'planP'}" class="${plan === 'planP' ? 'active' : ''}">Plan P</button></div>
+      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h2 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h2><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
+      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Aún no eliges ramos</h3><p>Busca ramos de cualquier semestre y agrégalos a tu selección.</p><a class="link" href="#/material/subir">Aportar material</a></div>`}</section>
+      <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h2 id="my-courses-catalog-title" class="card-title">Buscar ramos</h2><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option"><div><small>${esc(course.visibleCode || course.code)} · ${course.semester} semestre</small><strong>${esc(titleCase(course.name))}</strong><span>${myCourseMaterial(plan, course)}</span></div><button type="button" class="btn ${selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}"${health.locked ? ' disabled' : ''}>${selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
+  }
+  function myCoursesNotice(health) {
+    return health.issue ? `<div class="my-courses-notice" role="status">${esc(health.issue)}${health.recoverable ? ' <button class="btn secondary sm" type="button" data-my-courses-recover>Recuperar Mis ramos</button>' : ''}${health.conflict ? ' <button class="btn secondary sm" type="button" data-my-courses-resolve="saved">Usar versión guardada</button><button class="btn secondary sm" type="button" data-my-courses-resolve="temporary">Conservar cambios de esta pestaña</button>' : ''}</div>` : '';
   }
   function findAgreementById(id) {
     return portalAgreements().find(x => x.id === id);
@@ -1804,7 +1861,14 @@
       state.materialCourse = 'all';
     }
     const q = plain(state.materialQuery);
-    const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
+    const scopedIds = state.materialPlan && state.materialCode ? new Set(getResourcesForCourse(state.materialPlan, state.materialCode).map(r => r.id)) : null;
+    const seenScoped = new Set();
+    const items = Data.resources.filter(r => {
+      const matches = (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (scopedIds ? scopedIds.has(r.id) : state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse));
+      if (!matches || (scopedIds && seenScoped.has(r.id))) return false;
+      if (scopedIds) seenScoped.add(r.id);
+      return true;
+    });
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
     const typeCounts = {};
     Data.resources.forEach(r => { if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1; });
@@ -1815,9 +1879,7 @@
       state.materialType !== 'all' ? ['type', `Tipo: ${state.materialType}`] : null,
       state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
     ].filter(Boolean);
-    const planPNotice = state.materialCourse !== 'all' && isPlanPCourseName(state.materialCourse)
-      ? `<div class="material-plan-note">${icon('grid')}<span>Plan P: se incluyen recursos equivalentes de Plan O cuando corresponde.</span></div>`
-      : '';
+    const planPNotice = '';
     const uploadAction = API_BASE ? `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>` : '';
     const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
     const visible = items.slice(0, visibleCount);
@@ -1827,9 +1889,13 @@
     const appliedFilters = activeFilters.length ? `<div class="applied-filters active-filter-row">${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} <span class="filter-chip-remove">${icon('x')}</span></button>`).join('')}<button class="btn ghost sm applied-filters-clear" data-material-clear="all" type="button">Limpiar todo</button></div>` : '';
     return `${pageHead('Material', '', uploadAction)}
       <section class="material-library material-browser"><div class="material-search-panel"><label class="sr-only" for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar por título, ramo o código" autocomplete="off" /></div><div class="material-controls"><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div><div class="material-type-tabs quick-chip-row" aria-label="Filtrar por tipo"><button class="${state.materialType === 'all' ? 'active' : ''}" aria-pressed="${state.materialType === 'all'}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" aria-pressed="${state.materialType === t}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div>${appliedFilters}${planPNotice}</div>
-      <div class="row-between material-count"><h2 class="card-title">${visible.length} de ${items.length.toLocaleString('es-CL')} recursos</h2><span>Recientes primero</span></div><div class="table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Año</th><th><span class="sr-only">Abrir</span></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="file-format">${esc(r.format)}</span><div><a class="resource-title-link" href="#/material/${esc(r.id)}">${esc(r.title)}</a><span class="resource-type">${esc(r.type)}${!['validado', 'validadoCeal', 'publicado'].includes(r.status) ? ` · ${esc(Status[r.status]?.[0] || r.status)}` : ''}</span></div></div></td><td><span>${esc(r.courseName)}</span><small class="resource-course-code">${esc(r.courseCode)}</small></td><td>${esc(r.year)}</td><td>${icon('arrow')}</td></tr>`).join('')}</tbody></table>${!visible.length ? (noDataYet ? skeletonList(3) : renderEmptyMaterial()) : ''}</div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section>`;
+      <div class="row-between material-count"><h2 class="card-title">${visible.length} de ${items.length.toLocaleString('es-CL')} recursos</h2><span>Recientes primero</span></div><div class="table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Año</th><th><span class="sr-only">Abrir</span></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="file-format">${esc(r.format)}</span><div><a class="resource-title-link" href="#/material/${esc(r.id)}">${esc(r.title)}</a><span class="resource-type">${esc(r.type)}${isRelatedInMaterial(r) ? ' · Material relacionado' : ''}${!['validado', 'validadoCeal', 'publicado'].includes(r.status) ? ` · ${esc(Status[r.status]?.[0] || r.status)}` : ''}</span></div></div></td><td><span>${esc(r.courseName)}</span><small class="resource-course-code">${esc(r.courseCode)}</small></td><td>${esc(r.year)}</td><td>${icon('arrow')}</td></tr>`).join('')}</tbody></table>${!visible.length ? (noDataYet ? skeletonList(3) : renderEmptyMaterial()) : ''}</div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section>`;
   }
-  function resourceCard(r) { return `<a class="item-card material-list-item" href="#/material/${esc(r.id)}"><span class="file-format">${esc(r.format)}</span><span class="material-list-copy"><h3>${esc(r.title)}</h3><p>${esc(r.courseName)}</p><small>${esc(r.type)} · ${esc(r.year)}</small></span>${icon('arrow')}</a>`; }
+  function isRelatedInMaterial(resource) {
+    const course = state.materialPlan && state.materialCode ? findCourse(state.materialPlan, state.materialCode) : null;
+    return Boolean(course && isRelatedCourseResource(state.materialPlan, course, resource));
+  }
+  function resourceCard(r) { return `<a class="item-card material-list-item" href="#/material/${esc(r.id)}"><span class="file-format">${esc(r.format)}</span><span class="material-list-copy"><h3>${esc(r.title)}</h3><p>${esc(r.courseName)}</p><small>${esc(r.type)} · ${esc(r.year)}${isRelatedInMaterial(r) ? ' · Material relacionado' : ''}</small></span>${icon('arrow')}</a>`; }
   function renderResourcePreview(r) {
     if (QA_MODE) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización omitida</h2><p class="small muted">La revisión automática usa los datos del recurso sin cargar servicios externos.</p></div></section>`;
@@ -1843,13 +1909,14 @@
     return `<section class="resource-preview-shell"><div class="resource-preview-head"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(r.title)}</h2></div>${openInDriveLink}</div><iframe class="resource-preview-frame" src="${esc(previewUrl)}" title="Vista previa de ${esc(r.title)}" loading="lazy" allow="autoplay"></iframe></section>`;
   }
   function renderResourceDetail(r, options = {}) {
+    const resourcePlan = Curricula[r.plan] ? r.plan : (state.materialPlan && findCourse(state.materialPlan, r.courseCode) ? state.materialPlan : findCoursePlanForCode(r.courseCode));
     const detailExternalUrl = safeUrl(r.externalUrl);
     const openAction = detailExternalUrl
       ? `<a class="btn primary" href="${esc(detailExternalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
       : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
-      ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
-      : `<button class="btn secondary" data-save-resource="${esc(r.id)}" aria-pressed="${Data.saved.resources.includes(r.id)}">${icon('bookmark')} ${Data.saved.resources.includes(r.id) ? 'Guardado' : 'Guardar'}</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+      ? `${openAction}<a class="btn ghost" href="#/ramo/${resourcePlan}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}" aria-pressed="${Data.saved.resources.includes(r.id)}">${icon('bookmark')} ${Data.saved.resources.includes(r.id) ? 'Guardado' : 'Guardar'}</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${resourcePlan}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
     const closeControl = options.hideClose ? '' : `<button class="icon-btn" data-clear-panel>${icon('x')}</button>`;
     return `<div class="row-between"><div><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap"><span data-resource-status="${esc(r.id)}">${badge(r.status)}</span><span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
@@ -1858,7 +1925,7 @@
     const r = findResourceById(id);
     if (!r && !dataReady) return renderLoading('Material', 'Abriendo el recurso…');
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
-    const rPlan = Curricula[r.plan] ? r.plan : findCoursePlanForCode(r.courseCode);
+    const rPlan = Curricula[r.plan] ? r.plan : (state.materialPlan && findCourse(state.materialPlan, r.courseCode) ? state.materialPlan : findCoursePlanForCode(r.courseCode));
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
@@ -2531,13 +2598,15 @@
     const successors = getSuccessors(plan, course.code);
     const resources = getResourcesForCourse(plan, course.code);
     const materialBlock = resources.length
-      ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
+      ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${isRelatedCourseResource(plan, course, r) ? 'Material relacionado · ' : ''}${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
       : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
-    const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
-    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}${isGuest() ? '' : `<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Guardar ramo</button>`}</div>`;
+    const materialAction = resources.length ? `<a class="btn primary" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
+    const inMyCourses = MyCourses.read().plans[plan].selected.includes(course.code);
+    const myCoursesHealth = MyCourses.status();
+    return `${myCoursesNotice(myCoursesHealth)}<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" type="button" data-my-course-${inMyCourses ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${myCoursesHealth.locked ? ' disabled' : ''}>${inMyCourses ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</a>`; }
-  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
+  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?plan=${plan}&course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Material disponible</h2><p class="small muted">Sin material asociado a este ramo.</p><a class="link" href="#/material/subir">Aportar material</a></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
 
   function renderSupport() { return renderMaterial(); }
   function tutoringCard(t) { return `<a class="item-card" href="#/ayudantias/${t.id}"><div class="row-between"><span class="icon-box">${icon('users')}</span><span class="pill blue">${esc(t.mode)}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.courseName)} - ${fmtDate(t.date)} - ${esc(t.time)} - ${esc(t.location)}</p></a>`; }
@@ -3568,6 +3637,38 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const myPlan = e.target.closest('[data-my-courses-plan]');
+    if (myPlan) {
+      state.myCoursesPlan = myPlan.dataset.myCoursesPlan;
+      if (state.myCoursesSemester !== 'all' && !getCourses(state.myCoursesPlan).some(course => course.semester === Number(state.myCoursesSemester))) state.myCoursesSemester = 'all';
+      MyCourses.setPlan(state.myCoursesPlan);
+      render({ scope: 'panel' });
+      return;
+    }
+    if (e.target.closest('[data-my-courses-recover]')) { MyCourses.recover(); render({ scope: 'panel' }); return; }
+    const myResolve = e.target.closest('[data-my-courses-resolve]');
+    if (myResolve) { state.myCoursesPlan = MyCourses.resolveConflict(myResolve.dataset.myCoursesResolve) ? MyCourses.read().activePlan : state.myCoursesPlan; render({ scope: 'panel' }); return; }
+    const myAdd = e.target.closest('[data-my-course-add]');
+    const myRemove = e.target.closest('[data-my-course-remove]');
+    if (myAdd || myRemove) {
+      const target = myAdd || myRemove;
+      const plan = target.dataset.myCoursePlan || state.myCoursesPlan;
+      const code = target.dataset.myCourseAdd || target.dataset.myCourseRemove;
+      const fromCatalog = Boolean(target.closest('.my-courses-list'));
+      if (!findCourse(plan, code) && myAdd) return;
+      if (MyCourses.update(plan, code, myAdd ? 'select' : 'remove')) {
+        render({ scope: 'panel' });
+        const opposite = `[data-my-course-${myAdd ? 'remove' : 'add'}="${CSS.escape(code)}"]`;
+        const preferred = fromCatalog ? `.my-courses-list ${opposite}` : `.my-courses-selected ${opposite}`;
+        const next = app.querySelector(preferred)
+          || app.querySelector(fromCatalog ? `.my-courses-selected ${opposite}` : `.my-courses-list ${opposite}`)
+          || app.querySelector(opposite)
+          || app.querySelector('.my-courses-selected [data-my-course-remove]')
+          || app.querySelector('[data-my-courses-search]');
+        next?.focus({ preventScroll: true });
+      }
+      return;
+    }
     const audience = e.target.closest('[data-calendar-audience]');
     if (audience) { state.calendarAudience = audience.dataset.calendarAudience; render(); return; }
     const guideTrigger = e.target.closest('[data-open-welcome]');
@@ -4258,28 +4359,28 @@
     const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
     if (mallaEmbedPlan) {
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
-      localStorage.setItem('portal.malla.embedPlan', state.mallaEmbedPlan);
+      safeStorageSet('portal.malla.embedPlan', state.mallaEmbedPlan);
       state.activePlan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
-      localStorage.setItem('portal.activePlan', state.activePlan);
+      safeStorageSet('portal.activePlan', state.activePlan);
       render({ transition: true, scope: 'panel' });
       return;
     }
     const planBtn = e.target.closest('[data-plan]');
-    if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
+    if (planBtn) { state.activePlan = planBtn.dataset.plan; safeStorageSet('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
     const semBtn = e.target.closest('[data-mobile-sem]');
-    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); localStorage.setItem('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render({ transition: true, scope: 'panel' }); return; }
+    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); safeStorageSet('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render({ transition: true, scope: 'panel' }); return; }
     const course = e.target.closest('[data-course]');
     if (course) { state.selectedCourse = { plan: course.dataset.coursePlan, code: course.dataset.course }; const c = findCourse(course.dataset.coursePlan, course.dataset.course); if (c) state.mobileSemester = c.semester; render({ transition: true, scope: 'panel' }); return; }
     const typeBtn = e.target.closest('[data-material-type]');
     if (typeBtn) { state.materialType = typeBtn.dataset.materialType; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const courseFilter = e.target.closest('[data-material-course]');
-    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
+    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.materialPlan = ''; state.materialCode = ''; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const clearMaterial = e.target.closest('[data-material-clear]');
     if (clearMaterial) {
       const target = clearMaterial.dataset.materialClear;
       if (target === 'search' || target === 'all') state.materialQuery = '';
       if (target === 'type' || target === 'all') state.materialType = 'all';
-      if (target === 'course' || target === 'all') state.materialCourse = 'all';
+      if (target === 'course' || target === 'all') { state.materialCourse = 'all'; state.materialPlan = ''; state.materialCode = ''; }
       state.selectedResourceId = null;
       state.materialVisibleCount = 60;
       render({ transition: true, scope: 'panel' });
@@ -4319,6 +4420,7 @@
 
   }
   function onInput(e) {
+    if (e.target.matches('[data-my-courses-search]')) { state.myCoursesQuery = e.target.value; scheduleFilterRender(); return; }
     const bookingRowField = e.target.closest('[data-booking-row-field]');
     if (bookingRowField) {
       const draft = currentBookingConfig();
@@ -4347,6 +4449,14 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    if (e.target.matches('[data-my-courses-semester]')) { state.myCoursesSemester = e.target.value; render({ scope: 'filter' }); return; }
+    if (e.target.matches('[data-my-course-status]')) {
+      const plan = state.myCoursesPlan;
+      const code = e.target.dataset.myCourseStatus;
+      if (findCourse(plan, code)) MyCourses.update(plan, code, 'status', e.target.value);
+      render({ scope: 'panel' });
+      return;
+    }
     const bookingActive = e.target.closest('[data-booking-setting="active"]');
     if (bookingActive) {
       currentBookingConfig().bookingSettings.active = Boolean(bookingActive.checked);
@@ -4386,7 +4496,7 @@
     if (draftSurvey && e.target.matches('[data-survey-q-type]')) { const i = Number(e.target.dataset.surveyQType); const q = draftSurvey.questions?.[i]; if (q) { q.type = e.target.value; if (['single', 'multiple'].includes(q.type) && (!q.options || !q.options.length)) q.options = ['Opción 1', 'Opción 2']; } render({ transition: true, scope: 'panel' }); return; }
     if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
     if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
-    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
+    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.materialPlan = ''; state.materialCode = ''; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
   function onFocusOut(e) {
@@ -4703,7 +4813,7 @@
     if (data.type === 'select-course') { window.PortalAnalytics?.event('mallas/ramo'); return; }
     if (data.type === 'open-material') {
       window.PortalAnalytics?.event('mallas/material');
-      routeTo(`/material?course=${encodeURIComponent(match.course.visibleCode || match.course.code)}`);
+      routeTo(`/material?plan=${match.plan}&course=${encodeURIComponent(match.course.code)}`);
     } else {
       window.PortalAnalytics?.event('mallas/ficha');
       routeTo(`/ramo/${match.plan}/${encodeURIComponent(match.course.code)}`);
@@ -4711,6 +4821,11 @@
   });
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
+  window.addEventListener('storage', e => {
+    if (e.key !== MyCourses.key) return;
+    state.myCoursesPlan = MyCourses.externalChange().activePlan;
+    if (getRoute().path === '/mis-ramos' || getRoute().path.startsWith('/ramo/')) render({ scope: 'data', resetScroll: false });
+  });
   window.addEventListener('storage', async e => {
     if (e.key !== 'portal.session') return;
     state.user = loadSession();

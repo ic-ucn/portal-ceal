@@ -348,9 +348,9 @@ async function runPublicFlowTests(page, studentUser) {
   await page.getByText('Material recibido. Te avisaremos si necesitamos más información.', { exact: true }).waitFor();
   report.flows.push('student uploads material to private review intake');
 
-  await page.goto(appUrl('/ramo/planP/P-0402'), { waitUntil: 'networkidle' });
-  await page.locator('a.btn.primary[href*="/material?course="]').click();
-  await page.waitForURL(/#\/material\?course=/);
+  await page.goto(appUrl('/ramo/planP/DAII-00600'), { waitUntil: 'networkidle' });
+  await page.locator('a.btn.primary[href*="/material?plan=planP&course="]').click();
+  await page.waitForURL(/#\/material\?plan=planP&course=/);
   await page.waitForSelector('.page-title');
   report.flows.push('course detail routes to filtered material');
 
