@@ -77,6 +77,29 @@
     }
     return true;
   }
+  // Apply a semester change in one storage write. A failed write still keeps
+  // the complete change in this tab's temporary memory, as with update().
+  function updateStatuses(plan, changes) {
+    read();
+    if (locked || conflict || !PLANS.includes(plan) || !changes || typeof changes !== 'object' || Array.isArray(changes)) return false;
+    const entries = Object.entries(changes);
+    if (!entries.length || entries.some(([code, status]) => !code || code.length > 80 || (status !== null && !STATUSES.includes(status)))) return false;
+    const next = structuredClone(memory);
+    for (const [code, status] of entries) {
+      if (status === null) delete next.plans[plan].statuses[code];
+      else next.plans[plan].statuses[code] = status;
+    }
+    memory = next;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next));
+      issue = '';
+      volatile = false;
+    } catch {
+      issue = 'El navegador impide guardar cambios. Puedes seguir usando Mis ramos mientras esta página permanezca abierta.';
+      volatile = true;
+    }
+    return true;
+  }
   function setPlan(plan) {
     read();
     if (locked || conflict || !PLANS.includes(plan)) return false;
@@ -147,5 +170,5 @@
   }
   function status() { return { issue, locked: locked || conflict, conflict, recoverable: locked && issue.includes('recuperar') }; }
   read();
-  window.PortalMyCourses = Object.freeze({ key: KEY, read, update, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, status });
+  window.PortalMyCourses = Object.freeze({ key: KEY, read, update, updateStatuses, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, status });
 })();

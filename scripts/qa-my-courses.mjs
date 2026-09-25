@@ -296,12 +296,23 @@ try {
   await prodPage.goto('https://ceicucn.cl/#/mis-ramos', { waitUntil: 'networkidle' });
   await prodPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
   await prodPage.locator('.my-courses-selected [data-my-course-status]').selectOption('aprobado');
+  await prodPage.goto('https://ceicucn.cl/#/mallas', { waitUntil: 'networkidle' });
+  await prodPage.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
+  await prodPage.locator('[data-malla-mark-toggle]').click();
+  const prodFrame = prodPage.frameLocator('[data-malla-frame]');
+  await prodFrame.locator('html.mc-portal-marking').waitFor();
+  await prodFrame.locator('.mc-card[data-mc-code]').nth(1).click();
+  await prodPage.locator('[data-malla-progress-count]').getByText('2 de 64 aprobados').waitFor();
+  await prodPage.locator('[data-malla-mark-semester]').selectOption('2');
+  await prodPage.locator('[data-malla-mark-batch]').click();
+  await prodPage.locator('[data-malla-progress-count]').getByText('14 de 64 aprobados').waitFor();
   const hits = await prodPage.evaluate(() => window.__analyticsHits);
   assert.ok(hits.some(hit => hit.path === '/#/inicio'), 'analytics is active for an allowed route');
-  assert.ok(hits.every(hit => !JSON.stringify(hit).includes('mis-ramos') && !JSON.stringify(hit).includes('aprobado') && !JSON.stringify(hit).includes('P-0101')));
+  assert.ok(hits.some(hit => hit.path === '/#/mallas'), 'malla route tracking remains active');
+  assert.ok(hits.every(hit => !/mis-ramos|aprobado|P-0101|P-0102|mallas\/ramo/.test(JSON.stringify(hit))), 'marking does not emit course, status or course-selection analytics');
   assert.ok(network.every(url => !url.includes('portal-ceic-api.onrender.com')), 'production-shaped analytics test never contacts API');
   await prodContext.close();
-  report.checks.push('production-shaped analytics active/intercepted: no course, status or selected route emitted');
+  report.checks.push('production-shaped analytics active/intercepted: malla route retained; individual/batch marking emits no course, status or course-selection event');
   report.ok = report.errors.length === 0;
 } catch (error) { report.errors.push(error.stack || String(error)); }
 finally {

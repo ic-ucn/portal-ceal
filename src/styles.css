@@ -3501,6 +3501,23 @@ body::before {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
 }
+.malla-workspace.is-marking { grid-template-rows: auto auto minmax(0, 1fr); }
+.malla-mark-panel[hidden] { display: none; }
+.malla-mark-batch [hidden] { display: none !important; }
+.malla-mark-panel {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #c5daf2);
+  border-radius: 8px;
+  background: #f5f9fd;
+  color: #17365f;
+}
+.malla-workspace.is-dark .malla-mark-panel { background: #102d49; color: #e7f0f7; border-color: rgba(215,226,238,.2); }
+.malla-mark-explainer, .malla-mark-notice { margin: 0; font-size: .78rem; line-height: 1.35; }
+.malla-mark-batch { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; font-size: .78rem; }
+.malla-mark-batch .select { width: 64px; min-height: 36px; padding: 5px 8px; }
+.malla-mark-batch .btn { min-height: 36px; }
+.malla-mark-notice { color: inherit; }
+.malla-mark-toggle.active { background: #176a43; border-color: #176a43; color: #fff; }
 
 .malla-commandbar {
   position: relative;
@@ -3760,6 +3777,7 @@ body::before {
 
   .malla-plan-tabs {
     grid-column: 1;
+    grid-row: 1;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
@@ -3775,6 +3793,14 @@ body::before {
     padding: 0 8px;
     font-size: .78rem;
   }
+  .malla-commandbar-actions [data-malla-embed-theme] { grid-column: 2; grid-row: 1; }
+  .malla-commandbar-actions .malla-mark-toggle { grid-column: 1; grid-row: 2; }
+  .malla-commandbar-actions .malla-guide { grid-column: 2; grid-row: 2; }
+  .malla-commandbar-actions .malla-guide span:not(.icon) { display: none; }
+  .malla-mark-panel { padding: 8px 10px; }
+  .malla-mark-batch { gap: 6px; margin: 6px 0 4px; }
+  .malla-mark-batch [data-malla-batch-preview] { flex-basis: 100%; order: 1; }
+  .malla-mark-batch [data-malla-mark-batch], .malla-mark-batch [data-malla-mark-undo] { order: 2; flex: 1 1 0; width: auto; min-width: 0; }
 
   .malla-tool-btn.subtle {
     display: none;
@@ -6833,7 +6859,8 @@ body.theme-dark .google-auth-note strong { color: #fed7aa; }
 .booking-inline-empty small { margin-top: 3px; }
 
 @media (max-width: 920px) {
-  .malla-progress-label, .malla-account { display: none; }
+  .malla-account { display: none; }
+  .malla-progress-label { display: block; grid-column: 1; font-size: .72rem; font-weight: 700; }
   .malla-commandbar-actions [data-malla-embed-theme] { width: 44px; height: 44px; padding: 0; }
   .malla-commandbar-actions [data-malla-embed-theme] > span:not(.icon) { display: none; }
 }
