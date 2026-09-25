@@ -1,133 +1,211 @@
-/* One optional public tutorial, outside app repaints. */
-.portal-reception { min-height: 100dvh; color: var(--text-primary); background: var(--surface-base); padding: 0 clamp(24px, 5vw, 84px); }
-.reception-header { max-width: 1320px; margin: auto; height: 104px; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid var(--border-subtle); }
-.reception-brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
-.reception-brand img { width: 38px; height: 38px; object-fit: contain; }
-.reception-brand strong { font-size: 17px; font-weight: 600; letter-spacing: -.04em; }
-.reception-campus { margin-left: auto; font-size: 12px; color: var(--text-secondary); }
-.reception-main { display: grid; grid-template-columns: minmax(280px,.8fr) minmax(0,1.4fr); gap: clamp(40px,7vw,110px); max-width: 1320px; margin: auto; padding: clamp(36px,6vh,72px) 0; align-items: center; }
-.reception-main:focus { outline: none; }
-.reception-eyebrow { font-size: 10px; font-weight: 550; letter-spacing: .08em; color: var(--text-secondary); }
-.reception-intro h1 { font-size: clamp(46px,5.2vw,76px); line-height: 1.03; letter-spacing: -.055em; font-weight: 500; margin: 18px 0; }
-.reception-intro > p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin: 0 0 28px; }
-.reception-sections { border-top: 1px solid var(--border-subtle); }
-.reception-sections a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; color: inherit; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
-.reception-sections strong { font-size: 18px; font-weight: 550; }
-.reception-sections small { display: block; margin-top: 4px; font-size: 12px; color: var(--text-secondary); }
-.reception-sections a > span:last-child { font-size: 22px; color: var(--brand-blue-text); }
-.reception-sections a:hover { background: var(--surface-hover); color: var(--brand-blue-text); }
-.reception-home { display: inline-flex; align-items: center; gap: 28px; margin-top: 22px; min-height: 44px; color: var(--brand-blue-text); text-decoration: none; font-size: 14px; font-weight: 550; }
-.reception-home:hover { text-decoration: underline; }
-.reception-guide { min-width: 0; }
-.reception-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.reception-guide-head h2 { margin: 0; font-size: 17px; font-weight: 550; letter-spacing: -.02em; }
-.reception-guide-head > span { font-size: 11px; color: var(--text-secondary); }
-.reception-guide .welcome-player { border-radius: 9px; }
-.reception-guide .welcome-transcript { margin-top: 10px; }
-.reception-footer { max-width: 1320px; margin: auto; display: flex; justify-content: space-between; gap: 14px; padding: 24px 0; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--text-secondary); }
-.reception-video-error { font-size: 13px; color: var(--text-secondary); }
-.portal-reception :is(a,button,summary,video):focus-visible { outline: 3px solid var(--brand-blue-text); outline-offset: 4px; }
-.calendar-audience { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; }
-.calendar-audience [aria-pressed=true] { color: var(--brand-blue-text); background: var(--surface-tint); border-color: var(--brand-blue-text); }
-.calendar-event-source { display: inline-block; min-height: 32px; padding-top: 7px; font-size: 12px; color: var(--brand-blue-text); }
-@media (max-width: 760px) {
-  .reception-header { height: 78px; gap: 14px; }
-  .reception-main { grid-template-columns: minmax(0,1fr); gap: 36px; padding: 32px 0; }
-  .reception-intro h1 { font-size: clamp(44px,10vw,64px); }
-  .reception-intro h1 br { display: none; }
-  .reception-sections a { padding: 15px 0; }
-  .reception-footer { flex-direction: column; gap: 7px; }
-  .reception-guide .welcome-player video { max-height: none; }
-}
+/* Public, silent portal guide. All scene controls operate on isolated guide state. */
 body.welcome-open { overflow: hidden; }
-.reception-video-only .reception-header { max-width: 960px; height: 80px; }
-.reception-video-only .reception-theme { margin-left: auto; }
+.portal-reception, .portal-welcome { color: var(--text-primary); background: var(--surface-base); }
+.portal-reception { min-height: 100dvh; padding: 0 clamp(18px, 4vw, 64px) 32px; }
+.reception-header { max-width: 1320px; height: 76px; margin: auto; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border-subtle); }
+.reception-brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
+.reception-brand img { width: 34px; height: 34px; object-fit: contain; }
+.reception-brand strong { font-size: 16px; font-weight: 650; letter-spacing: -.03em; }
+.reception-theme { margin-left: auto; }
 .reception-skip { color: var(--text-secondary); font-size: 13px; padding: 12px 0; }
-.reception-video-only .reception-main { display: block; max-width: 800px; padding: 28px 0; }
-.reception-video-only h1 { font-size: clamp(22px,4vw,30px); font-weight: 500; letter-spacing: -.035em; margin: 0; }
-.reception-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 12px; }
-.reception-dismiss { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 12px 0; font-size: 13px; text-align: left; }
-.reception-dismiss:hover, .reception-skip:hover { color: var(--text-primary); text-decoration: underline; }
-.reception-video-only video[data-format=mobile] { aspect-ratio: 24 / 35; max-height: none; }
-.reception-video-only .welcome-player:has(video[data-format=mobile]) { width: 100%; margin-inline: auto; }
-.reception-video-only .reception-dismiss { white-space: nowrap; font-size: 12px; }
-.reception-video-only .reception-enter { width: auto; flex: none; }
-@media (max-width: 600px) {
-  .reception-video-only { padding: 0 20px; }
-  .reception-video-only .reception-header { height: 68px; gap: 12px; }
-  .reception-video-only .reception-brand strong { font-size: 13px; }
-  .reception-video-only .reception-brand img { width: 28px; height: 28px; }
-  .reception-video-only .reception-theme { padding: 8px; }
-  .reception-video-only .reception-theme span:not(.icon) { display: none; }
-  .reception-video-only .reception-skip { margin-left: auto; font-size: 12px; }
-  .reception-video-only .reception-guide-head > span { display: none; }
-  .reception-video-only .reception-main { padding: 22px 0; }
-  .reception-actions { gap: 10px; }
-  .reception-enter { font-size: 13px; }
-}
-.portal-welcome { width: min(1120px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--border-interactive); border-radius: 12px; background: var(--surface-base); color: var(--text-primary); box-shadow: 0 28px 100px #0d232b40; overflow: auto; overscroll-behavior: contain; }
+.reception-skip:hover, .reception-dismiss:hover { color: var(--text-primary); text-decoration: underline; }
+.reception-main { max-width: 1320px; margin: auto; padding-top: 22px; }
+.reception-main:focus { outline: none; }
+.reception-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.reception-guide-head h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); font-weight: 550; letter-spacing: -.035em; }
+.reception-guide-head span { color: var(--text-secondary); font-size: 12px; }
+.reception-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
+.reception-dismiss { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 12px 0; font: inherit; font-size: 13px; text-align: left; }
+.reception-enter { width: auto; flex: none; }
+.portal-welcome { width: min(1180px, calc(100% - 40px)); max-width: none; max-height: calc(100dvh - 40px); padding: 0; border: 1px solid var(--border-interactive); border-radius: 12px; box-shadow: 0 28px 100px #0d232b40; overflow: auto; overscroll-behavior: contain; }
 .portal-welcome::backdrop { background: #10272fd1; backdrop-filter: blur(5px); }
-.portal-welcome[open] { display: flex; flex-direction: column; overflow: hidden; }
-.welcome-head, .welcome-foot { flex-shrink: 0; }
-.welcome-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 24px 28px 20px; }
-.welcome-brand { display: block; margin-bottom: 7px; color: var(--text-secondary); font-size: 10px; font-weight: 600; letter-spacing: .07em; }
-.welcome-head h2 { margin: 0; font-size: 26px; font-weight: 550; line-height: 1.2; letter-spacing: -.025em; }
+.portal-welcome[open] { display: flex; flex-direction: column; }
+.welcome-head, .welcome-foot { flex: none; }
+.welcome-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 14px; border-bottom: 1px solid var(--border-subtle); }
+.welcome-brand { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 10px; font-weight: 650; letter-spacing: .08em; }
+.welcome-head h2 { margin: 0; font-size: 23px; font-weight: 550; letter-spacing: -.03em; }
 .welcome-head h2:focus { outline: none; }
-.welcome-close { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border: 0; border-radius: 6px; color: var(--text-secondary); background: transparent; cursor: pointer; font-size: 28px; line-height: 1; }
-.welcome-body { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(230px, 1fr); grid-auto-rows: max-content; gap: 26px; align-items: start; align-content: start; padding: 0 28px 24px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.welcome-player { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 7px; background: #172126; }
-.welcome-player video { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: contain; }
-.welcome-play { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; width: 100%; border: 0; background: #10272f30; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-shadow: 0 1px 4px #10272f; }
-.welcome-play-symbol { display: grid; place-items: center; width: 64px; height: 64px; padding-left: 3px; border: 1px solid #ffffff80; border-radius: 50%; background: #1b5059; color: #fff; font-size: 22px; box-shadow: 0 4px 20px #10272f38; }
-.welcome-play:hover .welcome-play-symbol { background: #123e46; }
-.welcome-play-label { padding: 6px 10px; border-radius: 4px; background: #173e46; color: #fff; text-shadow: none; }
-.welcome-play[hidden], .welcome-video-error[hidden] { display: none; }
-.welcome-summary > p { margin: 0 0 18px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
-.welcome-sections { display: grid; border-top: 1px solid var(--border-subtle); }
-.welcome-sections a { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 70px; padding: 14px 0; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); text-decoration: none; }
-.welcome-sections a:hover { color: var(--brand-blue-text); background: var(--surface-tint); }
-.welcome-sections strong { display: block; font-size: 15px; font-weight: 600; }
-.welcome-sections small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
-.welcome-sections a > span:last-child { color: var(--brand-blue-text); }
-.welcome-transcript { margin-top: 14px; color: var(--text-secondary); font-size: 13px; }
-.welcome-transcript summary { min-height: 44px; padding-block: 12px; cursor: pointer; color: var(--brand-blue-text); }
-.welcome-transcript ol { padding-left: 20px; margin: 0; }
-.welcome-transcript li { margin-bottom: 12px; line-height: 1.5; }
-.welcome-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 28px; border-top: 1px solid var(--border-subtle); }
-.welcome-skip, .welcome-enter { min-height: 44px; border: 0; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 550; }
-.welcome-skip { padding: 10px 14px; margin-left: -14px; color: var(--text-secondary); background: transparent; }
-.welcome-enter { display: flex; align-items: center; gap: 24px; padding: 10px 18px; background: #23616a; color: #fff; }
+.welcome-close { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 28px; line-height: 1; }
+.welcome-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+.welcome-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--border-subtle); }
+.welcome-skip, .welcome-enter { min-height: 44px; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.welcome-skip { padding: 9px 12px; color: var(--text-secondary); background: transparent; }
+.welcome-skip:hover { background: var(--surface-hover); }
+.welcome-enter { display: inline-flex; align-items: center; gap: 18px; padding: 9px 16px; color: #fff; background: #23616a; }
 .welcome-enter:hover { background: #194d55; }
-.welcome-close:hover, .welcome-skip:hover { background: var(--surface-hover); color: var(--text-primary); }
-.portal-welcome :is(button, a, summary, video):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-.welcome-play:focus-visible { outline-offset: -5px !important; }
+
+.guide-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(290px, 2fr); min-width: 0; gap: clamp(18px, 2.2vw, 30px); align-items: start; }
+.portal-welcome .guide-layout { min-height: 0; padding: 20px 24px 22px; overflow: auto; }
+.guide-stage, .guide-content { min-width: 0; }
+.guide-stage { position: relative; min-height: 470px; display: flex; align-items: center; justify-content: center; padding: 32px 20px 20px; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-tint); overflow: hidden; }
+.guide-example { position: absolute; top: 12px; left: 16px; z-index: 2; color: var(--text-secondary); font-size: 10px; font-weight: 650; letter-spacing: .025em; }
+.guide-step { position: absolute; top: 11px; right: 16px; z-index: 2; color: var(--brand-blue-text); font-size: 10px; font-weight: 650; }
+[data-guide-stage] { width: 100%; display: flex; justify-content: center; }
+.guide-visual { width: min(100%, 650px); min-height: 370px; padding: 15px; border: 1px solid var(--border-interactive); border-radius: 8px; background: var(--surface-base); box-shadow: 0 12px 36px #08264c12; }
+.guide-mini-top { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 11px; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
+.guide-mini-top strong { font-size: 14px; font-weight: 700; }
+.guide-mini-top > span:not(.guide-mini-tabs) { color: var(--text-secondary); font-size: 11px; }
+.guide-mini-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 10px; }
+.guide-mini-tabs > * { display: block; padding: 5px 7px; font-weight: 500; }
+.guide-mini-tabs b { border-radius: 4px; color: var(--brand-blue-text); background: var(--surface-tint); }
+.guide-semesters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 13px; }
+.guide-semesters section { min-width: 0; }
+.guide-semesters h4 { margin: 0 0 8px; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
+.guide-course-list { display: grid; gap: 6px; }
+.guide-course { position: relative; display: grid; gap: 3px; width: 100%; min-height: 56px; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: 5px; background: var(--surface-base); color: var(--text-primary); text-align: left; font: inherit; }
+.guide-course[aria-hidden=true] { pointer-events: none; }
+.guide-course[data-guide-approve] { cursor: pointer; }
+.guide-course[data-guide-approve]:hover { border-color: #23616a; }
+.guide-course small { overflow: hidden; color: var(--text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.guide-course strong { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.guide-course span { color: var(--text-secondary); font-size: 10px; }
+.guide-malla .guide-course span { display: none; }
+.guide-course.is-focus { border-color: #23616a; background: var(--surface-tint); }
+.guide-touch { position: absolute; right: 6px; top: 50%; width: 13px; height: 13px; border: 2px solid #23616a; border-radius: 50%; background: var(--surface-base); transform: translateY(-50%); }
+.guide-course.is-approved { border-color: #18804b; background: #18804b0d; }
+.guide-course.is-approved span { color: #18804b; font-weight: 700; }
+body.theme-dark .guide-course.is-approved { background: #18804b25; }
+body.theme-dark .guide-course.is-approved span { color: #66dca2; }
+.guide-mini-detail { display: grid; gap: 4px; margin-top: 12px; padding: 10px; border-left: 3px solid #23616a; background: var(--surface-tint); }
+.guide-mini-detail small { color: var(--text-secondary); font-size: 9px; font-weight: 700; }
+.guide-mini-detail strong { font-size: 12px; }
+.guide-mini-detail span { color: var(--text-secondary); font-size: 10px; }
+.guide-mini-hint { margin-top: 16px; padding: 12px; border-left: 3px solid var(--border-interactive); color: var(--text-secondary); background: var(--surface-tint); font-size: 11px; line-height: 1.4; }
+.guide-visual-instruction { margin: 9px 0 0; color: var(--text-secondary); font-size: 11px; }
+.guide-mini-mark { display: inline-flex; padding: 6px 9px; border: 1px solid #23616a; border-radius: 5px; color: var(--brand-blue-text) !important; font-weight: 650; }
+.guide-mini-mark.is-on { color: #fff !important; background: #23616a; }
+.guide-mini-batch { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.guide-mini-batch span { flex: 1 1 180px; font-size: 10px; }
+.guide-mini-batch button { min-height: 32px; padding: 5px 8px; border: 1px solid var(--border-interactive); border-radius: 4px; background: var(--surface-base); color: var(--text-primary); font: inherit; font-size: 10px; cursor: pointer; }
+.guide-mini-batch button:disabled { opacity: .5; cursor: default; }
+.guide-mini-batch button:not(:disabled):hover { background: var(--surface-tint); }
+.guide-visual-note { margin: 10px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; }
+.guide-my-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 16px; }
+.guide-my-layout section > small { color: var(--text-secondary); font-size: 10px; font-weight: 700; }
+.guide-my-card { display: grid; gap: 10px; margin-top: 9px; padding: 12px; border: 1px solid var(--border-subtle); border-radius: 6px; }
+.guide-my-card > small { color: var(--text-secondary); font-size: 10px; }
+.guide-my-card > strong { font-size: 13px; }
+.guide-my-card div { display: flex; justify-content: space-between; gap: 5px; align-items: center; font-size: 11px; }
+.guide-my-card div b { padding: 5px 8px; border: 1px solid var(--border-interactive); border-radius: 4px; font-weight: 600; }
+.guide-my-card a { color: var(--brand-blue-text); font-size: 11px; }
+.guide-my-material { color: var(--brand-blue-text); font-size: 11px; }
+.guide-my-empty { margin-top: 9px; padding: 28px 10px; border: 1px dashed var(--border-interactive); border-radius: 5px; color: var(--text-secondary); text-align: center; font-size: 11px; }
+.guide-my-card div b.is-current { border-color: #23616a; color: var(--brand-blue-text); background: var(--surface-tint); }
+.guide-my-option b.is-added { color: var(--brand-blue-text); background: var(--surface-tint); }
+.guide-mini-input { margin-top: 9px; padding: 9px; border: 1px solid var(--border-interactive); border-radius: 5px; color: var(--text-secondary); font-size: 10px; }
+.guide-my-option { display: flex; justify-content: space-between; gap: 7px; align-items: center; margin-top: 7px; padding: 8px; border: 1px solid var(--border-subtle); border-radius: 5px; font-size: 10px; }
+.guide-my-option b { padding: 6px 8px; border-radius: 4px; color: #fff; background: #23616a; font-size: 9px; }
+.guide-material-search { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; padding: 10px 12px; border: 1px solid var(--border-interactive); border-radius: 5px; color: var(--text-secondary); font-size: 11px; }
+.guide-material-search b { color: var(--brand-blue-text); font-size: 18px; line-height: .7; }
+.guide-material-filters, .guide-material-types { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.guide-material-filters span, .guide-material-types > * { padding: 7px 9px; border: 1px solid var(--border-subtle); border-radius: 5px; font-size: 10px; font-weight: 500; }
+.guide-material-types b { color: var(--brand-blue-text); background: var(--surface-tint); }
+.guide-material-types .is-focus { border-color: #23616a; color: var(--brand-blue-text); background: var(--surface-tint); font-weight: 650; }
+.guide-material-result { position: relative; display: grid; gap: 6px; margin-top: 20px; padding: 14px 34px 14px 12px; border: 1px solid var(--border-interactive); border-radius: 5px; }
+.guide-material-result span { color: var(--text-secondary); font-size: 9px; font-weight: 700; }
+.guide-material-result strong { font-size: 13px; }
+.guide-material-result small { color: var(--text-secondary); font-size: 10px; line-height: 1.4; }
+.guide-material-result b { position: absolute; right: 13px; top: 50%; color: var(--brand-blue-text); }
+.guide-material-open { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; padding: 10px; border-left: 3px solid #23616a; color: var(--text-secondary); background: var(--surface-tint); font-size: 10px; }
+.guide-material-open b { color: var(--brand-blue-text); font-weight: 650; }
+.guide-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 15px 0 10px; }
+.guide-calendar-head strong { font-size: 12px; }
+.guide-calendar-head b { color: var(--brand-blue-text); font-size: 16px; }
+.guide-calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); padding-bottom: 6px; color: var(--text-secondary); text-align: center; font-size: 10px; }
+.guide-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.guide-calendar-grid span { height: 31px; border: 1px solid var(--border-subtle); border-radius: 3px; background: var(--surface-base); }
+.guide-calendar-grid .is-focus { border-color: #23616a; background: var(--surface-tint); }
+.guide-calendar-detail { display: grid; gap: 5px; margin-top: 15px; padding: 12px; border-left: 3px solid #23616a; background: var(--surface-tint); }
+.guide-calendar-detail strong { font-size: 12px; }
+.guide-calendar-detail span { color: var(--text-secondary); font-size: 10px; }
+
+.guide-content { display: flex; flex-direction: column; min-height: 470px; }
+.guide-chapters { display: grid; gap: 3px; }
+.guide-chapters button { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 43px; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.guide-chapters button:hover { background: var(--surface-hover); color: var(--text-primary); }
+.guide-chapters button[aria-selected=true] { color: var(--text-primary); background: var(--surface-tint); }
+.guide-chapters button > span { display: grid; place-items: center; flex: 0 0 23px; width: 23px; height: 23px; border: 1px solid var(--border-interactive); border-radius: 50%; font-size: 10px; }
+.guide-chapters button[aria-selected=true] > span { border-color: #23616a; color: #fff; background: #23616a; }
+.guide-chapters strong { font-weight: 600; }
+.guide-chapters i { position: absolute; left: 8px; bottom: 1px; width: 0; height: 2px; background: #23616a; }
+.guide-copy { margin-top: 20px; }
+.guide-copy [data-guide-position] { color: var(--text-secondary); font-size: 10px; font-weight: 700; letter-spacing: .03em; }
+.guide-copy h2 { margin: 6px 0 8px; font-size: clamp(21px, 2vw, 27px); font-weight: 550; letter-spacing: -.03em; }
+.guide-copy p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+.guide-copy .guide-privacy { margin-top: 12px; font-size: 11px; }
+.guide-actions { display: grid; justify-items: start; gap: 10px; margin-top: auto; padding-top: 18px; }
+.guide-primary { min-height: 42px; padding: 9px 16px; border: 0; border-radius: 5px; background: #23616a; color: #fff; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.guide-primary:hover { background: #194d55; }
+.guide-transport { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-transport button { min-height: 37px; padding: 7px 9px; border: 1px solid var(--border-interactive); border-radius: 5px; background: var(--surface-base); color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
+.guide-transport button:hover:not(:disabled) { background: var(--surface-hover); }
+.guide-transport button:disabled { opacity: .45; cursor: default; }
+.guide-open { min-height: 36px; display: inline-flex; align-items: center; color: var(--brand-blue-text); font-size: 12px; font-weight: 650; }
+.guide-status { min-height: 16px; margin: 6px 0 0; color: var(--text-secondary); font-size: 10px; }
+.portal-reception :is(a,button):focus-visible, .portal-welcome :is(a,button):focus-visible { outline: 3px solid var(--brand-blue-text); outline-offset: 3px; }
 .portal-guide-link { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 14px; margin-top: auto; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); text-align: left; font-size: 13px; cursor: pointer; }
 .portal-guide-link:hover { background: var(--surface-hover); color: var(--text-primary); }
 button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: inherit; cursor: pointer; }
 .malla-guide { display: none; }
 @media (min-width: 921px) { .malla-guide { display: inline-flex; } }
-@media (max-width: 850px) and (min-width: 601px) {
-  .welcome-body { grid-template-columns: minmax(0, 1fr); }
-  .welcome-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-  .welcome-player { max-width: 650px; }
+@media (max-width: 920px) {
+  .guide-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .guide-stage { min-height: 0; padding: 34px 12px 12px; }
+  .guide-visual { min-height: 0; max-width: 620px; }
+  .guide-content { min-height: 0; }
+  .guide-chapters { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .guide-chapters button { display: grid; justify-items: center; gap: 3px; min-height: 49px; padding: 5px 2px; text-align: center; font-size: 9px; }
+  .guide-chapters button > span { width: 19px; height: 19px; flex-basis: 19px; }
+  .guide-chapters i { left: 2px; }
+  .guide-copy { margin-top: 14px; }
+  .guide-actions { margin-top: 0; }
 }
 @media (max-width: 600px) {
-  .portal-welcome { width: calc(100% - 24px); max-height: calc(100dvh - 24px); border-radius: 10px; }
-  .welcome-head { padding: 16px 18px 12px; gap: 8px; }
-  .welcome-brand { font-size: 9px; }
-  .welcome-head h2 { font-size: 22px; }
-  .welcome-close { margin: -6px -9px 0 0; }
-  .welcome-body { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 18px 10px; }
-  .welcome-player video { aspect-ratio: 24 / 35; max-height: min(49dvh, 410px); }
-  .welcome-play { font-size: 13px; gap: 10px; }
-  .welcome-play-symbol { width: 54px; height: 54px; font-size: 18px; }
-  #welcome-video-help { display: none; }
-  .welcome-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border: 0; }
-  .welcome-sections a { justify-content: center; min-height: 44px; padding: 8px 0; gap: 5px; border: 1px solid var(--border-subtle); border-radius: 5px; }
-  .welcome-sections strong { font-size: 12px; }
-  .welcome-sections small { display: none; }
-  .welcome-transcript { margin-top: 2px; }
-  .welcome-transcript summary { padding-block: 10px; }
-  .welcome-foot { padding: 12px 18px max(12px, env(safe-area-inset-bottom)); }
-  .welcome-enter { gap: 16px; font-size: 13px; }
+  .portal-reception { padding: 0 14px 24px; }
+  .reception-header { height: 62px; gap: 9px; }
+  .reception-brand img { width: 27px; height: 27px; }
+  .reception-brand strong { font-size: 13px; }
+  .reception-theme { padding: 7px; }
+  .reception-theme span:not(.icon) { display: none; }
+  .reception-skip { font-size: 11px; }
+  .reception-main { padding-top: 14px; }
+  .reception-guide-head { margin-bottom: 11px; }
+  .reception-guide-head h1 { font-size: 22px; }
+  .reception-guide-head span { display: none; }
+  .reception-actions { margin-top: 8px; gap: 8px; }
+  .reception-dismiss { font-size: 11px; }
+  .reception-enter { padding: 9px 10px; font-size: 11px; }
+  .portal-welcome { width: calc(100% - 12px); max-height: calc(100dvh - 12px); border-radius: 8px; }
+  .welcome-head { padding: 12px 14px 10px; }
+  .welcome-head h2 { font-size: 19px; }
+  .welcome-foot { padding: 8px 14px max(8px, env(safe-area-inset-bottom)); }
+  .portal-welcome .guide-layout { padding: 12px 14px 14px; }
+  .guide-stage { padding: 27px 7px 7px; }
+  .guide-example { top: 8px; left: 9px; font-size: 9px; }
+  .guide-step { top: 8px; right: 9px; font-size: 9px; }
+  .guide-visual { padding: 9px; }
+  .guide-course { padding: 5px; min-height: 48px; }
+  .guide-course strong { font-size: 11px; }
+  .guide-course small, .guide-course span { font-size: 9px; }
+  .guide-course-list .guide-course:nth-child(n+3) { display: none; }
+  .guide-mini-batch button { min-height: 44px; font-size: 11px; }
+  .guide-semesters { gap: 7px; }
+  .guide-chapters button { min-height: 44px; }
+  .guide-chapters button strong { display: none; }
+  .guide-copy h2 { font-size: 21px; }
+  .guide-copy p { font-size: 12px; }
+  .guide-actions { gap: 6px; padding-top: 10px; }
+  .guide-primary { width: 100%; }
+  .guide-transport { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .guide-transport button { padding: 6px 3px; font-size: 10px; }
+  .guide-open { min-height: 30px; }
+  .guide-my-layout { gap: 7px; }
+  .guide-my-card { padding: 7px; gap: 6px; }
+  .guide-my-card > strong { font-size: 11px; }
+  .guide-my-card div { font-size: 9px; }
+  .guide-my-card a { font-size: 9px; }
+  .guide-my-option { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-visual, .guide-course, .guide-chapters i { animation: none !important; transition: none !important; }
 }

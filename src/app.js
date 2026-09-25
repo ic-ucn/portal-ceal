@@ -3830,7 +3830,7 @@
         render({ scope: 'overlay' });
         returnTarget = document.querySelector(menuReturnFocus);
       }
-      window.PortalWelcome?.open(returnTarget);
+      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: 'aprobados' } : {});
       return;
     }
     if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;
