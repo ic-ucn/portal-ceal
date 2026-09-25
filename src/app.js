@@ -1129,6 +1129,7 @@
     const writesAtStart = localWrites;
     try {
       const payload = await apiRequest('/bootstrap', { cache: 'no-store' });
+      if (!payload?.data || typeof payload.data !== 'object') throw new Error('bootstrap unavailable');
       if (localWrites > writesAtStart) {
         if (allowRetry) setTimeout(() => { runBootstrap(false); }, 3000);
         return;
@@ -1883,7 +1884,7 @@
       state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
     ].filter(Boolean);
     const planPNotice = '';
-    const uploadAction = API_BASE ? `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>` : '';
+    const uploadAction = `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
     const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
     const visible = items.slice(0, visibleCount);
     const remaining = items.length - visible.length;
@@ -1932,7 +1933,13 @@
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
-    const unavailable = !API_BASE ? `<div class="google-auth-note"><strong>Envío no disponible</strong><span>Abre esta sección desde el portal publicado para aportar material.</span></div>` : '';
+    const head = pageHead('Subir material', 'Envía un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`);
+    if (LOCAL_API_BASE && !dataReady) return `${head}<section class="card pad"><p class="muted">Preparando formulario…</p></section>`;
+    if (!API_BASE || (LOCAL_API_BASE && dataMode !== 'backend')) {
+      const isPublished = location.hostname === 'ceicucn.cl' || location.hostname === 'www.ceicucn.cl';
+      return `${head}<section class="card pad"><h2 class="card-title">${isPublished ? 'Envío temporalmente no disponible' : 'Aporta material desde ceicucn.cl'}</h2><p class="muted">${isPublished ? 'No se pudo conectar con el servicio de recepción. Vuelve a intentarlo más tarde.' : 'Para enviar el archivo a revisión, abre el formulario del portal publicado.'}</p>${isPublished ? '' : `<a class="btn primary" href="https://ceicucn.cl/#/material/subir" target="_blank" rel="noopener noreferrer">${icon('upload')} Abrir formulario en ceicucn.cl</a>`}</section>`;
+    }
+    const unavailable = '';
     return `${pageHead('Subir material', 'Envía un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material">${unavailable}<div class="form-field"><label id="f-upload-type-label">Tipo de recurso</label><div class="segmented" role="group" aria-labelledby="f-upload-type-label">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-title">Título</label><input id="f-upload-title" class="input" name="title" required minlength="6" /></div><div class="form-field"><label for="f-upload-course">Ramo</label><input id="f-upload-course" class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label for="f-upload-plan">Plan</label><select id="f-upload-plan" class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label for="f-upload-year">Año</label><select id="f-upload-year" class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label for="f-upload-description">Descripción</label><textarea id="f-upload-description" class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label for="f-upload-file">Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, XLSX, PNG, JPG o ZIP · máximo 8 MB</span><input id="f-upload-file" class="sr-only" type="file" name="file" accept=".pdf,.docx,.pptx,.xlsx,.png,.jpg,.jpeg,.zip" required /></label></div><div class="form-field"><label for="f-upload-origin">Fuente u origen</label><input id="f-upload-origin" class="input" name="origin" required placeholder="Apuntes propios, profesor, ayudantía…" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-name">Tu nombre</label><input id="f-upload-name" class="input" name="contributorName" required autocomplete="name" /></div><div class="form-field"><label for="f-upload-email">Tu correo</label><input id="f-upload-email" class="input" type="email" name="contributorEmail" required autocomplete="email" /></div></div><div class="sr-only" aria-hidden="true"><label for="f-upload-website">Sitio web</label><input id="f-upload-website" name="website" tabindex="-1" autocomplete="off" /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit"${!API_BASE ? ' disabled' : ''}>${icon('upload')} Enviar a revisión</button></div></form><aside class="card pad"><h2 class="card-title">Cómo funciona</h2>${timeline([{ title:'Archivo recibido', detail:'Se guarda directamente en la carpeta de revisión.', at:new Date() }, { title:'Aviso al CEAL', detail:'El equipo recibe un correo para revisarlo.', at:new Date() }, { title:'Publicación', detail:'Solo se incorpora a la biblioteca después de validarlo.', at:new Date() }])}</aside></div>`;
   }
 
