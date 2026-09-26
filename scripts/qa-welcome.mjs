@@ -1,163 +1,57 @@
 import assert from 'node:assert/strict';
-import { chromium, webkit, firefox } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
-
-const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1';
-const production = new URL(base).hostname === 'ceicucn.cl';
-const configs = production
-  ? [['chromium', 1440, 900], ['chromium', 390, 844]]
-  : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
-const out = new URL('../qa-screenshots/', import.meta.url);
-await mkdir(out, { recursive: true });
-const report = { ok: false, production, cases: [], errors: [] };
-const url = (route = '/') => {
-  const value = new URL(base);
-  value.searchParams.set('review', '20260925a');
-  value.hash = route;
-  return value.href;
-};
-async function stable(page) {
-  assert.equal(await page.locator('.portal-reception video, .portal-reception audio, .portal-welcome video, .portal-welcome audio').count(), 0, 'guide is silent DOM');
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page has no horizontal overflow');
-}
-try {
-  for (const [engine, width, height] of configs) {
-    const browser = await ({ chromium, webkit, firefox }[engine]).launch();
-    const context = await browser.newContext({ viewport: { width, height } });
-    const page = await context.newPage();
-    page.setDefaultTimeout(20000);
-    page.on('pageerror', error => report.errors.push(`${engine}/${width}: ${error.message}`));
-    const media = [];
-    page.on('request', request => { if (/portal-guia-.*\.(?:mp4|vtt|jpg)/.test(request.url())) media.push(request.url()); });
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    const reception = page.locator('.portal-reception');
-    await reception.waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, 'reception is a page');
-    assert.equal(await reception.locator('[data-guide-tab]').count(), 5, 'five chapters');
-    assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'no autoplay');
-    assert.equal(await reception.locator('.guide-course').count(), 6, 'both semesters are represented');
-    assert.equal(await reception.locator('.guide-semesters section').nth(1).locator('.guide-course').count(), 3, 'semester two is represented');
-    await stable(page);
-    assert.deepEqual(media, [], 'no historic media is downloaded');
-    await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-light.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await page.locator('[data-portal-theme-toggle]').click();
-    assert.equal(await page.locator('body.theme-dark').count(), 1);
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Explorar la malla', 'theme preserves chapter');
-    await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-dark.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-
-    await reception.locator('[data-guide-tab="1"]').click();
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Marcar aprobados');
-    assert.equal(await reception.locator('[data-guide-approve]').count(), 6);
-    await page.evaluate(() => localStorage.setItem('portal.myCourses.v1', 'GUIDE_STORAGE_SENTINEL'));
-    const before = await page.evaluate(() => localStorage.getItem('portal.myCourses.v1'));
-    await reception.locator('[data-guide-approve]').first().click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'individual marking');
-    await reception.locator('[data-guide-batch]').click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 6, 'batch marks all illustrated courses');
-    await reception.locator('[data-guide-undo]').click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'undo restores prior illustrated state');
-    assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'guide never mutates stored academic progress');
-    await reception.locator('[data-guide-tab="2"]').click();
-    assert.match(await reception.locator('[data-guide-copy]').innerText(), /estado aprobado se comparte/);
-    await reception.locator('[data-guide-tab="3"]').click();
-    assert.equal(await reception.locator('.guide-material-search').count(), 1);
-    await reception.locator('[data-guide-tab="4"]').click();
-    assert.equal(await reception.locator('.guide-calendar-grid span').count(), 28);
-    assert.equal(await reception.locator('.guide-calendar-grid').innerText(), '', 'no invented dates');
-    await reception.locator('[data-guide-prev]').click();
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Material de estudio');
-    await reception.locator('[data-guide-replay]').click();
-    assert.equal(await reception.locator('[data-guide-step]').innerText(), 'Busca por ramo');
-    await reception.locator('[data-guide-play]').click();
-    assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
-    await page.waitForTimeout(2300);
-    assert.match(await reception.locator('[data-guide-step]').innerText(), /Búsqueda aplicada|Filtra por tipo/);
-    await reception.locator('[data-guide-play]').click();
-    assert.notEqual(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
-    const progress = await reception.locator('[data-guide-tab="3"] i').evaluate(node => node.style.width);
-    await page.waitForTimeout(200);
-    assert.equal(await reception.locator('[data-guide-tab="3"] i').evaluate(node => node.style.width), progress, 'pause freezes progress');
-    await stable(page);
-    await page.locator('.reception-enter').click();
-    await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-    if (width <= 920) {
-      await page.locator('.bottom-more').click();
-      await page.locator('.menu-sheet [data-open-welcome]').click();
-    } else await page.locator('.sidebar [data-open-welcome]').click();
-    const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' });
-    await dialog.waitFor();
-    assert.equal(await dialog.locator('[data-guide-tab]').count(), 5);
-    for (let i = 0; i < 12; i++) {
-      await page.keyboard.press('Tab');
-      assert.ok(await dialog.evaluate(node => node.contains(document.activeElement)), 'focus stays within dialog');
-    }
-    await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'hidden' });
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.locator('.reception-skip').click();
-    assert.equal(new URL(page.url()).hash, '#/inicio');
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.locator('[data-reception-dismiss]').click();
-    assert.equal(await page.evaluate(() => localStorage.getItem('portal.tutorial.skip')), 'yes');
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.waitForURL(value => value.hash === '#/inicio');
-    await page.goto(url('/bienvenida'), { waitUntil: 'networkidle' });
-    await page.locator('.portal-reception').waitFor();
-    report.cases.push({ engine, width, height, silent: true, phases: true, isolatedStorage: true, rememberSkip: true });
-    await context.close();
-    await browser.close();
-  }
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const page = await context.newPage();
-  await page.goto(url(), { waitUntil: 'networkidle' });
-  const guide = page.locator('.portal-reception');
-  await guide.locator('[data-guide-tab="1"]').click();
-  assert.equal(await guide.locator('.guide-course.is-approved').count(), 6, 'reduced motion shows final state');
-  await guide.locator('[data-guide-play]').click();
-  assert.equal(await guide.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'reduced motion does not autoplay');
-  await guide.locator('[data-guide-next]').click();
-  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Mis ramos');
-  await stable(page);
-  report.cases.push({ reducedMotion: true, manual: true });
-  await context.close();
-  const liveContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const live = await liveContext.newPage();
-  await live.clock.install();
-  await live.goto(url(), { waitUntil: 'networkidle' });
-  await live.locator('.portal-reception [data-guide-play]').click();
-  await live.clock.runFor(47000);
-  const liveGuide = live.locator('.portal-reception');
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"]').getAttribute('aria-selected'), 'true', 'automatic playback reaches chapter five');
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), '100%', 'final progress completes');
-  assert.match(await liveGuide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
-  assert.notEqual(await liveGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'playback stops at the end');
-  await live.clock.runFor(5000);
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), '100%', 'no timer advances after completion');
-  await live.locator('.reception-enter').click();
-  await live.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-  report.cases.push({ fullPlayback: true, durationSeconds: 46, stoppedAfterCompletion: true });
-  await liveContext.close();
-  const changingContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const changing = await changingContext.newPage();
-  await changing.goto(url(), { waitUntil: 'networkidle' });
-  const changingGuide = changing.locator('.portal-reception');
-  await changingGuide.locator('[data-guide-play]').click();
-  await changing.waitForTimeout(350);
-  await changing.emulateMedia({ reducedMotion: 'reduce' });
-  await changing.waitForFunction(() => document.querySelector('.portal-reception [data-guide-play]')?.textContent !== 'Pausar');
-  assert.notEqual(await changingGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'live reduced motion stops playback');
-  assert.equal(await changingGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width), '100%', 'current scene becomes final static state');
-  await changing.waitForTimeout(350);
-  assert.equal(await changingGuide.locator('[data-guide-tab="0"]').getAttribute('aria-selected'), 'true', 'reduced motion never auto advances');
-  await changing.emulateMedia({ reducedMotion: 'no-preference' });
-  assert.notEqual(await changingGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'restoring preference never resumes automatically');
-  report.cases.push({ reducedMotionChangedDuringPlayback: true });
-  await changingContext.close();
-  await browser.close();
-  assert.deepEqual(report.errors, []);
-  report.ok = true;
-  console.log(JSON.stringify(report));
-} finally {
-  await writeFile(new URL(`welcome-${production ? 'production' : 'local'}-report.json`, out), JSON.stringify(report, null, 2));
-}
+import {chromium,webkit,firefox} from 'playwright';
+import {mkdir,writeFile} from 'node:fs/promises';
+const base=process.env.QA_WELCOME_URL||'http://127.0.0.1:18084/?static=1';
+const production=new URL(base).hostname==='ceicucn.cl';
+const configs=production?[['chromium',1440,900],['chromium',390,844]]:[['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
+const out=new URL('../qa-screenshots/',import.meta.url);await mkdir(out,{recursive:true});
+const report={ok:false,production,cases:[],errors:[]};
+const url=(route='/')=>{const u=new URL(base);u.searchParams.set('review','20260921d');u.hash=route;return u.href;};
+try{
+ for(const [engine,width,height] of configs){
+  const browser=await({chromium,webkit,firefox}[engine]).launch();const context=await browser.newContext({viewport:{width,height}});const page=await context.newPage();page.setDefaultNavigationTimeout(90000);
+  page.on('pageerror',e=>report.errors.push(e.message));const media=[];page.on('request',r=>{if(/portal-guia-.*\.mp4/.test(r.url()))media.push(r.url());});
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  assert.equal(await page.getByRole('dialog').count(),0,'entry is a page, not a modal');assert.deepEqual(media,[],'no initial video download');
+  assert.equal(await page.locator('.reception-sections a').count(),0,'welcome contains no section shortcuts');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'receiving page has no horizontal overflow');
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-light.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  await page.evaluate(()=>localStorage.setItem('portal.welcome.v1','done'));await page.reload({waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await page.locator('body.theme-dark').count(),1);
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-dark.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  // Headless Windows audio can suspend playback: decode silently for automation.
+  const player=page.locator('.portal-reception video');await player.evaluate(v=>{v.muted=true;v.dataset.identity='preserved';});
+  await page.locator('[data-reception-play]').click();await page.waitForFunction(()=>document.querySelector('.portal-reception video')?.currentTime>.5,null,{timeout:20000});
+  const duration=await player.evaluate(v=>v.duration);assert.ok(duration>60&&duration<160,'unhurried short tutorial');
+  const expectedFormat=width<=920?'mobile':'desktop';
+  assert.ok((await player.getAttribute('src')).includes(`portal-guia-${expectedFormat}.mp4`),'video matches portal layout');
+  assert.ok((await player.getAttribute('poster')).includes(`portal-guia-${expectedFormat}.jpg`));
+  assert.ok((await player.locator('track').getAttribute('src')).includes(`portal-guia-${expectedFormat}.vtt`));
+  if(expectedFormat==='mobile') assert.ok(await player.evaluate(v=>Math.abs(v.videoWidth/v.videoHeight-480/700)<.005),'mobile video preserves the full screen ratio without a text strip');
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await player.getAttribute('data-identity'),'preserved');assert.equal(await player.evaluate(v=>v.paused),false,'theme does not interrupt video');
+  await player.evaluate(v=>v.addEventListener('pause',()=>{window.__receptionPausedBeforeLeaving=true},{once:true}));
+  await page.locator('.reception-enter').click();assert.equal(await page.evaluate(()=>window.__receptionPausedBeforeLeaving),true,'Ir al portal pauses the tutorial before navigating');await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/calendario"]`).click();await page.locator('.month-grid').waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
+  await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/calendario','deep links remain direct');assert.equal(await page.getByRole('dialog').count(),0);
+  await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/mallas"]`).click();
+  await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
+  assert.equal(await page.getByRole('link',{name:'Original',exact:true}).count(),0,'mallas has no Original shortcut');
+  await page.locator('.malla-close').click();
+  await page.locator(width<=920?'.mobile-brand':'.sidebar-brand').click();await page.locator('.portal-reception').waitFor();
+  await page.locator('.reception-enter').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(new URL(page.url()).hash,'#/inicio');
+  if(width<=920){await page.locator('.bottom-more').click();await page.locator('.menu-sheet [data-open-welcome]').click();}else await page.locator('.sidebar [data-open-welcome]').click();
+  const dialog=page.getByRole('dialog',{name:'Así funciona el portal'});await dialog.waitFor();
+  assert.ok((await dialog.locator('video').getAttribute('data-source')).includes(`portal-guia-${expectedFormat}.mp4`),'manual guide uses the same device format');
+  for(let i=0;i<12;i++){await page.keyboard.press('Tab');assert.ok(await dialog.evaluate(d=>d.contains(document.activeElement)));}
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.reception-skip').click();
+  assert.equal(new URL(page.url()).hash,'#/inicio');
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  await page.locator('[data-reception-dismiss]').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),'yes');
+  await page.goto(url(),{waitUntil:'networkidle'});await page.waitForURL(u=>u.hash==='#/inicio');
+  await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/inicio','remember skip on future visits');
+  await page.goto(url('/bienvenida'),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  report.cases.push({engine,width,height,welcomeOnly:true,rememberSkip:true,noInitialDownload:true,deepLink:true,playback:duration,themePreservesPlayback:true});await context.close();await browser.close();
+ }
+ assert.deepEqual(report.errors,[]);report.ok=true;console.log(JSON.stringify(report));
+}finally{await writeFile(new URL(`welcome-${production?'production':'local'}-report.json`,out),JSON.stringify(report,null,2));}

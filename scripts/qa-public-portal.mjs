@@ -122,16 +122,7 @@ try {
     assert.equal(new URL(page.url()).hash, '#/', 'internal routes remain protected');
     await page.goto(url('/material/subir'), { waitUntil: 'networkidle' });
     assert.equal(new URL(page.url()).hash, '#/material/subir', 'public material contribution route stays available');
-    const uploadForm = await page.locator('form[data-form="upload-material"]').count();
-    const publishedFormLink = await page.locator('a[href="https://ceicucn.cl/#/material/subir"]').count();
-    if (staticMode) {
-      assert.equal(uploadForm, 0, 'static preview does not show a disabled contribution form');
-      assert.equal(publishedFormLink, 1, 'static preview directs contributions to the published portal');
-    } else if (label === 'production') {
-      assert.equal(uploadForm, 1, 'published portal shows the contribution form');
-    } else {
-      assert.equal(uploadForm + publishedFormLink, 1, 'local preview offers a working upload path');
-    }
+    assert.equal(await page.locator('form[data-form="upload-material"]').count(), 1, 'public material contribution form is visible');
     assert.deepEqual(authRequests, [], 'public browsing does not validate or transmit saved credentials');
     await context.close();
   }

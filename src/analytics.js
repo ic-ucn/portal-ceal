@@ -11,10 +11,7 @@
   const actions = {
     'tutorial/abrir': 'Abrir guía', 'tutorial/saltar': 'Saltar tutorial',
     'tutorial/omitir': 'No volver a mostrar', 'tutorial/entrar': 'Ir al portal',
-    'tutorial/reproducir': 'Reproducir recorrido', 'tutorial/pausar': 'Pausar recorrido',
-    'tutorial/capitulo': 'Elegir capítulo', 'tutorial/anterior': 'Capítulo anterior',
-    'tutorial/siguiente': 'Capítulo siguiente', 'tutorial/repetir': 'Repetir escena',
-    'tutorial/completar': 'Completar recorrido', 'calendario/mes': 'Cambiar mes',
+    'tutorial/leer': 'Leer guía', 'calendario/mes': 'Cambiar mes',
     'calendario/hoy': 'Volver a hoy', 'calendario/fecha': 'Consultar fecha',
     'calendario/cerrar': 'Cerrar fecha', 'calendario/fuente': 'Abrir calendario oficial',
     'calendario/audiencia': 'Filtrar actividades', 'calendario/exportar': 'Exportar calendario',
@@ -31,7 +28,7 @@
   const clicks = [
     ['[data-open-welcome]', 'tutorial/abrir'], ['.reception-skip', 'tutorial/saltar'],
     ['[data-reception-dismiss]', 'tutorial/omitir'], ['.reception-enter', 'tutorial/entrar'],
-    ['[data-calendar-month]', 'calendario/mes'],
+    ['.welcome-transcript summary', 'tutorial/leer'], ['[data-calendar-month]', 'calendario/mes'],
     ['[data-calendar-today]', 'calendario/hoy'], ['[data-calendar-date]', 'calendario/fecha'],
     ['[data-calendar-modal-close]', 'calendario/cerrar'], ['.calendar-source a, .calendar-event-source', 'calendario/fuente'],
     ['[data-calendar-audience]', 'calendario/audiencia'], ['[data-download-calendar]', 'calendario/exportar'],
@@ -61,6 +58,7 @@
   const enabled = /^https:\/\/[a-z0-9-]+\.goatcounter\.com\/count$/.test(endpoint) && !excluded();
   let current = null, lastRoute = null, loaded = false, failed = false, firstPage = true;
   let pending = [], searchTimer;
+  const videos = new WeakMap();
   function pageInfo(path) {
     const clean = String(path || '').split('?')[0];
     if (Object.hasOwn(pages, clean) && !['/ramo', '/material/recurso', '/acuerdos'].includes(clean)) {
@@ -98,6 +96,26 @@
   function event(name) {
     if (!current || !Object.hasOwn(actions, name)) return;
     send({ path: name, title: actions[name], event: true, referrer: current.path, no_session: true });
+  }
+  function videoEvent(e) {
+    const player = e.target;
+    if (!current || !player.matches?.('.portal-reception video, .portal-welcome video')) return;
+    const format = player.dataset.format;
+    if (!['desktop', 'mobile'].includes(format)) return;
+    let seen = videos.get(player);
+    if (!seen || seen.format !== format) { seen = { format, events: new Set() }; videos.set(player, seen); }
+    const report = (key, title) => {
+      if (seen.events.has(key)) return;
+      seen.events.add(key);
+      send({ path: `tutorial/${format}/${key}`, title: `Tutorial ${format === 'mobile' ? 'móvil' : 'escritorio'} · ${title}`, event: true, referrer: current.path, no_session: true });
+    };
+    if (e.type === 'playing') report('inicio', 'Iniciado');
+    if (e.type === 'ended') report('fin', 'Finalizado');
+    if (e.type === 'error') report('error', 'Error de reproducción');
+    if (e.type === 'timeupdate' && !player.seeking && !player.paused && Number.isFinite(player.duration) && player.duration > 0) {
+      const percent = player.currentTime / player.duration * 100;
+      for (const mark of [25, 50, 75]) if (percent >= mark) report(String(mark), `Alcanzó ${mark}%`);
+    }
   }
   window.PortalAnalytics = Object.freeze({ page, event });
   if (!enabled) return;
@@ -140,4 +158,5 @@
   document.addEventListener('submit', e => {
     if (e.isTrusted && e.target.matches('[data-global-search-form], [data-search-page-form]')) event('portal/buscar');
   }, true);
+  for (const type of ['playing', 'timeupdate', 'ended', 'error']) document.addEventListener(type, videoEvent, true);
 })();
