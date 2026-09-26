@@ -126,7 +126,9 @@
     rsvSubmitting: false,
     rsvActionBusy: '',
     rsvJustCreated: null,
-    mallaEmbedPlan: safeStorageGet('portal.malla.embedPlan') || 'p',
+    mallaEmbedPlan: MyCourses.read().activePlan === 'planO' ? 'o' : 'p',
+    mallaPersonalOpen: false,
+    mallaDetailCode: null,
     mallaApprovalMode: false,
     mallaApprovalSemester: { planO: 1, planP: 1 },
     portalDark: initialPortalDark,
@@ -337,7 +339,7 @@
     if (restore && !path.includes('?')) {
       nextHash = [...routeViews.keys()].reverse().find(key => key.split('?')[0] === nextHash) || nextHash;
     }
-    if (location.hash !== nextHash) history.pushState(null, '', nextHash);
+    if (location.hash !== nextHash) history.pushState(null, '', `${location.pathname}${location.search}${nextHash}`);
     safeRender({ transition: true, scope: 'route', restoreView: restore });
   }
   function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
@@ -1094,6 +1096,7 @@
     if (filterRenderTimer) clearTimeout(filterRenderTimer);
     filterRenderTimer = setTimeout(() => {
       filterRenderTimer = null;
+      if (getRoute().path === '/mallas') { syncMallaPersonal(); return; }
       render({ scope: 'filter', resetScroll: false, preserveFocus: true });
     }, 120);
   }
@@ -1185,9 +1188,8 @@
     const items = [
       [SIGN_IN_ENABLED ? '/' : '/inicio', 'home', 'Inicio'],
       ['/calendario', 'calendar', 'Calendario'],
-      ['/mallas', 'grid', 'Mallas'],
-      ['/material', 'book', 'Material'],
-      ['/mis-ramos', 'check', 'Mis ramos']
+      ['/mallas', 'grid', 'Malla'],
+      ['/material', 'book', 'Material']
     ];
     if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
     if (FEATURES.tableReservations && !isGuest()) items.push(['/reservas', 'pingpong', 'Reservas']);
@@ -1230,6 +1232,11 @@
   function paint(restoring = false) {
     applyPortalTheme();
     const { path, query } = getRoute();
+    if (path === '/mis-ramos') {
+      history.replaceState(null, '', `${location.pathname}${location.search}#/mallas?view=mis-ramos`);
+      state.mallaPersonalOpen = true;
+      return paint(restoring);
+    }
     if (!SIGN_IN_ENABLED) {
       state.user = buildGuestUser();
       if (path === '/login' || path === '/perfil') return routeTo('/');
@@ -1328,7 +1335,7 @@
     afterRender();
     window.PortalAnalytics?.page(getRoute().path);
     trackPortalView(getRoute().path);
-    lastRenderedRouteKey = routeKey;
+    lastRenderedRouteKey = location.hash || '#/';
     if (retainedView) restoreView(retainedView, !overlayOnly);
     else if (!samePage) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -1351,6 +1358,11 @@
     if (calendarOverlay) app.querySelector('.app-shell')?.append(calendarOverlay);
     document.querySelectorAll('.app-main, .sidebar').forEach(node => { node.inert = state.menuOpen || Boolean(calendarOverlay); });
     hydrateMallaEmbed();
+    const mallaDialog = app.querySelector('[data-malla-course-dialog]');
+    if (mallaDialog) {
+      mallaDialog.addEventListener('cancel', event => { event.preventDefault(); closeMallaDetail(); });
+      mallaDialog.addEventListener('click', event => { if (event.target === mallaDialog) closeMallaDetail(); });
+    }
     hydrateCalendarStatus();
     hydrateCalendarUpdates();
     hydrateAnalytics();
@@ -1530,7 +1542,6 @@
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/calendario') return renderCalendar();
-    if (path === '/mis-ramos') return renderMyCourses();
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
@@ -1570,7 +1581,10 @@
     }
     if (path === '/material/subir') return renderUploadMaterial();
     if (path.startsWith('/material/')) return renderMaterialDetailPage(path.split('/')[2]);
-    if (path === '/mallas') return renderMallas();
+    if (path === '/mallas') {
+      if (location.hash !== lastRenderedRouteKey) state.mallaPersonalOpen = query.view === 'mis-ramos';
+      return renderMallas();
+    }
     if (path.startsWith('/ramo/')) {
       const [, , plan, code] = path.split('/');
       const decodedCode = safeDecode(code);
@@ -1588,7 +1602,7 @@
     const dateLabel = today.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${portalTodayKey()}">${esc(dateLabel)}</time></div>
       <div class="home-overview"><section class="home-calendar"><header><h2>Próximas fechas</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><figure class="home-campus-frame"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" width="720" height="460" /><figcaption>Ingeniería Civil <span>Universidad Católica del Norte</span></figcaption></figure></div>
-      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Mallas curriculares</strong><small>Plan O · Plan P</small></span>${icon('arrow')}</a><a href="#/mis-ramos"><span class="home-service-symbol">${icon('check')}</span><span><strong>Mis ramos</strong><small>Selección y avance personal</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
+      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Malla</strong><small>Plan O · Plan P · Mis ramos</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
   }
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
@@ -1714,11 +1728,14 @@
       ? `<a class="link" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">${resources.length} ${resources.length === 1 ? 'recurso' : 'recursos'}${related ? ` · ${related} ${related === 1 ? 'material relacionado' : 'materiales relacionados'}` : ''} ${icon('arrow')}</a>`
       : `<span class="small muted">Sin material asociado. <a href="#/material/subir">Aportar material</a></span>`;
   }
+  function myCourseStatusControl(plan, code, record, locked) {
+    const status = record.statuses[code] || 'pendiente';
+    return `<label class="my-course-state">Estado <select class="select" data-my-course-status="${esc(code)}" data-my-course-plan="${plan}" aria-label="Estado de ${esc(titleCase(findCourse(plan, code)?.name || code))}"${locked ? ' disabled' : ''}>${[['pendiente', 'Pendiente'], ['cursando', 'Cursando'], ['aprobado', 'Aprobado']].map(([value, label]) => `<option value="${value}"${status === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label>`;
+  }
   function renderMyCourseCard(plan, code, record, locked) {
     const course = findCourse(plan, code);
-    if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
-    const status = record.statuses[code] || 'pendiente';
-    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · ${course.semester} semestre</small><h3><a href="#/ramo/${plan}/${encodeURIComponent(code)}">${esc(titleCase(course.name))}</a></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot"><label>Estado <select class="select" data-my-course-status="${esc(code)}" aria-label="Estado de ${esc(titleCase(course.name))}"${locked ? ' disabled' : ''}>${[['pendiente', 'Pendiente'], ['cursando', 'Cursando'], ['aprobado', 'Aprobado']].map(([value, label]) => `<option value="${value}"${status === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label>${myCourseMaterial(plan, course)}</div></article>`;
+    if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
+    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}</div></article>`;
   }
   function renderMyCourses() {
     const stored = MyCourses.read();
@@ -1727,7 +1744,8 @@
     const semesters = [...new Set(getCourses(plan).map(course => course.semester))].sort((a, b) => a - b);
     if (state.myCoursesSemester !== 'all' && !semesters.includes(Number(state.myCoursesSemester))) state.myCoursesSemester = 'all';
     const record = stored.plans[plan];
-    const selected = record.selected;
+    // Stable priority: display current courses first without mutating saved order.
+    const selected = record.selected.map((code, index) => ({ code, index })).sort((a, b) => Number(record.statuses[b.code] === 'cursando') - Number(record.statuses[a.code] === 'cursando') || a.index - b.index).map(item => item.code);
     const valid = selected.filter(code => findCourse(plan, code));
     const approved = valid.filter(code => record.statuses[code] === 'aprobado').length;
     const query = plain(state.myCoursesQuery);
@@ -1735,13 +1753,10 @@
       (state.myCoursesSemester === 'all' || course.semester === Number(state.myCoursesSemester)) &&
       (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
     );
-    const notice = myCoursesNotice(health);
-    return `${pageHead('Mis ramos', 'Organiza tus ramos y el avance que registras.')}
-      <div class="my-courses-page">${notice}<p class="my-courses-privacy">Tu selección se guarda en este navegador. Los estados son personales y no representan avance académico oficial.</p>
-      <div class="segmented my-courses-plans" role="group" aria-label="Plan curricular"><button type="button" data-my-courses-plan="planO" aria-pressed="${plan === 'planO'}" class="${plan === 'planO' ? 'active' : ''}">Plan O</button><button type="button" data-my-courses-plan="planP" aria-pressed="${plan === 'planP'}" class="${plan === 'planP' ? 'active' : ''}">Plan P</button></div>
-      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h2 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h2><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
-      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Aún no eliges ramos</h3><p>Busca ramos de cualquier semestre y agrégalos a tu selección.</p><a class="link" href="#/material/subir">Aportar material</a></div>`}</section>
-      <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h2 id="my-courses-catalog-title" class="card-title">Buscar ramos</h2><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option"><div><small>${esc(course.visibleCode || course.code)} · ${course.semester} semestre</small><strong>${esc(titleCase(course.name))}</strong><span>${myCourseMaterial(plan, course)}</span></div><button type="button" class="btn ${selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}"${health.locked ? ' disabled' : ''}>${selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
+    return `<div class="my-courses-page">${myCoursesNotice(health)}<p class="my-courses-privacy">Selección y estados guardados en este navegador. No representan avance oficial. Agregar un ramo no cambia su estado.</p>
+      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
+      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Aún no eliges ramos</h3><p>Toca un ramo en la malla o búscalo aquí para agregarlo.</p></div>`}</section>
+      <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h3 id="my-courses-catalog-title" class="card-title">Buscar en la malla</h3><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option" data-my-course-option="${esc(course.code)}"><div><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></div><button type="button" class="btn ${record.selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${record.selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${record.selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
   }
   function myCoursesNotice(health) {
     return health.issue ? `<div class="my-courses-notice" role="status">${esc(health.issue)}${health.recoverable ? ' <button class="btn secondary sm" type="button" data-my-courses-recover>Recuperar Mis ramos</button>' : ''}${health.conflict ? ' <button class="btn secondary sm" type="button" data-my-courses-resolve="saved">Usar versión guardada</button><button class="btn secondary sm" type="button" data-my-courses-resolve="temporary">Conservar cambios de esta pestaña</button>' : ''}</div>` : '';
@@ -1956,12 +1971,13 @@
     const semester = semesters.includes(Number(state.mallaApprovalSemester[planKey])) ? Number(state.mallaApprovalSemester[planKey]) : semesters[0];
     state.mallaApprovalSemester[planKey] = semester;
     const mallaProgressMarkup = mallaTotalCourses ? `<span class="malla-progress-label" data-malla-progress-count aria-live="polite">${approved} de ${mallaTotalCourses} aprobados</span>` : '';
-    return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaApprovalMode ? 'is-marking' : ''}" aria-label="Malla curricular embebida">
+    state.myCoursesPlan = planKey;
+    return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaApprovalMode ? 'is-marking' : ''} ${state.mallaPersonalOpen ? 'is-personal-open' : ''}" aria-label="Malla y ramos personales">
         <header class="malla-commandbar">
           <a class="malla-commandbar-title" href="#/" aria-label="Volver al inicio del portal">
             <span class="malla-mini-mark">${icon('grid')}</span>
             <span>
-              <strong>Mallas</strong>
+              <strong>Malla</strong>
               <small>${esc(planLabelText)}</small>
             </span>
           </a>
@@ -1969,9 +1985,10 @@
           <a class="icon-btn malla-close" href="#${SIGN_IN_ENABLED ? '/' : '/inicio'}" aria-label="Cerrar malla y volver al inicio">${icon('x')}</a>
           <div class="malla-commandbar-actions">
             <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
-              <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
-              <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
+              <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o" aria-pressed="${plan === 'o'}">Plan O</button>
+              <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p" aria-pressed="${plan === 'p'}">Plan P</button>
             </div>
+            <div class="segmented malla-view-tabs" aria-label="Vista de la malla"><button type="button" data-malla-view="malla" class="${state.mallaPersonalOpen ? '' : 'active'}" aria-pressed="${!state.mallaPersonalOpen}">Malla completa</button><button type="button" data-malla-view="personal" class="${state.mallaPersonalOpen ? 'active' : ''}" aria-pressed="${state.mallaPersonalOpen}" aria-controls="malla-personal-panel">Mis ramos</button></div>
             <button class="malla-tool-btn malla-mark-toggle ${state.mallaApprovalMode ? 'active' : ''}" type="button" data-malla-mark-toggle aria-pressed="${state.mallaApprovalMode}"${health.locked ? ' disabled' : ''}>${icon('check')}<span>${state.mallaApprovalMode ? 'Terminar marcado' : 'Marcar aprobados'}</span></button>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
             <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Guía del portal">${icon('play')}<span>Guía</span></button>
@@ -1983,11 +2000,96 @@
           <div class="malla-mark-batch"><label for="malla-mark-semester">Aprobar hasta el semestre</label><select id="malla-mark-semester" class="select" data-malla-mark-semester>${semesters.map(value => `<option value="${value}"${value === semester ? ' selected' : ''}>${value}</option>`).join('')}</select><span data-malla-batch-preview></span><button class="btn secondary sm" type="button" data-malla-mark-batch>Aplicar</button><button class="btn ghost sm" type="button" data-malla-mark-undo${mallaApprovalUndo?.plan === planKey ? '' : ' hidden'}>Deshacer lote</button></div>
           <p class="malla-mark-notice" data-malla-mark-notice role="status">${esc(health.issue || 'Aprobar no agrega el ramo a Mis ramos.')}</p>
         </div>
-        <div class="malla-embed-frame-wrap" data-malla-frame-wrap>
+        <div class="malla-body"><div class="malla-embed-frame-wrap" data-malla-frame-wrap>
           <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
           <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
-        </div>
+        </div><aside class="malla-personal-panel" id="malla-personal-panel" aria-labelledby="malla-personal-title"${state.mallaPersonalOpen ? '' : ' hidden'}><header><h2 id="malla-personal-title">Mis ramos</h2><button class="icon-btn" type="button" data-malla-view="malla" aria-label="Cerrar Mis ramos">${icon('x')}</button></header><div class="malla-personal-content" data-malla-personal-content>${renderMyCourses()}</div></aside></div>
+        <dialog class="malla-course-dialog" data-malla-course-dialog aria-labelledby="malla-course-title"><div data-malla-course-detail></div></dialog>
       </section>`;
+  }
+  function syncMallaPersonal() {
+    const content = app.querySelector('[data-malla-personal-content]');
+    if (!content) return;
+    const active = document.activeElement;
+    const focus = content.contains(active) ? viewLocator(active) : null;
+    const statusCode = content.contains(active) ? active.dataset.myCourseStatus : null;
+    const selection = active instanceof HTMLInputElement ? [active.selectionStart, active.selectionEnd] : null;
+    const scroll = content.scrollTop;
+    content.innerHTML = renderMyCourses();
+    content.scrollTop = scroll;
+    if (focus) {
+      const next = statusCode ? content.querySelector(`[data-my-course-status="${CSS.escape(statusCode)}"]`) : document.querySelector(focus);
+      next?.focus({ preventScroll: true });
+      if (selection && next?.setSelectionRange) try { next.setSelectionRange(...selection); } catch {}
+    }
+    const dialog = app.querySelector('[data-malla-course-dialog]');
+    if (dialog?.open && state.mallaDetailCode) renderMallaDetail();
+  }
+  function setMallaView(personal) {
+    state.mallaPersonalOpen = personal;
+    app.querySelector('.malla-workspace')?.classList.toggle('is-personal-open', personal);
+    const panel = app.querySelector('.malla-personal-panel');
+    if (panel) panel.hidden = !personal;
+    app.querySelectorAll('[data-malla-view]').forEach(button => {
+      if (button.classList.contains('icon-btn')) return;
+      const active = (button.dataset.mallaView === 'personal') === personal;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? '#/mallas?view=mis-ramos' : '#/mallas'}`);
+    lastRenderedRouteKey = location.hash;
+  }
+  let mallaDetailReturnFocus = null;
+  let mallaDetailReturnSelector = null;
+  function renderMallaDetail() {
+    const plan = state.myCoursesPlan;
+    const course = findCourse(plan, state.mallaDetailCode);
+    const host = app.querySelector('[data-malla-course-detail]');
+    if (!course || !host) return;
+    const record = MyCourses.read().plans[plan], health = MyCourses.status();
+    const selected = record.selected.includes(course.code);
+    const active = host.contains(document.activeElement) ? document.activeElement : null;
+    const focusAction = active?.hasAttribute('data-my-course-status') ? 'status' : active?.hasAttribute('data-my-course-add') || active?.hasAttribute('data-my-course-remove') ? 'selection' : active?.hasAttribute('data-malla-detail-close') ? 'close' : null;
+    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Agregar no cambia el estado. Aprobar no agrega el ramo a tu selección. Registro personal en este navegador.</p><div class="malla-course-material">${myCourseMaterial(plan, course)}</div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
+    const focusSelector = { status: '[data-my-course-status]', selection: '[data-my-course-add], [data-my-course-remove]', close: '[data-malla-detail-close]' }[focusAction];
+    if (focusSelector) host.querySelector(focusSelector)?.focus({ preventScroll: true });
+  }
+  function openMallaDetail(code, trigger = document.activeElement) {
+    if (!findCourse(state.myCoursesPlan, code)) return;
+    const dialog = app.querySelector('[data-malla-course-dialog]');
+    if (!dialog) return;
+    if (!dialog.open) {
+      mallaDetailReturnFocus = trigger;
+      mallaDetailReturnSelector = trigger?.dataset.mallaDetail
+        ? `${trigger.closest('.my-courses-list') ? '.my-courses-list' : '.my-courses-selected'} [data-malla-detail="${CSS.escape(trigger.dataset.mallaDetail)}"]`
+        : viewLocator(trigger);
+    }
+    state.mallaDetailCode = code;
+    renderMallaDetail();
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector('[data-malla-detail-close]')?.focus({ preventScroll: true });
+  }
+  function closeMallaDetail(focus = true) {
+    const dialog = app.querySelector('[data-malla-course-dialog]');
+    dialog?.close();
+    state.mallaDetailCode = null;
+    if (focus) {
+      const target = mallaDetailReturnFocus?.isConnected ? mallaDetailReturnFocus : mallaDetailReturnSelector && app.querySelector(mallaDetailReturnSelector);
+      (target || app.querySelector('[data-malla-view="personal"]'))?.focus({ preventScroll: true });
+    }
+    mallaDetailReturnFocus = null;
+    mallaDetailReturnSelector = null;
+  }
+  function locateMallaCourse(code) {
+    if (!findCourse(state.myCoursesPlan, code)) return;
+    closeMallaDetail(false);
+    setMallaView(false);
+    const frame = app.querySelector('[data-malla-frame]');
+    frame?.contentWindow?.postMessage({ __mcPortalLocate: true, code }, '*');
+  }
+  function refreshMyCourses() {
+    if (getRoute().path === '/mallas') syncMallaProgress();
+    else render({ scope: 'panel' });
   }
   function mallaApprovedCodes(plan) {
     const statuses = MyCourses.read().plans[plan].statuses;
@@ -2018,6 +2120,7 @@
     const undo = app.querySelector('[data-malla-mark-undo]');
     if (undo) undo.hidden = mallaApprovalUndo?.plan !== plan || !Object.keys(mallaApprovalUndo.previous).length;
     if (frame.contentWindow && frame.srcdoc) frame.contentWindow.postMessage({ __mcPortalProgress: true, mode: state.mallaApprovalMode && !health.locked, approved }, '*');
+    syncMallaPersonal();
   }
   function mallaEmbedUrl(plan) { return `${MALLA_BASE_URL}malla-${plan === 'o' ? 'o' : 'p'}.html`; }
   async function getMallaEmbedHtml(plan) {
@@ -2156,7 +2259,7 @@
     const planKey = plan === 'o' ? 'planO' : 'planP';
     const payload = {};
     for (const course of getCourses(planKey)) {
-      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code, id: course.code };
+      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code, id: course.code, semester: course.semester };
       payload[course.code] = entry;
       if (course.visibleCode && course.visibleCode !== course.code) payload[course.visibleCode] = entry;
     }
@@ -2392,24 +2495,38 @@
           });
         }
         window.addEventListener('click', function(event) {
-          if (!progressMode || !event.isTrusted) return;
+          if (!event.isTrusted) return;
           var card = event.target.closest && event.target.closest('.mc-card[data-mc-code]');
           if (!card) return;
           event.preventDefault();
           event.stopImmediatePropagation();
-          window.parent.postMessage({ __mcPortal: true, type: 'toggle-approved', code: progressCardCode(card) }, parentOrigin);
+          if (!progressMode) { activeCode = card.dataset.mcCode; applyActiveHighlight(); }
+          window.parent.postMessage({ __mcPortal: true, type: progressMode ? 'toggle-approved' : 'open-course', code: progressCardCode(card) }, parentOrigin);
         }, true);
         window.addEventListener('keydown', function(event) {
-          if (!progressMode || !event.isTrusted || (event.key !== 'Enter' && event.key !== ' ')) return;
+          if (!event.isTrusted || (event.key !== 'Enter' && event.key !== ' ')) return;
           var card = event.target.closest && event.target.closest('.mc-card[data-mc-code]');
           if (!card) return;
           event.preventDefault();
           event.stopImmediatePropagation();
-          window.parent.postMessage({ __mcPortal: true, type: 'toggle-approved', code: progressCardCode(card) }, parentOrigin);
+          if (!progressMode) { activeCode = card.dataset.mcCode; applyActiveHighlight(); }
+          window.parent.postMessage({ __mcPortal: true, type: progressMode ? 'toggle-approved' : 'open-course', code: progressCardCode(card) }, parentOrigin);
         }, true);
         window.addEventListener('message', function(event) {
           var data = event.data;
           if (event.source !== window.parent || event.origin !== parentOrigin || !data) return;
+          if (data.__mcPortalLocate === true && typeof data.code === 'string' && data.code.length <= 80) {
+            var target = Array.from(document.querySelectorAll('.mc-card[data-mc-code]')).find(function(card) { return progressCardCode(card) === data.code; });
+            if (!target) return;
+            var entry = (window.__MC_MATERIAL || {})[target.dataset.mcCode];
+            var select = document.querySelector('.mc-semester-select');
+            if (select && entry) { select.value = String(entry.semester); select.dispatchEvent(new Event('change')); }
+            activeCode = target.dataset.mcCode;
+            applyActiveHighlight();
+            target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+            target.focus({ preventScroll: true });
+            return;
+          }
           if (data.__mcPortalProgress === true && typeof data.mode === 'boolean' && Array.isArray(data.approved) && data.approved.length <= 100 && data.approved.every(function(code) { return typeof code === 'string' && code.length <= 80; })) {
             progressMode = data.mode;
             approvedCodes = new Set(data.approved);
@@ -3752,6 +3869,18 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const mallaView = e.target.closest('[data-malla-view]');
+    if (mallaView) {
+      const closingPanel = mallaView.classList.contains('icon-btn');
+      setMallaView(mallaView.dataset.mallaView === 'personal');
+      if (closingPanel) app.querySelector('[data-malla-view="personal"]')?.focus({ preventScroll: true });
+      return;
+    }
+    const mallaDetail = e.target.closest('[data-malla-detail]');
+    if (mallaDetail) { openMallaDetail(mallaDetail.dataset.mallaDetail, mallaDetail); return; }
+    if (e.target.closest('[data-malla-detail-close]')) { closeMallaDetail(); return; }
+    const mallaLocate = e.target.closest('[data-malla-locate]');
+    if (mallaLocate) { locateMallaCourse(mallaLocate.dataset.mallaLocate); return; }
     if (e.target.closest('[data-malla-mark-toggle]')) {
       if (MyCourses.status().locked) return;
       state.mallaApprovalMode = !state.mallaApprovalMode;
@@ -3795,17 +3924,17 @@
       if (!MyCourses.status().issue) showToast('Último lote deshecho', 'blue');
       return;
     }
-    const myPlan = e.target.closest('[data-my-courses-plan]');
-    if (myPlan) {
-      state.myCoursesPlan = myPlan.dataset.myCoursesPlan;
-      if (state.myCoursesSemester !== 'all' && !getCourses(state.myCoursesPlan).some(course => course.semester === Number(state.myCoursesSemester))) state.myCoursesSemester = 'all';
-      MyCourses.setPlan(state.myCoursesPlan);
-      render({ scope: 'panel' });
+    if (e.target.closest('[data-my-courses-recover]')) { MyCourses.recover(); refreshMyCourses(); return; }
+    const myResolve = e.target.closest('[data-my-courses-resolve]');
+    if (myResolve) {
+      if (MyCourses.resolveConflict(myResolve.dataset.myCoursesResolve)) {
+        state.myCoursesPlan = MyCourses.read().activePlan;
+        state.mallaEmbedPlan = state.myCoursesPlan === 'planO' ? 'o' : 'p';
+        closeMallaDetail(false);
+        render({ scope: 'panel' });
+      } else refreshMyCourses();
       return;
     }
-    if (e.target.closest('[data-my-courses-recover]')) { MyCourses.recover(); render({ scope: 'panel' }); return; }
-    const myResolve = e.target.closest('[data-my-courses-resolve]');
-    if (myResolve) { state.myCoursesPlan = MyCourses.resolveConflict(myResolve.dataset.myCoursesResolve) ? MyCourses.read().activePlan : state.myCoursesPlan; render({ scope: 'panel' }); return; }
     const myAdd = e.target.closest('[data-my-course-add]');
     const myRemove = e.target.closest('[data-my-course-remove]');
     if (myAdd || myRemove) {
@@ -3813,12 +3942,13 @@
       const plan = target.dataset.myCoursePlan || state.myCoursesPlan;
       const code = target.dataset.myCourseAdd || target.dataset.myCourseRemove;
       const fromCatalog = Boolean(target.closest('.my-courses-list'));
+      const fromDialog = Boolean(target.closest('[data-malla-course-dialog]'));
       if (!findCourse(plan, code) && myAdd) return;
       if (MyCourses.update(plan, code, myAdd ? 'select' : 'remove')) {
-        render({ scope: 'panel' });
+        refreshMyCourses();
         const opposite = `[data-my-course-${myAdd ? 'remove' : 'add'}="${CSS.escape(code)}"]`;
         const preferred = fromCatalog ? `.my-courses-list ${opposite}` : `.my-courses-selected ${opposite}`;
-        const next = app.querySelector(preferred)
+        const next = (fromDialog && app.querySelector(`[data-malla-course-dialog] ${opposite}`)) || app.querySelector(preferred)
           || app.querySelector(fromCatalog ? `.my-courses-selected ${opposite}` : `.my-courses-list ${opposite}`)
           || app.querySelector(opposite)
           || app.querySelector('.my-courses-selected [data-my-course-remove]')
@@ -3837,7 +3967,7 @@
         render({ scope: 'overlay' });
         returnTarget = document.querySelector(menuReturnFocus);
       }
-      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: 'aprobados' } : {});
+      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: state.mallaPersonalOpen ? 'mis-ramos' : 'malla' } : {});
       return;
     }
     if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;
@@ -4519,6 +4649,9 @@
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
       safeStorageSet('portal.malla.embedPlan', state.mallaEmbedPlan);
       state.activePlan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
+      state.myCoursesPlan = state.activePlan;
+      MyCourses.setPlan(state.myCoursesPlan);
+      closeMallaDetail(false);
       safeStorageSet('portal.activePlan', state.activePlan);
       render({ transition: true, scope: 'panel' });
       return;
@@ -4613,12 +4746,12 @@
       syncMallaProgress();
       return;
     }
-    if (e.target.matches('[data-my-courses-semester]')) { state.myCoursesSemester = e.target.value; render({ scope: 'filter' }); return; }
+    if (e.target.matches('[data-my-courses-semester]')) { state.myCoursesSemester = e.target.value; syncMallaPersonal(); return; }
     if (e.target.matches('[data-my-course-status]')) {
-      const plan = state.myCoursesPlan;
+      const plan = e.target.dataset.myCoursePlan || state.myCoursesPlan;
       const code = e.target.dataset.myCourseStatus;
       if (findCourse(plan, code) && MyCourses.update(plan, code, 'status', e.target.value) && mallaApprovalUndo?.plan === plan) delete mallaApprovalUndo.previous[code];
-      render({ scope: 'panel' });
+      refreshMyCourses();
       return;
     }
     const bookingActive = e.target.closest('[data-booking-setting="active"]');
@@ -4689,6 +4822,7 @@
   }
   function onKeydown(e) {
     if (e.key === 'Escape') {
+      if (app.querySelector('[data-malla-course-dialog]')?.open) { e.preventDefault(); closeMallaDetail(); return; }
       if (state.calendarDetailOpen) {
         closeCalendarDetail();
         return;
@@ -4698,9 +4832,9 @@
       if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; updateToast(); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     }
-    if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen)) {
-      const modal = document.querySelector(state.menuOpen ? '.menu-sheet' : '.calendar-detail-modal');
-      const focusable = [...(modal?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])].filter(node => !node.disabled);
+    if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen || app.querySelector('[data-malla-course-dialog]')?.open)) {
+      const modal = document.querySelector(state.menuOpen ? '.menu-sheet' : state.calendarDetailOpen ? '.calendar-detail-modal' : '[data-malla-course-dialog]');
+      const focusable = [...(modal?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])].filter(node => !node.disabled && node.getClientRects().length);
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -4983,13 +5117,12 @@
     }
     const match = inPlan ? { plan: planKey, course: inPlan } : officialCourseByCode(code);
     if (!match) { showToast('No encontramos ese ramo en el catálogo oficial.', 'blue'); return; }
-    if (data.type === 'select-course') { window.PortalAnalytics?.event('mallas/ramo'); return; }
+    if (data.type === 'select-course') return;
     if (data.type === 'open-material') {
       window.PortalAnalytics?.event('mallas/material');
       routeTo(`/material?plan=${match.plan}&course=${encodeURIComponent(match.course.code)}`);
     } else {
-      window.PortalAnalytics?.event('mallas/ficha');
-      routeTo(`/ramo/${match.plan}/${encodeURIComponent(match.course.code)}`);
+      if (inPlan) openMallaDetail(inPlan.code, frame);
     }
   });
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
@@ -4998,6 +5131,14 @@
     if (e.key !== MyCourses.key) return;
     state.myCoursesPlan = MyCourses.externalChange().activePlan;
     mallaApprovalUndo = null;
+    const embedPlan = state.myCoursesPlan === 'planO' ? 'o' : 'p';
+    const planChanged = state.mallaEmbedPlan !== embedPlan;
+    state.mallaEmbedPlan = embedPlan;
+    if (getRoute().path === '/mallas' && planChanged) {
+      closeMallaDetail(false);
+      render({ scope: 'data', resetScroll: false });
+      return;
+    }
     syncMallaProgress();
     if (getRoute().path === '/mis-ramos' || getRoute().path.startsWith('/ramo/')) render({ scope: 'data', resetScroll: false });
   });

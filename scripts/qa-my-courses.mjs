@@ -133,7 +133,7 @@ try {
     await page.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 1);
     await page.reload({ waitUntil: 'networkidle' });
-    assert.equal(await page.locator('[data-my-courses-plan="planO"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('[data-malla-embed-plan="o"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 1);
     await page.getByRole('button', { name: 'Plan P' }).click();
     await page.locator('[data-my-courses-semester]').selectOption('11');
@@ -153,16 +153,16 @@ try {
     assert.equal(await page.locator('.material-count h2').innerText(), `${Math.min(count, 60)} de ${count} recursos`);
     assert.ok(page.url().includes('plan=planP&course=DAII-00600'));
     await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+    await page.locator('[data-my-courses-search]').fill('');
     await page.locator('[data-my-courses-semester]').selectOption('2');
     assert.equal(await page.locator('.my-course-option').count(), await page.evaluate(() => CURRICULA.planP.subjects.filter(c => c.semester === 2).length));
     await page.locator('[data-my-courses-semester]').selectOption('all');
     await page.locator('[data-my-courses-search]').fill(code);
     assert.ok(await page.locator('.my-course-option').count() >= 1);
     await page.locator('[data-my-courses-search]').fill('');
-    const menu = page.locator('[data-open-menu]').first();
     if (width <= 920) {
-      await menu.click();
-      await page.locator('.menu-sheet a[href="#/mis-ramos"]').waitFor();
+      await page.locator('.bottom-more').click();
+      assert.equal(await page.locator('.menu-sheet a[href="#/mis-ramos"]').count(), 0, 'Mis ramos has no separate menu entry');
       await page.locator('[data-close-menu]').last().click();
     }
     const metrics = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, bottom: document.querySelector('.bottom-nav').getBoundingClientRect().top }));
@@ -170,7 +170,7 @@ try {
     assert.deepEqual(requests, [], 'selection does not contact API or analytics');
     if (width !== 320) await page.screenshot({ path: fileURLToPath(new URL(`../qa-screenshots/mis-ramos-${width}.png`, import.meta.url)) });
     if (width === 390) {
-      await page.locator('.mobile-header [data-portal-theme-toggle]').click();
+      await page.locator('[data-malla-embed-theme]').click();
       await page.screenshot({ path: fileURLToPath(new URL('../qa-screenshots/mis-ramos-390-dark.png', import.meta.url)) });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'dark theme fits mobile');
     }
@@ -216,6 +216,7 @@ try {
   for (const variant of ['corrupt', 'future']) {
     const context = await browser.newContext();
     await context.addInitScript(({ variant, key }) => {
+      if (window !== window.top) return;
       localStorage.setItem('qa.other.data', 'keep');
       localStorage.setItem(key, variant === 'corrupt' ? '{' : JSON.stringify({ version: 2, plans: {} }));
     }, { variant, key });
@@ -252,7 +253,7 @@ try {
     cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true, stdio: 'ignore',
     env: { ...process.env, PORT: '18084', PORTAL_DB_PATH: apiDb, PORTAL_STATE_BACKEND: 'local', QA_TEST_MODE: '1' }
   });
-  for (let i = 0; i < 50; i++) { try { if ((await fetch('http://127.0.0.1:18084/api/health')).ok) break; } catch {} await new Promise(r => setTimeout(r, 150)); }
+  for (let i = 0; i < 100; i++) { try { if ((await fetch('http://127.0.0.1:18084/api/health')).ok) break; } catch {} await new Promise(r => setTimeout(r, 150)); }
   const apiContext = await browser.newContext({ viewport: { width: 390, height: 900 } });
   const apiPage = await apiContext.newPage();
   const apiPosts = [];

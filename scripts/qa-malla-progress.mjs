@@ -59,7 +59,9 @@ try {
     await page.locator('[data-malla-mark-toggle]').click();
     await frame(page).locator('html:not(.mc-portal-marking)').waitFor();
     await card.click();
-    await frame(page).locator('.mc-modal-overlay--visible').waitFor();
+    await page.locator('[data-malla-course-dialog][open]').waitFor();
+    assert.equal(await frame(page).locator('.mc-modal-overlay--visible').count(), 0, 'course detail stays in the integrated portal');
+    await page.locator('[data-malla-detail-close]').click();
     await page.locator('[data-malla-mark-toggle]').click();
     await frame(page).locator('html.mc-portal-marking').waitFor();
     assert.equal(await frame(page).locator('.mc-modal-overlay--visible').count(), 0, 'returning to marking closes modal');

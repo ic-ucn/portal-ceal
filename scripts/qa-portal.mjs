@@ -109,6 +109,7 @@ async function loginStudent(page, studentUser) {
   await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
+    window.PortalMyCourses?.setPlan('planP');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify(user));
@@ -141,6 +142,7 @@ async function loginCeal(page, cealUser) {
   await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
+    window.PortalMyCourses?.setPlan('planP');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify(user));
@@ -273,7 +275,7 @@ async function auditMobileMenu(page, width = 390) {
   await page.locator('.bottom-nav').waitFor({ state: 'visible' });
   const items = page.locator('.bottom-nav .bottom-item');
   const labels = (await items.allTextContents()).map(text => text.trim());
-  if (labels.join('|') !== 'Inicio|Calendario|Mallas|Material|Más') fail('mobile navigation must show all five labeled actions');
+  if (labels.join('|') !== 'Inicio|Calendario|Malla|Material|Más') fail('mobile navigation must show all five labeled actions');
   const { bounds, navRight } = await items.evaluateAll(nodes => ({ navRight: document.querySelector('.bottom-nav').getBoundingClientRect().right, bounds: nodes.map(node => {
     const rect = node.getBoundingClientRect();
     const label = node.querySelector('.bottom-item-label');

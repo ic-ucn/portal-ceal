@@ -78,7 +78,7 @@ try {
       if (label === 'production') assert.ok(!(await page.locator('#main-content').innerText()).includes('Acuerdo QA de seguimiento'), 'legacy test agreements must not appear as public content');
       if (width <= 920) {
         assert.ok(metrics.navVisible, 'mobile navigation must remain visible');
-        assert.equal(metrics.items.map(item => item.label).join('|'), 'Inicio|Calendario|Mallas|Material|Más');
+        assert.equal(metrics.items.map(item => item.label).join('|'), 'Inicio|Calendario|Malla|Material|Más');
         assert.ok(metrics.items.every(item => item.left >= 0 && item.right <= width && item.width >= 44 && item.height >= 44));
       }
       await page.screenshot({ path: new URL(`${label}-${width}-${name}.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });

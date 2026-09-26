@@ -5,11 +5,11 @@
   const SKIP_KEY = 'portal.tutorial.skip';
   const CHAPTERS = [
     { id: 'malla', title: 'Explorar la malla', duration: 8000, href: '#/mallas', link: 'Abrir malla',
-      copy: 'Elige tu plan y toca un ramo para consultar sus prerrequisitos y el material asociado.' },
+      copy: 'Elige Plan O o Plan P y toca un ramo para abrir su ficha, cambiar su estado o agregarlo a Mis ramos. Ambas vistas comparten el mismo plan.' },
     { id: 'aprobados', title: 'Marcar aprobados', duration: 12000, href: '#/mallas', link: 'Abrir malla',
       copy: 'Activa Marcar aprobados y toca cada ramo que ya aprobaste. También puedes aprobar hasta un semestre y deshacer ese lote.' },
-    { id: 'mis-ramos', title: 'Mis ramos', duration: 10000, href: '#/mis-ramos', link: 'Abrir Mis ramos',
-      copy: 'Elige tus ramos y registra si están pendientes, en curso o aprobados. La selección es independiente; el estado aprobado se comparte con la malla.' },
+    { id: 'mis-ramos', title: 'Mis ramos dentro de Malla', duration: 10000, href: '#/mallas?view=mis-ramos', link: 'Abrir Mis ramos',
+      copy: 'Abre Mis ramos dentro de Malla. Busca y agrega ramos, registra su estado y usa Ubicar en malla o consulta su material. La selección no cambia el estado; tu registro se guarda en este navegador.' },
     { id: 'material', title: 'Material de estudio', duration: 8000, href: '#/material', link: 'Abrir material',
       copy: 'Busca material por título o ramo, filtra el tipo y abre el recurso que necesitas. También puedes llegar desde Mis ramos.' },
     { id: 'calendario', title: 'Calendario académico', duration: 8000, href: '#/calendario', link: 'Abrir calendario',
@@ -19,7 +19,7 @@
   const CUES = [
     ['Elige un ramo', 'Toca Mecánica', 'Consulta sus prerrequisitos', 'Abre la ficha del ramo'],
     ['Activa Marcar aprobados', 'Toca los ramos aprobados', 'Dos ramos marcados', 'Aplica el lote o usa Deshacer'],
-    ['Busca un ramo', 'Agrégalo a tu selección', 'Cambia el estado a Cursando', 'Consulta su material'],
+    ['Abre Mis ramos en Malla', 'Busca y agrega un ramo', 'Cambia el estado a Cursando', 'Ubica el ramo o abre su material'],
     ['Busca por ramo', 'Búsqueda aplicada', 'Filtra por tipo', 'Abre un recurso'],
     ['Cambia de mes', 'Selecciona una fecha', 'Consulta sus actividades', 'Abre la fuente oficial']
   ];
@@ -49,7 +49,7 @@
       const selected = shown.find(c => c.name.includes('MECÁNICA')) || shown.find(c => c.semester === 2) || shown[0];
       const prereqs = (selected.prereqs || []).map(code => sourceCourses.find(c => c.code === code)).filter(Boolean);
       return `<div class="guide-visual guide-malla" data-guide-visual aria-label="Vista ilustrativa de la malla">
-        <div class="guide-mini-top"><strong>Mallas</strong><span class="guide-mini-tabs"><b>Plan O</b><span>Plan P</span></span></div>
+        <div class="guide-mini-top"><strong>Malla</strong><span class="guide-mini-tabs"><b>Plan O</b><span>Plan P</span></span></div>
         <div class="guide-semesters"><section><h4>Semestre 1</h4><div class="guide-course-list">${shown.filter(c => c.semester === 1).map(course => courseTile(course, false, false, guide.phase >= 2 && prereqs.some(p => p.code === course.code))).join('')}</div></section><section><h4>Semestre 2</h4><div class="guide-course-list">${shown.filter(c => c.semester === 2).map(course => courseTile(course, false, false, guide.phase >= 1 && course.code === selected.code)).join('')}</div></section></div>
         ${guide.phase >= 2 ? `<div class="guide-mini-detail"><small>FICHA DEL RAMO</small><strong>${esc(shortName(selected.name))}</strong><span>Prerrequisitos: ${prereqs.length ? esc(prereqs.map(c => shortName(c.name)).join(' · ')) : 'Sin prerrequisitos'}</span><span>Material asociado: abre la ficha para consultarlo</span></div>` : '<div class="guide-mini-hint">Toca un ramo para ver su ficha y las relaciones de la malla.</div>'}
       </div>`;
@@ -58,7 +58,7 @@
       const shown = courses.slice(0, 6);
       const pending = shown.filter(course => !guide.approved.has(course.code)).length;
       return `<div class="guide-visual guide-approvals" data-guide-visual aria-label="Práctica ilustrativa de marcado de aprobados">
-        <div class="guide-mini-top"><strong>Mallas · Plan O</strong><span class="guide-mini-mark ${guide.phase >= 1 || guide.manual ? 'is-on' : ''}">Marcar aprobados ${guide.phase >= 1 || guide.manual ? '· activo' : ''}</span></div>
+        <div class="guide-mini-top"><strong>Malla · Plan O</strong><span class="guide-mini-mark ${guide.phase >= 1 || guide.manual ? 'is-on' : ''}">Marcar aprobados ${guide.phase >= 1 || guide.manual ? '· activo' : ''}</span></div>
         <p class="guide-visual-instruction">${guide.manual ? guide.undo ? 'Lote aplicado: Deshacer restaura el estado anterior.' : 'Toca un ramo para marcarlo o dejarlo pendiente.' : guide.phase >= 3 ? 'Lote aplicado: Deshacer restaura el estado anterior.' : guide.phase >= 2 ? 'Dos ramos marcados. Puedes tocar cualquiera para cambiarlo.' : 'Activa el marcado y toca cada ramo aprobado.'}</p>
         <div class="guide-semesters"><section><h4>Semestre 1</h4><div class="guide-course-list">${shown.filter(c => c.semester === 1).slice(0, 3).map(c => courseTile(c, guide.approved.has(c.code), true)).join('')}</div></section><section><h4>Semestre 2</h4><div class="guide-course-list">${shown.filter(c => c.semester === 2).slice(0, 3).map(c => courseTile(c, guide.approved.has(c.code), true)).join('')}</div></section></div>
         <div class="guide-mini-batch"><span>Aprobar hasta el semestre <b>2</b></span><button type="button" data-guide-batch${pending ? '' : ' disabled'}>Aplicar</button><button type="button" data-guide-undo${guide.undo ? '' : ' disabled'}>Deshacer lote</button></div>
@@ -68,9 +68,9 @@
     if (chapter.id === 'mis-ramos') {
       const course = courses.find(c => c.name.includes('CÁLCULO')) || courses[0];
       return `<div class="guide-visual guide-my-courses" data-guide-visual aria-label="Vista ilustrativa de Mis ramos">
-        <div class="guide-mini-top"><strong>Mis ramos</strong><span class="guide-mini-tabs"><b>Plan O</b><span>Plan P</span></span></div>
+        <div class="guide-mini-top"><strong>Malla · Plan O</strong><span class="guide-mini-tabs"><span>Malla completa</span><b>Mis ramos</b></span></div>
         <div class="guide-my-layout"><section><small>TU SELECCIÓN</small>${guide.phase >= 1 ? `<article class="guide-my-card"><small>${esc(course.visibleCode || course.code)} · ${course.semester} semestre</small><strong>${esc(shortName(course.name))}</strong><div><span>Estado</span><b class="${guide.phase >= 2 ? 'is-current' : ''}">${guide.phase >= 2 ? 'Cursando' : 'Pendiente'}</b></div><span class="guide-my-material">Ver material del ramo →</span></article>` : '<div class="guide-my-empty">Aún no eliges ramos</div>'}</section><section><small>BUSCAR RAMOS</small><div class="guide-mini-input">Nombre o código</div><div class="guide-my-option"><span>${esc(shortName(course.name))}</span><b class="${guide.phase >= 1 ? 'is-added' : ''}">${guide.phase >= 1 ? 'Agregado' : 'Agregar'}</b></div></section></div>
-        <p class="guide-visual-note">La selección es independiente; el estado aprobado se comparte con la malla.</p>
+        <p class="guide-visual-note">Ubicar en malla vuelve al ramo seleccionado. Agregar no cambia su estado; aprobar no lo agrega a Mis ramos.</p>
       </div>`;
     }
     if (chapter.id === 'material') {

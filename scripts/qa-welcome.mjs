@@ -58,7 +58,8 @@ try {
     assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'undo restores prior illustrated state');
     assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'guide never mutates stored academic progress');
     await reception.locator('[data-guide-tab="2"]').click();
-    assert.match(await reception.locator('[data-guide-copy]').innerText(), /estado aprobado se comparte/);
+    assert.match(await reception.locator('[data-guide-copy]').innerText(), /Mis ramos dentro de Malla/);
+    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos');
     await reception.locator('[data-guide-tab="3"]').click();
     assert.equal(await reception.locator('.guide-material-search').count(), 1);
     await reception.locator('[data-guide-tab="4"]').click();
@@ -117,7 +118,7 @@ try {
   await guide.locator('[data-guide-play]').click();
   assert.equal(await guide.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'reduced motion does not autoplay');
   await guide.locator('[data-guide-next]').click();
-  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Mis ramos');
+  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Mis ramos dentro de Malla');
   await stable(page);
   report.cases.push({ reducedMotion: true, manual: true });
   await context.close();

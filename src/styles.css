@@ -7187,3 +7187,58 @@ body.theme-dark .my-courses-privacy,body.theme-dark .my-course-card small,body.t
 body.theme-dark .my-courses-page .link,body.theme-dark .my-courses-page .muted a{color:var(--brand-blue-text)}
 @media(max-width:720px){.my-courses-grid{grid-template-columns:1fr}.my-courses-selected,.my-courses-catalog{padding:16px}.my-courses-filters{grid-template-columns:1fr}.my-course-option{align-items:center}.my-course-card-foot{align-items:start}}
 @media(max-width:360px){.my-course-option{flex-wrap:wrap}.my-course-option .btn{width:100%}.my-course-card-top{flex-wrap:wrap}}
+
+/* The personal selection shares the curriculum workspace and plan. */
+.malla-body{min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.malla-workspace.is-personal-open .malla-body{grid-template-columns:minmax(0,1fr) minmax(290px,340px)}
+.malla-body .malla-embed-frame-wrap{min-width:0}
+.malla-view-tabs{height:38px;margin:0;padding:3px;border:1px solid var(--border-color,#cfe0f3);border-radius:8px;white-space:nowrap}
+.malla-view-tabs button{min-height:30px;padding:0 10px;font-size:.8rem;border-radius:6px!important}
+.malla-personal-panel{min-height:0;min-width:0;display:flex;flex-direction:column;border:1px solid var(--border-color,#cfe0f3);border-radius:8px;background:var(--surface,#fff);overflow:hidden}
+.malla-personal-panel[hidden]{display:none}
+.malla-personal-panel>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border-color,#cfe0f3);flex:none}
+.malla-personal-panel>header h2{margin:0;font-size:1rem}
+.malla-personal-content{min-height:0;overflow:auto;padding:12px;overscroll-behavior:contain}
+.malla-personal-panel .my-courses-page{gap:16px}
+.malla-personal-panel .my-courses-privacy{font-size:.78rem}
+.malla-personal-panel .my-courses-selected,.malla-personal-panel .my-courses-catalog{padding:0;border:0;border-radius:0;background:transparent}
+.malla-personal-panel .my-courses-grid,.malla-personal-panel .my-courses-filters{grid-template-columns:1fr;gap:8px}
+.malla-personal-panel .my-courses-filters{margin:10px 0}
+.malla-personal-panel .my-courses-list{max-height:none;overflow:visible}
+.malla-personal-panel .my-course-card,.malla-personal-panel .my-course-option{padding:10px}
+.malla-personal-panel .my-course-card-top,.malla-personal-panel .my-course-option{gap:8px}
+.malla-personal-panel .my-course-card-foot{margin-top:10px;gap:6px}
+.malla-personal-panel .my-course-state .select{min-width:156px;width:156px}
+.my-course-title{display:block;max-width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;font-weight:600;line-height:1.35;cursor:pointer}
+.my-course-title:hover{text-decoration:underline}
+.my-course-title:focus-visible{outline:2px solid var(--brand-blue,#075ecb);outline-offset:3px;border-radius:2px}
+.my-course-material{margin-top:10px;font-size:.8rem;line-height:1.4}
+.malla-course-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 48px);padding:22px;border:1px solid var(--border-color,#cfe0f3);border-radius:12px;background:var(--surface,#fff);color:var(--text-primary,#17365f);overflow:auto;overscroll-behavior:contain}
+.malla-course-dialog::backdrop{background:rgba(6,27,52,.5)}
+.malla-course-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.malla-course-head>div{min-width:0}.malla-course-head small{color:var(--text-secondary,#516a87)}
+.malla-course-head h2{font-size:1.3rem;line-height:1.3;margin:6px 0 0}
+.malla-course-head .icon-btn{flex:none}
+.malla-course-actions{display:flex;align-items:end;flex-wrap:wrap;gap:12px}
+.my-course-state{display:grid;gap:6px;font-size:.82rem}.my-course-state .select{min-width:145px}
+.malla-course-material{padding:12px 0 18px;line-height:1.5}
+.malla-course-dialog .grid.two{align-items:start;gap:18px}
+.malla-course-dialog .link-card-row{width:100%;background:transparent;text-align:left;font:inherit;cursor:pointer}
+.malla-course-dialog footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:20px}
+body.theme-dark .malla-personal-panel,body.theme-dark .malla-course-dialog{background:var(--bg-elevated,#1d2a30);color:var(--text-primary,#f8fafc)}
+body.theme-dark .malla-view-tabs button.active{background:var(--brand-blue);color:#fff}
+@media(max-width:1300px){.malla-commandbar{grid-template-columns:minmax(160px,auto) 1fr}.malla-commandbar-actions{grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap}}
+@media(max-width:920px){
+  .malla-commandbar{grid-template-columns:1fr}
+  .malla-commandbar-actions{grid-template-columns:minmax(0,1fr) 44px;gap:10px}
+  .malla-commandbar-actions .malla-plan-tabs,.malla-commandbar-actions .malla-view-tabs{height:auto;min-height:44px}
+  .malla-commandbar-actions .malla-view-tabs{grid-column:1 / -1;grid-row:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .malla-commandbar-actions .malla-mark-toggle{grid-row:3}
+  .malla-commandbar-actions .malla-guide{grid-row:3}
+  .malla-workspace.is-personal-open .malla-body{grid-template-columns:minmax(0,1fr)}
+  .malla-workspace.is-personal-open .malla-body>.malla-embed-frame-wrap{display:none}
+  .malla-personal-panel>header{padding:6px 10px}.malla-personal-content{padding:12px}
+  .malla-course-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - var(--bottom-nav-h) - 36px - env(safe-area-inset-bottom));margin:auto auto calc(var(--bottom-nav-h) + 20px + env(safe-area-inset-bottom));padding:16px;border-radius:12px 12px 8px 8px}
+  .malla-course-dialog .grid.two{grid-template-columns:1fr}
+  .malla-course-actions .btn{width:auto}
+}
