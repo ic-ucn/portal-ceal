@@ -4,7 +4,7 @@
   // input values, account data, document URLs, query strings or DOM text.
   const pages = {
     '/': 'Bienvenida', '/bienvenida': 'Bienvenida', '/inicio': 'Inicio',
-    '/calendario': 'Calendario', '/mallas': 'Mallas', '/mis-ramos': 'Mis ramos', '/material': 'Material',
+    '/calendario': 'Calendario', '/mallas': 'Mallas', '/material': 'Material',
     '/material/recurso': 'Detalle de material', '/ramo': 'Ficha de ramo',
     '/buscar': 'Búsqueda', '/acuerdos': 'Seguimientos'
   };
