@@ -1,261 +1,199 @@
 import assert from 'node:assert/strict';
 import { chromium, webkit, firefox } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import vm from 'node:vm';
 
-const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1';
+// Browser interaction validates the player. Tutorial content comes only from Computer Use.
+const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1&analytics=off';
 const production = new URL(base).hostname === 'ceicucn.cl';
-const configs = production
-  ? [['chromium', 1440, 900], ['chromium', 390, 844]]
-  : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
+const configs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
 const out = new URL('../qa-screenshots/', import.meta.url);
 await mkdir(out, { recursive: true });
-const report = { ok: false, production, cases: [], errors: [] };
-const url = (route = '/') => {
-  const value = new URL(base);
-  value.searchParams.set('review', '20260926guide1');
-  value.hash = route;
-  return value.href;
-};
+const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
+vm.runInNewContext(await readFile(new URL('../assets/tutorial-real/manifest.js', import.meta.url), 'utf8'), sandbox);
+const manifest = sandbox.window.PortalTutorialCapture;
+assert.equal(manifest.captureMethod, 'computer-use');
+const chapters = ['malla', 'aprobados', 'mis-ramos', 'eligible', 'material', 'calendario'];
+for (const [format, recording] of Object.entries(manifest.formats)) {
+  assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], chapters);
+  for (const step of recording.steps) {
+    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'source Computer Use screenshots stay unchanged');
+    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-real/${format}/`));
+  }
+  assert.equal(recording.duration, recording.steps.at(-1).end);
+}
+const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20260927real1'); value.hash = route; return value.href; };
+const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
 async function stable(page) {
-  assert.equal(await page.locator('.portal-reception video, .portal-reception audio, .portal-welcome video, .portal-welcome audio').count(), 0, 'guide is silent DOM');
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page has no horizontal overflow');
-  const headers = await page.locator('.guide-stage-head').evaluateAll(nodes => nodes.map(node => {
-    const a = node.querySelector('.guide-example').getBoundingClientRect(), b = node.querySelector('.guide-step').getBoundingClientRect();
-    return a.right <= b.left || a.bottom <= b.top || b.bottom <= a.top;
-  }));
-  assert.ok(headers.every(Boolean), 'example label and phase cue never overlap');
-  assert.ok(await page.locator('.guide-transport button').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height >= 44)), 'transport controls have 44px touch height');
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  assert.equal(await page.locator('.guide-course, .guide-visual, .guide-mini-detail').count(), 0, 'no synthetic portal UI');
+  assert.ok(await page.locator('.guide-step-controls button, .guide-transport button').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height >= 44)));
 }
-async function settled(page) {
-  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'), null, { timeout: 2000 });
-}
+async function ready(page) { await page.waitForFunction(() => { const v = document.querySelector('.portal-reception video'); return v && !v.paused && v.readyState >= 2; }); }
+let browser;
 try {
   for (const [engine, width, height] of configs) {
-    const browser = await ({ chromium, webkit, firefox }[engine]).launch();
-    const context = await browser.newContext({ viewport: { width, height } });
-    const page = await context.newPage();
-    page.setDefaultTimeout(20000);
+    browser = await ({ chromium, webkit, firefox }[engine]).launch();
+    const context = await browser.newContext({ viewport: { width, height } }), page = await context.newPage();
+    page.setDefaultTimeout(15000);
     page.on('pageerror', error => report.errors.push(`${engine}/${width}: ${error.message}`));
-    const media = [];
-    page.on('request', request => { if (/portal-guia-.*\.(?:mp4|vtt|jpg)/.test(request.url())) media.push(request.url()); });
+    const requests = [];
+    page.on('request', request => { if (/\.(mp4|mp3|m4a|wav)(?:\?|$)/.test(request.url())) requests.push(request.url()); });
     await page.goto(url(), { waitUntil: 'networkidle' });
-    const reception = page.locator('.portal-reception');
-    await reception.waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, 'reception is a page');
-    assert.equal(await reception.locator('[data-guide-tab]').count(), 6, 'six chapters');
-    assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'no autoplay');
-    assert.equal(await reception.locator('.guide-course').count(), 6, 'both semesters are represented');
-    assert.equal(await reception.locator('.guide-semesters section').nth(1).locator('.guide-course').count(), 3, 'semester two is represented');
+    const guide = page.locator('.portal-reception'), video = guide.locator('video');
+    await guide.waitFor();
+    const format = width <= 920 ? 'mobile' : 'desktop', recording = manifest.formats[format];
+    assert.equal(await guide.locator('[data-guide-root]').getAttribute('data-capture-format'), format);
+    assert.equal(await guide.locator('[data-guide-tab]').count(), 6);
+    assert.equal(await video.getAttribute('src'), recording.video);
+    assert.equal(await video.evaluate(v => v.paused && v.muted && !v.autoplay && v.controls), true);
+    assert.ok(await guide.locator('[data-guide-play]').evaluate(node => node.getBoundingClientRect().bottom < innerHeight), 'primary CTA is visible before media');
+    assert.ok(await guide.locator('[data-guide-caption]').evaluate(node => node.getBoundingClientRect().bottom < document.querySelector('.guide-media').getBoundingClientRect().top), 'action caption is above media');
+    await page.waitForFunction(() => { const image = document.querySelector('[data-guide-still]'); return image?.complete && image.naturalWidth > 0; });
+    assert.equal(await guide.locator('[data-guide-still]').evaluate(image => image.naturalWidth), recording.width);
     await stable(page);
-    assert.deepEqual(media, [], 'no historic media is downloaded');
-    await settled(page);
-    await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-light.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
+    await page.screenshot({ path: new URL(`welcome-real-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
     await page.locator('[data-portal-theme-toggle]').click();
     assert.equal(await page.locator('body.theme-dark').count(), 1);
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Explorar la malla', 'theme preserves chapter');
-    await settled(page);
-    await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-dark.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-
-    await reception.locator('[data-guide-tab="1"]').click();
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Marcar aprobados');
-    assert.equal(await reception.locator('[data-guide-approve]').count(), 6);
-    await page.evaluate(() => localStorage.setItem('portal.myCourses.v1', 'GUIDE_STORAGE_SENTINEL'));
-    const before = await page.evaluate(() => localStorage.getItem('portal.myCourses.v1'));
-    const storageBeforePractice = await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
-    const illustratedTile = await reception.locator('[data-guide-approve]').first().elementHandle();
-    await reception.locator('[data-guide-approve]').first().click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'individual marking');
-    assert.equal(await illustratedTile.evaluate(node => node.isConnected && node === document.activeElement), true, 'practice preserves tile and keyboard focus');
-    assert.equal(await reception.locator('[data-guide-practice-note]').isVisible(), true, 'isolated practice is clearly labelled');
-    await reception.locator('[data-guide-batch]').click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 6, 'batch marks all illustrated courses');
-    await reception.locator('[data-guide-undo]').click();
-    assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'undo restores prior illustrated state');
-    assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'guide never mutates stored academic progress');
-    assert.equal(await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)])))), storageBeforePractice, 'practice preserves the full storage snapshot');
-    await reception.locator('[data-guide-tab="2"]').click();
-    assert.match(await reception.locator('[data-guide-copy]').innerText(), /Este semestre/);
-    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos&section=semester');
-    assert.equal(await reception.locator('[data-guide-my-view]').innerText(), 'Mi selección', 'selection illustrates the actual starting view');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(() => document.querySelector('[data-guide-my-view]')?.textContent === 'Este semestre');
-    assert.equal(await reception.locator('[data-guide-my-view]').innerText(), 'Este semestre');
-    assert.equal(await reception.locator('[data-guide-my-state]').innerText(), 'Cursando');
-    await stable(page);
-    await settled(page);
-    await page.screenshot({ path: new URL(`welcome-semester-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.waitForFunction(() => document.querySelector('[data-guide-my-view]')?.textContent === 'Mi selección');
-    await reception.locator('[data-guide-tab="3"]').click();
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Qué podrías cursar');
-    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos&section=eligible');
-    assert.match(await reception.locator('[data-guide-eligible-missing]').innerText(), /cursando, aún no aprobado/);
-    assert.match(await reception.locator('[data-guide-eligible-review]').innerText(), /Nota 3: requiere hasta IV semestre aprobado\./);
-    assert.match(await reception.locator('.guide-eligibility-note').innerText(), /No garantiza inscripción/);
-    assert.equal(await reception.locator('.guide-eligibility [data-guide-approve], .guide-eligibility [data-guide-my-added]').count(), 0, 'advice never offers add or changes statuses');
-    assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'advice examples never read or update personal record');
-    await stable(page);
-    await settled(page);
-    await page.screenshot({ path: new URL(`welcome-advice-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await reception.locator('[data-guide-tab="4"]').click();
-    assert.equal(await reception.locator('.guide-material-search').count(), 1);
-    await reception.locator('[data-guide-tab="5"]').click();
-    assert.equal(await reception.locator('.guide-calendar-grid span').count(), 28);
-    assert.equal(await reception.locator('.guide-calendar-grid').innerText(), '', 'no invented dates');
-    await reception.locator('[data-guide-prev]').click();
-    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Material de estudio');
-    await reception.locator('[data-guide-replay]').click();
-    assert.equal(await reception.locator('[data-guide-step]').innerText(), 'Busca por ramo');
-    await reception.locator('[data-guide-play]').click();
-    assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
-    const scene = await reception.locator('[data-guide-visual]').elementHandle();
-    const announcement = await reception.locator('[data-guide-status]').innerText();
-    await page.waitForTimeout(2300);
-    assert.match(await reception.locator('[data-guide-step]').innerText(), /Búsqueda aplicada|Filtra por tipo/);
-    assert.equal(await scene.evaluate(node => node.isConnected), true, 'phase changes preserve mounted scene');
-    assert.equal(await reception.locator('[data-guide-status]').innerText(), announcement, 'phase changes do not repeatedly announce to screen readers');
-    await reception.locator('[data-guide-play]').click();
-    assert.notEqual(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
-    const progress = await reception.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width);
-    await page.waitForTimeout(200);
-    assert.equal(await reception.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), progress, 'pause freezes progress');
-    await stable(page);
-    await page.locator('.reception-enter').click();
-    await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-    if (width <= 920) {
-      await page.locator('.bottom-more').click();
-      await page.locator('.menu-sheet [data-open-welcome]').click();
-    } else await page.locator('.sidebar [data-open-welcome]').click();
-    const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' });
-    await dialog.waitFor();
-    assert.equal(await dialog.locator('[data-guide-tab]').count(), 6);
-    assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1', 'opening a paused dialog leaves the scene fully visible');
-    await dialog.locator('[data-guide-tab="0"]').focus();
-    await page.keyboard.press('End');
-    assert.equal(await dialog.locator('[data-guide-tab="5"]').evaluate(node => node === document.activeElement && node.getAttribute('aria-selected') === 'true'), true, 'End selects and focuses last chapter');
-    await page.keyboard.press('Home');
-    assert.equal(await dialog.locator('[data-guide-tab="0"]').evaluate(node => node === document.activeElement && node.getAttribute('aria-selected') === 'true'), true, 'Home selects and focuses first chapter');
-    for (let i = 0; i < 12; i++) {
-      await page.keyboard.press('Tab');
-      assert.ok(await dialog.evaluate(node => node.contains(document.activeElement)), 'focus stays within dialog');
+    assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps[0].image, 'theme never changes source pixels');
+    await page.evaluate(() => localStorage.setItem('portal.myCourses.v1', 'READ_ONLY_GUIDE_SENTINEL'));
+    const before = await snapshot(page);
+    for (let index = 0; index < recording.steps.length; index++) {
+      if (index) await guide.locator('[data-guide-step-next]').click();
+      const step = recording.steps[index];
+      assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), step.image);
+      assert.equal(await guide.locator('[data-guide-caption]').innerText(), step.caption);
+      assert.equal(await guide.locator('[data-guide-image-link]').getAttribute('href'), step.image);
+      assert.equal(await video.evaluate(v => v.paused), true, 'manual captures never autoplay');
     }
-    await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'hidden' });
-    if (width === 1440) {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await page.locator('.sidebar [data-open-welcome]').click();
-        await dialog.waitFor();
-        assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1', 'reopened static scene is fully visible');
-        await dialog.locator('[data-guide-tab="1"]').click();
-        assert.equal(await dialog.locator('.guide-course.is-approved').count(), 0, 'reopening resets isolated practice');
-        await dialog.locator('[data-guide-approve]').first().click();
-        await page.keyboard.press('Escape');
-        assert.equal(await page.locator('.portal-welcome').evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'closing cancels every guide animation');
-        assert.equal(await page.locator('.sidebar [data-open-welcome]').evaluate(node => node === document.activeElement), true, 'closing restores trigger focus');
+    assert.equal(await snapshot(page), before, 'guide preserves all stored data');
+    for (let index = 0; index < chapters.length; index++) {
+      await guide.locator(`[data-guide-tab="${index}"]`).click();
+      assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps.find(step => step.chapter === chapters[index]).image);
+    }
+    await guide.locator('[data-guide-tab="4"]').click();
+    const supportsVideo = await video.evaluate(v => !!v.canPlayType('video/mp4; codecs="avc1.64001f"'));
+    if (supportsVideo) {
+      await guide.locator('[data-guide-play]').click(); await ready(page);
+      assert.equal(await video.isVisible(), true);
+      const decoded = await video.evaluate(v => ({ width: v.videoWidth, height: v.videoHeight }));
+      assert.ok(decoded.width > 0 && (engine === 'webkit' || Math.abs(decoded.width / decoded.height - recording.width / recording.height) < .002), 'native player decodes the captured stream (WebKit Windows reports rendered dimensions)');
+      const startedAt = await video.evaluate(v => v.currentTime), expectedStart = recording.steps.find(step => step.chapter === 'material').start;
+      assert.ok(Math.abs(startedAt - expectedStart) < 2, `chapter playback expected ${expectedStart}s, received ${startedAt}s`);
+      await video.evaluate((v, time) => { v.currentTime = time; }, recording.steps.find(step => step.chapter === 'eligible').start + .2);
+      await page.waitForFunction(() => document.querySelector('[data-guide-tab="3"]')?.getAttribute('aria-selected') === 'true');
+      await guide.locator('[data-guide-play]').click();
+      const paused = await video.evaluate(v => v.currentTime); await page.waitForTimeout(300);
+      assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - paused) < .1);
+      await guide.locator('[data-guide-play]').click(); await ready(page);
+      assert.ok(await video.evaluate(v => v.currentTime) >= paused);
+      if (engine === 'chromium' && [1440, 390].includes(width)) {
+        const switchAt = await video.evaluate(v => v.currentTime);
+        await guide.locator('[data-guide-mode]').selectOption('voice');
+        assert.equal(await video.evaluate(v => v.paused && !v.muted), true);
+        assert.equal(await video.getAttribute('src'), recording.variants.voice);
+        await guide.locator('[data-guide-play]').click(); await ready(page);
+        assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - switchAt) < 2, 'voice choice preserves playback position');
+        const musicAt = await video.evaluate(v => v.currentTime);
+        await guide.locator('[data-guide-music]').click();
+        assert.equal(await video.evaluate(v => v.paused), true);
+        assert.equal(await video.getAttribute('src'), recording.variants.voiceMusic);
+        await guide.locator('[data-guide-play]').click(); await ready(page);
+        assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - musicAt) < 2, 'music choice preserves playback position');
+        await guide.locator('[data-guide-mode]').selectOption('text');
+        assert.equal(await video.getAttribute('src'), recording.variants.music);
+        assert.equal(await guide.locator('[data-guide-music]').getAttribute('aria-pressed'), 'true');
+        await guide.locator('[data-guide-music]').click();
+        assert.equal(await video.getAttribute('src'), recording.variants.silent);
+        assert.equal(await video.evaluate(v => v.paused && v.muted), true);
+        assert.equal(await guide.locator('audio').count(), 0);
+        assert.equal(await video.locator('track').getAttribute('default'), '');
+        await guide.locator('[data-guide-play]').click(); await ready(page);
       }
-      await page.goto(url('/mallas?view=mis-ramos&section=eligible'), { waitUntil: 'networkidle' });
-      await page.locator('.malla-guide').click();
-      assert.equal(await dialog.locator('[data-guide-tab="3"]').getAttribute('aria-selected'), 'true', 'advice view opens the relevant guide chapter');
-      assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1');
-      await page.evaluate(() => { location.hash = '/inicio'; });
-      await dialog.waitFor({ state: 'hidden' });
-      assert.equal(await page.locator('.portal-welcome').evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'route changes close and cancel the dialog');
+      await video.evaluate((v, time) => { v.currentTime = time; }, recording.duration - .3);
+      await page.waitForFunction(() => document.querySelector('.portal-reception video').ended && document.querySelector('[data-guide-status]')?.textContent.includes('Recorrido terminado'));
+      assert.match(await guide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
     }
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.locator('.reception-skip').click();
-    assert.equal(new URL(page.url()).hash, '#/inicio');
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.locator('[data-reception-dismiss]').click();
+    assert.ok(requests.every(request => Object.values(recording.variants).some(source => request.includes(source))), 'only matching captured variants; one native timeline');
+    await page.locator('.reception-enter').click(); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    if (width <= 920) { await page.locator('.bottom-more').click(); await page.locator('.menu-sheet [data-open-welcome]').click(); }
+    else await page.locator('.sidebar [data-open-welcome]').click();
+    const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' }); await dialog.waitFor();
+    assert.equal(await dialog.locator('video').evaluate(v => v.paused), true);
+    await dialog.locator('[data-guide-tab="0"]').focus(); await page.keyboard.press('End');
+    assert.equal(await dialog.locator('[data-guide-tab="5"]').evaluate(node => node === document.activeElement), true);
+    for (let count = 0; count < 12; count++) { await page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(node => node.contains(document.activeElement))); }
+    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('.portal-welcome video').evaluate(v => v.paused), true);
+    await page.goto(url(), { waitUntil: 'networkidle' }); await page.locator('[data-reception-dismiss]').click();
     assert.equal(await page.evaluate(() => localStorage.getItem('portal.tutorial.skip')), 'yes');
-    await page.goto(url(), { waitUntil: 'networkidle' });
-    await page.waitForURL(value => value.hash === '#/inicio');
-    await page.goto(url('/bienvenida'), { waitUntil: 'networkidle' });
-    await page.locator('.portal-reception').waitFor();
-    report.cases.push({ engine, width, height, silent: true, phases: true, isolatedStorage: true, rememberSkip: true });
-    await context.close();
-    await browser.close();
+    await page.goto(url(), { waitUntil: 'networkidle' }); await page.waitForURL(value => value.hash === '#/inicio');
+    await page.goto(url('/bienvenida'), { waitUntil: 'networkidle' }); await page.locator('.portal-reception').waitFor();
+    report.cases.push({ engine, width, height, format, realCaptures: recording.steps.length, nativeVideo: supportsVideo, noAutoplay: true, isolatedStorage: true });
+    await context.close(); await browser.close(); browser = null;
   }
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const page = await context.newPage();
+  browser = await chromium.launch();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' }), page = await context.newPage();
   await page.goto(url(), { waitUntil: 'networkidle' });
   const guide = page.locator('.portal-reception');
-  await guide.locator('[data-guide-tab="1"]').click();
-  assert.equal(await guide.locator('.guide-course.is-approved').count(), 6, 'reduced motion shows final state');
-  await guide.locator('[data-guide-play]').click();
-  assert.equal(await guide.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'reduced motion does not autoplay');
-  await guide.locator('[data-guide-next]').click();
-  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Organizar Mis ramos');
-  assert.equal(await guide.locator('[data-guide-my-view]').innerText(), 'Este semestre');
-  assert.equal(await guide.locator('[data-guide-my-state]').innerText(), 'Cursando');
-  await page.screenshot({ path: new URL('welcome-semester-reduced-390.png', out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-  for (let index = 0; index < 6; index++) {
-    await guide.locator(`[data-guide-tab="${index}"]`).click();
-    assert.equal(await guide.locator('[data-guide-root]').evaluate(node => node.dataset.phase), 'final', 'each reduced-motion chapter shows its final state');
-    assert.equal(await guide.evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'reduced-motion chapters have no animations');
-    await stable(page);
+  assert.equal(await guide.locator('[data-guide-play]').isDisabled(), true);
+  for (let step = 0; step < manifest.formats.mobile.steps.length; step++) {
+    if (step) await guide.locator('[data-guide-step-next]').click();
+    assert.equal(await guide.locator('video').evaluate(v => v.paused), true); assert.equal(await guide.locator('[data-guide-still]').isVisible(), true);
   }
-  await stable(page);
-  report.cases.push({ reducedMotion: true, manual: true });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(() => !document.querySelector('[data-guide-play]').disabled);
+  await guide.locator('[data-guide-tab="0"]').click(); await guide.locator('[data-guide-play]').click(); await ready(page);
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.equal(await guide.locator('video').evaluate(v => v.paused), true);
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.equal(await guide.locator('video').evaluate(v => v.paused), true, 'visible tab does not resume');
+  await guide.locator('[data-guide-play]').click(); await ready(page); await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelector('.portal-reception video').paused);
+  assert.equal(await guide.locator('[data-guide-still]').isVisible(), true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForFunction(() => document.querySelector('[data-guide-root]').dataset.captureFormat === 'desktop');
+  assert.equal(await guide.locator('video').getAttribute('src'), manifest.formats.desktop.video);
+  assert.equal(await guide.locator('video').evaluate(v => v.paused), true);
+  await page.evaluate(() => { location.hash = '/inicio'; }); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+  assert.equal(await page.locator('.portal-reception video').count(), 0);
+  report.cases.push({ reducedMotion: true, hiddenPause: true, responsiveSource: true, routeCleanup: true });
   await context.close();
-  const liveContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const live = await liveContext.newPage();
-  await live.clock.install();
-  await live.goto(url(), { waitUntil: 'networkidle' });
-  await live.locator('.portal-reception [data-guide-play]').click();
-  await live.clock.runFor(59000);
-  const liveGuide = live.locator('.portal-reception');
-  assert.equal(await liveGuide.locator('[data-guide-tab="5"]').getAttribute('aria-selected'), 'true', 'automatic playback reaches chapter six');
-  assert.equal(await liveGuide.locator('[data-guide-tab="5"] i').evaluate(node => node.style.width), '100%', 'final progress completes');
-  assert.match(await liveGuide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
-  assert.notEqual(await liveGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'playback stops at the end');
-  await live.clock.runFor(5000);
-  assert.equal(await liveGuide.locator('[data-guide-tab="5"] i').evaluate(node => node.style.width), '100%', 'no timer advances after completion');
-  await live.locator('.reception-enter').click();
-  await live.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-  report.cases.push({ fullPlayback: true, durationSeconds: 58, stoppedAfterCompletion: true });
-  await liveContext.close();
-  const hiddenContext = await browser.newContext({ viewport: { width: 320, height: 568 } });
-  const hiddenPage = await hiddenContext.newPage();
-  await hiddenPage.goto(url(), { waitUntil: 'networkidle' });
-  const hiddenGuide = hiddenPage.locator('.portal-reception');
-  await hiddenGuide.locator('[data-guide-play]').click();
-  await hiddenPage.waitForTimeout(200);
-  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-  assert.notEqual(await hiddenGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'hidden tab stops playback');
-  const hiddenProgress = await hiddenGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width);
-  await hiddenPage.waitForTimeout(200);
-  assert.equal(await hiddenGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width), hiddenProgress);
-  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
-  assert.notEqual(await hiddenGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'visible tab does not resume automatically');
-  await hiddenGuide.locator('[data-guide-tab="3"]').click();
-  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-  assert.equal(await hiddenGuide.evaluate(node => node.getAnimations({ subtree: true }).every(animation => animation.playState !== 'running')), true, 'hiding pauses manual chapter transition too');
-  await hiddenPage.goto(url('/inicio'), { waitUntil: 'networkidle' });
-  assert.equal(await hiddenPage.locator('.portal-reception').count(), 0, 'route change removes the guide');
-  assert.equal(await hiddenPage.evaluate(() => document.getAnimations().filter(animation => animation.effect?.target?.closest?.('.portal-reception')).length), 0, 'removed guide leaves no animation');
-  await hiddenContext.close();
-  report.cases.push({ hiddenPause: true, manualAnimationPause: true, routeCleanup: true });
-  const changingContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const changing = await changingContext.newPage();
-  await changing.goto(url(), { waitUntil: 'networkidle' });
-  const changingGuide = changing.locator('.portal-reception');
-  await changingGuide.locator('[data-guide-play]').click();
-  await changing.waitForTimeout(350);
-  await changing.emulateMedia({ reducedMotion: 'reduce' });
-  await changing.waitForFunction(() => document.querySelector('.portal-reception [data-guide-play]')?.textContent !== 'Pausar');
-  assert.notEqual(await changingGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'live reduced motion stops playback');
-  assert.equal(await changingGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width), '100%', 'current scene becomes final static state');
-  await changing.waitForTimeout(350);
-  assert.equal(await changingGuide.locator('[data-guide-tab="0"]').getAttribute('aria-selected'), 'true', 'reduced motion never auto advances');
-  await changing.emulateMedia({ reducedMotion: 'no-preference' });
-  assert.notEqual(await changingGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'restoring preference never resumes automatically');
-  report.cases.push({ reducedMotionChangedDuringPlayback: true });
-  await changingContext.close();
-  await browser.close();
-  assert.deepEqual(report.errors, []);
-  report.ok = true;
-  console.log(JSON.stringify(report));
-} finally {
-  await writeFile(new URL(`welcome-${production ? 'production' : 'local'}-report.json`, out), JSON.stringify(report, null, 2));
-}
+  if (process.env.QA_WELCOME_NORANGE_URL) {
+    const noRange = await browser.newContext({ viewport: { width: 1440, height: 900 } }), sample = await noRange.newPage();
+    sample.setDefaultTimeout(30000);
+    await sample.addInitScript(() => {
+      window.guideBlobEvents = [];
+      const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+      URL.createObjectURL = value => { const result = create(value); window.guideBlobEvents.push(['create', result, value.size]); return result; };
+      URL.revokeObjectURL = value => { window.guideBlobEvents.push(['revoke', value]); revoke(value); };
+    });
+    await sample.goto(process.env.QA_WELCOME_NORANGE_URL, { waitUntil: 'networkidle' });
+    const player = sample.locator('.portal-reception'), media = player.locator('video');
+    await player.locator('[data-guide-mode]').selectOption('voice');
+    await player.locator('[data-guide-music]').click();
+    await player.locator('[data-guide-tab="1"]').click();
+    const expected = manifest.formats.desktop.steps.find(step => step.chapter === 'aprobados').start;
+    await player.locator('[data-guide-play]').click(); await ready(sample);
+    assert.ok(Math.abs(await media.evaluate(v => v.currentTime) - expected) < 2, 'no-Range host plays the requested voice/music chapter');
+    const localSource = await media.getAttribute('src');
+    assert.ok(localSource.startsWith('blob:'), 'failed seek falls back to this bounded local asset');
+    await player.locator('[data-guide-play]').click();
+    await player.locator('[data-guide-play]').click(); await ready(sample);
+    assert.equal(await media.getAttribute('src'), localSource, 'paused selected asset is reused');
+    await player.locator('[data-guide-mode]').selectOption('text');
+    assert.equal(await media.evaluate(v => v.paused), true);
+    assert.ok(await sample.evaluate(source => window.guideBlobEvents.some(event => event[0] === 'revoke' && event[1] === source), localSource));
+    await player.locator('[data-guide-play]').click(); await ready(sample);
+    const secondSource = await media.getAttribute('src');
+    assert.ok(secondSource.startsWith('blob:'));
+    await sample.evaluate(() => { location.hash = '/inicio'; });
+    await sample.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
+    assert.ok(await sample.evaluate(source => window.guideBlobEvents.some(event => event[0] === 'revoke' && event[1] === source), secondSource));
+    report.cases.push({ noRangeFallback: true, voiceMusicChapter: true, blobReused: true, blobRevoked: true });
+    await noRange.close();
+  }
+  assert.deepEqual(report.errors, []); report.ok = true; console.log(JSON.stringify(report));
+} catch (error) { report.errors.push(error.stack || String(error)); throw error; }
+finally { await browser?.close(); await writeFile(new URL(`welcome-real-${production ? 'production' : 'local'}-report.json`, out), JSON.stringify(report, null, 2)); }

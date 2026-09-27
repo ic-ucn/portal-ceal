@@ -28,6 +28,7 @@
     "tutorial:audio": "python scripts/build-portal-tutorial.py --audio",
     "tutorial:capture": "node scripts/capture-portal-tutorial.mjs",
     "tutorial:compose": "python scripts/build-portal-tutorial.py --compose",
+    "tutorial:real:compose": "python scripts/build-real-tutorial.py",
     "qa:calendar": "node scripts/qa-academic-calendar.mjs",
     "calendar:build": "python scripts/build-academic-calendar.py",
     "qa:analytics": "node scripts/qa-analytics.mjs"

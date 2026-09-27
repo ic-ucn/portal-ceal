@@ -75,7 +75,9 @@ try {
     assert.ok(!JSON.stringify(hits).includes('DO_NOT_SEND'), 'query and referrer details stripped by actual SDK');
     await page.locator('[data-portal-theme-toggle]').click(); await hit('portal/tema');
     assert.equal(hits.filter(x => x.e !== 'true').length, 1, 'state render is not another visit');
-    assert.equal(await page.locator('.portal-reception video, .portal-reception audio').count(), 0, 'silent guide has no media');
+    assert.equal(await page.locator('.portal-reception video').count(), 1, 'guide uses a real captured video');
+    assert.equal(await page.locator('.portal-reception audio').count(), 0, 'guide has no audio player');
+    assert.equal(await page.locator('.portal-reception video').evaluate(video => video.muted && !video.autoplay && video.paused), true, 'real guide starts silent and paused');
     await page.locator('.portal-reception [data-guide-play]').click();
     await hit('tutorial/reproducir');
     await page.locator('.portal-reception [data-guide-play]').click();

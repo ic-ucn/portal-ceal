@@ -1,419 +1,355 @@
 (() => {
   'use strict';
-
-  const SEEN_KEY = 'portal.welcome.v1';
-  const SKIP_KEY = 'portal.tutorial.skip';
+  const SEEN_KEY = 'portal.welcome.v1', SKIP_KEY = 'portal.tutorial.skip';
   const CHAPTERS = [
-    { id: 'malla', title: 'Explorar la malla', duration: 8000, href: '#/mallas', link: 'Abrir malla',
-      copy: 'Elige Plan O o Plan P y toca un ramo para abrir su ficha, cambiar su estado o agregarlo a Mis ramos. Ambas vistas comparten el mismo plan.' },
-    { id: 'aprobados', title: 'Marcar aprobados', duration: 12000, href: '#/mallas', link: 'Abrir malla',
-      copy: 'Activa Marcar aprobados y toca cada ramo que ya aprobaste. También puedes aprobar hasta un semestre y deshacer ese lote.' },
-    { id: 'mis-ramos', title: 'Organizar Mis ramos', duration: 12000, href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre',
-      copy: 'En Mi selección puedes buscar y agregar ramos. Este semestre reúne todos los que marcaste como Cursando, aunque no los hayas agregado. Desde ahí puedes consultar material o ubicarlos en la malla.' },
-    { id: 'eligible', title: 'Qué podrías cursar', duration: 10000, href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar',
-      copy: 'Consulta los ramos pendientes según tus aprobados y los prerrequisitos del catálogo. Cursando no cuenta como aprobado. Confirma requisitos especiales, oferta, horarios y cupos con la universidad; esta vista no garantiza inscripción.' },
-    { id: 'material', title: 'Material de estudio', duration: 8000, href: '#/material', link: 'Abrir material',
-      copy: 'Busca material por título o ramo, filtra el tipo y abre el recurso que necesitas. También puedes llegar desde Mis ramos.' },
-    { id: 'calendario', title: 'Calendario académico', duration: 8000, href: '#/calendario', link: 'Abrir calendario',
-      copy: 'Cambia de mes y abre una fecha para consultar las actividades publicadas y su fuente oficial.' }
+    { id: 'malla', title: 'Explorar la malla', href: '#/mallas', link: 'Abrir malla', copy: 'Elige tu plan y toca un ramo para consultar su ficha y sus prerrequisitos.' },
+    { id: 'aprobados', title: 'Marcar aprobados', href: '#/mallas', link: 'Abrir malla', copy: 'Marca los ramos que ya aprobaste. Puedes aplicar un lote por semestre y deshacerlo.' },
+    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre', copy: 'Mi selección permite reunir ramos. Este semestre muestra los que marcaste como Cursando, aunque no estén en tu selección.' },
+    { id: 'eligible', title: 'Qué podrías cursar', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar', copy: 'Consulta prerrequisitos según tus aprobados registrados. Cursando aún no es aprobado. Confirma requisitos especiales, oferta, horarios y cupos con la universidad.' },
+    { id: 'material', title: 'Material de estudio', href: '#/material', link: 'Abrir material', copy: 'Busca por título o ramo, filtra el tipo y consulta los recursos disponibles.' },
+    { id: 'calendario', title: 'Calendario académico', href: '#/calendario', link: 'Abrir calendario', copy: 'Cambia de mes y selecciona una fecha para consultar actividades y su fuente oficial.' }
   ];
-  const TOTAL = CHAPTERS.reduce((sum, chapter) => sum + chapter.duration, 0);
-  const CUES = [
-    ['Elige un ramo', 'Toca Mecánica', 'Consulta sus prerrequisitos', 'Abre la ficha del ramo'],
-    ['Activa Marcar aprobados', 'Toca los ramos aprobados', 'Dos ramos marcados', 'Aplica el lote o usa Deshacer'],
-    ['Busca en Mi selección', 'Agregar no cambia el estado', 'Cursando aparece en Este semestre', 'Consulta material o ubica el ramo'],
-    ['Abre Qué podrías cursar', 'Según tus aprobados registrados', 'Cursando aún no es aprobado', 'Confirma los requisitos especiales'],
-    ['Busca por ramo', 'Búsqueda aplicada', 'Filtra por tipo', 'Abre un recurso'],
-    ['Cambia de mes', 'Selecciona una fecha', 'Consulta sus actividades', 'Abre la fuente oficial']
-  ];
-  const sourceCourses = window.CURRICULA?.planO?.subjects || [];
-  const sample = [1, 2].flatMap(semester => sourceCourses.filter(course => course.semester === semester).slice(0, 3));
-  // Catalogue relationships and the pure evaluator supply the example, never a student's record.
-  const adviceCourses = window.CURRICULA?.planP?.subjects || [];
-  const adviceBase = adviceCourses.find(course => course.semester === 1 && !course.prereqs.length && adviceCourses.some(next => next.prereqs.length === 1 && next.prereqs[0] === course.code));
-  const adviceNext = adviceCourses.find(course => course.prereqs.length === 1 && course.prereqs[0] === adviceBase?.code);
-  const adviceSpecial = adviceCourses.find(course => course.requirements?.length && !course.prereqs.length) || adviceCourses.find(course => course.requirements?.length);
-  const adviceItem = (course, statuses) => course && window.PortalMyCourses?.evaluateCourse(adviceCourses, statuses, course);
-  const shortName = name => String(name || '').toLocaleLowerCase('es-CL')
-    .replace(/(^|\s)\p{L}/gu, letter => letter.toLocaleUpperCase('es-CL'))
-    .replace(/\b(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)\b/gi, numeral => numeral.toUpperCase());
-  const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  const formatQuery = matchMedia('(max-width: 920px)');
   const prefersReducedMotion = () => motionQuery.matches;
   const track = name => window.PortalAnalytics?.event(name);
   let dialog, dialogGuide, receptionGuide, returnFocus, routeAtOpen, checked = false;
 
-  function courseTile(course, approved = false, action = false, focus = false) {
-    return `<button class="guide-course ${approved ? 'is-approved' : ''} ${focus ? 'is-focus' : ''}" type="button"${action ? ` data-guide-approve="${esc(course.code)}"` : ' tabindex="-1"'} aria-label="${esc(shortName(course.name))}${approved ? ', aprobado' : ''}"${action ? '' : ' aria-hidden="true"'}><small>${esc(course.visibleCode || course.code)}</small><strong>${esc(shortName(course.name))}</strong><span>${approved ? 'Aprobado' : 'Pendiente'}</span>${focus ? '<i class="guide-touch" aria-hidden="true"></i>' : ''}</button>`;
-  }
-
-  function visual(guide) {
-    const chapter = CHAPTERS[guide.index];
-    const courses = sample.length ? sample : [
-      { code: 'DAMA-00135', name: 'CÁLCULO I', semester: 1 },
-      { code: 'DAFI-00103', name: 'INTRODUCCIÓN A LA FÍSICA', semester: 1 }
-    ];
-    if (chapter.id === 'malla') {
-      const shown = courses.slice(0, 6);
-      const selected = shown.find(c => c.name.includes('MECÁNICA')) || shown.find(c => c.semester === 2) || shown[0];
-      const prereqs = (selected.prereqs || []).map(code => sourceCourses.find(c => c.code === code)).filter(Boolean);
-      return `<div class="guide-visual guide-malla" data-guide-visual aria-label="Vista ilustrativa de la malla">
-        <div class="guide-mini-top"><strong>Malla</strong><span class="guide-mini-tabs"><b>Plan O</b><span>Plan P</span></span></div>
-        <div class="guide-semesters"><section><h4>Semestre 1</h4><div class="guide-course-list">${shown.filter(c => c.semester === 1).map(course => courseTile(course, false, false, guide.phase >= 2 && prereqs.some(p => p.code === course.code))).join('')}</div></section><section><h4>Semestre 2</h4><div class="guide-course-list">${shown.filter(c => c.semester === 2).map(course => courseTile(course, false, false, guide.phase >= 1 && course.code === selected.code)).join('')}</div></section></div>
-        ${guide.phase >= 2 ? `<div class="guide-mini-detail"><small>FICHA DEL RAMO</small><strong>${esc(shortName(selected.name))}</strong><span>Prerrequisitos: ${prereqs.length ? esc(prereqs.map(c => shortName(c.name)).join(' · ')) : 'Sin prerrequisitos'}</span><span>Material asociado: abre la ficha para consultarlo</span></div>` : '<div class="guide-mini-hint">Toca un ramo para ver su ficha y las relaciones de la malla.</div>'}
-      </div>`;
-    }
-    if (chapter.id === 'aprobados') {
-      const shown = courses.slice(0, 6);
-      const pending = shown.filter(course => !guide.approved.has(course.code)).length;
-      return `<div class="guide-visual guide-approvals" data-guide-visual aria-label="Práctica ilustrativa de marcado de aprobados">
-        <div class="guide-mini-top"><strong>Malla · Plan O</strong><span class="guide-mini-mark ${guide.phase >= 1 || guide.manual ? 'is-on' : ''}">Marcar aprobados ${guide.phase >= 1 || guide.manual ? '· activo' : ''}</span></div>
-        <p class="guide-visual-instruction">${guide.manual ? guide.undo ? 'Lote aplicado: Deshacer restaura el estado anterior.' : 'Toca un ramo para marcarlo o dejarlo pendiente.' : guide.phase >= 3 ? 'Lote aplicado: Deshacer restaura el estado anterior.' : guide.phase >= 2 ? 'Dos ramos marcados. Puedes tocar cualquiera para cambiarlo.' : 'Activa el marcado y toca cada ramo aprobado.'}</p>
-        <div class="guide-semesters"><section><h4>Semestre 1</h4><div class="guide-course-list">${shown.filter(c => c.semester === 1).slice(0, 3).map(c => courseTile(c, guide.approved.has(c.code), true)).join('')}</div></section><section><h4>Semestre 2</h4><div class="guide-course-list">${shown.filter(c => c.semester === 2).slice(0, 3).map(c => courseTile(c, guide.approved.has(c.code), true)).join('')}</div></section></div>
-        <div class="guide-mini-batch"><span>Aprobar hasta el semestre <b>2</b></span><button type="button" data-guide-batch${pending ? '' : ' disabled'}>Aplicar</button><button type="button" data-guide-undo${guide.undo ? '' : ' disabled'}>Deshacer lote</button></div>
-        <p class="guide-visual-note">Marcar aprobados no agrega ramos a Mis ramos.</p>
-      </div>`;
-    }
-    if (chapter.id === 'mis-ramos') {
-      const course = courses.find(c => c.name.includes('CÁLCULO')) || courses[0];
-      return `<div class="guide-visual guide-my-courses" data-guide-visual aria-label="Vista ilustrativa de Mis ramos">
-        <div class="guide-mini-top"><strong>Malla · Plan O</strong><span class="guide-mini-tabs"><span>Malla completa</span><b>Mis ramos</b></span></div>
-        <div class="guide-view-select"><span>Ver en Mis ramos</span><strong data-guide-my-view>Mi selección</strong><span aria-hidden="true">⌄</span></div>
-        <div class="guide-my-layout"><section><small data-guide-my-heading>TU SELECCIÓN</small><div class="guide-my-empty" data-guide-my-empty>Aún no eliges ramos</div><article class="guide-my-card" data-guide-my-card><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><strong>${esc(shortName(course.name))}</strong><div><span>Estado</span><b data-guide-my-state>Pendiente</b></div><span class="guide-my-material" data-guide-my-material>Ver material del ramo →</span><span class="guide-my-material" data-guide-my-locate>Ubicar en malla</span></article></section><section data-guide-my-search><small>BUSCAR EN LA MALLA</small><div class="guide-mini-input">Nombre o código</div><div class="guide-my-option"><span>${esc(shortName(course.name))}</span><b data-guide-my-added>Agregar</b></div></section><section class="guide-semester-summary" data-guide-my-summary><small>ESTE SEMESTRE</small><strong>1 ramo · ${Number(course.sct) || 0} SCT</strong><span>SCT referenciales de ramos marcados.</span><p>También aparecen ramos Cursando que no agregaste a Mi selección.</p></section></div>
-        <p class="guide-visual-note">Agregar no cambia el estado. Aprobar no agrega el ramo a Mi selección.</p>
-      </div>`;
-    }
-    if (chapter.id === 'eligible') {
-      const statuses = adviceBase ? { [adviceBase.code]: 'cursando' } : {};
-      const missing = adviceItem(adviceNext, statuses);
-      const review = adviceItem(adviceSpecial, Object.fromEntries((adviceSpecial?.prereqs || []).map(code => [code, 'aprobado'])));
-      const noPrereqs = adviceCourses.find(course => !course.prereqs.length && !course.requirements.length && course.code !== adviceBase?.code);
-      return `<div class="guide-visual guide-eligibility" data-guide-visual aria-label="Ejemplo de prerrequisitos del Plan P">
-        <div class="guide-mini-top"><strong>Malla · Plan P</strong><span>Mis ramos</span></div>
-        <div class="guide-view-select"><span>Ver en Mis ramos</span><strong>Qué podrías cursar</strong><span aria-hidden="true">⌄</span></div>
-        <p class="guide-visual-instruction">Ramos pendientes, según tus aprobados registrados.</p>
-        <div class="guide-eligibility-groups"><section data-guide-eligible-met><h4>Cumple prerrequisitos registrados</h4><strong>${esc(noPrereqs ? shortName(noPrereqs.name) : 'Sin ramos en este grupo')}</strong><span>${noPrereqs ? esc(noPrereqs.visibleCode || noPrereqs.code) + ' · Sin prerrequisitos' : ''}</span></section><section data-guide-eligible-missing><h4>Faltan prerrequisitos</h4><strong>${esc(missing?.category === 'missing' ? shortName(adviceNext.name) : 'Consulta los requisitos del ramo')}</strong><span>${missing?.category === 'missing' ? `Falta aprobar: ${esc(shortName(adviceBase.name))} (cursando, aún no aprobado)` : 'Cursando no cuenta como aprobado.'}</span></section><section data-guide-eligible-review><h4>Requisitos por revisar</h4><strong>${esc(review?.category === 'review' ? shortName(adviceSpecial.name) : 'Sin ramos en este grupo')}</strong><span>${esc(review?.category === 'review' ? review.extraRequirements?.[0] || '' : '')}</span></section></div>
-        <p class="guide-visual-note guide-eligibility-note">Confirma requisitos, oferta, horarios y cupos con la universidad. No garantiza inscripción.</p>
-      </div>`;
-    }
-    if (chapter.id === 'material') {
-      return `<div class="guide-visual guide-material" data-guide-visual aria-label="Vista ilustrativa de la biblioteca de material">
-        <div class="guide-mini-top"><strong>Material de estudio</strong><span>Biblioteca</span></div>
-        <div class="guide-material-search"><span>${guide.phase >= 1 ? 'Cálculo I' : 'Buscar por título, ramo o código'}</span><b>⌕</b></div>
-        <div class="guide-material-filters"><span>Ramo: ${guide.phase >= 1 ? 'Cálculo I' : 'Todos'}</span><span>Tipo: ${guide.phase >= 2 ? 'Guía' : 'Todos'}</span></div>
-        <div class="guide-material-types"><b>Todos</b><span>Apuntes</span><span class="${guide.phase >= 2 ? 'is-focus' : ''}">Guías</span><span>Pruebas</span></div>
-        ${guide.phase >= 2 ? `<div class="guide-material-result"><span>RESULTADOS FILTRADOS</span><strong>Elige un recurso disponible</strong><small>Abre el detalle para consultar el archivo y su ramo.</small><b>→</b></div>` : '<div class="guide-mini-hint">Busca un ramo y filtra los recursos por tipo.</div>'}
-        ${guide.phase >= 3 ? '<div class="guide-material-open">Detalle del recurso <b>Abrir material ↗</b></div>' : ''}
-      </div>`;
-    }
-    return `<div class="guide-visual guide-calendar" data-guide-visual aria-label="Vista ilustrativa del calendario sin fechas">
-      <div class="guide-mini-top"><strong>Calendario académico</strong><span>Antofagasta</span></div>
-      <div class="guide-calendar-head"><b>←</b><strong>Mes del calendario</strong><b>→</b></div>
-      <div class="guide-calendar-weekdays" aria-hidden="true"><b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b></div>
-      <div class="guide-calendar-grid" aria-hidden="true">${Array.from({ length: 28 }, (_, i) => `<span${i === 11 && guide.phase >= 1 ? ' class="is-focus"' : ''}></span>`).join('')}</div>
-      ${guide.phase >= 2 ? '<div class="guide-calendar-detail"><strong>Actividades de la fecha seleccionada</strong><span>Abre una actividad para consultar el documento oficial.</span></div>' : '<div class="guide-mini-hint">Selecciona una fecha para ver sus actividades.</div>'}
-    </div>`;
-  }
-
   function shell(isDialog, themeControl = '') {
     const inner = `<div class="guide-layout" data-guide-root>
-      <div class="guide-stage" role="region" aria-label="Ejemplo del portal"><div class="guide-stage-head"><span class="guide-example">Ejemplo ilustrativo</span><span class="guide-step" data-guide-step></span></div><h3 class="guide-scene-title" data-guide-scene-title></h3><div data-guide-stage></div><p class="guide-practice-note" data-guide-practice-note hidden>Práctica: no cambia tus ramos.</p></div>
+      <section class="guide-stage" aria-label="Recorrido con capturas reales del portal">
+        <div class="guide-stage-head"><span class="guide-example">Capturas reales con indicaciones animadas</span><span class="guide-format" data-guide-format></span></div>
+        <h3 class="guide-scene-title" data-guide-scene-title></h3>
+        <div class="guide-toolbar"><div class="guide-playbar"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><button type="button" class="guide-secondary" data-guide-fullscreen>Pantalla completa</button></div><div class="guide-audio-controls"><label>Recorrido<select data-guide-mode><option value="text">Solo texto</option><option value="voice">Voz y texto</option></select></label><button type="button" class="guide-secondary" data-guide-music aria-pressed="false">Música: desactivada</button></div></div>
+        <p class="guide-caption" data-guide-caption></p>
+        <div class="guide-media"><img data-guide-still alt="" decoding="async"><video data-guide-video controls muted playsinline preload="none" hidden aria-label="Recorrido del portal"><track kind="captions" srclang="es" label="Español" default></video></div>
+        <div class="guide-step-controls"><button type="button" data-guide-step-prev aria-label="Captura anterior">←</button><span data-guide-step-position></span><button type="button" data-guide-step-next aria-label="Captura siguiente">→</button><a data-guide-image-link target="_blank" rel="noopener">Ampliar captura ↗</a></div>
+      </section>
       <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${CHAPTERS.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('')}</div>
-        <div class="guide-copy"><span data-guide-position>1 de ${CHAPTERS.length}</span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tu selección y los estados de tus ramos se guardan en este navegador. No reemplazan tu avance académico oficial.</p></div>
-        <div class="guide-actions"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir escena</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
+        <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tu selección y los estados de tus ramos se guardan en este navegador. No reemplazan tu avance académico oficial.</p></div>
+        <div class="guide-actions"><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir capítulo</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
         <p class="guide-status" data-guide-status role="status"></p>
       </div>
     </div>`;
     if (isDialog) return `<header class="welcome-head"><div><span class="welcome-brand">CEIC UCN · GUÍA RÁPIDA</span><h2 id="welcome-title" tabindex="-1">Así funciona el portal</h2></div><button class="welcome-close" type="button" data-welcome-close aria-label="Cerrar guía"><span aria-hidden="true">×</span></button></header>${inner}<footer class="welcome-foot"><button class="welcome-skip" type="button" data-welcome-close>Saltar</button><button class="welcome-enter" type="button" data-welcome-close>Ir al portal <span aria-hidden="true">→</span></button></footer>`;
-    return `<div class="portal-reception reception-motion"><header class="reception-header"><a class="reception-brand" href="#/inicio" aria-label="Ir a Inicio"><img src="assets/logo-mark-transparent.png" alt=""><strong>CEIC UCN</strong></a>${themeControl}<a class="reception-skip" href="#/inicio">Saltar tutorial</a></header><main class="reception-main" id="main-content" tabindex="-1"><div class="reception-guide-head"><h1>Bienvenido al portal</h1><span>Guía rápida</span></div>${inner}<div class="reception-actions"><button type="button" class="reception-dismiss" data-reception-dismiss>No volver a mostrar</button><a class="btn primary reception-enter" href="#/inicio">Ir al portal <span aria-hidden="true">→</span></a></div></main></div>`;
+    return `<div class="portal-reception"><header class="reception-header"><a class="reception-brand" href="#/inicio" aria-label="Ir a Inicio"><img src="assets/logo-mark-transparent.png" alt=""><strong>CEIC UCN</strong></a>${themeControl}<a class="reception-skip" href="#/inicio">Saltar tutorial</a></header><main class="reception-main" id="main-content" tabindex="-1"><div class="reception-guide-head"><h1>Bienvenido al portal</h1><span>Guía rápida</span></div>${inner}<div class="reception-actions"><button type="button" class="reception-dismiss" data-reception-dismiss>No volver a mostrar</button><a class="btn primary reception-enter" href="#/inicio">Ir al portal <span aria-hidden="true">→</span></a></div></main></div>`;
   }
 
   class Guide {
     constructor(root, { onLink = () => {} } = {}) {
       this.root = root;
       this.onLink = onLink;
-      this.index = 0;
-      this.elapsed = 0;
-      this.phase = prefersReducedMotion() ? 3 : 0;
-      this.playing = false;
-      this.manual = false;
-      this.approved = new Set();
-      this.undo = null;
-      this.animations = new Set();
-      this.lastTick = 0;
-      this.timer = null;
+      this.index = this.stepIndex = this.desiredTime = this.playRequest = 0;
+      this.video = this.find('video');
+      this.still = this.find('still');
+      this.videoMode = this.pendingPlay = false;
+      this.mode = 'text';
+      this.music = false;
+      this.loadAbort = null;
+      this.blobUrl = null;
       this.onClick = event => this.click(event);
       this.onKeydown = event => this.keydown(event);
-      this.onMotionChange = event => {
-        this.stopMotion();
-        if (event.matches) {
-          this.elapsed = CHAPTERS[this.index].duration;
-          this.phase = 3;
-          if (this.index === 1 && !this.manual) {
-            this.approved = new Set(sample.map(course => course.code));
-            this.undo = new Set(sample.slice(0, 2).map(course => course.code));
-          }
+      this.onChange = event => {
+        if (!event.target.matches('[data-guide-mode]')) return;
+        this.mode = event.target.value;
+        this.applySelection();
+      };
+      this.onFormatChange = () => this.configure();
+      this.onResize = () => this.fitVideo();
+      this.onMotionChange = () => {
+        this.pause(false);
+        this.exitFullscreen();
+        this.desiredTime = this.recording?.steps[this.stepIndex]?.start || 0;
+        this.showStill();
+        this.render();
+        this.announce(prefersReducedMotion() ? 'Movimiento reducido: recorre las capturas con las flechas o los capítulos.' : 'Recorrido listo para reproducir.');
+      };
+      this.mediaListeners = {
+        timeupdate: () => this.syncVideo(),
+        play: () => {
+          if (prefersReducedMotion() || document.hidden || !this.root.isConnected) { this.pause(false); return; }
+          this.videoMode = true;
+          this.showVideo();
+          this.renderPlay();
+          this.announce(this.mode === 'voice' ? 'Recorrido en reproducción, con voz y texto.' : this.music ? 'Recorrido en reproducción, con texto y música.' : 'Recorrido en reproducción, sin sonido.');
+        },
+        pause: () => this.renderPlay(),
+        ended: () => {
+          this.pendingPlay = false;
+          this.syncVideo();
+          this.renderPlay();
+          this.announce('Recorrido terminado. Puedes repetirlo o entrar al portal.');
+          track('tutorial/completar');
+        },
+        error: () => {
+          if (!this.pendingPlay && !this.videoMode) return;
+          this.pause(false);
+          this.showStill();
           this.render();
-          this.announce('Movimiento reducido: usa los capítulos o Siguiente para avanzar.');
-        } else {
-          this.elapsed = 0;
-          this.phase = 0;
-          this.render();
-          this.announce('Recorrido listo para reproducir.');
+          this.announce('Puedes seguir el recorrido con las capturas y los capítulos.');
         }
       };
       root.addEventListener('click', this.onClick);
       root.addEventListener('keydown', this.onKeydown);
+      root.addEventListener('change', this.onChange);
+      formatQuery.addEventListener('change', this.onFormatChange);
+      window.addEventListener('resize', this.onResize);
       motionQuery.addEventListener('change', this.onMotionChange);
+      Object.entries(this.mediaListeners).forEach(([name, listener]) => this.video.addEventListener(name, listener));
+      this.configure();
+    }
+    find(name) { return this.root.querySelector(`[data-guide-${name}]`); }
+    configure() {
+      const previous = this.recording?.steps[this.stepIndex];
+      const previousTime = this.videoMode ? this.video.currentTime : this.desiredTime;
+      this.pause(false);
+      this.format = formatQuery.matches ? 'mobile' : 'desktop';
+      this.recording = window.PortalTutorialCapture?.formats?.[this.format];
+      this.root.dataset.captureFormat = this.format;
+      if (!this.recording?.steps?.length) {
+        this.find('mode').disabled = true;
+        this.find('music').disabled = true;
+        this.announce('La guía estará disponible pronto. Puedes abrir cada sección del portal.');
+        this.render();
+        return;
+      }
+      const sameStep = this.recording.steps.findIndex(step => step.id === previous?.id);
+      this.stepIndex = sameStep >= 0 ? sameStep : Math.max(0, this.recording.steps.findIndex(step => step.chapter === CHAPTERS[this.index].id));
+      const step = this.recording.steps[this.stepIndex];
+      this.desiredTime = previous ? Math.max(step.start, Math.min(step.end - .01, step.start + previousTime - previous.start)) : step.start;
+      this.applySelection(false);
+    }
+    selectionKey() {
+      return this.mode === 'voice' ? this.music ? 'voiceMusic' : 'voice' : this.music ? 'music' : 'silent';
+    }
+    applySelection(rememberTime = true) {
+      if (rememberTime && this.videoMode) this.desiredTime = this.video.currentTime;
+      this.pause(false);
+      this.exitFullscreen();
+      const variants = this.recording?.variants || {};
+      if (!variants.voice) this.mode = 'text';
+      if (!(this.mode === 'voice' ? variants.voiceMusic : variants.music)) this.music = false;
+      const key = this.selectionKey();
+      this.releaseBlob();
+      this.video.preload = 'none';
+      this.mediaSource = variants[key] || this.recording.video;
+      this.video.src = this.mediaSource;
+      this.video.muted = key === 'silent';
+      this.video.querySelector('track').src = this.recording.track;
+      this.root.dataset.audioMode = this.mode;
+      this.root.dataset.music = String(this.music);
+      this.find('mode').value = this.mode;
+      this.find('mode').querySelector('[value="voice"]').disabled = !variants.voice;
+      this.find('music').disabled = !(this.mode === 'voice' ? variants.voiceMusic : variants.music);
+      this.find('music').setAttribute('aria-pressed', String(this.music));
+      this.find('music').textContent = `Música: ${this.music ? 'activada' : 'desactivada'}`;
+      this.showStill();
       this.render();
+      if (rememberTime) this.announce('Recorrido en pausa. Reproduce para continuar con esta opción.');
     }
     render() {
+      const step = this.recording?.steps[this.stepIndex];
+      if (step) this.index = Math.max(0, CHAPTERS.findIndex(chapter => chapter.id === step.chapter));
       const chapter = CHAPTERS[this.index];
-      // Mount once per chapter; phase updates preserve scene nodes and practice focus.
-      this.root.querySelector('[data-guide-stage]').innerHTML = visual({ ...this, phase: 3 });
-      this.renderVisual(false);
-      this.root.querySelector('[data-guide-scene-title]').textContent = chapter.title;
-      this.root.querySelector('[data-guide-practice-note]').hidden = chapter.id !== 'aprobados';
-      this.root.querySelector('[data-guide-position]').textContent = `${this.index + 1} de ${CHAPTERS.length} · ${Math.round(TOTAL / 1000)} s`;
-      this.root.querySelector('[data-guide-title]').textContent = chapter.title;
-      this.root.querySelector('[data-guide-copy]').textContent = chapter.copy;
-      this.root.querySelector('[data-guide-step]').textContent = CUES[this.index][this.phase];
-      const link = this.root.querySelector('.guide-actions [data-guide-link]');
-      link.href = chapter.href;
-      link.textContent = `${chapter.link} ↗`;
-      this.root.querySelector('[data-guide-prev]').disabled = this.index === 0;
-      this.root.querySelector('[data-guide-next]').disabled = this.index === CHAPTERS.length - 1;
-      this.root.querySelector('[data-guide-play]').textContent = this.playing ? 'Pausar' : this.elapsed ? 'Continuar recorrido' : 'Reproducir recorrido';
+      this.find('scene-title').textContent = chapter.title;
+      this.find('title').textContent = chapter.title;
+      this.find('copy').textContent = chapter.copy;
+      this.find('caption').textContent = step?.caption || chapter.copy;
+      this.find('format').textContent = this.format === 'mobile' ? 'Versión móvil' : 'Versión escritorio';
+      this.find('position').textContent = `${this.index + 1} de ${CHAPTERS.length}${this.recording ? ` · ${Math.round(this.recording.duration)} s` : ''}`;
+      this.find('link').href = chapter.href;
+      this.find('link').textContent = `${chapter.link} ↗`;
+      this.find('prev').disabled = this.index === 0;
+      this.find('next').disabled = this.index === CHAPTERS.length - 1;
+      this.find('step-prev').disabled = !step || this.stepIndex === 0;
+      this.find('step-next').disabled = !step || this.stepIndex === this.recording.steps.length - 1;
+      this.find('step-position').textContent = step ? `Captura ${this.stepIndex + 1} de ${this.recording.steps.length}` : '';
       this.root.querySelectorAll('[data-guide-tab]').forEach((tab, i) => {
         tab.setAttribute('aria-selected', String(i === this.index));
         tab.tabIndex = i === this.index ? 0 : -1;
       });
-      this.progress();
-      this.root.dataset.phase = this.phase === 0 ? 'start' : this.phase === 3 ? 'final' : 'middle';
+      if (step) {
+        this.find('image-link').href = step.image;
+        if (!this.videoMode) { this.still.src = step.image; this.still.alt = step.caption; }
+      }
+      this.root.querySelector('.guide-media').style.aspectRatio = `${this.recording?.width || 1440} / ${this.recording?.height || 900}`;
+      this.root.querySelector('.guide-media').style.setProperty('--guide-aspect', String((this.recording?.width || 1440) / (this.recording?.height || 900)));
+      this.renderPlay();
+      this.progress(this.videoMode ? this.video.currentTime : this.desiredTime);
     }
-    progress() {
-      const chapter = CHAPTERS[this.index];
-      this.root.querySelectorAll('[data-guide-tab] i').forEach((bar, i) => {
-        bar.style.width = `${i < this.index ? 100 : i === this.index ? Math.min(100, this.elapsed / chapter.duration * 100) : 0}%`;
+    renderPlay() {
+      const button = this.find('play');
+      button.disabled = !this.recording || prefersReducedMotion();
+      button.textContent = prefersReducedMotion() ? 'Usa las capturas para avanzar' : this.pendingPlay ? 'Cancelar carga' : !this.video.paused ? 'Pausar' : this.videoMode && !this.video.ended ? 'Continuar recorrido' : 'Reproducir recorrido';
+    }
+    progress(time) {
+      this.root.querySelectorAll('[data-guide-tab] i').forEach((bar, index) => {
+        const steps = this.recording?.steps.filter(step => step.chapter === CHAPTERS[index].id) || [];
+        const start = steps[0]?.start || 0, end = steps.at(-1)?.end || start;
+        bar.style.width = `${end > start ? Math.max(0, Math.min(100, (time - start) / (end - start) * 100)) : 0}%`;
       });
     }
-    announce(message) { this.root.querySelector('[data-guide-status]').textContent = message; }
-    animateStage() {
-      if (prefersReducedMotion()) return;
-      const stage = this.root.querySelector('[data-guide-visual]');
-      if (!stage?.animate) return;
-      const animation = stage.animate([{ opacity: .5 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
-      this.animations.add(animation);
-      animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
+    announce(message) { this.find('status').textContent = message; }
+    showStill() { this.videoMode = false; this.video.hidden = true; this.still.hidden = false; this.root.querySelector('.guide-media').classList.remove('is-video'); }
+    showVideo() { this.video.hidden = false; this.still.hidden = true; this.root.querySelector('.guide-media').classList.add('is-video'); }
+    fitVideo() {
+      if (!this.videoMode) return;
+      const media = this.root.querySelector('.guide-media');
+      const top = Math.max(0, media.getBoundingClientRect().top);
+      media.style.setProperty('--guide-media-available', `${Math.max(140, innerHeight - top - 12)}px`);
     }
-    renderVisual(animate = true) {
-      const scene = this.root.querySelector('[data-guide-visual]');
-      if (!scene) return;
-      const phase = this.phase;
-      const stateClass = (element, name, active) => {
-        if (!element || element.classList.contains(name) === active) return;
-        const before = getComputedStyle(element);
-        const from = { backgroundColor: before.backgroundColor, borderColor: before.borderColor };
-        element.classList.toggle(name, active);
-        if (!animate || prefersReducedMotion() || !element.animate) return;
-        const after = getComputedStyle(element);
-        const animation = element.animate([from, { backgroundColor: after.backgroundColor, borderColor: after.borderColor }], { duration: 160, easing: 'ease-out' });
-        this.animations.add(animation);
-        animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
-      };
-      const show = (selector, visible) => {
-        const element = scene.querySelector(selector);
-        if (!element) return;
-        const entering = element.hidden && visible;
-        element.hidden = !visible;
-        if (!entering || !animate || prefersReducedMotion() || !element.animate) return;
-        const animation = element.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' });
-        this.animations.add(animation);
-        animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
-      };
-      const chapter = CHAPTERS[this.index].id;
-      if (chapter === 'malla') {
-        const selected = sample.find(c => c.name.includes('MECÁNICA')) || sample.find(c => c.semester === 2) || sample[0];
-        scene.querySelectorAll('.guide-course').forEach((tile, i) => stateClass(tile, 'is-focus', !!selected && (phase >= 1 && sample[i]?.code === selected.code || phase >= 2 && selected.prereqs?.includes(sample[i]?.code))));
-        show('.guide-mini-detail', phase >= 2);
-      } else if (chapter === 'aprobados') {
-        const active = phase >= 1 || this.manual;
-        scene.querySelector('.guide-mini-mark').classList.toggle('is-on', active);
-        scene.querySelector('.guide-mini-mark').textContent = `Marcar aprobados${active ? ' · activo' : ''}`;
-        scene.querySelector('.guide-visual-instruction').textContent = this.manual ? this.undo ? 'Lote aplicado: Deshacer restaura el estado anterior.' : 'Toca un ramo para marcarlo o dejarlo pendiente.' : phase >= 3 ? 'Lote aplicado: Deshacer restaura el estado anterior.' : phase >= 2 ? 'Dos ramos marcados. Puedes tocar cualquiera para cambiarlo.' : 'Activa el marcado y toca cada ramo aprobado.';
-        scene.querySelectorAll('[data-guide-approve]').forEach(tile => {
-          const approved = this.approved.has(tile.dataset.guideApprove);
-          const course = sample.find(item => item.code === tile.dataset.guideApprove);
-          stateClass(tile, 'is-approved', approved);
-          tile.querySelector('span').textContent = approved ? 'Aprobado' : 'Pendiente';
-          tile.setAttribute('aria-label', `${shortName(course?.name)}${approved ? ', aprobado' : ', pendiente'}`);
-        });
-        scene.querySelector('[data-guide-batch]').disabled = sample.every(course => this.approved.has(course.code));
-        scene.querySelector('[data-guide-undo]').disabled = !this.undo;
-      } else if (chapter === 'mis-ramos') {
-        scene.querySelector('[data-guide-my-view]').textContent = phase >= 2 ? 'Este semestre' : 'Mi selección';
-        scene.querySelector('[data-guide-my-heading]').textContent = phase >= 2 ? 'RAMOS CURSANDO' : 'TU SELECCIÓN';
-        scene.querySelector('[data-guide-my-state]').textContent = phase >= 2 ? 'Cursando' : 'Pendiente';
-        scene.querySelector('[data-guide-my-state]').classList.toggle('is-current', phase >= 2);
-        scene.querySelector('[data-guide-my-added]').textContent = phase >= 1 ? 'Agregado' : 'Agregar';
-        scene.querySelector('[data-guide-my-added]').classList.toggle('is-added', phase >= 1);
-        show('[data-guide-my-empty]', phase === 0);
-        show('[data-guide-my-card]', phase >= 1);
-        show('[data-guide-my-search]', phase < 2);
-        show('[data-guide-my-summary]', phase >= 2);
-        show('[data-guide-my-material]', phase >= 3);
-        show('[data-guide-my-locate]', phase >= 3);
-      } else if (chapter === 'eligible') {
-        stateClass(scene.querySelector('[data-guide-eligible-met]'), 'is-focus', phase === 1);
-        stateClass(scene.querySelector('[data-guide-eligible-missing]'), 'is-focus', phase === 2);
-        stateClass(scene.querySelector('[data-guide-eligible-review]'), 'is-focus', phase >= 3);
-      } else if (chapter === 'material') {
-        scene.querySelector('.guide-material-search > span').textContent = phase >= 1 ? 'Cálculo I' : 'Buscar por título, ramo o código';
-        const filters = scene.querySelectorAll('.guide-material-filters span');
-        filters[0].textContent = `Ramo: ${phase >= 1 ? 'Cálculo I' : 'Todos'}`;
-        filters[1].textContent = `Tipo: ${phase >= 2 ? 'Guía' : 'Todos'}`;
-        scene.querySelector('.guide-material-types span:nth-of-type(2)').classList.toggle('is-focus', phase >= 2);
-        show('.guide-material-result', phase >= 2);
-        show('.guide-material-open', phase >= 3);
-      } else if (chapter === 'calendario') {
-        scene.querySelectorAll('.guide-calendar-grid span').forEach((day, i) => day.classList.toggle('is-focus', i === 11 && phase >= 1));
-        show('.guide-calendar-detail', phase >= 2);
-      }
-    }
-    setPhase(nextPhase) {
-      if (nextPhase === this.phase) return;
-      this.phase = nextPhase;
-      this.root.dataset.phase = nextPhase === 0 ? 'start' : nextPhase === 3 ? 'final' : 'middle';
-      if (this.index === 1 && !this.manual) {
-        if (nextPhase >= 2) sample.slice(0, 2).forEach(course => this.approved.add(course.code));
-        if (nextPhase >= 3) {
-          this.undo = new Set(this.approved);
-          sample.forEach(course => this.approved.add(course.code));
-        }
-      }
-      this.renderVisual();
-      if (!(this.index === 1 && this.manual)) {
-        this.root.querySelector('[data-guide-step]').textContent = CUES[this.index][nextPhase];
-      }
-    }
-    tick() {
-      if (!this.playing) return;
-      const now = performance.now();
-      this.elapsed += now - this.lastTick;
-      this.lastTick = now;
-      const chapter = CHAPTERS[this.index];
-      if (this.elapsed >= chapter.duration) {
-        if (this.index === CHAPTERS.length - 1) {
-          this.elapsed = chapter.duration;
-          this.progress();
-          this.pause(false);
-          this.announce('Recorrido terminado. Puedes repetirlo o entrar al portal.');
-          track('tutorial/completar');
-          return;
-        }
-        this.index += 1;
-        this.elapsed = 0;
-        this.phase = 0;
-        this.manual = false;
-        this.approved = new Set();
-        this.undo = null;
+    syncVideo() {
+      if (!this.videoMode || !this.recording) return;
+      const time = this.video.currentTime;
+      const found = this.recording.steps.findIndex(step => time >= step.start && time < step.end);
+      const next = found >= 0 ? found : time >= this.recording.duration ? this.recording.steps.length - 1 : 0;
+      if (this.stepIndex !== next) {
+        const oldChapter = this.index;
+        this.stepIndex = next;
         this.render();
-        this.animateStage();
-        this.announce(`Capítulo ${this.index + 1}: ${CHAPTERS[this.index].title}`);
-      } else {
-        this.progress();
-        const phase = Math.min(3, Math.floor(this.elapsed / chapter.duration * 4));
-        if (phase !== this.phase) this.setPhase(phase);
+        if (oldChapter !== this.index) this.announce(`Capítulo ${this.index + 1} de ${CHAPTERS.length}: ${CHAPTERS[this.index].title}`);
       }
-      this.timer = setTimeout(() => this.tick(), 50);
+      this.progress(time);
     }
-    play() {
-      if (prefersReducedMotion()) { this.setPhase(3); this.announce('Movimiento reducido: usa los capítulos o Siguiente para avanzar.'); return; }
-      if (this.index === CHAPTERS.length - 1 && this.elapsed >= CHAPTERS[this.index].duration) { this.go(0); }
-      this.playing = true;
-      this.lastTick = performance.now();
-      this.animations.forEach(animation => animation.play());
-      this.root.querySelector('[data-guide-play]').textContent = 'Pausar';
-      this.announce('Recorrido en reproducción.');
-      this.tick();
-      track('tutorial/reproducir');
+    waitForMedia(eventName, signal) {
+      if (signal.aborted) return Promise.reject(new Error('cancelled'));
+      return new Promise((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timeout);
+          this.video.removeEventListener(eventName, loaded);
+          this.video.removeEventListener('error', failed);
+          signal.removeEventListener('abort', aborted);
+        };
+        const loaded = () => { cleanup(); resolve(); };
+        const failed = () => { cleanup(); reject(new Error('media-unavailable')); };
+        const aborted = () => { cleanup(); reject(new Error('cancelled')); };
+        const timeout = setTimeout(failed, 10000);
+        this.video.addEventListener(eventName, loaded);
+        this.video.addEventListener('error', failed);
+        signal.addEventListener('abort', aborted, { once: true });
+      });
+    }
+    releaseBlob() {
+      if (this.blobUrl) URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+    async seekTo(target, signal) {
+      if (Math.abs(this.video.currentTime - target) <= .01) return;
+      const seeked = this.waitForMedia('seeked', signal);
+      this.video.currentTime = target;
+      await seeked;
+      if (Math.abs(this.video.currentTime - target) > .5) throw new Error('media-not-seekable');
+    }
+    async seekWithFallback(target, signal) {
+      try { await this.seekTo(target, signal); }
+      catch (error) {
+        if (signal.aborted || this.video.error || this.blobUrl) throw error;
+        // Static hosts without byte ranges can clamp a chapter seek to zero.
+        // Download this one selected, bounded asset only after that failure.
+        const response = await fetch(this.mediaSource, { signal });
+        const limit = 24 * 1024 * 1024;
+        if (!response.ok || Number(response.headers.get('content-length')) > limit) throw error;
+        const blob = await response.blob();
+        if (signal.aborted || blob.size > limit) throw error;
+        this.blobUrl = URL.createObjectURL(blob);
+        this.video.src = this.blobUrl;
+        this.video.preload = 'auto';
+        this.video.load();
+        if (this.video.readyState < 1) await this.waitForMedia('loadedmetadata', signal);
+        if (this.video.readyState < 3) await this.waitForMedia('canplay', signal);
+        await this.seekTo(target, signal);
+      }
+    }
+    async play() {
+      if (!this.recording || prefersReducedMotion()) return;
+      const request = ++this.playRequest;
+      this.pendingPlay = true;
+      this.loadAbort = new AbortController();
+      const signal = this.loadAbort.signal;
+      this.renderPlay();
+      try {
+        if (this.video.readyState < 1) { this.video.preload = 'auto'; this.video.load(); }
+        if (this.video.readyState < 1) await this.waitForMedia('loadedmetadata', signal);
+        if (this.video.readyState < 3) await this.waitForMedia('canplay', signal);
+        if (request !== this.playRequest || document.hidden || !this.root.isConnected) return;
+        if (!this.videoMode || this.video.ended) {
+          const target = this.video.ended ? 0 : this.desiredTime;
+          await this.seekWithFallback(target, signal);
+        }
+        if (request !== this.playRequest || document.hidden || !this.root.isConnected) return;
+        this.pendingPlay = false;
+        this.showVideo();
+        await this.video.play();
+        if (request !== this.playRequest) { this.video.pause(); return; }
+        this.videoMode = true;
+        this.renderPlay();
+        this.root.querySelector('.guide-stage').scrollIntoView({ block: 'start', behavior: 'auto' });
+        this.fitVideo();
+        track('tutorial/reproducir');
+      } catch {
+        if (request !== this.playRequest) return;
+        this.pendingPlay = false;
+        this.showStill();
+        this.render();
+        this.announce('Puedes seguir el recorrido con las capturas y los capítulos.');
+      }
     }
     pause(report = true) {
-      const wasPlaying = this.playing;
-      this.playing = false;
-      clearTimeout(this.timer);
-      this.animations.forEach(animation => animation.pause());
-      if (!wasPlaying) return;
-      this.root.querySelector('[data-guide-play]').textContent = this.elapsed ? 'Continuar recorrido' : 'Reproducir recorrido';
-      if (report) { this.announce('Recorrido en pausa.'); track('tutorial/pausar'); }
+      const active = this.pendingPlay || !this.video.paused;
+      this.playRequest += 1;
+      this.loadAbort?.abort();
+      this.loadAbort = null;
+      this.pendingPlay = false;
+      this.video.pause();
+      this.renderPlay();
+      if (active && report) { this.announce('Recorrido en pausa.'); track('tutorial/pausar'); }
     }
-    stopMotion() {
-      this.pause(false);
-      this.animations.forEach(animation => animation.cancel());
-      this.animations.clear();
+    stopMotion() { this.pause(false); }
+    exitFullscreen() {
+      if (document.fullscreenElement && this.root.contains(document.fullscreenElement)) document.exitFullscreen?.().catch(() => {});
+    }
+    async fullscreen() {
+      const media = this.root.querySelector('.guide-media');
+      try {
+        if (media.requestFullscreen) await media.requestFullscreen();
+        else if (this.videoMode && this.video.webkitEnterFullscreen) this.video.webkitEnterFullscreen();
+        else this.announce('Puedes ampliar la captura con el enlace inferior.');
+      } catch { this.announce('Puedes ampliar la captura con el enlace inferior.'); }
     }
     go(index) {
-      this.stopMotion();
+      this.pause(false);
       this.index = Math.max(0, Math.min(CHAPTERS.length - 1, index));
-      this.elapsed = 0;
-      this.phase = prefersReducedMotion() ? 3 : 0;
-      this.manual = false;
-      this.approved = new Set();
-      this.undo = null;
-      if (prefersReducedMotion() && this.index === 1) {
-        this.approved = new Set(sample.map(course => course.code));
-        this.undo = new Set(sample.slice(0, 2).map(course => course.code));
-      }
+      const found = this.recording?.steps.findIndex(step => step.chapter === CHAPTERS[this.index].id);
+      this.stepIndex = found >= 0 ? found : 0;
+      this.desiredTime = this.recording?.steps[this.stepIndex]?.start || 0;
+      this.showStill();
       this.render();
-      this.animateStage();
-      this.announce(`Capítulo ${this.index + 1}: ${CHAPTERS[this.index].title}`);
+      this.announce(`Capítulo ${this.index + 1} de ${CHAPTERS.length}: ${CHAPTERS[this.index].title}`);
+    }
+    goStep(index) {
+      if (!this.recording) return;
+      this.pause(false);
+      this.stepIndex = Math.max(0, Math.min(this.recording.steps.length - 1, index));
+      this.desiredTime = this.recording.steps[this.stepIndex].start;
+      this.showStill();
+      this.render();
+      this.announce(this.recording.steps[this.stepIndex].caption);
     }
     click(event) {
       const tab = event.target.closest('[data-guide-tab]');
       if (tab) { this.go(Number(tab.dataset.guideTab)); track('tutorial/capitulo'); return; }
-      if (event.target.closest('[data-guide-play]')) { this.playing ? this.pause() : this.play(); return; }
+      if (event.target.closest('[data-guide-play]')) { this.pendingPlay || !this.video.paused ? this.pause() : this.play(); return; }
+      if (event.target.closest('[data-guide-fullscreen]')) { this.fullscreen(); return; }
+      if (event.target.closest('[data-guide-music]')) { this.music = !this.music; this.applySelection(); return; }
       if (event.target.closest('[data-guide-prev]')) { this.go(this.index - 1); track('tutorial/anterior'); return; }
       if (event.target.closest('[data-guide-next]')) { this.go(this.index + 1); track('tutorial/siguiente'); return; }
       if (event.target.closest('[data-guide-replay]')) { this.go(this.index); track('tutorial/repetir'); return; }
-      const tile = event.target.closest('[data-guide-approve]');
-      if (tile) {
-        this.pause(false);
-        this.manual = true;
-        const code = tile.dataset.guideApprove;
-        this.approved.has(code) ? this.approved.delete(code) : this.approved.add(code);
-        this.renderVisual();
-        this.root.querySelector(`[data-guide-approve="${CSS.escape(code)}"]`)?.focus();
-        this.root.querySelector('[data-guide-step]').textContent = 'Marca y desmarca para practicar';
-        this.announce('Marcado ilustrativo actualizado.');
-        return;
-      }
-      if (event.target.closest('[data-guide-batch]')) {
-        this.pause(false);
-        this.manual = true;
-        this.undo = new Set(this.approved);
-        sample.forEach(course => this.approved.add(course.code));
-        this.renderVisual();
-        this.root.querySelector('[data-guide-undo]')?.focus();
-        this.root.querySelector('[data-guide-step]').textContent = 'Lote aplicado; puedes deshacer';
-        this.announce('Ramos ilustrativos hasta segundo semestre marcados. Puedes deshacer el lote.');
-        return;
-      }
-      if (event.target.closest('[data-guide-undo]') && this.undo) {
-        this.pause(false);
-        this.manual = true;
-        this.approved = this.undo;
-        this.undo = null;
-        this.renderVisual();
-        this.root.querySelector('[data-guide-batch]')?.focus();
-        this.root.querySelector('[data-guide-step]').textContent = 'Lote deshecho';
-        this.announce('Lote ilustrativo deshecho.');
-        return;
-      }
+      if (event.target.closest('[data-guide-step-prev]')) { this.goStep(this.stepIndex - 1); return; }
+      if (event.target.closest('[data-guide-step-next]')) { this.goStep(this.stepIndex + 1); return; }
       if (event.target.closest('[data-guide-link]')) { this.pause(false); this.onLink(); }
     }
     keydown(event) {
-      const tab = event.target.closest('[data-guide-tab]');
-      if (!tab || !['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+      if (!event.target.closest('[data-guide-tab]') || !['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? CHAPTERS.length - 1 : (this.index + (event.key === 'ArrowRight' ? 1 : -1) + CHAPTERS.length) % CHAPTERS.length;
       this.go(index);
@@ -421,10 +357,19 @@
       track('tutorial/capitulo');
     }
     destroy() {
-      this.stopMotion();
+      this.pause(false);
+      this.exitFullscreen();
+      this.releaseBlob();
       this.root.removeEventListener('click', this.onClick);
       this.root.removeEventListener('keydown', this.onKeydown);
+      this.root.removeEventListener('change', this.onChange);
+      formatQuery.removeEventListener('change', this.onFormatChange);
+      window.removeEventListener('resize', this.onResize);
       motionQuery.removeEventListener('change', this.onMotionChange);
+      Object.entries(this.mediaListeners).forEach(([name, listener]) => this.video.removeEventListener(name, listener));
+      this.video.removeAttribute('src');
+      this.video.querySelector('track').removeAttribute('src');
+      this.video.load();
     }
   }
 
@@ -460,7 +405,7 @@
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
       if (event.key !== 'Tab') return;
       event.stopImmediatePropagation();
-      const targets = [...dialog.querySelectorAll('button, a[href]')].filter(node => !node.disabled && !node.hidden && node.getClientRects().length && node.getAttribute('aria-hidden') !== 'true' && node.tabIndex >= 0);
+      const targets = [...dialog.querySelectorAll('button, a[href], select, video[controls]')].filter(node => !node.disabled && !node.hidden && node.getClientRects().length && node.getAttribute('aria-hidden') !== 'true' && node.tabIndex >= 0);
       const first = targets[0], last = targets[targets.length - 1], active = document.activeElement;
       if (event.shiftKey && (active === first || active.id === 'welcome-title')) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && active === last) { event.preventDefault(); first?.focus(); }
