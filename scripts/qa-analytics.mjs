@@ -103,7 +103,12 @@ try {
     await page.locator(`${nav} a[href="#/mallas"]`).click(); await hit('/#/mallas');
     await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
     const frame = page.frameLocator('[data-malla-frame]');
-    await frame.locator('.mc-card[data-mc-code]').first().click(); await hit('mallas/ramo');
+    const beforePersonalDetail = hits.length;
+    await frame.locator('.mc-card[data-mc-code]').first().click();
+    await page.locator('[data-malla-course-dialog][open]').waitFor();
+    await page.waitForTimeout(150);
+    assert.equal(hits.length, beforePersonalDetail, 'opening an integrated personal course detail sends no analytics');
+    await page.locator('[data-malla-detail-close]').click();
     await page.locator('[data-malla-embed-plan="o"]').click(); await hit('mallas/plan-o');
     assert.equal(hits.filter(x => x.p === '/#/mallas').length, 1, 'switching plans does not duplicate page');
     const before = hits.length;

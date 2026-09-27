@@ -3991,7 +3991,7 @@
         render({ scope: 'overlay' });
         returnTarget = document.querySelector(menuReturnFocus);
       }
-      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: state.mallaPersonalOpen ? 'mis-ramos' : 'malla' } : {});
+      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: state.mallaPersonalOpen ? state.myCoursesView === 'eligible' ? 'eligible' : 'mis-ramos' : 'malla' } : {});
       return;
     }
     if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;

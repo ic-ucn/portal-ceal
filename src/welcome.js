@@ -8,8 +8,10 @@
       copy: 'Elige Plan O o Plan P y toca un ramo para abrir su ficha, cambiar su estado o agregarlo a Mis ramos. Ambas vistas comparten el mismo plan.' },
     { id: 'aprobados', title: 'Marcar aprobados', duration: 12000, href: '#/mallas', link: 'Abrir malla',
       copy: 'Activa Marcar aprobados y toca cada ramo que ya aprobaste. También puedes aprobar hasta un semestre y deshacer ese lote.' },
-    { id: 'mis-ramos', title: 'Mis ramos dentro de Malla', duration: 10000, href: '#/mallas?view=mis-ramos', link: 'Abrir Mis ramos',
-      copy: 'Abre Mis ramos dentro de Malla. Busca y agrega ramos, registra su estado y usa Ubicar en malla o consulta su material. La selección no cambia el estado; tu registro se guarda en este navegador.' },
+    { id: 'mis-ramos', title: 'Organizar Mis ramos', duration: 12000, href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre',
+      copy: 'En Mi selección puedes buscar y agregar ramos. Este semestre reúne todos los que marcaste como Cursando, aunque no los hayas agregado. Desde ahí puedes consultar material o ubicarlos en la malla.' },
+    { id: 'eligible', title: 'Qué podrías cursar', duration: 10000, href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar',
+      copy: 'Consulta los ramos pendientes según tus aprobados y los prerrequisitos del catálogo. Cursando no cuenta como aprobado. Confirma requisitos especiales, oferta, horarios y cupos con la universidad; esta vista no garantiza inscripción.' },
     { id: 'material', title: 'Material de estudio', duration: 8000, href: '#/material', link: 'Abrir material',
       copy: 'Busca material por título o ramo, filtra el tipo y abre el recurso que necesitas. También puedes llegar desde Mis ramos.' },
     { id: 'calendario', title: 'Calendario académico', duration: 8000, href: '#/calendario', link: 'Abrir calendario',
@@ -19,12 +21,19 @@
   const CUES = [
     ['Elige un ramo', 'Toca Mecánica', 'Consulta sus prerrequisitos', 'Abre la ficha del ramo'],
     ['Activa Marcar aprobados', 'Toca los ramos aprobados', 'Dos ramos marcados', 'Aplica el lote o usa Deshacer'],
-    ['Abre Mis ramos en Malla', 'Busca y agrega un ramo', 'Cambia el estado a Cursando', 'Ubica el ramo o abre su material'],
+    ['Busca en Mi selección', 'Agregar no cambia el estado', 'Cursando aparece en Este semestre', 'Consulta material o ubica el ramo'],
+    ['Abre Qué podrías cursar', 'Según tus aprobados registrados', 'Cursando aún no es aprobado', 'Confirma los requisitos especiales'],
     ['Busca por ramo', 'Búsqueda aplicada', 'Filtra por tipo', 'Abre un recurso'],
     ['Cambia de mes', 'Selecciona una fecha', 'Consulta sus actividades', 'Abre la fuente oficial']
   ];
   const sourceCourses = window.CURRICULA?.planO?.subjects || [];
   const sample = [1, 2].flatMap(semester => sourceCourses.filter(course => course.semester === semester).slice(0, 3));
+  // Catalogue relationships and the pure evaluator supply the example, never a student's record.
+  const adviceCourses = window.CURRICULA?.planP?.subjects || [];
+  const adviceBase = adviceCourses.find(course => course.semester === 1 && !course.prereqs.length && adviceCourses.some(next => next.prereqs.length === 1 && next.prereqs[0] === course.code));
+  const adviceNext = adviceCourses.find(course => course.prereqs.length === 1 && course.prereqs[0] === adviceBase?.code);
+  const adviceSpecial = adviceCourses.find(course => course.requirements?.length && !course.prereqs.length) || adviceCourses.find(course => course.requirements?.length);
+  const adviceItem = (course, statuses) => course && window.PortalMyCourses?.evaluateCourse(adviceCourses, statuses, course);
   const shortName = name => String(name || '').toLocaleLowerCase('es-CL')
     .replace(/(^|\s)\p{L}/gu, letter => letter.toLocaleUpperCase('es-CL'))
     .replace(/\b(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)\b/gi, numeral => numeral.toUpperCase());
@@ -69,8 +78,22 @@
       const course = courses.find(c => c.name.includes('CÁLCULO')) || courses[0];
       return `<div class="guide-visual guide-my-courses" data-guide-visual aria-label="Vista ilustrativa de Mis ramos">
         <div class="guide-mini-top"><strong>Malla · Plan O</strong><span class="guide-mini-tabs"><span>Malla completa</span><b>Mis ramos</b></span></div>
-        <div class="guide-my-layout"><section><small>TU SELECCIÓN</small>${guide.phase >= 1 ? `<article class="guide-my-card"><small>${esc(course.visibleCode || course.code)} · ${course.semester} semestre</small><strong>${esc(shortName(course.name))}</strong><div><span>Estado</span><b class="${guide.phase >= 2 ? 'is-current' : ''}">${guide.phase >= 2 ? 'Cursando' : 'Pendiente'}</b></div><span class="guide-my-material">Ver material del ramo →</span></article>` : '<div class="guide-my-empty">Aún no eliges ramos</div>'}</section><section><small>BUSCAR RAMOS</small><div class="guide-mini-input">Nombre o código</div><div class="guide-my-option"><span>${esc(shortName(course.name))}</span><b class="${guide.phase >= 1 ? 'is-added' : ''}">${guide.phase >= 1 ? 'Agregado' : 'Agregar'}</b></div></section></div>
-        <p class="guide-visual-note">Ubicar en malla vuelve al ramo seleccionado. Agregar no cambia su estado; aprobar no lo agrega a Mis ramos.</p>
+        <div class="guide-view-select"><span>Ver en Mis ramos</span><strong data-guide-my-view>Mi selección</strong><span aria-hidden="true">⌄</span></div>
+        <div class="guide-my-layout"><section><small data-guide-my-heading>TU SELECCIÓN</small><div class="guide-my-empty" data-guide-my-empty>Aún no eliges ramos</div><article class="guide-my-card" data-guide-my-card><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><strong>${esc(shortName(course.name))}</strong><div><span>Estado</span><b data-guide-my-state>Pendiente</b></div><span class="guide-my-material" data-guide-my-material>Ver material del ramo →</span><span class="guide-my-material" data-guide-my-locate>Ubicar en malla</span></article></section><section data-guide-my-search><small>BUSCAR EN LA MALLA</small><div class="guide-mini-input">Nombre o código</div><div class="guide-my-option"><span>${esc(shortName(course.name))}</span><b data-guide-my-added>Agregar</b></div></section><section class="guide-semester-summary" data-guide-my-summary><small>ESTE SEMESTRE</small><strong>1 ramo · ${Number(course.sct) || 0} SCT</strong><span>SCT referenciales de ramos marcados.</span><p>También aparecen ramos Cursando que no agregaste a Mi selección.</p></section></div>
+        <p class="guide-visual-note">Agregar no cambia el estado. Aprobar no agrega el ramo a Mi selección.</p>
+      </div>`;
+    }
+    if (chapter.id === 'eligible') {
+      const statuses = adviceBase ? { [adviceBase.code]: 'cursando' } : {};
+      const missing = adviceItem(adviceNext, statuses);
+      const review = adviceItem(adviceSpecial, Object.fromEntries((adviceSpecial?.prereqs || []).map(code => [code, 'aprobado'])));
+      const noPrereqs = adviceCourses.find(course => !course.prereqs.length && !course.requirements.length && course.code !== adviceBase?.code);
+      return `<div class="guide-visual guide-eligibility" data-guide-visual aria-label="Ejemplo de prerrequisitos del Plan P">
+        <div class="guide-mini-top"><strong>Malla · Plan P</strong><span>Mis ramos</span></div>
+        <div class="guide-view-select"><span>Ver en Mis ramos</span><strong>Qué podrías cursar</strong><span aria-hidden="true">⌄</span></div>
+        <p class="guide-visual-instruction">Ramos pendientes, según tus aprobados registrados.</p>
+        <div class="guide-eligibility-groups"><section data-guide-eligible-met><h4>Cumple prerrequisitos registrados</h4><strong>${esc(noPrereqs ? shortName(noPrereqs.name) : 'Sin ramos en este grupo')}</strong><span>${noPrereqs ? esc(noPrereqs.visibleCode || noPrereqs.code) + ' · Sin prerrequisitos' : ''}</span></section><section data-guide-eligible-missing><h4>Faltan prerrequisitos</h4><strong>${esc(missing?.category === 'missing' ? shortName(adviceNext.name) : 'Consulta los requisitos del ramo')}</strong><span>${missing?.category === 'missing' ? `Falta aprobar: ${esc(shortName(adviceBase.name))} (cursando, aún no aprobado)` : 'Cursando no cuenta como aprobado.'}</span></section><section data-guide-eligible-review><h4>Requisitos por revisar</h4><strong>${esc(review?.category === 'review' ? shortName(adviceSpecial.name) : 'Sin ramos en este grupo')}</strong><span>${esc(review?.category === 'review' ? review.extraRequirements?.[0] || '' : '')}</span></section></div>
+        <p class="guide-visual-note guide-eligibility-note">Confirma requisitos, oferta, horarios y cupos con la universidad. No garantiza inscripción.</p>
       </div>`;
     }
     if (chapter.id === 'material') {
@@ -94,9 +117,9 @@
 
   function shell(isDialog, themeControl = '') {
     const inner = `<div class="guide-layout" data-guide-root>
-      <div class="guide-stage" role="region" aria-label="Ejemplo del portal"><span class="guide-example">Ejemplo ilustrativo</span><span class="guide-step" data-guide-step></span><div data-guide-stage></div></div>
+      <div class="guide-stage" role="region" aria-label="Ejemplo del portal"><div class="guide-stage-head"><span class="guide-example">Ejemplo ilustrativo</span><span class="guide-step" data-guide-step></span></div><h3 class="guide-scene-title" data-guide-scene-title></h3><div data-guide-stage></div><p class="guide-practice-note" data-guide-practice-note hidden>Práctica: no cambia tus ramos.</p></div>
       <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${CHAPTERS.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('')}</div>
-        <div class="guide-copy" aria-live="polite"><span data-guide-position>1 de 5</span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Los cambios que registres se guardan en este navegador y no reemplazan tu avance académico oficial.</p></div>
+        <div class="guide-copy"><span data-guide-position>1 de ${CHAPTERS.length}</span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tu selección y los estados de tus ramos se guardan en este navegador. No reemplazan tu avance académico oficial.</p></div>
         <div class="guide-actions"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir escena</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
         <p class="guide-status" data-guide-status role="status"></p>
       </div>
@@ -146,7 +169,11 @@
     }
     render() {
       const chapter = CHAPTERS[this.index];
-      this.root.querySelector('[data-guide-stage]').innerHTML = visual(this);
+      // Mount once per chapter; phase updates preserve scene nodes and practice focus.
+      this.root.querySelector('[data-guide-stage]').innerHTML = visual({ ...this, phase: 3 });
+      this.renderVisual(false);
+      this.root.querySelector('[data-guide-scene-title]').textContent = chapter.title;
+      this.root.querySelector('[data-guide-practice-note]').hidden = chapter.id !== 'aprobados';
       this.root.querySelector('[data-guide-position]').textContent = `${this.index + 1} de ${CHAPTERS.length} · ${Math.round(TOTAL / 1000)} s`;
       this.root.querySelector('[data-guide-title]').textContent = chapter.title;
       this.root.querySelector('[data-guide-copy]').textContent = chapter.copy;
@@ -175,18 +202,83 @@
       if (prefersReducedMotion()) return;
       const stage = this.root.querySelector('[data-guide-visual]');
       if (!stage?.animate) return;
-      const animation = stage.animate([{ opacity: .3, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.2, 0, .2, 1)' });
+      const animation = stage.animate([{ opacity: .5 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
       this.animations.add(animation);
       animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
     }
-    renderVisual() {
-      this.root.querySelector('[data-guide-stage]').innerHTML = visual(this);
-      if (prefersReducedMotion()) return;
-      const newElement = this.root.querySelector('[data-guide-visual]');
-      if (!newElement?.animate) return;
-      const animation = newElement.animate([{ opacity: .7, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 240, easing: 'cubic-bezier(.2, 0, .2, 1)' });
-      this.animations.add(animation);
-      animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
+    renderVisual(animate = true) {
+      const scene = this.root.querySelector('[data-guide-visual]');
+      if (!scene) return;
+      const phase = this.phase;
+      const stateClass = (element, name, active) => {
+        if (!element || element.classList.contains(name) === active) return;
+        const before = getComputedStyle(element);
+        const from = { backgroundColor: before.backgroundColor, borderColor: before.borderColor };
+        element.classList.toggle(name, active);
+        if (!animate || prefersReducedMotion() || !element.animate) return;
+        const after = getComputedStyle(element);
+        const animation = element.animate([from, { backgroundColor: after.backgroundColor, borderColor: after.borderColor }], { duration: 160, easing: 'ease-out' });
+        this.animations.add(animation);
+        animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
+      };
+      const show = (selector, visible) => {
+        const element = scene.querySelector(selector);
+        if (!element) return;
+        const entering = element.hidden && visible;
+        element.hidden = !visible;
+        if (!entering || !animate || prefersReducedMotion() || !element.animate) return;
+        const animation = element.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' });
+        this.animations.add(animation);
+        animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
+      };
+      const chapter = CHAPTERS[this.index].id;
+      if (chapter === 'malla') {
+        const selected = sample.find(c => c.name.includes('MECÁNICA')) || sample.find(c => c.semester === 2) || sample[0];
+        scene.querySelectorAll('.guide-course').forEach((tile, i) => stateClass(tile, 'is-focus', !!selected && (phase >= 1 && sample[i]?.code === selected.code || phase >= 2 && selected.prereqs?.includes(sample[i]?.code))));
+        show('.guide-mini-detail', phase >= 2);
+      } else if (chapter === 'aprobados') {
+        const active = phase >= 1 || this.manual;
+        scene.querySelector('.guide-mini-mark').classList.toggle('is-on', active);
+        scene.querySelector('.guide-mini-mark').textContent = `Marcar aprobados${active ? ' · activo' : ''}`;
+        scene.querySelector('.guide-visual-instruction').textContent = this.manual ? this.undo ? 'Lote aplicado: Deshacer restaura el estado anterior.' : 'Toca un ramo para marcarlo o dejarlo pendiente.' : phase >= 3 ? 'Lote aplicado: Deshacer restaura el estado anterior.' : phase >= 2 ? 'Dos ramos marcados. Puedes tocar cualquiera para cambiarlo.' : 'Activa el marcado y toca cada ramo aprobado.';
+        scene.querySelectorAll('[data-guide-approve]').forEach(tile => {
+          const approved = this.approved.has(tile.dataset.guideApprove);
+          const course = sample.find(item => item.code === tile.dataset.guideApprove);
+          stateClass(tile, 'is-approved', approved);
+          tile.querySelector('span').textContent = approved ? 'Aprobado' : 'Pendiente';
+          tile.setAttribute('aria-label', `${shortName(course?.name)}${approved ? ', aprobado' : ', pendiente'}`);
+        });
+        scene.querySelector('[data-guide-batch]').disabled = sample.every(course => this.approved.has(course.code));
+        scene.querySelector('[data-guide-undo]').disabled = !this.undo;
+      } else if (chapter === 'mis-ramos') {
+        scene.querySelector('[data-guide-my-view]').textContent = phase >= 2 ? 'Este semestre' : 'Mi selección';
+        scene.querySelector('[data-guide-my-heading]').textContent = phase >= 2 ? 'RAMOS CURSANDO' : 'TU SELECCIÓN';
+        scene.querySelector('[data-guide-my-state]').textContent = phase >= 2 ? 'Cursando' : 'Pendiente';
+        scene.querySelector('[data-guide-my-state]').classList.toggle('is-current', phase >= 2);
+        scene.querySelector('[data-guide-my-added]').textContent = phase >= 1 ? 'Agregado' : 'Agregar';
+        scene.querySelector('[data-guide-my-added]').classList.toggle('is-added', phase >= 1);
+        show('[data-guide-my-empty]', phase === 0);
+        show('[data-guide-my-card]', phase >= 1);
+        show('[data-guide-my-search]', phase < 2);
+        show('[data-guide-my-summary]', phase >= 2);
+        show('[data-guide-my-material]', phase >= 3);
+        show('[data-guide-my-locate]', phase >= 3);
+      } else if (chapter === 'eligible') {
+        stateClass(scene.querySelector('[data-guide-eligible-met]'), 'is-focus', phase === 1);
+        stateClass(scene.querySelector('[data-guide-eligible-missing]'), 'is-focus', phase === 2);
+        stateClass(scene.querySelector('[data-guide-eligible-review]'), 'is-focus', phase >= 3);
+      } else if (chapter === 'material') {
+        scene.querySelector('.guide-material-search > span').textContent = phase >= 1 ? 'Cálculo I' : 'Buscar por título, ramo o código';
+        const filters = scene.querySelectorAll('.guide-material-filters span');
+        filters[0].textContent = `Ramo: ${phase >= 1 ? 'Cálculo I' : 'Todos'}`;
+        filters[1].textContent = `Tipo: ${phase >= 2 ? 'Guía' : 'Todos'}`;
+        scene.querySelector('.guide-material-types span:nth-of-type(2)').classList.toggle('is-focus', phase >= 2);
+        show('.guide-material-result', phase >= 2);
+        show('.guide-material-open', phase >= 3);
+      } else if (chapter === 'calendario') {
+        scene.querySelectorAll('.guide-calendar-grid span').forEach((day, i) => day.classList.toggle('is-focus', i === 11 && phase >= 1));
+        show('.guide-calendar-detail', phase >= 2);
+      }
     }
     setPhase(nextPhase) {
       if (nextPhase === this.phase) return;
@@ -200,19 +292,9 @@
         }
       }
       this.renderVisual();
-      this.pulse();
       if (!(this.index === 1 && this.manual)) {
         this.root.querySelector('[data-guide-step]').textContent = CUES[this.index][nextPhase];
-        this.announce(CUES[this.index][nextPhase]);
       }
-    }
-    pulse() {
-      if (prefersReducedMotion()) return;
-      const target = this.root.querySelector('.guide-course.is-approved, .guide-mini-detail, .guide-my-card, .guide-material-result, .guide-calendar-grid .is-focus');
-      if (!target?.animate) return;
-      const animation = target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.025)' }, { transform: 'scale(1)' }], { duration: 240, easing: 'ease-out' });
-      this.animations.add(animation);
-      animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
     }
     tick() {
       if (!this.playing) return;
@@ -252,14 +334,16 @@
       this.lastTick = performance.now();
       this.animations.forEach(animation => animation.play());
       this.root.querySelector('[data-guide-play]').textContent = 'Pausar';
+      this.announce('Recorrido en reproducción.');
       this.tick();
       track('tutorial/reproducir');
     }
     pause(report = true) {
-      if (!this.playing) return;
+      const wasPlaying = this.playing;
       this.playing = false;
       clearTimeout(this.timer);
       this.animations.forEach(animation => animation.pause());
+      if (!wasPlaying) return;
       this.root.querySelector('[data-guide-play]').textContent = this.elapsed ? 'Continuar recorrido' : 'Reproducir recorrido';
       if (report) { this.announce('Recorrido en pausa.'); track('tutorial/pausar'); }
     }
@@ -390,8 +474,9 @@
     if (dialog.open || typeof dialog.showModal !== 'function') return;
     returnFocus = trigger;
     routeAtOpen = location.hash;
-    if (options.chapter && CHAPTERS.some(chapter => chapter.id === options.chapter)) dialogGuide.go(CHAPTERS.findIndex(chapter => chapter.id === options.chapter));
-    dialogGuide.pause(false);
+    const chapterIndex = CHAPTERS.findIndex(chapter => chapter.id === options.chapter);
+    dialogGuide.go(chapterIndex >= 0 ? chapterIndex : dialogGuide.index);
+    dialogGuide.stopMotion();
     document.body.classList.add('welcome-open');
     dialog.showModal();
     dialog.querySelector('#welcome-title').focus({ preventScroll: true });

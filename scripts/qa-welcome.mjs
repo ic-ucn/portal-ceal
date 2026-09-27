@@ -12,13 +12,22 @@ await mkdir(out, { recursive: true });
 const report = { ok: false, production, cases: [], errors: [] };
 const url = (route = '/') => {
   const value = new URL(base);
-  value.searchParams.set('review', '20260925a');
+  value.searchParams.set('review', '20260926guide1');
   value.hash = route;
   return value.href;
 };
 async function stable(page) {
   assert.equal(await page.locator('.portal-reception video, .portal-reception audio, .portal-welcome video, .portal-welcome audio').count(), 0, 'guide is silent DOM');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page has no horizontal overflow');
+  const headers = await page.locator('.guide-stage-head').evaluateAll(nodes => nodes.map(node => {
+    const a = node.querySelector('.guide-example').getBoundingClientRect(), b = node.querySelector('.guide-step').getBoundingClientRect();
+    return a.right <= b.left || a.bottom <= b.top || b.bottom <= a.top;
+  }));
+  assert.ok(headers.every(Boolean), 'example label and phase cue never overlap');
+  assert.ok(await page.locator('.guide-transport button').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height >= 44)), 'transport controls have 44px touch height');
+}
+async function settled(page) {
+  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'), null, { timeout: 2000 });
 }
 try {
   for (const [engine, width, height] of configs) {
@@ -33,16 +42,18 @@ try {
     const reception = page.locator('.portal-reception');
     await reception.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0, 'reception is a page');
-    assert.equal(await reception.locator('[data-guide-tab]').count(), 5, 'five chapters');
+    assert.equal(await reception.locator('[data-guide-tab]').count(), 6, 'six chapters');
     assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'no autoplay');
     assert.equal(await reception.locator('.guide-course').count(), 6, 'both semesters are represented');
     assert.equal(await reception.locator('.guide-semesters section').nth(1).locator('.guide-course').count(), 3, 'semester two is represented');
     await stable(page);
     assert.deepEqual(media, [], 'no historic media is downloaded');
+    await settled(page);
     await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-light.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
     await page.locator('[data-portal-theme-toggle]').click();
     assert.equal(await page.locator('body.theme-dark').count(), 1);
     assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Explorar la malla', 'theme preserves chapter');
+    await settled(page);
     await page.screenshot({ path: new URL(`reception-${production ? 'production-' : ''}${engine}-${width}-dark.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
 
     await reception.locator('[data-guide-tab="1"]').click();
@@ -50,19 +61,45 @@ try {
     assert.equal(await reception.locator('[data-guide-approve]').count(), 6);
     await page.evaluate(() => localStorage.setItem('portal.myCourses.v1', 'GUIDE_STORAGE_SENTINEL'));
     const before = await page.evaluate(() => localStorage.getItem('portal.myCourses.v1'));
+    const storageBeforePractice = await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
+    const illustratedTile = await reception.locator('[data-guide-approve]').first().elementHandle();
     await reception.locator('[data-guide-approve]').first().click();
     assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'individual marking');
+    assert.equal(await illustratedTile.evaluate(node => node.isConnected && node === document.activeElement), true, 'practice preserves tile and keyboard focus');
+    assert.equal(await reception.locator('[data-guide-practice-note]').isVisible(), true, 'isolated practice is clearly labelled');
     await reception.locator('[data-guide-batch]').click();
     assert.equal(await reception.locator('.guide-course.is-approved').count(), 6, 'batch marks all illustrated courses');
     await reception.locator('[data-guide-undo]').click();
     assert.equal(await reception.locator('.guide-course.is-approved').count(), 1, 'undo restores prior illustrated state');
     assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'guide never mutates stored academic progress');
+    assert.equal(await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)])))), storageBeforePractice, 'practice preserves the full storage snapshot');
     await reception.locator('[data-guide-tab="2"]').click();
-    assert.match(await reception.locator('[data-guide-copy]').innerText(), /Mis ramos dentro de Malla/);
-    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos');
+    assert.match(await reception.locator('[data-guide-copy]').innerText(), /Este semestre/);
+    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos&section=semester');
+    assert.equal(await reception.locator('[data-guide-my-view]').innerText(), 'Mi selección', 'selection illustrates the actual starting view');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => document.querySelector('[data-guide-my-view]')?.textContent === 'Este semestre');
+    assert.equal(await reception.locator('[data-guide-my-view]').innerText(), 'Este semestre');
+    assert.equal(await reception.locator('[data-guide-my-state]').innerText(), 'Cursando');
+    await stable(page);
+    await settled(page);
+    await page.screenshot({ path: new URL(`welcome-semester-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.waitForFunction(() => document.querySelector('[data-guide-my-view]')?.textContent === 'Mi selección');
     await reception.locator('[data-guide-tab="3"]').click();
-    assert.equal(await reception.locator('.guide-material-search').count(), 1);
+    assert.equal(await reception.locator('[data-guide-title]').innerText(), 'Qué podrías cursar');
+    assert.equal(await reception.locator('[data-guide-link]').getAttribute('href'), '#/mallas?view=mis-ramos&section=eligible');
+    assert.match(await reception.locator('[data-guide-eligible-missing]').innerText(), /cursando, aún no aprobado/);
+    assert.match(await reception.locator('[data-guide-eligible-review]').innerText(), /Nota 3: requiere hasta IV semestre aprobado\./);
+    assert.match(await reception.locator('.guide-eligibility-note').innerText(), /No garantiza inscripción/);
+    assert.equal(await reception.locator('.guide-eligibility [data-guide-approve], .guide-eligibility [data-guide-my-added]').count(), 0, 'advice never offers add or changes statuses');
+    assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), before, 'advice examples never read or update personal record');
+    await stable(page);
+    await settled(page);
+    await page.screenshot({ path: new URL(`welcome-advice-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
     await reception.locator('[data-guide-tab="4"]').click();
+    assert.equal(await reception.locator('.guide-material-search').count(), 1);
+    await reception.locator('[data-guide-tab="5"]').click();
     assert.equal(await reception.locator('.guide-calendar-grid span').count(), 28);
     assert.equal(await reception.locator('.guide-calendar-grid').innerText(), '', 'no invented dates');
     await reception.locator('[data-guide-prev]').click();
@@ -71,13 +108,17 @@ try {
     assert.equal(await reception.locator('[data-guide-step]').innerText(), 'Busca por ramo');
     await reception.locator('[data-guide-play]').click();
     assert.equal(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
+    const scene = await reception.locator('[data-guide-visual]').elementHandle();
+    const announcement = await reception.locator('[data-guide-status]').innerText();
     await page.waitForTimeout(2300);
     assert.match(await reception.locator('[data-guide-step]').innerText(), /Búsqueda aplicada|Filtra por tipo/);
+    assert.equal(await scene.evaluate(node => node.isConnected), true, 'phase changes preserve mounted scene');
+    assert.equal(await reception.locator('[data-guide-status]').innerText(), announcement, 'phase changes do not repeatedly announce to screen readers');
     await reception.locator('[data-guide-play]').click();
     assert.notEqual(await reception.locator('[data-guide-play]').innerText(), 'Pausar');
-    const progress = await reception.locator('[data-guide-tab="3"] i').evaluate(node => node.style.width);
+    const progress = await reception.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width);
     await page.waitForTimeout(200);
-    assert.equal(await reception.locator('[data-guide-tab="3"] i').evaluate(node => node.style.width), progress, 'pause freezes progress');
+    assert.equal(await reception.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), progress, 'pause freezes progress');
     await stable(page);
     await page.locator('.reception-enter').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
@@ -87,13 +128,39 @@ try {
     } else await page.locator('.sidebar [data-open-welcome]').click();
     const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' });
     await dialog.waitFor();
-    assert.equal(await dialog.locator('[data-guide-tab]').count(), 5);
+    assert.equal(await dialog.locator('[data-guide-tab]').count(), 6);
+    assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1', 'opening a paused dialog leaves the scene fully visible');
+    await dialog.locator('[data-guide-tab="0"]').focus();
+    await page.keyboard.press('End');
+    assert.equal(await dialog.locator('[data-guide-tab="5"]').evaluate(node => node === document.activeElement && node.getAttribute('aria-selected') === 'true'), true, 'End selects and focuses last chapter');
+    await page.keyboard.press('Home');
+    assert.equal(await dialog.locator('[data-guide-tab="0"]').evaluate(node => node === document.activeElement && node.getAttribute('aria-selected') === 'true'), true, 'Home selects and focuses first chapter');
     for (let i = 0; i < 12; i++) {
       await page.keyboard.press('Tab');
       assert.ok(await dialog.evaluate(node => node.contains(document.activeElement)), 'focus stays within dialog');
     }
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
+    if (width === 1440) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await page.locator('.sidebar [data-open-welcome]').click();
+        await dialog.waitFor();
+        assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1', 'reopened static scene is fully visible');
+        await dialog.locator('[data-guide-tab="1"]').click();
+        assert.equal(await dialog.locator('.guide-course.is-approved').count(), 0, 'reopening resets isolated practice');
+        await dialog.locator('[data-guide-approve]').first().click();
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('.portal-welcome').evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'closing cancels every guide animation');
+        assert.equal(await page.locator('.sidebar [data-open-welcome]').evaluate(node => node === document.activeElement), true, 'closing restores trigger focus');
+      }
+      await page.goto(url('/mallas?view=mis-ramos&section=eligible'), { waitUntil: 'networkidle' });
+      await page.locator('.malla-guide').click();
+      assert.equal(await dialog.locator('[data-guide-tab="3"]').getAttribute('aria-selected'), 'true', 'advice view opens the relevant guide chapter');
+      assert.equal(await dialog.locator('[data-guide-visual]').evaluate(node => getComputedStyle(node).opacity), '1');
+      await page.evaluate(() => { location.hash = '/inicio'; });
+      await dialog.waitFor({ state: 'hidden' });
+      assert.equal(await page.locator('.portal-welcome').evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'route changes close and cancel the dialog');
+    }
     await page.goto(url(), { waitUntil: 'networkidle' });
     await page.locator('.reception-skip').click();
     assert.equal(new URL(page.url()).hash, '#/inicio');
@@ -118,7 +185,16 @@ try {
   await guide.locator('[data-guide-play]').click();
   assert.equal(await guide.locator('[data-guide-play]').innerText(), 'Reproducir recorrido', 'reduced motion does not autoplay');
   await guide.locator('[data-guide-next]').click();
-  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Mis ramos dentro de Malla');
+  assert.equal(await guide.locator('[data-guide-title]').innerText(), 'Organizar Mis ramos');
+  assert.equal(await guide.locator('[data-guide-my-view]').innerText(), 'Este semestre');
+  assert.equal(await guide.locator('[data-guide-my-state]').innerText(), 'Cursando');
+  await page.screenshot({ path: new URL('welcome-semester-reduced-390.png', out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
+  for (let index = 0; index < 6; index++) {
+    await guide.locator(`[data-guide-tab="${index}"]`).click();
+    assert.equal(await guide.locator('[data-guide-root]').evaluate(node => node.dataset.phase), 'final', 'each reduced-motion chapter shows its final state');
+    assert.equal(await guide.evaluate(node => node.getAnimations({ subtree: true }).length), 0, 'reduced-motion chapters have no animations');
+    await stable(page);
+  }
   await stable(page);
   report.cases.push({ reducedMotion: true, manual: true });
   await context.close();
@@ -127,18 +203,39 @@ try {
   await live.clock.install();
   await live.goto(url(), { waitUntil: 'networkidle' });
   await live.locator('.portal-reception [data-guide-play]').click();
-  await live.clock.runFor(47000);
+  await live.clock.runFor(59000);
   const liveGuide = live.locator('.portal-reception');
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"]').getAttribute('aria-selected'), 'true', 'automatic playback reaches chapter five');
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), '100%', 'final progress completes');
+  assert.equal(await liveGuide.locator('[data-guide-tab="5"]').getAttribute('aria-selected'), 'true', 'automatic playback reaches chapter six');
+  assert.equal(await liveGuide.locator('[data-guide-tab="5"] i').evaluate(node => node.style.width), '100%', 'final progress completes');
   assert.match(await liveGuide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
   assert.notEqual(await liveGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'playback stops at the end');
   await live.clock.runFor(5000);
-  assert.equal(await liveGuide.locator('[data-guide-tab="4"] i').evaluate(node => node.style.width), '100%', 'no timer advances after completion');
+  assert.equal(await liveGuide.locator('[data-guide-tab="5"] i').evaluate(node => node.style.width), '100%', 'no timer advances after completion');
   await live.locator('.reception-enter').click();
   await live.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-  report.cases.push({ fullPlayback: true, durationSeconds: 46, stoppedAfterCompletion: true });
+  report.cases.push({ fullPlayback: true, durationSeconds: 58, stoppedAfterCompletion: true });
   await liveContext.close();
+  const hiddenContext = await browser.newContext({ viewport: { width: 320, height: 568 } });
+  const hiddenPage = await hiddenContext.newPage();
+  await hiddenPage.goto(url(), { waitUntil: 'networkidle' });
+  const hiddenGuide = hiddenPage.locator('.portal-reception');
+  await hiddenGuide.locator('[data-guide-play]').click();
+  await hiddenPage.waitForTimeout(200);
+  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.notEqual(await hiddenGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'hidden tab stops playback');
+  const hiddenProgress = await hiddenGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width);
+  await hiddenPage.waitForTimeout(200);
+  assert.equal(await hiddenGuide.locator('[data-guide-tab="0"] i').evaluate(node => node.style.width), hiddenProgress);
+  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.notEqual(await hiddenGuide.locator('[data-guide-play]').innerText(), 'Pausar', 'visible tab does not resume automatically');
+  await hiddenGuide.locator('[data-guide-tab="3"]').click();
+  await hiddenPage.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.equal(await hiddenGuide.evaluate(node => node.getAnimations({ subtree: true }).every(animation => animation.playState !== 'running')), true, 'hiding pauses manual chapter transition too');
+  await hiddenPage.goto(url('/inicio'), { waitUntil: 'networkidle' });
+  assert.equal(await hiddenPage.locator('.portal-reception').count(), 0, 'route change removes the guide');
+  assert.equal(await hiddenPage.evaluate(() => document.getAnimations().filter(animation => animation.effect?.target?.closest?.('.portal-reception')).length), 0, 'removed guide leaves no animation');
+  await hiddenContext.close();
+  report.cases.push({ hiddenPause: true, manualAnimationPause: true, routeCleanup: true });
   const changingContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const changing = await changingContext.newPage();
   await changing.goto(url(), { waitUntil: 'networkidle' });
