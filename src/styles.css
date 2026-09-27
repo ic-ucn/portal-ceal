@@ -7200,6 +7200,9 @@ body.theme-dark .my-courses-page .link,body.theme-dark .my-courses-page .muted a
 .malla-personal-panel>header h2{margin:0;font-size:1rem}
 .malla-personal-content{min-height:0;overflow:auto;padding:12px;overscroll-behavior:contain}
 .malla-personal-panel .my-courses-page{gap:16px}
+.my-courses-view-label{display:grid;gap:6px;font-size:.82rem;font-weight:600}.my-courses-view-label .select{width:100%;min-width:0}
+.my-courses-category{border-top:1px solid var(--border-color,#cfe0f3);padding:12px 0}.my-courses-category summary{cursor:pointer;font-weight:600;font-size:.9rem;line-height:1.5}.my-courses-category .my-courses-list{margin-top:10px}
+.my-course-requirements{font-size:.78rem;line-height:1.5;margin:8px 0 0;overflow-wrap:anywhere}.my-course-option>div{min-width:0}.malla-course-requirements:empty{display:none}.malla-course-requirements{margin-bottom:16px}
 .malla-personal-panel .my-courses-privacy{font-size:.78rem}
 .malla-personal-panel .my-courses-selected,.malla-personal-panel .my-courses-catalog{padding:0;border:0;border-radius:0;background:transparent}
 .malla-personal-panel .my-courses-grid,.malla-personal-panel .my-courses-filters{grid-template-columns:1fr;gap:8px}

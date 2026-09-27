@@ -168,7 +168,36 @@
       return true;
     });
   }
+  // Derived catalogue advice only: no storage, selection or institutional rules.
+  function evaluateCourse(subjects, statuses, course) {
+    const counts = new Map();
+    for (const item of subjects || []) if (typeof item?.code === 'string') counts.set(item.code, (counts.get(item.code) || 0) + 1);
+    const missing = [], unknown = [], inProgress = [];
+    if (!course || typeof course.code !== 'string' || counts.get(course.code) !== 1) unknown.push('Código del ramo ambiguo o incompleto');
+    if (!Array.isArray(course?.prereqs)) unknown.push('Prerrequisitos sin información válida');
+    const seen = new Set();
+    for (const code of Array.isArray(course?.prereqs) ? course.prereqs : []) {
+      if (typeof code !== 'string' || !code || counts.get(code) !== 1 || seen.has(code) || code === course.code) {
+        unknown.push(typeof code === 'string' && code ? code : 'Referencia de prerrequisito inválida');
+        continue;
+      }
+      seen.add(code);
+      if (statuses?.[code] !== 'aprobado') {
+        missing.push(code);
+        if (statuses?.[code] === 'cursando') inProgress.push(code);
+      }
+    }
+    const extraRequirements = Array.isArray(course?.requirements) ? course.requirements.filter(text => typeof text === 'string' && text.trim()) : [];
+    if (course?.requirements !== undefined && (!Array.isArray(course.requirements) || course.requirements.some(text => typeof text !== 'string' || !text.trim()))) unknown.push('Requisitos adicionales sin información válida');
+    const category = unknown.length ? 'review' : missing.length ? 'missing' : extraRequirements.length ? 'review' : 'met';
+    return { code: course?.code, category, missing, unknown, inProgress, extraRequirements };
+  }
+  function evaluatePlan(subjects, statuses) {
+    return (subjects || []).filter(course => !['aprobado', 'cursando'].includes(statuses?.[course.code]))
+      .map(course => ({ course, ...evaluateCourse(subjects, statuses, course) }))
+      .sort((a, b) => ({ met: 0, review: 1, missing: 2 }[a.category] - { met: 0, review: 1, missing: 2 }[b.category]) || (a.category === 'missing' ? a.missing.length - b.missing.length : 0) || a.course.semester - b.course.semester || String(a.code).localeCompare(String(b.code)));
+  }
   function status() { return { issue, locked: locked || conflict, conflict, recoverable: locked && issue.includes('recuperar') }; }
   read();
-  window.PortalMyCourses = Object.freeze({ key: KEY, read, update, updateStatuses, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, status });
+  window.PortalMyCourses = Object.freeze({ key: KEY, read, update, updateStatuses, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, evaluateCourse, evaluatePlan, status });
 })();

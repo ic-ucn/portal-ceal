@@ -68,6 +68,7 @@
     materialCode: '',
     myCoursesPlan: MyCourses.read().activePlan,
     myCoursesQuery: '',
+    myCoursesView: 'selected',
     myCoursesSemester: 'all',
     materialVisibleCount: 60,
     communicationCategory: 'Todas',
@@ -1582,7 +1583,10 @@
     if (path === '/material/subir') return renderUploadMaterial();
     if (path.startsWith('/material/')) return renderMaterialDetailPage(path.split('/')[2]);
     if (path === '/mallas') {
-      if (location.hash !== lastRenderedRouteKey) state.mallaPersonalOpen = query.view === 'mis-ramos';
+      if (location.hash !== lastRenderedRouteKey) {
+        state.mallaPersonalOpen = query.view === 'mis-ramos';
+        state.myCoursesView = ['semester', 'eligible'].includes(query.section) ? query.section : 'selected';
+      }
       return renderMallas();
     }
     if (path.startsWith('/ramo/')) {
@@ -1753,7 +1757,18 @@
       (state.myCoursesSemester === 'all' || course.semester === Number(state.myCoursesSemester)) &&
       (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
     );
-    return `<div class="my-courses-page">${myCoursesNotice(health)}<p class="my-courses-privacy">Selección y estados guardados en este navegador. No representan avance oficial. Agregar un ramo no cambia su estado.</p>
+    const views = `<label class="my-courses-view-label">Ver en Mis ramos<select class="select" data-my-courses-view><option value="semester"${state.myCoursesView === 'semester' ? ' selected' : ''}>Este semestre</option><option value="eligible"${state.myCoursesView === 'eligible' ? ' selected' : ''}>Qué podrías cursar</option><option value="selected"${state.myCoursesView === 'selected' ? ' selected' : ''}>Mi selección</option></select></label>`;
+    const privacy = state.myCoursesView === 'selected' ? '<p class="my-courses-privacy">Selección y estados guardados en este navegador. No representan avance oficial. Agregar un ramo no cambia su estado.</p>' : '<p class="my-courses-privacy">Avance personal guardado en este navegador.</p>';
+    if (state.myCoursesView === 'semester') {
+      const current = getCourses(plan).filter(course => record.statuses[course.code] === 'cursando');
+      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-semester"><h3 class="card-title">Este semestre · ${planShort(plan)}</h3><p class="small muted">Ramos que marcaste como cursando. ${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT de ramos marcados (referenciales).</p><div class="my-courses-grid">${current.map(course => `<article class="my-course-card" data-my-course-card="${esc(course.code)}"><small>${esc(course.visibleCode || course.code)} · Semestre curricular ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="my-course-material">${myCourseMaterial(plan, course)}</div><div class="my-course-card-foot">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button></div></article>`).join('') || '<p class="small muted">Aún no marcaste ramos como cursando. Puedes hacerlo desde la ficha de un ramo o en Mi selección.</p>'}</div></section></div>`;
+    }
+    if (state.myCoursesView === 'eligible') {
+      const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
+      const groups = [['met', 'Cumple prerrequisitos registrados'], ['review', 'Requisitos por revisar'], ['missing', 'Faltan prerrequisitos']];
+      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-eligibility"><h3 class="card-title">Qué podrías cursar · ${planShort(plan)}</h3><p class="small muted">Según tus aprobados y los prerrequisitos del catálogo. Confirma requisitos, oferta, horarios y cupos con la universidad.</p><p class="small muted">Cursando no cuenta como aprobado.</p>${groups.map(([category, label]) => { const items = evaluated.filter(item => item.category === category); return `<details class="my-courses-category" data-eligibility-category="${category}"${category === 'met' ? ' open' : ''}><summary>${label} · ${items.length}</summary><div class="my-courses-list">${items.map(item => `<article class="my-course-option" data-eligibility-code="${esc(item.code)}"><div><small>${esc(item.course.visibleCode || item.code)} · Semestre ${item.course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(item.course.name))}</button>${renderEligibilityEvidence(plan, item, true)}</div></article>`).join('') || '<p class="small muted">No hay ramos en esta categoría.</p>'}</div></details>`; }).join('')}${!evaluated.length ? '<p class="small muted">Todos los ramos del catálogo están marcados como aprobados o cursando.</p>' : ''}</section></div>`;
+    }
+    return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}
       <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
       ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Aún no eliges ramos</h3><p>Toca un ramo en la malla o búscalo aquí para agregarlo.</p></div>`}</section>
       <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h3 id="my-courses-catalog-title" class="card-title">Buscar en la malla</h3><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option" data-my-course-option="${esc(course.code)}"><div><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></div><button type="button" class="btn ${record.selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${record.selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${record.selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
@@ -2007,6 +2022,10 @@
         <dialog class="malla-course-dialog" data-malla-course-dialog aria-labelledby="malla-course-title"><div data-malla-course-detail></div></dialog>
       </section>`;
   }
+  function renderEligibilityEvidence(plan, item, compact = false) {
+    const missing = compact ? item.missing.slice(0, 3) : item.missing;
+    return `${missing.length ? `<p class="my-course-requirements">Falta aprobar: ${missing.map(code => `${esc(titleCase(findCourse(plan, code)?.name || code))}${item.inProgress.includes(code) ? ' (cursando, aún no aprobado)' : ''}`).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} más; abre la ficha para verlos` : ''}.</p>` : ''}${item.unknown.length ? `<p class="my-course-requirements">Información incompleta: ${item.unknown.map(value => esc(value)).join(', ')}. Confirma los prerrequisitos.</p>` : ''}${item.extraRequirements.map(text => `<p class="my-course-requirements">${esc(text)}</p>`).join('')}${item.extraRequirements.length ? '<p class="small muted">Requisito adicional por confirmar; no se evalúa automáticamente.</p>' : ''}`;
+  }
   function syncMallaPersonal() {
     const content = app.querySelector('[data-malla-personal-content]');
     if (!content) return;
@@ -2015,11 +2034,16 @@
     const statusCode = content.contains(active) ? active.dataset.myCourseStatus : null;
     const selection = active instanceof HTMLInputElement ? [active.selectionStart, active.selectionEnd] : null;
     const scroll = content.scrollTop;
+    const categories = [...content.querySelectorAll('[data-eligibility-category]')].map(element => [element.dataset.eligibilityCategory, element.open]);
     content.innerHTML = renderMyCourses();
+    for (const [category, open] of categories) {
+      const element = content.querySelector(`[data-eligibility-category="${category}"]`);
+      if (element) element.open = open;
+    }
     content.scrollTop = scroll;
     if (focus) {
       const next = statusCode ? content.querySelector(`[data-my-course-status="${CSS.escape(statusCode)}"]`) : document.querySelector(focus);
-      next?.focus({ preventScroll: true });
+      (next || content.querySelector('[data-my-courses-view]'))?.focus({ preventScroll: true });
       if (selection && next?.setSelectionRange) try { next.setSelectionRange(...selection); } catch {}
     }
     const dialog = app.querySelector('[data-malla-course-dialog]');
@@ -2036,7 +2060,7 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? '#/mallas?view=mis-ramos' : '#/mallas'}`);
+    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? `#/mallas?view=mis-ramos${state.myCoursesView === 'selected' ? '' : `&section=${state.myCoursesView}`}` : '#/mallas'}`);
     lastRenderedRouteKey = location.hash;
   }
   let mallaDetailReturnFocus = null;
@@ -2050,7 +2074,7 @@
     const selected = record.selected.includes(course.code);
     const active = host.contains(document.activeElement) ? document.activeElement : null;
     const focusAction = active?.hasAttribute('data-my-course-status') ? 'status' : active?.hasAttribute('data-my-course-add') || active?.hasAttribute('data-my-course-remove') ? 'selection' : active?.hasAttribute('data-malla-detail-close') ? 'close' : null;
-    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Agregar no cambia el estado. Aprobar no agrega el ramo a tu selección. Registro personal en este navegador.</p><div class="malla-course-material">${myCourseMaterial(plan, course)}</div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
+    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Agregar no cambia el estado. Aprobar no agrega el ramo a tu selección. Registro personal en este navegador.</p><div class="malla-course-material">${myCourseMaterial(plan, course)}</div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
     const focusSelector = { status: '[data-my-course-status]', selection: '[data-my-course-add], [data-my-course-remove]', close: '[data-malla-detail-close]' }[focusAction];
     if (focusSelector) host.querySelector(focusSelector)?.focus({ preventScroll: true });
   }
@@ -2061,7 +2085,7 @@
     if (!dialog.open) {
       mallaDetailReturnFocus = trigger;
       mallaDetailReturnSelector = trigger?.dataset.mallaDetail
-        ? `${trigger.closest('.my-courses-list') ? '.my-courses-list' : '.my-courses-selected'} [data-malla-detail="${CSS.escape(trigger.dataset.mallaDetail)}"]`
+        ? `[data-malla-personal-content] [data-malla-detail="${CSS.escape(trigger.dataset.mallaDetail)}"]`
         : viewLocator(trigger);
     }
     state.mallaDetailCode = code;
@@ -2075,7 +2099,7 @@
     state.mallaDetailCode = null;
     if (focus) {
       const target = mallaDetailReturnFocus?.isConnected ? mallaDetailReturnFocus : mallaDetailReturnSelector && app.querySelector(mallaDetailReturnSelector);
-      (target || app.querySelector('[data-malla-view="personal"]'))?.focus({ preventScroll: true });
+      (target || app.querySelector('[data-my-courses-view]') || app.querySelector('[data-malla-view="personal"]'))?.focus({ preventScroll: true });
     }
     mallaDetailReturnFocus = null;
     mallaDetailReturnSelector = null;
@@ -4740,6 +4764,12 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
+    if (e.target.matches('[data-my-courses-view]')) {
+      state.myCoursesView = ['semester', 'eligible'].includes(e.target.value) ? e.target.value : 'selected';
+      setMallaView(true);
+      syncMallaPersonal();
+      return;
+    }
     if (e.target.matches('[data-malla-mark-semester]')) {
       const plan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
       state.mallaApprovalSemester[plan] = Number(e.target.value);
