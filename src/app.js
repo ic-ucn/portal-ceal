@@ -4,6 +4,7 @@
   const bundledCalendar = { source: { ...Data.calendarSource }, events: Data.events.map(event => ({ ...event })) };
   const Curricula = window.CURRICULA;
   const MyCourses = window.PortalMyCourses;
+  const StudyUI = window.PortalStudyUI;
   const DATA_CONTENT_VERSION = '20260821c';
   const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
@@ -1201,7 +1202,7 @@
   }
   function isActive(path, itemPath) {
     if (itemPath === '/') return path === '/';
-    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
+    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && (path.startsWith('/acuerdos/') || path === '/mi-semana')) || (itemPath === '/mallas' && (path.startsWith('/ramo/') || path === '/calculadora'));
   }
   function pageHead(title, subtitle = '', actions = '', crumbs = '') {
     return `<div class="page-head"><div>${crumbs || ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
@@ -1543,6 +1544,8 @@
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/calendario') return renderCalendar();
+    if (path === '/mi-semana') { StudyUI.context(studyContext()); return StudyUI.renderWeek(portalTodayKey()); }
+    if (path === '/calculadora') { StudyUI.context(studyContext()); return StudyUI.renderGrades(query); }
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
@@ -1739,7 +1742,7 @@
   function renderMyCourseCard(plan, code, record, locked) {
     const course = findCourse(plan, code);
     if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
-    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}</div></article>`;
+    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}</div><a class="link" href="#/calculadora?plan=${plan}&course=${encodeURIComponent(code)}">Calcular notas</a></article>`;
   }
   function renderMyCourses() {
     const stored = MyCourses.read();
@@ -1796,7 +1799,7 @@
   function renderCalendar() {
     const exportAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
     const updateAction = hasCealAccess() ? `<a class="btn primary" href="#/gestion/calendario">${icon('upload')} Actualizar calendario</a>` : '';
-    const calendarAction = `${exportAction}${updateAction}`;
+    const calendarAction = `<a class="btn primary" href="#/mi-semana">Mi semana</a>${exportAction}${updateAction}`;
     const todayKey = portalTodayKey();
     const routeDate = String(getRoute().query.date || '').slice(0, 10);
     const validRouteDate = /^\d{4}-\d{2}-\d{2}$/.test(routeDate) ? routeDate : '';
@@ -1822,6 +1825,19 @@
       : `<span>${esc(sourceText)}</span>`;
     return `${pageHead('Calendario', 'Antofagasta', calendarAction)}<div class="calendar-audience" role="group" aria-label="Actividades del calendario"><button class="chip-btn" data-calendar-audience="students" aria-pressed="${state.calendarAudience !== 'all'}">Estudiantes</button><button class="chip-btn" data-calendar-audience="all" aria-pressed="${state.calendarAudience === 'all'}">Todas las actividades</button></div>
       <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small><small>${esc(source.note || '')}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
+  }
+
+  function studyContext() {
+    return {
+      calendar: Data.events || [],
+      source: Data.calendarSource || {},
+      courses: { planO: getCourses('planO'), planP: getCourses('planP') },
+      selectedPlan: state.myCoursesPlan,
+      preferred: {
+        planO: MyCourses.read().plans.planO.selected,
+        planP: MyCourses.read().plans.planP.selected
+      }
+    };
   }
 
   function tutorialLibraryCard({ iconName, audience, title, description, duration, href, pending = false }) {
@@ -5185,5 +5201,11 @@
   document.addEventListener('change', onChange);
   document.addEventListener('focusout', onFocusOut);
   document.addEventListener('submit', onSubmit);
+  StudyUI.init(() => render({ scope: 'data', resetScroll: false }));
+  window.addEventListener('storage', e => {
+    if (e.key === window.PortalStudyTools.key && ['/mi-semana', '/calculadora'].includes(getRoute().path)) {
+      StudyUI.externalChange();
+    }
+  });
   boot().catch(err => { console.error(err); });
 })();

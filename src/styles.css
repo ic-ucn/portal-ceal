@@ -7204,6 +7204,40 @@ body.theme-dark .my-courses-page .link,body.theme-dark .my-courses-page .muted a
 .my-courses-category{border-top:1px solid var(--border-color,#cfe0f3);padding:12px 0}.my-courses-category summary{cursor:pointer;font-weight:600;font-size:.9rem;line-height:1.5}.my-courses-category .my-courses-list{margin-top:10px}
 .my-course-requirements{font-size:.78rem;line-height:1.5;margin:8px 0 0;overflow-wrap:anywhere}.my-course-option>div{min-width:0}.malla-course-requirements:empty{display:none}.malla-course-requirements{margin-bottom:16px}
 .malla-personal-panel .my-courses-privacy{font-size:.78rem}
+
+.study-page{display:grid;gap:18px;max-width:1280px;min-width:0}
+.study-page .page-head{margin-bottom:0}
+.study-page .page-head .hstack{flex-wrap:wrap}
+.study-controls,.study-form-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.study-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,350px);gap:18px;align-items:start;min-width:0}
+.study-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;align-items:start}
+.study-day{min-width:0;padding:18px!important}
+.study-day h2{display:flex;justify-content:space-between;align-items:center;gap:8px;text-transform:capitalize;font-size:1rem;margin:0 0 12px}
+.study-entry{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border-color,#dbe3ea);min-width:0}
+.study-entry>div:first-child{display:grid;gap:3px;min-width:0}
+.study-entry strong{line-height:1.35;overflow-wrap:anywhere}
+.study-entry small,.study-entry .study-tag{color:var(--text-secondary,#637284);font-size:.78rem}
+.study-entry .study-tag{font-weight:700}
+.study-entry.is-done strong{text-decoration:line-through;color:var(--text-secondary,#637284)}
+.study-entry-actions{display:flex;flex-wrap:wrap;gap:2px}
+.study-entry-actions .btn{padding:5px 7px;min-height:32px}
+.study-official{border-left:3px solid var(--brand-blue-text,#225d8d);padding-left:10px}
+.study-official a{font-size:.8rem;font-weight:600;color:var(--brand-blue-text,#225d8d)}
+.study-form{display:grid;gap:13px;position:sticky;top:18px;min-width:0}
+.study-form label,.study-grade-card label{display:grid;gap:6px;font-size:.84rem;font-weight:600;min-width:0}
+.study-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.study-form .input,.study-form .select,.study-grade-card .input,.study-grade-card .select{width:100%;min-width:0}
+.study-grade-card{display:grid;gap:16px;max-width:900px;min-width:0}
+.study-grade-card form{display:grid;gap:16px}
+.study-goal{max-width:210px}
+.study-grade-rows{display:grid;gap:10px}
+.study-grade-row{display:grid;grid-template-columns:minmax(150px,2fr) minmax(90px,1fr) minmax(90px,1fr) auto;gap:9px;align-items:end;min-width:0}
+.study-result{display:grid;gap:8px;padding:16px;border-radius:10px;background:var(--surface-secondary,#eef4f8);border:1px solid var(--border-color,#dbe3ea);line-height:1.5}
+.study-result p{margin:0}.study-result small{color:var(--text-secondary,#637284)}
+.study-notice{padding:12px 14px;margin:0;background:#fff8e7;border:1px solid #d5a83c;border-radius:9px;color:#563c0b}
+body.theme-dark .study-notice{background:#443716;color:#f5df9b;border-color:#8e702d}
+@media(max-width:1100px){.study-layout{grid-template-columns:1fr}.study-form{position:static}}
+@media(max-width:700px){.study-days{grid-template-columns:1fr}.study-form-grid{grid-template-columns:1fr}.study-grade-row{grid-template-columns:minmax(0,1fr) minmax(92px,auto)}.study-grade-row label:first-of-type{grid-column:1/-1}.study-grade-row [data-study-remove-row]{grid-column:1/-1;justify-self:start}.study-controls .btn{min-height:40px}}
 .malla-personal-panel .my-courses-selected,.malla-personal-panel .my-courses-catalog{padding:0;border:0;border-radius:0;background:transparent}
 .malla-personal-panel .my-courses-grid,.malla-personal-panel .my-courses-filters{grid-template-columns:1fr;gap:8px}
 .malla-personal-panel .my-courses-filters{margin:10px 0}
