@@ -125,8 +125,8 @@
       lines.push('BEGIN:VEVENT', `UID:${escapeICS(event.id)}@ceicucn.cl`, `DTSTAMP:${dtstamp}`);
       if (event.time) {
         // Floating local time: importing calendars interpret the clock in the user's own zone.
-        // Floating local clock time; no duration is assumed.
         lines.push(`DTSTART:${start}T${event.time.replace(':', '')}00`);
+        if (event.duration > 0) lines.push(`DURATION:PT${event.duration}M`);
       } else lines.push(`DTSTART;VALUE=DATE:${start}`, `DTEND;VALUE=DATE:${end}`);
       lines.push(`SUMMARY:${escapeICS(event.title)}`, `DESCRIPTION:${escapeICS(event.type + (event.done ? ' · completado' : ''))}`, 'END:VEVENT');
     }

@@ -55,6 +55,7 @@ export function createStudyService(deps) {
     return db.data.studyAccounts[key] ||= { revision: 0, document: emptyDocument(), calendar: { mappings: {} } };
   }
   const calendarStatus = a => ({ configured: configured(), connected: Boolean(a.calendar.tokens && a.calendar.id),
+    needsReconnect: Boolean(a.calendar.reconnectRequired),
     issue: a.calendar.issue || '', detached: Object.entries(a.calendar.mappings).filter(([, m]) => m.detached).map(([id]) => id), conflicts: Object.entries(a.calendar.mappings).filter(([, m]) => m.conflict).map(([id]) => id),
     updatedAt: a.calendar.updatedAt || null });
   const response = a => ({ ok: true, revision: a.revision, document: a.document, calendar: calendarStatus(a) });
@@ -68,7 +69,13 @@ export function createStudyService(deps) {
   const codeOf = e => Number(e.response?.status || e.code || e.statusCode);
   async function sync(db, a) {
     if (!a.calendar.tokens || !a.calendar.id) return;
-    const c = authorizedClient(a);
+    let c;
+    try { c = authorizedClient(a); }
+    catch {
+      a.calendar.reconnectRequired = true;
+      a.calendar.issue = 'Vuelve a conectar Google Calendar para continuar.';
+      await deps.write(db); return;
+    }
     const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(a.calendar.id)}/events`;
     const desired = new Map(a.document.study.events.filter(e => e.calendar).map(e => [e.id, e]));
     const ids = new Set([...desired.keys(), ...Object.keys(a.calendar.mappings)]);
@@ -116,12 +123,15 @@ export function createStudyService(deps) {
         await deps.write(db);
       } catch (e) {
         if ([404, 410, 412].includes(codeOf(e))) { mapping.conflict = true; await deps.write(db); continue; }
-        if ([401, 403].includes(codeOf(e))) a.calendar.issue = 'Vuelve a conectar Google Calendar para continuar.';
+        if ([401, 403].includes(codeOf(e)) || e.response?.data?.error === 'invalid_grant') {
+          a.calendar.reconnectRequired = true;
+          a.calendar.issue = 'Vuelve a conectar Google Calendar para continuar.';
+        }
         else a.calendar.issue = 'Tus actividades están guardadas. Google Calendar tiene cambios pendientes.';
         await deps.write(db); return;
       }
     }
-    a.calendar.issue = ''; a.calendar.updatedAt = new Date().toISOString(); await deps.write(db);
+    a.calendar.issue = ''; a.calendar.reconnectRequired = false; a.calendar.updatedAt = new Date().toISOString(); await deps.write(db);
   }
   return async (req, res, url, db) => {
     let lockKey;
@@ -154,7 +164,7 @@ export function createStudyService(deps) {
           const created = await c.request({ url: 'https://www.googleapis.com/calendar/v3/calendars', method: 'POST', data: { summary: 'Mi estudio CEIC', timeZone: 'America/Santiago' }, timeout: 15000 });
           a.calendar.id = created.data.id; delete a.calendar.provisioning;
         }
-        a.calendar.tokens = deps.encrypt({ ...previous, ...tokens }); a.calendar.issue = '';
+        a.calendar.tokens = deps.encrypt({ ...previous, ...tokens }); a.calendar.issue = ''; a.calendar.reconnectRequired = false;
         await deps.write(db);
         return deps.redirect(res, `${config().returnUrl}#/mi-semana?calendar=connected`);
       }

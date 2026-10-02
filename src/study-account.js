@@ -128,11 +128,36 @@
     const a = document.createElement('a'); a.href = url; a.download = 'mi-estudio-ceic.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function summary(doc) { return `${doc.study.events.length} actividades · ${Object.keys(doc.study.grades).length} cálculos · ${Object.values(doc.courses.plans).reduce((n, p) => n + p.selected.length, 0)} ramos seleccionados`; }
+  async function restoreCopy() {
+    const run = generation;
+    // Keep the picker outside the status panel: saves can repaint that panel while it is open.
+    const file = await new Promise(resolve => {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.json,application/json'; input.hidden = true;
+      input.dataset.studyRestore = '';
+      const finish = file => { input.remove(); resolve(file); };
+      input.addEventListener('change', () => finish(input.files[0]), { once: true });
+      input.addEventListener('cancel', () => finish(null), { once: true });
+      document.body.appendChild(input); input.click();
+    });
+    if (!file || run !== generation) return;
+    if (file.size > 750000) throw new Error('La copia es demasiado grande.');
+    let raw;
+    try { raw = JSON.parse(await file.text()); }
+    catch { throw new Error('Este archivo no es una copia válida de Mi estudio.'); }
+    if (!raw || typeof raw !== 'object') throw new Error('Este archivo no es una copia válida de Mi estudio.');
+    const data = { study: tools.normalize(raw.study), courses: courses.normalize(raw.courses) };
+    if (raw.version !== 1 || !data.study || !data.courses) throw new Error('Este archivo no es una copia válida de Mi estudio.');
+    if (run !== generation) return;
+    if (!await confirmAction(`Incorporar ${summary(data)}. Conservaremos los registros actuales si ya existen y una copia anterior.`, 'Recuperar copia')) return;
+    if (run !== generation) return;
+    apply(merge(data, documentData())); changed(); refresh();
+  }
   function render() {
     const guest = user && !imported ? guestData() : null;
     const migration = meaningful(guest) ? `<div class="study-account-review"><strong>¿Estas actividades también son tuyas?</strong><p>En este navegador hay ${summary(guest)}. Puedes incorporarlas a ${esc(user.email)}. Si un registro ya existe, conservaremos el de tu cuenta. Los originales seguirán aquí.</p><div class="study-form-actions"><button class="btn secondary sm" data-study-account-action="import">Incorporar a mi cuenta</button><button class="btn ghost sm" data-study-account-action="skip">No incorporar</button></div></div>` : '';
     const conflicts = (calendar.conflicts || []).map(id => `<div class="study-account-review"><strong>${esc(tools.read().events.find(e => e.id === id)?.title || 'Actividad retirada')}</strong><p>Cambió o se eliminó en Google. Conservamos ambas versiones; no reemplazamos ese cambio.</p><button class="btn secondary sm" data-study-calendar-detach="${esc(id)}">Conservar por separado</button></div>`).join('');
-    return `<section class="study-account card pad" data-study-account aria-label="Guardado y calendario"><div class="study-account-heading"><div><h2 class="card-title">${user ? 'Tu agenda, contigo' : 'Guarda tu avance'}</h2><p class="small muted" role="status">${user ? `${esc(user.email)} · ${busy ? 'Guardando…' : conflict ? 'Revisión pendiente' : dirty ? 'Pendiente de guardar en tu cuenta' : message ? 'Sin confirmar guardado' : 'Guardado en tu cuenta'}` : 'Tus actividades, ramos y notas se conservan en este navegador.'}</p></div><div class="study-form-actions">${!user && options?.available ? '<button class="btn secondary sm" data-study-account-action="login">Guardar con mi cuenta UCN</button>' : ''}${user ? '<button class="btn ghost sm" data-study-account-action="logout">Cerrar sesión</button>' : ''}</div></div>${message ? `<p class="study-notice" role="status">${esc(message)}</p>` : ''}${user && (dirty || message) && !conflict ? '<button class="btn secondary sm" data-study-account-action="retry">Volver a intentar</button>' : ''}${conflict ? `<div class="study-account-review"><strong>Elige la versión que quieres continuar</strong><p>Este dispositivo: ${summary(documentData())}. Tu cuenta: ${summary(conflict.document)}. Guardaremos una copia recuperable de ambas antes de aplicar tu elección.</p><div class="study-form-actions"><button class="btn secondary sm" data-study-account-action="remote">Usar la de mi cuenta</button><button class="btn secondary sm" data-study-account-action="local">Usar la de este dispositivo</button><button class="btn ghost sm" data-study-account-action="download-remote">Descargar copia de mi cuenta</button></div></div>` : ''}${migration}${user ? `<details class="study-calendar-options"${calendar.issue || calendar.conflicts?.length ? ' open' : ''}><summary>Google Calendar${calendar.connected ? ' · Conectado' : ''}</summary><p class="small muted">Lleva las actividades que elijas a «Mi estudio CEIC». Conecta la misma cuenta UCN con la que guardas tu agenda. Tus otros calendarios se conservan. Edita estas actividades desde Mi semana.</p>${calendar.issue ? `<p class="study-notice">${esc(calendar.issue)}</p>` : ''}<div class="study-form-actions">${calendar.connected ? '<button class="btn secondary sm" data-study-account-action="retry">Actualizar calendario</button><button class="btn ghost sm" data-study-account-action="disconnect">Desconectar</button>' : calendar.configured ? '<button class="btn secondary sm" data-study-account-action="connect">Conectar Google Calendar</button>' : '<p class="small muted">La conexión todavía no está disponible. Puedes descargar tus eventos.</p>'}</div>${calendar.connected ? '<p class="small muted">Al desconectar conservarás tus actividades y los eventos enviados. Configura tus recordatorios en Google Calendar.</p>' : ''}${conflicts}</details>` : ''}<details class="study-backup-options"><summary>Copias y recuperación</summary><div class="study-form-actions"><button class="btn ghost sm" data-study-account-action="download">Descargar una copia</button><button class="btn ghost sm" data-study-account-action="restore">Recuperar una copia</button><input type="file" accept=".json,application/json" data-study-restore hidden><button class="btn ghost sm" data-study-account-action="previous">Descargar copia anterior</button></div><p class="small muted">La copia incluye tus actividades, ramos y notas. Guárdala en un lugar propio. La descarga de eventos es una copia para tu calendario; no se actualiza después de importarla.</p></details></section>`;
+    return `<section class="study-account card pad" data-study-account aria-label="Guardado y calendario"><div class="study-account-heading"><div><h2 class="card-title">${user ? 'Tu agenda, contigo' : 'Guarda tu avance'}</h2><p class="small muted" role="status">${user ? `${esc(user.email)} · ${busy ? 'Guardando…' : conflict ? 'Revisión pendiente' : dirty ? 'Pendiente de guardar en tu cuenta' : message ? 'Sin confirmar guardado' : 'Guardado en tu cuenta'}` : 'Tus actividades, ramos y notas se conservan en este navegador.'}</p></div><div class="study-form-actions">${!user && options?.available ? '<button class="btn secondary sm" data-study-account-action="login">Guardar con mi cuenta UCN</button>' : ''}${user ? '<button class="btn ghost sm" data-study-account-action="logout">Cerrar sesión</button>' : ''}</div></div>${message ? `<p class="study-notice" role="status">${esc(message)}</p>` : ''}${user && (dirty || message) && !conflict ? '<button class="btn secondary sm" data-study-account-action="retry">Volver a intentar</button>' : ''}${conflict ? `<div class="study-account-review"><strong>Elige la versión que quieres continuar</strong><p>Este dispositivo: ${summary(documentData())}. Tu cuenta: ${summary(conflict.document)}. Guardaremos una copia recuperable de ambas antes de aplicar tu elección.</p><div class="study-form-actions"><button class="btn secondary sm" data-study-account-action="remote">Usar la de mi cuenta</button><button class="btn secondary sm" data-study-account-action="local">Usar la de este dispositivo</button><button class="btn ghost sm" data-study-account-action="download-remote">Descargar copia de mi cuenta</button></div></div>` : ''}${migration}${user ? `<details class="study-calendar-options"${calendar.issue || calendar.conflicts?.length ? ' open' : ''}><summary>Google Calendar${calendar.connected ? ' · Conectado' : ''}</summary><p class="small muted">Lleva las actividades que elijas a «Mi estudio CEIC». Conecta la misma cuenta UCN con la que guardas tu agenda. Tus otros calendarios se conservan. Edita estas actividades desde Mi semana.</p>${calendar.issue ? `<p class="study-notice">${esc(calendar.issue)}</p>` : ''}<div class="study-form-actions">${calendar.connected ? `${calendar.needsReconnect ? '<button class="btn secondary sm" data-study-account-action="connect">Volver a conectar</button>' : '<button class="btn secondary sm" data-study-account-action="retry">Actualizar calendario</button>'}<button class="btn ghost sm" data-study-account-action="disconnect">Desconectar</button>` : calendar.configured ? '<button class="btn secondary sm" data-study-account-action="connect">Conectar Google Calendar</button>' : '<p class="small muted">La conexión todavía no está disponible. Puedes descargar tus eventos.</p>'}</div>${calendar.connected ? '<p class="small muted">Al desconectar conservarás tus actividades y los eventos enviados. Configura tus recordatorios en Google Calendar.</p>' : ''}${conflicts}</details>` : ''}<details class="study-backup-options"><summary>Copias y recuperación</summary><div class="study-form-actions"><button class="btn ghost sm" data-study-account-action="download">Descargar una copia</button><button class="btn ghost sm" data-study-account-action="restore">Recuperar una copia</button><button class="btn ghost sm" data-study-account-action="previous">Descargar copia anterior</button></div><p class="small muted">La copia incluye tus actividades, ramos y notas. Guárdala en un lugar propio. La descarga de eventos es una copia para tu calendario; no se actualiza después de importarla.</p></details></section>`;
   }
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-study-account-action], [data-study-calendar-detach]');
@@ -143,7 +168,7 @@
     const action = button.dataset.studyAccountAction;
     actionBusy = true; paintStatus();
     try {
-      if (action === 'restore') return document.querySelector('[data-study-restore]').click();
+      if (action === 'restore') return await restoreCopy();
       if (action === 'download') return download();
       if (action === 'download-remote') return download(conflict.document);
       if (action === 'previous') { const saved = JSON.parse(localStorage.getItem(`portal.study.backup:${key || 'guest'}:before-restore`) || 'null'); if (!saved) throw new Error('Aún no hay una copia anterior.'); return download(saved); }
@@ -165,19 +190,8 @@
     } catch (e) { message = e.message || 'No se pudo completar la acción.'; }
     finally { actionBusy = false; paintStatus(); }
   });
-  document.addEventListener('change', async event => {
-    if (!event.target.matches('[data-study-restore]')) return;
-    try {
-      const file = event.target.files[0]; if (!file) return;
-      if (file.size > 750000) throw new Error('La copia es demasiado grande.');
-      const data = JSON.parse(await file.text());
-      if (!tools.normalize(data.study) || !courses.normalize(data.courses)) throw new Error('Este archivo no es una copia válida de Mi estudio.');
-      if (!await confirmAction(`Incorporar ${summary(data)}. Conservaremos los registros actuales si ya existen y una copia anterior.`, 'Recuperar copia')) return;
-      apply(merge(data, documentData())); changed(); refresh();
-    } catch (e) { message = e.message || 'No se pudo recuperar la copia.'; paintStatus(); }
-  });
   window.addEventListener('study-data-changed', changed);
   window.addEventListener('online', () => { if (user) flush(); });
   window.addEventListener('storage', e => { if (key && (e.key === tools.key || e.key === courses.key || e.key === cacheKey())) { const c = cached(); if (c) { revision = c.revision; dirty = c.dirty; } paintStatus(); } });
-  window.PortalStudyAccount = Object.freeze({ init, setUser, render, flush, statusText, confirmAction, status: () => ({ connected: calendar.connected, detached: calendar.detached || [], user: Boolean(user), dirty }) });
+  window.PortalStudyAccount = Object.freeze({ init, setUser, render, flush, statusText, confirmAction, status: () => ({ connected: calendar.connected, detached: calendar.detached || [], user: Boolean(user), available: Boolean(options?.available), dirty }) });
 })();

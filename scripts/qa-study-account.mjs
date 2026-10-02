@@ -4,7 +4,7 @@ import { createStudyService, emptyDocument, eventPayload } from '../server/study
 
 const event = (id, title = 'Certamen de prueba') => ({ id, title, date: '2026-10-15', time: '10:00', duration: 60, type: 'Evaluación', plan: 'planP', course: 'P-0101', done: false, calendar: true });
 const db = { data: {}, curricula: {} }, remote = new Map();
-let email = 'qa-a@example.test', etag = 0, calendars = 0, oauthUrl, loseInsertResponse = false;
+let email = 'qa-a@example.test', etag = 0, calendars = 0, oauthUrl, loseInsertResponse = false, rejectAuthorization = false;
 const httpError = code => Object.assign(new Error('Upstream test error'), { code });
 const oauth = {
   setCredentials() {}, on() {},
@@ -12,6 +12,7 @@ const oauth = {
   async getToken(args) { assert.ok(args.codeVerifier); return { tokens: { refresh_token: 'test-only', id_token: 'test-only', scope: 'openid email https://www.googleapis.com/auth/calendar.app.created' } }; },
   async verifyIdToken() { return { getPayload: () => ({ email, email_verified: true }) }; },
   async request({ method = 'GET', url, data, headers }) {
+    if (rejectAuthorization) throw Object.assign(httpError(400), { response: { status: 400, data: { error: 'invalid_grant' } } });
     if (url.endsWith('/calendars') && method === 'POST') return { data: { id: `calendar-${++calendars}` } };
     const id = url.split('/').at(-1);
     if (method === 'POST') { if (remote.has(data.id)) throw httpError(409); const item = { ...structuredClone(data), etag: `"${++etag}"` }; remote.set(data.id, item); if (loseInsertResponse) { loseInsertResponse = false; throw httpError(503); } return { data: item }; }
@@ -51,6 +52,16 @@ assert.equal([...remote.values()][0].start.timeZone, 'America/Santiago');
 let current = (await call()).data; current.document.study.events[0].date = '2026-10-16';
 await call('/save', { revision: current.revision, document: current.document }); await call('/calendar/sync', {});
 assert.match([...remote.values()][0].start.dateTime, /2026-10-16/);
+current = (await call()).data; current.document.study.events[0].title = 'Cambio con permiso vencido';
+await call('/save', { revision: current.revision, document: current.document });
+rejectAuthorization = true;
+assert.equal((await call('/calendar/sync', {})).data.calendar.needsReconnect, true);
+rejectAuthorization = false;
+await call('/calendar/start', {});
+await call(`/calendar/callback?state=${oauthUrl.state}&code=test`);
+assert.equal((await call('/calendar/sync', {})).data.calendar.needsReconnect, false);
+assert.equal(calendars, 1, 'Reauthorization must reuse the dedicated calendar');
+assert.equal(remote.size, 1, 'Reauthorization must reuse the existing event');
 const upstream = [...remote.values()][0]; upstream.summary = 'Changed in Google'; upstream.etag = 'external';
 current = (await call()).data; current.document.study.events[0].title = 'Changed in portal';
 await call('/save', { revision: current.revision, document: current.document });
@@ -128,10 +139,20 @@ try {
   const downloaded = page.waitForEvent('download');
   await page.locator('[data-study-account-action=download]').click();
   const backupPath = await (await downloaded).path();
-  await page.locator('[data-study-restore]').setInputFiles(backupPath);
+  const picker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Recuperar una copia', exact: true }).click();
+  const chooser = await picker;
+  // A status redraw while the native picker is open must not detach the file input.
+  await page.evaluate(() => window.PortalStudyAccount.flush());
+  await chooser.setFiles(backupPath);
   await page.getByRole('button', { name: 'Recuperar copia', exact: true }).click();
   await page.waitForFunction(() => !window.PortalStudyAccount.status().dirty);
   assert.equal((await api('/study', undefined, user.sessionToken)).data.document.study.events.length, 2, 'Restoring same backup must not duplicate records');
+  const cancelPicker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Recuperar una copia', exact: true }).click();
+  await cancelPicker;
+  await page.locator('[data-study-restore]').dispatchEvent('cancel');
+  assert.equal(await page.getByRole('button', { name: 'Recuperar una copia', exact: true }).isEnabled(), true, 'Cancelling the picker releases the panel');
   await page.goto(base + '/?analytics=off#/calculadora?plan=planP&course=P-0101');
   await page.locator('[name=row-name]').first().fill('Certamen');
   await page.locator('[name=row-weight]').first().fill('100');
@@ -204,8 +225,26 @@ try {
   await calPage.locator('[data-study-event-form] button[type=submit]').click();
   await calPage.waitForFunction(() => !window.PortalStudyAccount.status().dirty);
   await calPage.getByText('Google Calendar · Conectado', { exact: true }).click();
-  const remoteEvent = [...remote.values()].find(e => e.summary === 'Entrega para Calendar');
+  let remoteEvent = [...remote.values()].find(e => e.summary === 'Entrega para Calendar');
   assert.ok(remoteEvent, 'Selected event reaches controlled Google Calendar');
+  const calendarsBeforeReconnect = calendars;
+  rejectAuthorization = true;
+  await calPage.locator('.study-entry [data-study-edit]').first().click();
+  await calPage.locator('[name=title]').fill('Entrega con permiso por renovar');
+  await calPage.locator('[data-study-event-form] button[type=submit]').click();
+  await calPage.getByRole('button', { name: 'Volver a conectar', exact: true }).waitFor();
+  await calPage.route('https://accounts.google.com/test', async route => {
+    rejectAuthorization = false;
+    await call(`/calendar/callback?state=${oauthUrl.state}&code=test`);
+    await route.fulfill({ status: 302, headers: { location: base + '/?analytics=off#/mi-semana?calendar=connected' } });
+  });
+  await calPage.getByRole('button', { name: 'Volver a conectar', exact: true }).click();
+  await calPage.waitForURL(/calendar=connected/);
+  await calPage.getByText('Google Calendar · Conectado', { exact: true }).waitFor();
+  await calPage.waitForFunction(() => window.PortalStudyAccount.status().connected);
+  assert.equal(calendars, calendarsBeforeReconnect, 'UI reauthorization must not create another calendar');
+  remoteEvent = [...remote.values()].find(e => e.summary === 'Entrega con permiso por renovar');
+  assert.ok(remoteEvent, 'Pending update is sent after reauthorization');
   remoteEvent.summary = 'Cambio externo que debemos conservar'; remoteEvent.etag = 'new-google-edit';
   await calPage.locator('.study-entry [data-study-edit]').first().click();
   await calPage.locator('[name=title]').fill('Cambio desde la agenda');
@@ -218,5 +257,5 @@ try {
   assert.equal(await calPage.locator('.study-entry').filter({ hasText: 'Cambio desde la agenda' }).count(), 1);
   assert.deepEqual(errors, []);
   await calCtx.close();
-  console.log('Calendar UI: explicit event selection, send, external-change protection, detach and disconnect passed with controlled provider.');
+  console.log('Calendar UI: explicit event selection, send, expired permission, reauthorization, external-change protection, detach and disconnect passed with controlled provider.');
 } finally { await browser.close(); }

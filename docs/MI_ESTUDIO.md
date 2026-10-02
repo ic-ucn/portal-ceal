@@ -13,6 +13,9 @@ Entrega interna. Sin IA, importación general de calendarios ni sincronización 
 - Google Calendar es una conexión separada y opcional, con la misma cuenta UCN. Solo se envían actividades seleccionadas. Las notas no se envían.
 - Los cambios en Google se protegen con ETag. Ante conflicto se conserva el evento por separado. El portal no importa esos cambios ni vuelve a crear silenciosamente eventos borrados.
 - Desconectar elimina las credenciales guardadas por el portal, detiene futuros envíos y mantiene ambos conjuntos de actividades. No revoca globalmente otros usos del mismo cliente OAuth.
+- Cuando vence o se revoca el permiso, «Volver a conectar» renueva la autorización y conserva el calendario dedicado y los identificadores de eventos.
+- Recuperar una copia parte del botón visible, permite cancelar el selector y mantiene el archivo seleccionado aunque se actualice el estado de guardado. Una recuperación pendiente no se aplica a otra cuenta si cambia la sesión.
+- La descarga de eventos conserva la duración explícita de las actividades con hora. Si no se indicó duración, no inventa una. Las horas del archivo se interpretan en la zona del calendario que lo importa.
 
 ## Componentes
 
@@ -39,6 +42,8 @@ OAuth usa `openid`, `email` y `calendar.app.created`; identidad verificada, perm
 La sincronización ocurre mientras el portal está abierto, al guardar, reconectar o pulsar Actualizar calendario. No hay una tarea autónoma que siga enviando después de cerrar el navegador. Los cambios ya guardados se recuperan al volver. Lotes grandes se acotan temporalmente y muestran si hace falta continuar.
 
 ## Activación de Google real
+
+La aplicación OAuth es del proyecto CEIC. Sus credenciales identifican al portal frente a Google; no son la contraseña del creador ni otorgan acceso a su calendario. Cada estudiante inicia sesión con su cuenta UCN y autoriza individualmente su propio calendario «Mi estudio CEIC». Los tokens quedan aislados por cuenta. La cuenta de Jefatura mantiene su integración independiente.
 
 No escribir secretos en este documento, pruebas, commits o chat. Configurar en el entorno seguro del servidor:
 
@@ -73,5 +78,15 @@ node scripts/qa-portal.mjs
 ```
 
 Nunca habilitar `QA_TEST_MODE` en el servicio publicado. `qa-study-account` usa un proveedor Google controlado en memoria para verificar OAuth, reintentos y conflictos; después verifica guardado real por API y navegador con sesiones exclusivamente de pruebas. No reemplaza la validación OAuth real pendiente. No se requiere ni está previsto un piloto con alumnos.
+
+## Preparación del lanzamiento
+
+Ejecutar `npm run study:preflight` para comprobar el entorno interno o `npm run study:preflight -- --release` en el entorno previsto para el lanzamiento. El comando lee la configuración con la misma precedencia que el servidor, no modifica archivos ni publica y solo muestra resultados y nombres de ajustes: nunca sus valores. Devuelve código 1 si falta configuración. Su propia prueba es `npm run qa:study-preflight`.
+
+El modo de lanzamiento exige URLs HTTPS sin credenciales ni fragmentos, sesiones de prueba apagadas y configuración de persistencia. Una ruta de datos absoluta no demuestra que el volumen sea durable: debe verificarse por separado. El informe conserva las comprobaciones externas pendientes incluso si la configuración pasa.
+
+Antes de habilitar la función al público, completar la prueba Google real con una cuenta UCN autorizada: entrar, conectar, seleccionar una actividad, enviarla, cambiar fecha/duración, editarla también en Google y comprobar la protección del cambio externo, desconectar y reconectar sin duplicados. Comprobar también que otra cuenta no recibe sus actividades y que el guardado resiste un reinicio del servicio. Esta verificación es técnica, sin piloto con alumnos.
+
+El lanzamiento necesita el servidor actualizado además de los archivos del sitio. Desplegar únicamente la parte estática no habilita `/api/study`. Registrar en Google las URLs finales del servicio y del portal, conservar la clave de cifrado efectiva y respaldar el estado antes de una migración. La autorización de publicación sigue pendiente: esta preparación no ejecuta despliegue, push ni merge.
 
 Fuentes: [permisos Calendar](https://developers.google.com/workspace/calendar/api/auth), [modificaciones condicionales](https://developers.google.com/calendar/api/guides/version-resources), [importación ICS](https://support.google.com/calendar/answer/37118?hl=en).

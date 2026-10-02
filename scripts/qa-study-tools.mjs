@@ -40,6 +40,9 @@ assert.match(ics, /SUMMARY:Prueba\\, teoría\\; ñ\\nsegunda línea/);
 const timed = tools.makeICS([{ ...event, time: '23:30' }]);
 assert.match(timed, /DTSTART:20261001T233000/);
 assert.doesNotMatch(timed, /DTEND:/);
+assert.doesNotMatch(timed, /DURATION:/, 'Do not invent a duration when it was not provided');
+assert.match(tools.makeICS([{ ...event, time: '23:30', duration: 90 }]), /DURATION:PT90M\r\n/);
+assert.doesNotMatch(tools.makeICS([{ ...event, duration: 90 }]), /DURATION:/, 'All-day events keep date boundaries');
 for (const line of tools.makeICS([{ ...event, title: 'Ñ 😀 '.repeat(20) }]).split('\r\n')) {
   assert.ok(Buffer.byteLength(line, 'utf8') <= 75, `ICS line too long: ${Buffer.byteLength(line, 'utf8')}`);
 }
