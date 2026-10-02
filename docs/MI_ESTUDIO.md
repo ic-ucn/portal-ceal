@@ -5,7 +5,9 @@ Entrega interna. Sin IA, importación general de calendarios ni sincronización 
 ## Experiencia
 
 - Inicio reúne actividades personales próximas, anteriores sin completar, ramos actuales del plan elegido, fechas UCN y accesos a notas/material. Usa los mismos registros de Mi semana y Mis ramos; no exige configurar otro perfil. Cada actividad abre su semana. Los cambios en otra pestaña actualizan Inicio.
-- «Qué podrías cursar» distingue prerrequisitos ya cumplidos de los que se cumplirían al aprobar todos los actuales requeridos. Combina aprobados y actuales, sin asumir aprobación, cadenas futuras ni oferta real. Los requisitos adicionales o ambiguos se mantienen por revisar.
+- Mis ramos ocupa el lienzo completo y abre Actuales. Cada tarjeta reúne Material, Notas, Estado y Agregar actividad; Guardados queda como acceso secundario independiente de las marcas.
+- «Qué se abre» distingue prerrequisitos ya cumplidos de los que se cumplirían al aprobar todos los actuales requeridos. Combina aprobados y actuales, sin asumir aprobación, cadenas futuras ni oferta real. Los requisitos adicionales o ambiguos se mantienen por revisar.
+- Qué se abre muestra Ya cumples, Al aprobar y Faltan. Tocar un actual filtra sus destinos; cada destino muestra los requisitos conjuntos mediante segmentos y etiquetas. Ver en malla destaca los candidatos sin cambiar el avance. Los filtros Todos, Ya cumples y Si apruebas actuales permiten volver al contexto completo.
 - Las tarjetas mantienen tintes por área y borde neutro uniforme, sin franjas laterales ni fondos de estado. Verde/amarillo solo identifican las etiquetas de aprobado/actual. Fe-cultura y Fe-ciencia (UNFV-00002/00003) tienen una subdivisión visual teológica; el catálogo permanece intacto.
 - Desde Mis ramos o la ficha integrada: Agregar actividad abre Mi semana con plan y ramo elegidos.
 - En la malla, «Marcar ramos» permite elegir Actuales (amarillo) o Aprobados (verde). Tocar nuevamente con la misma marca la retira. Pendiente es el estado por defecto y no se elige ni resalta. La ficha usa los mismos dos botones. Los registros anteriores se conservan; «actual» mantiene internamente el valor `cursando`.
@@ -77,6 +79,7 @@ npm run check
 npm run quality
 npm run qa:study-tools
 npm run qa:study-account
+npm run qa:study-persistence
 npm run qa:my-courses
 npm run qa:analytics
 node scripts/qa-portal.mjs
@@ -95,3 +98,11 @@ Antes de habilitar la función al público, completar la prueba Google real con 
 El lanzamiento necesita el servidor actualizado además de los archivos del sitio. Desplegar únicamente la parte estática no habilita `/api/study`. Registrar en Google las URLs finales del servicio y del portal, conservar la clave de cifrado efectiva y respaldar el estado antes de una migración. La autorización de publicación sigue pendiente: esta preparación no ejecuta despliegue, push ni merge.
 
 Fuentes: [permisos Calendar](https://developers.google.com/workspace/calendar/api/auth), [modificaciones condicionales](https://developers.google.com/calendar/api/guides/version-resources), [importación ICS](https://support.google.com/calendar/answer/37118?hl=en).
+
+## Guía actualizada (2026-10-02)
+
+Capturas reales de escritorio y móvil en un origen separado, sin utilizar datos del usuario. Ocho capítulos cubren malla, marcas, actuales, caminos, Inicio/Mi semana, notas, material y calendario. Guion en `scripts/portal-tutorial-real.json`; compositor `scripts/build-real-tutorial.py`; validación del reproductor `npm run qa:welcome`.
+
+La búsqueda en los chats Portal CEAL de mayo/junio y agosto encontró el cliente OAuth de la agenda de Jefatura y su configuración prevista en Render (`portal-ceic-api`). La última revisión de agosto mantuvo Calendar pendiente; no acredita una conexión personal por estudiante. No se recuperaron ni copiaron secretos históricos. La configuración actual requiere el preflight y la prueba real de esta integración.
+
+`qa:study-persistence` inicia dos procesos consecutivos con una base nueva en `.data/qa-study-restart-*`: comprueba documento/revisión tras reinicio, rechazo de escrituras atrasadas y aislamiento entre cuentas. No reinicia el preview ni certifica la durabilidad del volumen de producción.

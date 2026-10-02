@@ -4,8 +4,10 @@
   const CHAPTERS = [
     { id: 'malla', title: 'Explorar la malla', href: '#/mallas', link: 'Abrir malla', copy: 'Elige tu plan y toca un ramo para consultar su ficha y sus prerrequisitos.' },
     { id: 'aprobados', title: 'Marcar ramos', href: '#/mallas', link: 'Abrir malla', copy: 'Actuales y aprobados llevan una etiqueta amarilla o verde. Toca de nuevo para quitarla. El color de la tarjeta identifica el área; los pendientes no llevan marca.' },
-    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material, notas y actividades. Guardados conserva los ramos que quieras tener a mano.' },
+    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Actuales', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material, notas y actividades. Guardados conserva los ramos que quieras tener a mano.' },
     { id: 'eligible', title: 'Qué podrías cursar', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar', copy: 'En Qué se abre, toca un actual para seguir sus caminos. Las marcas muestran los prerrequisitos aprobados y los que aún cursas. También puedes destacarlos en la malla.' },
+    { id: 'semana', title: 'Mi semana', href: '#/mi-semana', link: 'Abrir Mi semana', copy: 'Inicio reúne tus actividades y ramos actuales. En Mi semana agrega evaluaciones, entregas o estudio, vincúlalos a un ramo y márcalos al completar.' },
+    { id: 'notas', title: 'Calculadora de notas', href: '#/calculadora', link: 'Calcular mis notas', copy: 'Elige un ramo, ingresa notas y ponderaciones y ajusta tu meta. Guarda el cálculo para continuarlo después; es una estimación personal.' },
     { id: 'material', title: 'Material de estudio', href: '#/material', link: 'Abrir material', copy: 'Busca por título o ramo, filtra el tipo y consulta los recursos disponibles.' },
     { id: 'calendario', title: 'Calendario académico', href: '#/calendario', link: 'Abrir calendario', copy: 'Cambia de mes y selecciona una fecha para consultar actividades y su fuente oficial.' }
   ];
@@ -17,16 +19,16 @@
 
   function shell(isDialog, themeControl = '') {
     const inner = `<div class="guide-layout" data-guide-root>
-      <section class="guide-stage" aria-label="Recorrido con capturas reales del portal">
-        <div class="guide-stage-head"><span class="guide-example">Capturas reales con indicaciones animadas</span><span class="guide-format" data-guide-format></span></div>
+      <section class="guide-stage" aria-label="Guía del portal">
+        <div class="guide-stage-head"><span class="guide-example">Paso a paso</span></div>
         <h3 class="guide-scene-title" data-guide-scene-title></h3>
         <div class="guide-toolbar"><div class="guide-playbar"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><button type="button" class="guide-secondary" data-guide-fullscreen>Pantalla completa</button></div><div class="guide-audio-controls"><label>Recorrido<select data-guide-mode><option value="text">Solo texto</option><option value="voice">Voz y texto</option></select></label><button type="button" class="guide-secondary" data-guide-music aria-pressed="false">Música: desactivada</button></div></div>
         <p class="guide-caption" data-guide-caption></p>
         <div class="guide-media"><img data-guide-still alt="" decoding="async"><video data-guide-video controls muted playsinline preload="none" hidden aria-label="Recorrido del portal"><track kind="captions" srclang="es" label="Español" default></video></div>
-        <div class="guide-step-controls"><button type="button" data-guide-step-prev aria-label="Captura anterior">←</button><span data-guide-step-position></span><button type="button" data-guide-step-next aria-label="Captura siguiente">→</button><a data-guide-image-link target="_blank" rel="noopener">Ampliar captura ↗</a></div>
+        <div class="guide-step-controls"><button type="button" data-guide-step-prev aria-label="Paso anterior">←</button><span data-guide-step-position></span><button type="button" data-guide-step-next aria-label="Paso siguiente">→</button><a data-guide-image-link target="_blank" rel="noopener">Ampliar imagen ↗</a></div>
       </section>
       <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${CHAPTERS.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('')}</div>
-        <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tu selección y los estados de tus ramos se guardan en este navegador. No reemplazan tu avance académico oficial.</p></div>
+        <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tus ramos, actividades y notas son personales. Puedes guardar una copia desde Mi semana. No reemplazan tu avance académico oficial.</p></div>
         <div class="guide-actions"><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir capítulo</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
         <p class="guide-status" data-guide-status role="status"></p>
       </div>
@@ -62,7 +64,7 @@
         this.desiredTime = this.recording?.steps[this.stepIndex]?.start || 0;
         this.showStill();
         this.render();
-        this.announce(prefersReducedMotion() ? 'Movimiento reducido: recorre las capturas con las flechas o los capítulos.' : 'Recorrido listo para reproducir.');
+        this.announce(prefersReducedMotion() ? 'Movimiento reducido: recorre los pasos con las flechas o los capítulos.' : 'Recorrido listo para reproducir.');
       };
       this.mediaListeners = {
         timeupdate: () => this.syncVideo(),
@@ -86,7 +88,7 @@
           this.pause(false);
           this.showStill();
           this.render();
-          this.announce('Puedes seguir el recorrido con las capturas y los capítulos.');
+          this.announce('Puedes seguir el recorrido con las imágenes y los capítulos.');
         }
       };
       root.addEventListener('click', this.onClick);
@@ -155,7 +157,6 @@
       this.find('title').textContent = chapter.title;
       this.find('copy').textContent = chapter.copy;
       this.find('caption').textContent = step?.caption || chapter.copy;
-      this.find('format').textContent = this.format === 'mobile' ? 'Versión móvil' : 'Versión escritorio';
       this.find('position').textContent = `${this.index + 1} de ${CHAPTERS.length}${this.recording ? ` · ${Math.round(this.recording.duration)} s` : ''}`;
       this.find('link').href = chapter.href;
       this.find('link').textContent = `${chapter.link} ↗`;
@@ -163,7 +164,7 @@
       this.find('next').disabled = this.index === CHAPTERS.length - 1;
       this.find('step-prev').disabled = !step || this.stepIndex === 0;
       this.find('step-next').disabled = !step || this.stepIndex === this.recording.steps.length - 1;
-      this.find('step-position').textContent = step ? `Captura ${this.stepIndex + 1} de ${this.recording.steps.length}` : '';
+      this.find('step-position').textContent = step ? `Paso ${this.stepIndex + 1} de ${this.recording.steps.length}` : '';
       this.root.querySelectorAll('[data-guide-tab]').forEach((tab, i) => {
         tab.setAttribute('aria-selected', String(i === this.index));
         tab.tabIndex = i === this.index ? 0 : -1;
@@ -180,7 +181,7 @@
     renderPlay() {
       const button = this.find('play');
       button.disabled = !this.recording || prefersReducedMotion();
-      button.textContent = prefersReducedMotion() ? 'Usa las capturas para avanzar' : this.pendingPlay ? 'Cancelar carga' : !this.video.paused ? 'Pausar' : this.videoMode && !this.video.ended ? 'Continuar recorrido' : 'Reproducir recorrido';
+      button.textContent = prefersReducedMotion() ? 'Usa los pasos para avanzar' : this.pendingPlay ? 'Cancelar carga' : !this.video.paused ? 'Pausar' : this.videoMode && !this.video.ended ? 'Continuar recorrido' : 'Reproducir recorrido';
     }
     progress(time) {
       this.root.querySelectorAll('[data-guide-tab] i').forEach((bar, index) => {
@@ -291,7 +292,7 @@
         this.pendingPlay = false;
         this.showStill();
         this.render();
-        this.announce('Puedes seguir el recorrido con las capturas y los capítulos.');
+        this.announce('Puedes seguir el recorrido con las imágenes y los capítulos.');
       }
     }
     pause(report = true) {
@@ -313,8 +314,8 @@
       try {
         if (media.requestFullscreen) await media.requestFullscreen();
         else if (this.videoMode && this.video.webkitEnterFullscreen) this.video.webkitEnterFullscreen();
-        else this.announce('Puedes ampliar la captura con el enlace inferior.');
-      } catch { this.announce('Puedes ampliar la captura con el enlace inferior.'); }
+        else this.announce('Puedes ampliar la imagen con el enlace inferior.');
+      } catch { this.announce('Puedes ampliar la imagen con el enlace inferior.'); }
     }
     go(index) {
       this.pause(false);

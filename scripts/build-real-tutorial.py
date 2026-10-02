@@ -26,7 +26,7 @@ FPS = 15
 RATE = 48000
 VOICE = "es-CL-CatalinaNeural"
 VOICE_RATE = "+0%"
-CHAPTERS = ("malla", "aprobados", "mis-ramos", "eligible", "material", "calendario")
+CHAPTERS = ("malla", "aprobados", "mis-ramos", "eligible", "semana", "notas", "material", "calendario")
 FFMPEG = str(next(iter((ROOT / ".data/media-tools/imageio_ffmpeg/binaries").glob("ffmpeg*.exe")), Path(imageio_ffmpeg.get_ffmpeg_exe())))
 
 
@@ -109,7 +109,7 @@ def load_story(path):
             if not seen or seen[-1] != item["chapter"]:
                 seen.append(item["chapter"])
         if tuple(seen) != CHAPTERS:
-            raise ValueError("Require six contiguous chapters")
+            raise ValueError("Require all contiguous chapters")
     desktop = story["formats"]["desktop"]["steps"]
     mobile = story["formats"]["mobile"]["steps"]
     if [(s["id"], s["caption"]) for s in desktop] != [(s["id"], s["caption"]) for s in mobile]:
@@ -340,6 +340,11 @@ def compose(source, sample=False):
     # Recheck immutable sources after rendering and write manifest only at success.
     load_story(source)
     result["verification"] = verify_media(result)
+    # Version each media URL so an existing browser cannot reuse the old guide.
+    for recording in result["formats"].values():
+        recording["variants"] = {kind: url + "?v=" + recording["variantDetails"][kind]["sha256"][:12] for kind, url in recording["variants"].items()}
+        recording["video"] = recording["variants"]["silent"]
+        recording["track"] += "?v=" + sha(ROOT / recording["track"])[:12]
     (OUT / "manifest.js").write_text("window.PortalTutorialCapture = Object.freeze(" + json.dumps(result, ensure_ascii=False, indent=2) + ");\n", encoding="utf-8")
     (WORK / "build-report.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"duration": total, "audio": audio_report, "formats": {k: v["variantDetails"] for k, v in result["formats"].items()}}, indent=2), flush=True)

@@ -14,7 +14,7 @@ const report = { ok: false, production, cases: [], errors: [] }, sandbox = { win
 vm.runInNewContext(await readFile(new URL('../assets/tutorial-real/manifest.js', import.meta.url), 'utf8'), sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
 assert.equal(manifest.captureMethod, 'computer-use');
-const chapters = ['malla', 'aprobados', 'mis-ramos', 'eligible', 'material', 'calendario'];
+const chapters = ['malla', 'aprobados', 'mis-ramos', 'eligible', 'semana', 'notas', 'material', 'calendario'];
 for (const [format, recording] of Object.entries(manifest.formats)) {
   assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], chapters);
   for (const step of recording.steps) {
@@ -23,7 +23,7 @@ for (const [format, recording] of Object.entries(manifest.formats)) {
   }
   assert.equal(recording.duration, recording.steps.at(-1).end);
 }
-const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20260927real1'); value.hash = route; return value.href; };
+const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
 const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
 async function stable(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -45,7 +45,7 @@ try {
     await guide.waitFor();
     const format = width <= 920 ? 'mobile' : 'desktop', recording = manifest.formats[format];
     assert.equal(await guide.locator('[data-guide-root]').getAttribute('data-capture-format'), format);
-    assert.equal(await guide.locator('[data-guide-tab]').count(), 6);
+    assert.equal(await guide.locator('[data-guide-tab]').count(), chapters.length);
     assert.equal(await video.getAttribute('src'), recording.video);
     assert.equal(await video.evaluate(v => v.paused && v.muted && !v.autoplay && v.controls), true);
     assert.ok(await guide.locator('[data-guide-play]').evaluate(node => node.getBoundingClientRect().bottom < innerHeight), 'primary CTA is visible before media');
@@ -72,7 +72,7 @@ try {
       await guide.locator(`[data-guide-tab="${index}"]`).click();
       assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps.find(step => step.chapter === chapters[index]).image);
     }
-    await guide.locator('[data-guide-tab="4"]').click();
+    await guide.locator('[data-guide-tab="6"]').click();
     const supportsVideo = await video.evaluate(v => !!v.canPlayType('video/mp4; codecs="avc1.64001f"'));
     if (supportsVideo) {
       await guide.locator('[data-guide-play]').click(); await ready(page);
@@ -122,7 +122,7 @@ try {
     const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' }); await dialog.waitFor();
     assert.equal(await dialog.locator('video').evaluate(v => v.paused), true);
     await dialog.locator('[data-guide-tab="0"]').focus(); await page.keyboard.press('End');
-    assert.equal(await dialog.locator('[data-guide-tab="5"]').evaluate(node => node === document.activeElement), true);
+    assert.equal(await dialog.locator(`[data-guide-tab="${chapters.length - 1}"]`).evaluate(node => node === document.activeElement), true);
     for (let count = 0; count < 12; count++) { await page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(node => node.contains(document.activeElement))); }
     await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('.portal-welcome video').evaluate(v => v.paused), true);

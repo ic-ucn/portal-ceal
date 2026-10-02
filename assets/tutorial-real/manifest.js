@@ -1,7 +1,7 @@
 window.PortalTutorialCapture = Object.freeze({
   "version": 2,
   "captureMethod": "computer-use",
-  "capturedAt": "2026-09-27",
+  "capturedAt": "2026-10-02",
   "annotation": "Capturas reales con indicaciones animadas",
   "fps": 15,
   "audio": {
@@ -9,968 +9,620 @@ window.PortalTutorialCapture = Object.freeze({
     "rate": "+0%",
     "sampleRate": 48000,
     "musicSource": "original repository composition; lowpass 1600Hz",
-    "musicGain": 0.01060853867385203,
+    "musicGain": 0.008385270926531154,
     "balanceWindowSeconds": 0.4,
     "speechEnergyThresholdDbFS": -40,
     "minimumMusicBelowVoiceDb": 22.0,
-    "measuredSpeechWindows": 136,
-    "mixedPeakDbFS": -2.938,
+    "measuredSpeechWindows": 124,
+    "mixedPeakDbFS": -3.079,
     "accessibilityNote": "Measured narration/music balance only; no global AAA compliance claim."
   },
   "formats": {
     "desktop": {
       "width": 1440,
       "height": 900,
-      "duration": 81.133,
-      "video": "assets/tutorial-real/portal-desktop-animated.mp4",
-      "track": "assets/tutorial-real/portal-desktop-animated.vtt",
+      "duration": 65.467,
+      "video": "assets/tutorial-real/portal-desktop-animated.mp4?v=4e27f1acc31a",
+      "track": "assets/tutorial-real/portal-desktop-animated.vtt?v=2c572f46db54",
       "steps": [
         {
-          "id": "01-inicio",
+          "id": "01-malla",
           "chapter": "malla",
-          "image": "assets/tutorial-real/desktop/01-inicio.png",
-          "caption": "Entra a Malla desde Inicio o la navegación.",
+          "image": "assets/tutorial-real/desktop/20261002-01-malla.png",
+          "caption": "Elige tu plan. Toca un ramo para ver su ficha y sus prerrequisitos.",
           "start": 0.0,
-          "end": 4.533,
-          "sha256": "cb0efcbb0b4c738ba1d6133b1895c88889b13f60e15c8fa4e82041c03cce689c",
+          "end": 6.2,
+          "sha256": "2eab44d0ede8ff7ba075d75aa76c4ed720e89c516fe632372c66f8630047974e",
           "capturedSize": [
             1440,
             900
           ],
           "target": {
-            "x": 345,
-            "y": 702,
+            "x": 745.4140625,
+            "y": 41.0,
             "rect": [
-              264,
-              654,
-              537,
-              119
+              711.484375,
+              26.0,
+              67.859375,
+              30.0
             ],
-            "reason": "Acceso Malla visible en Inicio.",
+            "reason": "Elige tu plan. Toca un ramo para ver su ficha y sus prerrequisitos.",
             "zoomSuggested": 1,
             "sourceWidth": 1440,
             "sourceHeight": 900
           },
-          "voiceDuration": 3.264,
-          "narrationCacheKey": "443af27615c235ee9247fb5610e132073fca7434c394f2e779963339c8538f17"
+          "voiceDuration": 5.592,
+          "narrationCacheKey": "9142448f426ce238cf00bcc7b8b980ae9b8e877cad0bf7e5cf96d7dfe6aee3ec"
         },
         {
-          "id": "02-malla",
-          "chapter": "malla",
-          "image": "assets/tutorial-real/desktop/02-malla.png",
-          "caption": "Elige tu plan y toca un ramo de la malla.",
-          "start": 4.533,
-          "end": 9.267,
-          "sha256": "da95cb77619c6b9603b4cc362a850aea6cc5229c9abb947203176954ee21f340",
+          "id": "02-marcas",
+          "chapter": "aprobados",
+          "image": "assets/tutorial-real/desktop/20261002-02-marcas.png",
+          "caption": "Marca actuales en amarillo y aprobados en verde. Toca de nuevo para quitar la marca.",
+          "start": 6.2,
+          "end": 13.067,
+          "sha256": "ad2a004932291ad41cf20d2c9ad81ae54584db2d94816694e30ab0fd72a54bd2",
           "capturedSize": [
             1440,
             900
           ],
           "target": {
-            "x": 315,
-            "y": 269,
+            "x": 386.171875,
+            "y": 115.0,
             "rect": [
-              251,
-              227,
-              128,
-              84
+              336.40625,
+              93.0,
+              99.53125,
+              44.0
             ],
-            "reason": "Ramo Introducción al Cálculo visible; Plan P activo en cabecera.",
+            "reason": "Marca actuales en amarillo y aprobados en verde. Toca de nuevo para quitar la marca.",
             "zoomSuggested": 1,
             "sourceWidth": 1440,
             "sourceHeight": 900
           },
-          "voiceDuration": 3.216,
-          "narrationCacheKey": "fa3c6fc5217863186913fd523dbc8325913131b62e25c0b258323250fce6292f"
+          "voiceDuration": 6.264,
+          "narrationCacheKey": "29c4d7ded5a14ce3b3ad66760968ee5a730cf66410dcc82c0dc97431c6b5eeed"
         },
         {
-          "id": "03-ficha",
-          "chapter": "malla",
-          "image": "assets/tutorial-real/desktop/03-ficha.png",
-          "caption": "La ficha muestra su estado, prerrequisitos y ramos relacionados.",
-          "start": 9.267,
-          "end": 14.6,
-          "sha256": "f6a11982133525767eaa83c79bdb5bcd753a1c19c374fb172e286d6e0b30ea5e",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 505,
-            "y": 354,
-            "rect": [
-              405,
-              208,
-              620,
-              486
-            ],
-            "reason": "Ficha abierta: estado, prerrequisitos y ramos que abre.",
-            "zoomSuggested": 1.15,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 4.68,
-          "narrationCacheKey": "c99a05054f49254f20f31c8ea75874d4bcb8ec37ca5560565157677580957502"
-        },
-        {
-          "id": "04-aprobado",
-          "chapter": "aprobados",
-          "image": "assets/tutorial-real/desktop/04-aprobado.png",
-          "caption": "Marca los ramos que ya aprobaste. Los aprobados no se agregan a Mi selección.",
-          "start": 14.6,
-          "end": 21.067,
-          "sha256": "468d18050821e08faf65d806013ae3e569f69249253babfd01052a63b9d08b09",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 344,
-            "y": 411,
-            "rect": [
-              251,
-              340,
-              128,
-              84
-            ],
-            "reason": "Resultado ya aprobado; no representa el clic original.",
-            "zoomSuggested": 1.2,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 5.832,
-          "narrationCacheKey": "412edf9ca95016ae14629df6f4e40cf5f711001f3a84f17c792787a83bec51c6"
-        },
-        {
-          "id": "05-lote",
-          "chapter": "aprobados",
-          "image": "assets/tutorial-real/desktop/05-lote.png",
-          "caption": "También puedes aprobar hasta un semestre con Aplicar.",
-          "start": 21.067,
-          "end": 25.6,
-          "sha256": "4afec94d63a12c83f8afc8cbe91e21a38b0c6bd7b0cb85db229107f4cdf6d86d",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 344,
-            "y": 596,
-            "rect": [
-              251,
-              340,
-              128,
-              540
-            ],
-            "reason": "Primera columna marcada tras lote; Aplicar ya deshabilitado.",
-            "zoomSuggested": 1,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 3.72,
-          "narrationCacheKey": "4724d479ab0b1d1db7199852f2a24b57bd484139274d3947c5bc63fa73b41993"
-        },
-        {
-          "id": "06-deshacer",
-          "chapter": "aprobados",
-          "image": "assets/tutorial-real/desktop/06-deshacer.png",
-          "caption": "Deshacer lote restaura los estados anteriores.",
-          "start": 25.6,
-          "end": 30.133,
-          "sha256": "2dfa2fb796424f5990e39ae07864036ec15d897ed9d0cb2b730eaf1b33c3ed35",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 315,
-            "y": 361,
-            "rect": [
-              251,
-              227,
-              128,
-              357
-            ],
-            "reason": "Tras deshacer queda Introducción al Cálculo aprobado y otros pendientes.",
-            "zoomSuggested": 1.15,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 3.672,
-          "narrationCacheKey": "a443b296e2691429c5ea947dcbded94ac8c04693294fd7beb1ae61b4cbec03bd"
-        },
-        {
-          "id": "07-cursando",
+          "id": "03-actuales",
           "chapter": "mis-ramos",
-          "image": "assets/tutorial-real/desktop/07-cursando.png",
-          "caption": "Elige Cursando para el ramo que estás tomando. Cursando no significa aprobado.",
-          "start": 30.133,
-          "end": 36.867,
-          "sha256": "23875532280b5a98b20def41d25f66735176f2d0f1f099c79caf41078047e195",
+          "image": "assets/tutorial-real/desktop/20261002-03-actuales.png",
+          "caption": "En Actuales tienes material, notas y actividades de los ramos que estás cursando.",
+          "start": 13.067,
+          "end": 19.133,
+          "sha256": "e3b3bf7352759f7dae0505ba5929728d777ffb765415edd17cc6f15b8d6b2ad2",
           "capturedSize": [
             1440,
             900
           ],
           "target": {
-            "x": 500,
-            "y": 171,
+            "x": 448.1640625,
+            "y": 380.1875,
             "rect": [
-              426,
-              147,
-              152,
-              49
+              267.0,
+              277.78125,
+              362.328125,
+              204.8125
             ],
-            "reason": "Selector muestra Cursando como resultado.",
-            "zoomSuggested": 1.25,
+            "reason": "En Actuales tienes material, notas y actividades de los ramos que estás cursando.",
+            "zoomSuggested": 1,
             "sourceWidth": 1440,
             "sourceHeight": 900
+          },
+          "voiceDuration": 5.424,
+          "narrationCacheKey": "fb2c7faf2a0db07d2c59098498698d74be03dd580cddfd0c11905bb38831df80"
+        },
+        {
+          "id": "04-caminos",
+          "chapter": "eligible",
+          "image": "assets/tutorial-real/desktop/20261002-04-caminos.png",
+          "caption": "Qué se abre combina tus aprobados y actuales. Toca un actual para ver qué depende de aprobarlo.",
+          "start": 19.133,
+          "end": 26.467,
+          "sha256": "eeb59d0d6dfb36b788c9acd7713b355083f081e707229037184dd9c0c6537c54",
+          "capturedSize": [
+            1440,
+            900
+          ],
+          "target": {
+            "x": 457.7421875,
+            "y": 271.2109375,
+            "rect": [
+              401.5625,
+              248.796875,
+              112.359375,
+              44.828125
+            ],
+            "reason": "Qué se abre combina tus aprobados y actuales. Toca un actual para ver qué depende de aprobarlo.",
+            "zoomSuggested": 1,
+            "sourceWidth": 1440,
+            "sourceHeight": 900
+          },
+          "voiceDuration": 6.648,
+          "narrationCacheKey": "ffd6b0cf842fcd5a077df36e0704dfe4cb5b30505fb40d21940ab4ad6d68be42"
+        },
+        {
+          "id": "05-inicio",
+          "chapter": "semana",
+          "image": "assets/tutorial-real/desktop/20261002-05-inicio.png",
+          "caption": "Inicio reúne tus próximas actividades y ramos actuales, con accesos directos a tu agenda.",
+          "start": 26.467,
+          "end": 33.2,
+          "sha256": "4e36f56c4b5bdfbe3e0f41fc3b41513fe13eec4af3677107ea3fac82edb32f1b",
+          "capturedSize": [
+            1429,
+            893
+          ],
+          "target": {
+            "x": 554.7996365017361,
+            "y": 315.2398524305556,
+            "rect": [
+              261.98333333333335,
+              203.46756944444445,
+              585.6326063368056,
+              223.54456597222222
+            ],
+            "reason": "Inicio reúne tus próximas actividades y ramos actuales, con accesos directos a tu agenda.",
+            "zoomSuggested": 1,
+            "sourceWidth": 1429,
+            "sourceHeight": 893
           },
           "voiceDuration": 6.12,
-          "narrationCacheKey": "cfd7df4832f7a34967c25f263be08a94903a851b2e030881a25ccbfddb5771df"
+          "narrationCacheKey": "694265bfbea595dd41e00c6d5d49f721d2dba8adc4a46eb65130410a0fca3fab"
         },
         {
-          "id": "08-semestre",
-          "chapter": "mis-ramos",
-          "image": "assets/tutorial-real/desktop/08-semestre.png",
-          "caption": "Este semestre reúne tus ramos cursando, sin agregarlos a Mi selección.",
-          "start": 36.867,
-          "end": 42.467,
-          "sha256": "6a746a28f0879e34914e8cab5dd4c68eedee89806ccc34b4839b3f934e762c18",
+          "id": "05-semana",
+          "chapter": "semana",
+          "image": "assets/tutorial-real/desktop/20261002-05-semana.png",
+          "caption": "Organiza evaluaciones, entregas y estudio en Mi semana. Puedes editar, completar o descargar tus actividades.",
+          "start": 33.2,
+          "end": 42.067,
+          "sha256": "77276165e4462032393bb14c5c93de6ff61c5783dd153bde2f8527a525356569",
           "capturedSize": [
-            1440,
-            900
+            1429,
+            893
           ],
           "target": {
-            "x": 1178,
-            "y": 514,
+            "x": 326.59534505208336,
+            "y": 226.59875000000002,
             "rect": [
-              1088,
-              281,
-              314,
-              266
+              261.98333333333335,
+              210.72319444444446,
+              129.2240234375,
+              31.75111111111111
             ],
-            "reason": "Este semestre reúne Cálculo1 con estado Cursando.",
-            "zoomSuggested": 1.2,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
+            "reason": "Organiza evaluaciones, entregas y estudio en Mi semana. Puedes editar, completar o descargar tus actividades.",
+            "zoomSuggested": 1,
+            "sourceWidth": 1429,
+            "sourceHeight": 893
           },
-          "voiceDuration": 4.968,
-          "narrationCacheKey": "f1f54cb219d6c5ad35c456729d96edbce1ba1db20a8290bd8cbd74525edb9268"
+          "voiceDuration": 8.256,
+          "narrationCacheKey": "2e10eb55bd82abfe3fc042d63ed34b64aa9085dad14e8a1e6949db6315d2622e"
         },
         {
-          "id": "09-sugerencias",
-          "chapter": "eligible",
-          "image": "assets/tutorial-real/desktop/09-sugerencias.png",
-          "caption": "En Qué podrías cursar, revisa los prerrequisitos según tus aprobados. No garantiza inscripción.",
-          "start": 42.467,
-          "end": 50.267,
-          "sha256": "68b2e2bcd41d8ede91bebc914a2f075331f0c1c1d9ab6793142af577bf9f804a",
+          "id": "06-notas",
+          "chapter": "notas",
+          "image": "assets/tutorial-real/desktop/20261002-06-notas.png",
+          "caption": "Ingresa notas y ponderaciones. La calculadora estima qué necesitas para alcanzar tu meta.",
+          "start": 42.067,
+          "end": 49.533,
+          "sha256": "fe3bb4a78fb3b751882ad540bd016d3a132ce7a38cd0d77c1e7ab919df47fb35",
           "capturedSize": [
-            1440,
-            900
+            1429,
+            893
           ],
           "target": {
-            "x": 1228,
-            "y": 448,
+            "x": 390.9902777777778,
+            "y": 500.32030381944446,
             "rect": [
-              1088,
-              282,
-              312,
-              189
+              286.7923611111111,
+              477.1038541666667,
+              208.39583333333334,
+              46.43289930555556
             ],
-            "reason": "Qué podrías cursar y grupo de prerrequisitos registrados.",
-            "zoomSuggested": 1.2,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
+            "reason": "Ingresa notas y ponderaciones. La calculadora estima qué necesitas para alcanzar tu meta.",
+            "zoomSuggested": 1,
+            "sourceWidth": 1429,
+            "sourceHeight": 893
           },
-          "voiceDuration": 7.152,
-          "narrationCacheKey": "ecad6626212cb1eb2996f7f779a2840388b8967f7e9afb4660d0b55a105c8877"
+          "voiceDuration": 6.84,
+          "narrationCacheKey": "b22376bbe8fb953f68a475d673dfd00be1089e57d7f1163153c905774168512f"
         },
         {
-          "id": "10-requisitos",
-          "chapter": "eligible",
-          "image": "assets/tutorial-real/desktop/10-requisitos.png",
-          "caption": "Los requisitos adicionales quedan por confirmar con la universidad.",
-          "start": 50.267,
-          "end": 55.333,
-          "sha256": "f8ccb38eb76b50a0070e98bf0fac33a007d253f04e17734907a8df82ed24146f",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 1250,
-            "y": 636,
-            "rect": [
-              1088,
-              516,
-              314,
-              170
-            ],
-            "reason": "Nota de requisito adicional por confirmar visible.",
-            "zoomSuggested": 1.3,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 4.44,
-          "narrationCacheKey": "f3d91dfb66dc47ea9392fef833aabb08149611e80504b31f4f711a47b5e23e8e"
-        },
-        {
-          "id": "11-material",
+          "id": "07-material",
           "chapter": "material",
-          "image": "assets/tutorial-real/desktop/11-material.png",
-          "caption": "Entra a Material desde la navegación.",
-          "start": 55.333,
-          "end": 59.867,
+          "image": "assets/tutorial-real/desktop/20261002-07-material.png",
+          "caption": "Busca material por título, ramo o código. Usa los filtros para encontrar el recurso que necesitas.",
+          "start": 49.533,
+          "end": 57.733,
           "sha256": "9a82ca8e938de0b281088e8c8077d014799ec04f72c64fc4079254cc6bcb5c90",
           "capturedSize": [
             1429,
             893
           ],
           "target": {
-            "x": 82,
-            "y": 270,
+            "x": 569.436962890625,
+            "y": 239.03253472222224,
             "rect": [
-              16,
-              247,
-              186,
-              46
+              307.63194444444446,
+              226.47472222222223,
+              523.6100368923611,
+              25.115625
             ],
-            "reason": "Material seleccionado en navegación y página cargada.",
+            "reason": "Busca material por título, ramo o código. Usa los filtros para encontrar el recurso que necesitas.",
             "zoomSuggested": 1,
             "sourceWidth": 1429,
             "sourceHeight": 893
           },
-          "voiceDuration": 2.832,
-          "narrationCacheKey": "1b09bddfebc38b69a217ef9a63d5d221eacaf6049164d06191864e40ff94a6a4"
+          "voiceDuration": 7.56,
+          "narrationCacheKey": "297b4f3dce62a8362ca21eeb28b1e1cba2d98d7d44ba249fbef159920472c80b"
         },
         {
-          "id": "12-busqueda",
-          "chapter": "material",
-          "image": "assets/tutorial-real/desktop/12-busqueda.png",
-          "caption": "Escribe el ramo y filtra por tipo, por ejemplo Guía.",
-          "start": 59.867,
-          "end": 64.6,
-          "sha256": "550d213ffd1e6952d4ca14ee779b8fd45501a956b799cc97d803e53ebdf3d26b",
-          "capturedSize": [
-            1429,
-            893
-          ],
-          "target": {
-            "x": 340,
-            "y": 239,
-            "rect": [
-              262,
-              215,
-              1113,
-              174
-            ],
-            "reason": "Texto Cálculo, tipo Guía y chips de filtros visibles.",
-            "zoomSuggested": 1.1,
-            "sourceWidth": 1429,
-            "sourceHeight": 893
-          },
-          "voiceDuration": 4.056,
-          "narrationCacheKey": "f9976da2ad33af4f8e3ee2ec35b9017e730297250e1dc027cf70f4023cb3f570"
-        },
-        {
-          "id": "13-recurso",
-          "chapter": "material",
-          "image": "assets/tutorial-real/desktop/13-recurso.png",
-          "caption": "Abre un recurso y usa Abrir material para consultar su archivo.",
-          "start": 64.6,
-          "end": 69.733,
-          "sha256": "584f04e9ffb34ca2ac34e7311bbe789587adda5909093172405a30aa1c0d8bc1",
-          "capturedSize": [
-            1429,
-            893
-          ],
-          "target": {
-            "x": 602,
-            "y": 726,
-            "rect": [
-              286,
-              705,
-              630,
-              46
-            ],
-            "reason": "Botón Abrir material visible en ficha del recurso.",
-            "zoomSuggested": 1.2,
-            "sourceWidth": 1429,
-            "sourceHeight": 893
-          },
-          "voiceDuration": 4.344,
-          "narrationCacheKey": "1d5ca07ddebc30be838ed1b0a314c5dc574a39e7ecb41dbc650fb0a1b976ce13"
-        },
-        {
-          "id": "14-calendario",
+          "id": "08-calendario",
           "chapter": "calendario",
-          "image": "assets/tutorial-real/desktop/14-calendario.png",
-          "caption": "En Calendario, elige el mes y toca una fecha con actividad.",
-          "start": 69.733,
-          "end": 75.0,
-          "sha256": "e6e7b4d03a6a11bc88e39593aa055e0a6f1479d60879e98292cffaf00a756d9a",
+          "image": "assets/tutorial-real/desktop/20261002-08-calendario.png",
+          "caption": "Consulta las fechas académicas y su fuente oficial. Desde Calendario también puedes abrir Mi semana.",
+          "start": 57.733,
+          "end": 65.467,
+          "sha256": "3d84888892ee682554080959b970236d5f1566a9c775433309df1cd4958d77d6",
           "capturedSize": [
             1429,
             893
           ],
           "target": {
-            "x": 754,
-            "y": 434,
+            "x": 1009.23125,
+            "y": 284.93831597222226,
             "rect": [
-              701,
-              375,
-              109,
-              92
+              987.3993055555555,
+              263.10942708333334,
+              43.66388888888889,
+              43.65777777777778
             ],
-            "reason": "Fecha4 con actividad visible en calendario de septiembre.",
-            "zoomSuggested": 1.2,
+            "reason": "Consulta las fechas académicas y su fuente oficial. Desde Calendario también puedes abrir Mi semana.",
+            "zoomSuggested": 1,
             "sourceWidth": 1429,
             "sourceHeight": 893
           },
-          "voiceDuration": 4.608,
-          "narrationCacheKey": "cb696fa55ef73e73130bd22b83fe381eb17d63e57f475d9759cf50123f516a3d"
-        },
-        {
-          "id": "15-fecha",
-          "chapter": "calendario",
-          "image": "assets/tutorial-real/desktop/15-fecha.png",
-          "caption": "Revisa el detalle y la fuente indicada. Estas fechas son un ejemplo.",
-          "start": 75.0,
-          "end": 81.133,
-          "sha256": "e9716b6582bd4c64dd2f303209f2b72b6778dfbc21647ec39688bebba13f8aed",
-          "capturedSize": [
-            1440,
-            900
-          ],
-          "target": {
-            "x": 647,
-            "y": 466,
-            "rect": [
-              405,
-              304,
-              621,
-              294
-            ],
-            "reason": "Detalle de fecha abierto; referencia documental como texto, sin enlace visible.",
-            "zoomSuggested": 1.15,
-            "sourceWidth": 1440,
-            "sourceHeight": 900
-          },
-          "voiceDuration": 5.496,
-          "narrationCacheKey": "ae70b40f1e75bc257c1386d9723d7a4a5ec0007be4539edf10c44a016eab203a"
+          "voiceDuration": 7.104,
+          "narrationCacheKey": "562d3915c4fe2a595cc1e1b5b12a7fa894c9260b143e9cf4363741fd747d1404"
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-real/portal-desktop-animated.mp4",
-        "music": "assets/tutorial-real/portal-desktop-animated-music.mp4",
-        "voice": "assets/tutorial-real/portal-desktop-animated-voice.mp4",
-        "voiceMusic": "assets/tutorial-real/portal-desktop-animated-voiceMusic.mp4"
+        "silent": "assets/tutorial-real/portal-desktop-animated.mp4?v=4e27f1acc31a",
+        "music": "assets/tutorial-real/portal-desktop-animated-music.mp4?v=27714494b36d",
+        "voice": "assets/tutorial-real/portal-desktop-animated-voice.mp4?v=852a80cf21c3",
+        "voiceMusic": "assets/tutorial-real/portal-desktop-animated-voiceMusic.mp4?v=74de2381161b"
       },
       "variantDetails": {
         "silent": {
-          "sha256": "8766e416aa1841599a59ffe48a5573d3bef7477ee03e3d11e3a3ecfd2d7264b6",
-          "bytes": 13891464,
-          "duration": 81.13,
+          "sha256": "4e27f1acc31a96f79766ebea7dc3c9560f366b82328a1e0272e4e3547504c624",
+          "bytes": 5922844,
+          "duration": 65.47,
           "hasAudio": false
         },
         "music": {
-          "sha256": "49c7c1492f319d0a9b418872ebe5bc00d6a9d1f7e27e91fda59065f908bbca73",
-          "bytes": 15546892,
-          "duration": 81.13,
+          "sha256": "27714494b36dea4a64bfab64b526c808cc07fc0c0416ed9b76a59fbea36361ef",
+          "bytes": 7257544,
+          "duration": 65.47,
           "hasAudio": true
         },
         "voice": {
-          "sha256": "771a53134c15b83307b56e96856408c1d10f87362a9aa8b4708d0e9ba5819454",
-          "bytes": 15039482,
-          "duration": 81.13,
+          "sha256": "852a80cf21c34e9d6909d31ee52257e0ad0d63ce434063f8671b6026da1aef91",
+          "bytes": 6966559,
+          "duration": 65.47,
           "hasAudio": true
         },
         "voiceMusic": {
-          "sha256": "0b189615b1368baf003171cca6c0e93a902126603eb5099e6af7f64e6da6afaa",
-          "bytes": 15547224,
-          "duration": 81.13,
+          "sha256": "74de2381161b83dc6e94e6e9a81ed12d87a221ac92115d81e866550a166fef61",
+          "bytes": 7262898,
+          "duration": 65.47,
           "hasAudio": true
         }
       },
-      "videoBytes": 13891464
+      "videoBytes": 5922844
     },
     "mobile": {
       "width": 390,
       "height": 844,
-      "duration": 81.133,
-      "video": "assets/tutorial-real/portal-mobile-animated.mp4",
-      "track": "assets/tutorial-real/portal-mobile-animated.vtt",
+      "duration": 65.467,
+      "video": "assets/tutorial-real/portal-mobile-animated.mp4?v=4101e7e19b27",
+      "track": "assets/tutorial-real/portal-mobile-animated.vtt?v=2c572f46db54",
       "steps": [
         {
-          "id": "01-inicio",
+          "id": "01-malla",
           "chapter": "malla",
-          "image": "assets/tutorial-real/mobile/01-inicio.png",
-          "caption": "Entra a Malla desde Inicio o la navegación.",
+          "image": "assets/tutorial-real/mobile/20261002-01-malla.png",
+          "caption": "Elige tu plan. Toca un ramo para ver su ficha y sus prerrequisitos.",
           "start": 0.0,
-          "end": 4.533,
-          "sha256": "f958519f8a1087d121bc036071795e4816acc0ee49a144ed9e4f326ce670efc8",
+          "end": 6.2,
+          "sha256": "eb1aed9215f18ade0fdf53cd7a81d1e5e927fb11706b263189288dabcd321c3b",
           "capturedSize": [
             390,
             844
           ],
           "target": {
-            "x": 39,
-            "y": 624,
+            "x": 235.25,
+            "y": 120.84375,
             "rect": [
-              16,
-              587,
-              163,
-              117
+              166.5,
+              98.84375,
+              137.5,
+              44.0
             ],
-            "reason": "Acceso Malla visible en tarjeta de Inicio.",
+            "reason": "Elige tu plan. Toca un ramo para ver su ficha y sus prerrequisitos.",
             "zoomSuggested": 1,
             "sourceWidth": 390,
             "sourceHeight": 844
           },
-          "voiceDuration": 3.264,
-          "narrationCacheKey": "443af27615c235ee9247fb5610e132073fca7434c394f2e779963339c8538f17"
+          "voiceDuration": 5.592,
+          "narrationCacheKey": "9142448f426ce238cf00bcc7b8b980ae9b8e877cad0bf7e5cf96d7dfe6aee3ec"
         },
         {
-          "id": "02-malla",
-          "chapter": "malla",
-          "image": "assets/tutorial-real/mobile/02-malla.png",
-          "caption": "Elige tu plan y toca un ramo de la malla.",
-          "start": 4.533,
-          "end": 9.267,
-          "sha256": "babda9b8b258b80816291b453ae27931ef68bfacc5b5408e6fe071adeb4deeaa",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 98,
-            "y": 416,
-            "rect": [
-              17,
-              384,
-              162,
-              64
-            ],
-            "reason": "Ramo visible de malla; conservar Plan P y contexto.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 3.216,
-          "narrationCacheKey": "fa3c6fc5217863186913fd523dbc8325913131b62e25c0b258323250fce6292f"
-        },
-        {
-          "id": "03-ficha",
-          "chapter": "malla",
-          "image": "assets/tutorial-real/mobile/03-ficha.png",
-          "caption": "La ficha muestra su estado, prerrequisitos y ramos relacionados.",
-          "start": 9.267,
-          "end": 14.6,
-          "sha256": "4bc10c5285be9dfb2063e7e9952f12c95b38620698a54a6c0826b0935268eded",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 109,
-            "y": 223,
-            "rect": [
-              18,
-              84,
-              343,
-              676
-            ],
-            "reason": "Ficha abierta con estado aprobado y relaciones; indicador editorial.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 4.68,
-          "narrationCacheKey": "c99a05054f49254f20f31c8ea75874d4bcb8ec37ca5560565157677580957502"
-        },
-        {
-          "id": "04-aprobado",
+          "id": "02-marcas",
           "chapter": "aprobados",
-          "image": "assets/tutorial-real/mobile/04-aprobado.png",
-          "caption": "Marca los ramos que ya aprobaste. Los aprobados no se agregan a Mi selección.",
-          "start": 14.6,
-          "end": 21.067,
-          "sha256": "1df389630013cd32dee0e950a06c5231df06702866fdf6f3ff984258342fba71",
+          "image": "assets/tutorial-real/mobile/20261002-02-marcas.png",
+          "caption": "Marca actuales en amarillo y aprobados en verde. Toca de nuevo para quitar la marca.",
+          "start": 6.2,
+          "end": 13.067,
+          "sha256": "8264dfaaa4b33205c3b3c14a0705b07b845516824de7fe577b43aa36b4201adf",
           "capturedSize": [
             390,
             844
           ],
           "target": {
-            "x": 311,
-            "y": 626,
+            "x": 158.171875,
+            "y": 310.84375,
             "rect": [
-              186,
-              573,
-              162,
-              65
+              108.40625,
+              288.84375,
+              99.53125,
+              44.0
             ],
-            "reason": "Geometría Euclidiana ya aprobada en resultado móvil.",
+            "reason": "Marca actuales en amarillo y aprobados en verde. Toca de nuevo para quitar la marca.",
             "zoomSuggested": 1,
             "sourceWidth": 390,
             "sourceHeight": 844
           },
-          "voiceDuration": 5.832,
-          "narrationCacheKey": "412edf9ca95016ae14629df6f4e40cf5f711001f3a84f17c792787a83bec51c6"
+          "voiceDuration": 6.264,
+          "narrationCacheKey": "29c4d7ded5a14ce3b3ad66760968ee5a730cf66410dcc82c0dc97431c6b5eeed"
         },
         {
-          "id": "05-lote",
-          "chapter": "aprobados",
-          "image": "assets/tutorial-real/mobile/05-lote.png",
-          "caption": "También puedes aprobar hasta un semestre con Aplicar.",
-          "start": 21.067,
-          "end": 25.6,
-          "sha256": "35ec9dcdb48ecaaec1370fdb0aa64037206c0a83c3541ef3ac26a5e0f7b3b98a",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 143,
-            "y": 727,
-            "rect": [
-              17,
-              573,
-              331,
-              132
-            ],
-            "reason": "Ramos del semestre marcados tras lote; no apuntar Aplicar deshabilitado.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 3.72,
-          "narrationCacheKey": "4724d479ab0b1d1db7199852f2a24b57bd484139274d3947c5bc63fa73b41993"
-        },
-        {
-          "id": "06-deshacer",
-          "chapter": "aprobados",
-          "image": "assets/tutorial-real/mobile/06-deshacer.png",
-          "caption": "Deshacer lote restaura los estados anteriores.",
-          "start": 25.6,
-          "end": 30.133,
-          "sha256": "20f5c3301c5c06d3fd1e43e4d0121aeaf4f3e10268111bca97532e19bda00cae",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 133,
-            "y": 743,
-            "rect": [
-              17,
-              716,
-              345,
-              52
-            ],
-            "reason": "Confirmación Último lote deshecho visible.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 3.672,
-          "narrationCacheKey": "a443b296e2691429c5ea947dcbded94ac8c04693294fd7beb1ae61b4cbec03bd"
-        },
-        {
-          "id": "07-cursando",
+          "id": "03-actuales",
           "chapter": "mis-ramos",
-          "image": "assets/tutorial-real/mobile/07-cursando.png",
-          "caption": "Elige Cursando para el ramo que estás tomando. Cursando no significa aprobado.",
-          "start": 30.133,
-          "end": 36.867,
-          "sha256": "4e8de530a36ae2c8ee99a416d3b85e3cff622037d959687a45169e1c0bcd38ee",
+          "image": "assets/tutorial-real/mobile/20261002-03-actuales.png",
+          "caption": "En Actuales tienes material, notas y actividades de los ramos que estás cursando.",
+          "start": 13.067,
+          "end": 19.133,
+          "sha256": "f0ca51cef9c5c0024daeb9ff01817630402ea55eacd75c7cf59a5c089610d840",
           "capturedSize": [
             390,
             844
           ],
           "target": {
-            "x": 105,
-            "y": 156,
+            "x": 184.0,
+            "y": 413.015625,
             "rect": [
-              35,
-              134,
-              147,
-              45
+              25.0,
+              314.609375,
+              318.0,
+              196.8125
             ],
-            "reason": "Estado Cursando ya elegido en ficha.",
+            "reason": "En Actuales tienes material, notas y actividades de los ramos que estás cursando.",
             "zoomSuggested": 1,
             "sourceWidth": 390,
             "sourceHeight": 844
+          },
+          "voiceDuration": 5.424,
+          "narrationCacheKey": "fb2c7faf2a0db07d2c59098498698d74be03dd580cddfd0c11905bb38831df80"
+        },
+        {
+          "id": "04-caminos",
+          "chapter": "eligible",
+          "image": "assets/tutorial-real/mobile/20261002-04-caminos.png",
+          "caption": "Qué se abre combina tus aprobados y actuales. Toca un actual para ver qué depende de aprobarlo.",
+          "start": 19.133,
+          "end": 26.467,
+          "sha256": "76473bfa93def3337ae38b41244d45f44454cab06361fbfed3ee54dbc244db86",
+          "capturedSize": [
+            390,
+            844
+          ],
+          "target": {
+            "x": 179.578125,
+            "y": 322.703125,
+            "rect": [
+              134.28125,
+              303.40625,
+              90.59375,
+              38.59375
+            ],
+            "reason": "Qué se abre combina tus aprobados y actuales. Toca un actual para ver qué depende de aprobarlo.",
+            "zoomSuggested": 1,
+            "sourceWidth": 390,
+            "sourceHeight": 844
+          },
+          "voiceDuration": 6.648,
+          "narrationCacheKey": "ffd6b0cf842fcd5a077df36e0704dfe4cb5b30505fb40d21940ab4ad6d68be42"
+        },
+        {
+          "id": "05-inicio",
+          "chapter": "semana",
+          "image": "assets/tutorial-real/mobile/20261002-05-inicio.png",
+          "caption": "Inicio reúne tus próximas actividades y ramos actuales, con accesos directos a tu agenda.",
+          "start": 26.467,
+          "end": 33.2,
+          "sha256": "0133f1da7c9cdac59274db87bec00c900adef29e8fa56aa19907d948d72ce087",
+          "capturedSize": [
+            379,
+            820
+          ],
+          "target": {
+            "x": 184.1551282051282,
+            "y": 279.11211492890993,
+            "rect": [
+              15.548717948717949,
+              170.87381516587678,
+              337.2128205128205,
+              216.47659952606637
+            ],
+            "reason": "Inicio reúne tus próximas actividades y ramos actuales, con accesos directos a tu agenda.",
+            "zoomSuggested": 1,
+            "sourceWidth": 379,
+            "sourceHeight": 820
           },
           "voiceDuration": 6.12,
-          "narrationCacheKey": "cfd7df4832f7a34967c25f263be08a94903a851b2e030881a25ccbfddb5771df"
+          "narrationCacheKey": "694265bfbea595dd41e00c6d5d49f721d2dba8adc4a46eb65130410a0fca3fab"
         },
         {
-          "id": "08-semestre",
-          "chapter": "mis-ramos",
-          "image": "assets/tutorial-real/mobile/08-semestre.png",
-          "caption": "Este semestre reúne tus ramos cursando, sin agregarlos a Mi selección.",
-          "start": 36.867,
-          "end": 42.467,
-          "sha256": "033f01180a37df9ada896e23ddf53efe097a1d55ff61f9e8fafa86f10d26c42a",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 109,
-            "y": 708,
-            "rect": [
-              21,
-              566,
-              326,
-              199
-            ],
-            "reason": "Cálculo1 reunido en Este semestre con Cursando.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 4.968,
-          "narrationCacheKey": "f1f54cb219d6c5ad35c456729d96edbce1ba1db20a8290bd8cbd74525edb9268"
-        },
-        {
-          "id": "09-sugerencias",
-          "chapter": "eligible",
-          "image": "assets/tutorial-real/mobile/09-sugerencias.png",
-          "caption": "En Qué podrías cursar, revisa los prerrequisitos según tus aprobados. No garantiza inscripción.",
-          "start": 42.467,
-          "end": 50.267,
-          "sha256": "9280a33fa90522e98f641568647b55fe01e01f2eed8d8cb594d7a4954720a7d3",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 183,
-            "y": 641,
-            "rect": [
-              20,
-              477,
-              327,
-              181
-            ],
-            "reason": "Explicación de sugerencias y grupo de prerrequisitos.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 7.152,
-          "narrationCacheKey": "ecad6626212cb1eb2996f7f779a2840388b8967f7e9afb4660d0b55a105c8877"
-        },
-        {
-          "id": "10-requisitos",
-          "chapter": "eligible",
-          "image": "assets/tutorial-real/mobile/10-requisitos.png",
-          "caption": "Los requisitos adicionales quedan por confirmar con la universidad.",
-          "start": 50.267,
-          "end": 55.333,
-          "sha256": "716cb447702994244e33fd352655e1f9b10a2fce8dd84cb8d7a65e46e2a570aa",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 174,
-            "y": 651,
-            "rect": [
-              21,
-              525,
-              326,
-              170
-            ],
-            "reason": "Requisito adicional por confirmar visible.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 4.44,
-          "narrationCacheKey": "f3d91dfb66dc47ea9392fef833aabb08149611e80504b31f4f711a47b5e23e8e"
-        },
-        {
-          "id": "11-material",
-          "chapter": "material",
-          "image": "assets/tutorial-real/mobile/11-material.png",
-          "caption": "Entra a Material desde la navegación.",
-          "start": 55.333,
-          "end": 59.867,
-          "sha256": "e8697f0499ae3ec8b68b304786e81adc016ac521c9cec118ed8914133b349b06",
+          "id": "05-semana",
+          "chapter": "semana",
+          "image": "assets/tutorial-real/mobile/20261002-05-semana.png",
+          "caption": "Organiza evaluaciones, entregas y estudio en Mi semana. Puedes editar, completar o descargar tus actividades.",
+          "start": 33.2,
+          "end": 42.067,
+          "sha256": "5d43a162d2df61423ad98a8417271f789d387cadd35b7d78236b569a917a0f8f",
           "capturedSize": [
             379,
             820
           ],
           "target": {
-            "x": 251,
-            "y": 776,
+            "x": 184.1551282051282,
+            "y": 271.2181575829384,
             "rect": [
-              220,
-              754,
-              64,
-              50
+              15.548717948717949,
+              249.84375,
+              337.2128205128205,
+              42.74881516587678
             ],
-            "reason": "Material seleccionado en navegación inferior.",
+            "reason": "Organiza evaluaciones, entregas y estudio en Mi semana. Puedes editar, completar o descargar tus actividades.",
             "zoomSuggested": 1,
             "sourceWidth": 379,
             "sourceHeight": 820
           },
-          "voiceDuration": 2.832,
-          "narrationCacheKey": "1b09bddfebc38b69a217ef9a63d5d221eacaf6049164d06191864e40ff94a6a4"
+          "voiceDuration": 8.256,
+          "narrationCacheKey": "2e10eb55bd82abfe3fc042d63ed34b64aa9085dad14e8a1e6949db6315d2622e"
         },
         {
-          "id": "12-busqueda",
-          "chapter": "material",
-          "image": "assets/tutorial-real/mobile/12-busqueda.png",
-          "caption": "Escribe el ramo y filtra por tipo, por ejemplo Guía.",
-          "start": 59.867,
-          "end": 64.6,
-          "sha256": "d76d49eec9651c8935831804c221358b348377a8f58ed8424942ad53fa5bc47e",
+          "id": "06-notas",
+          "chapter": "notas",
+          "image": "assets/tutorial-real/mobile/20261002-06-notas.png",
+          "caption": "Ingresa notas y ponderaciones. La calculadora estima qué necesitas para alcanzar tu meta.",
+          "start": 42.067,
+          "end": 49.533,
+          "sha256": "8c7c1423e5c9a4a7964ab92437726df4283028833cd379fae25e3894b37074a9",
           "capturedSize": [
             379,
             820
           ],
           "target": {
-            "x": 124,
-            "y": 445,
+            "x": 184.15512820512822,
+            "y": 702.5925651658767,
             "rect": [
-              15,
-              202,
-              338,
-              263
+              37.9,
+              585.1851303317536,
+              292.51025641025643,
+              234.8148696682464
             ],
-            "reason": "Texto Cálculo, tipo Guía y chips presentes.",
+            "reason": "Ingresa notas y ponderaciones. La calculadora estima qué necesitas para alcanzar tu meta.",
             "zoomSuggested": 1,
             "sourceWidth": 379,
             "sourceHeight": 820
           },
-          "voiceDuration": 4.056,
-          "narrationCacheKey": "f9976da2ad33af4f8e3ee2ec35b9017e730297250e1dc027cf70f4023cb3f570"
+          "voiceDuration": 6.84,
+          "narrationCacheKey": "b22376bbe8fb953f68a475d673dfd00be1089e57d7f1163153c905774168512f"
         },
         {
-          "id": "13-recurso",
+          "id": "07-material",
           "chapter": "material",
-          "image": "assets/tutorial-real/mobile/13-recurso.png",
-          "caption": "Abre un recurso y usa Abrir material para consultar su archivo.",
-          "start": 64.6,
-          "end": 69.733,
-          "sha256": "ed958bc2064f6e65431716d5f4496c98ffd6239afa5dbcfd93fbdcbc0b6be129",
+          "image": "assets/tutorial-real/mobile/20261002-07-material.png",
+          "caption": "Busca material por título, ramo o código. Usa los filtros para encontrar el recurso que necesitas.",
+          "start": 49.533,
+          "end": 57.733,
+          "sha256": "dca93fd32d388414a460a118c20208e9860209c51a68ddfa290e4f1819d0332f",
           "capturedSize": [
             379,
             820
           ],
           "target": {
-            "x": 184,
-            "y": 519,
+            "x": 199.21794871794873,
+            "y": 225.91898696682466,
             "rect": [
-              38,
-              497,
-              293,
-              44
+              58.30769230769231,
+              213.98696682464455,
+              281.8205128205128,
+              23.86404028436019
             ],
-            "reason": "Abrir material visible en ficha.",
+            "reason": "Busca material por título, ramo o código. Usa los filtros para encontrar el recurso que necesitas.",
             "zoomSuggested": 1,
             "sourceWidth": 379,
             "sourceHeight": 820
           },
-          "voiceDuration": 4.344,
-          "narrationCacheKey": "1d5ca07ddebc30be838ed1b0a314c5dc574a39e7ecb41dbc650fb0a1b976ce13"
+          "voiceDuration": 7.56,
+          "narrationCacheKey": "297b4f3dce62a8362ca21eeb28b1e1cba2d98d7d44ba249fbef159920472c80b"
         },
         {
-          "id": "14-calendario",
+          "id": "08-calendario",
           "chapter": "calendario",
-          "image": "assets/tutorial-real/mobile/14-calendario.png",
-          "caption": "En Calendario, elige el mes y toca una fecha con actividad.",
-          "start": 69.733,
-          "end": 75.0,
-          "sha256": "7df68e5ea606a7c3e10e13cae3877d03464efe2b04de8fbf91afb85edf6eec99",
+          "image": "assets/tutorial-real/mobile/20261002-08-calendario.png",
+          "caption": "Consulta las fechas académicas y su fuente oficial. Desde Calendario también puedes abrir Mi semana.",
+          "start": 57.733,
+          "end": 65.467,
+          "sha256": "9aa6f7f4412b6ce281c5502bc07c64a66f2e6ac0308c587f6dbaf7a03767b6df",
           "capturedSize": [
             379,
             820
           ],
           "target": {
-            "x": 227,
-            "y": 400,
+            "x": 145.46554487179486,
+            "y": 356.00229561611377,
             "rect": [
-              206,
-              369,
-              44,
-              62
+              124.08605769230769,
+              334.6278880331754,
+              42.758974358974356,
+              42.74881516587678
             ],
-            "reason": "Fecha4 con actividad seleccionada en calendario.",
+            "reason": "Consulta las fechas académicas y su fuente oficial. Desde Calendario también puedes abrir Mi semana.",
             "zoomSuggested": 1,
             "sourceWidth": 379,
             "sourceHeight": 820
           },
-          "voiceDuration": 4.608,
-          "narrationCacheKey": "cb696fa55ef73e73130bd22b83fe381eb17d63e57f475d9759cf50123f516a3d"
-        },
-        {
-          "id": "15-fecha",
-          "chapter": "calendario",
-          "image": "assets/tutorial-real/mobile/15-fecha.png",
-          "caption": "Revisa el detalle y la fuente indicada. Estas fechas son un ejemplo.",
-          "start": 75.0,
-          "end": 81.133,
-          "sha256": "085f0d5d82f7620de237d02bcd87831852f4b6866fbebe26dc8c4d71c254552b",
-          "capturedSize": [
-            390,
-            844
-          ],
-          "target": {
-            "x": 179,
-            "y": 726,
-            "rect": [
-              40,
-              610,
-              308,
-              136
-            ],
-            "reason": "Detalle y referencia Documento oficial página5; no enlace de apertura visible.",
-            "zoomSuggested": 1,
-            "sourceWidth": 390,
-            "sourceHeight": 844
-          },
-          "voiceDuration": 5.496,
-          "narrationCacheKey": "ae70b40f1e75bc257c1386d9723d7a4a5ec0007be4539edf10c44a016eab203a"
+          "voiceDuration": 7.104,
+          "narrationCacheKey": "562d3915c4fe2a595cc1e1b5b12a7fa894c9260b143e9cf4363741fd747d1404"
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-real/portal-mobile-animated.mp4",
-        "music": "assets/tutorial-real/portal-mobile-animated-music.mp4",
-        "voice": "assets/tutorial-real/portal-mobile-animated-voice.mp4",
-        "voiceMusic": "assets/tutorial-real/portal-mobile-animated-voiceMusic.mp4"
+        "silent": "assets/tutorial-real/portal-mobile-animated.mp4?v=4101e7e19b27",
+        "music": "assets/tutorial-real/portal-mobile-animated-music.mp4?v=00849f7e25ad",
+        "voice": "assets/tutorial-real/portal-mobile-animated-voice.mp4?v=a401cbfd8670",
+        "voiceMusic": "assets/tutorial-real/portal-mobile-animated-voiceMusic.mp4?v=35d47e299f63"
       },
       "variantDetails": {
         "silent": {
-          "sha256": "fb5ddedcbac31e29d5f1839fab967dfff7c4bd9bab9c7e6e4f90a502e88c68be",
-          "bytes": 3274796,
-          "duration": 81.13,
+          "sha256": "4101e7e19b27fa3469659d9b2bb8cd87f8fa6d3e9112e4b929ebf82cabc73598",
+          "bytes": 2479262,
+          "duration": 65.47,
           "hasAudio": false
         },
         "music": {
-          "sha256": "0aee907b96f60437a232cc5615130a6861a08f508d27cfea4b01a6db4b6a8f86",
-          "bytes": 4930372,
-          "duration": 81.13,
+          "sha256": "00849f7e25ad2ef98d93519ed03aacaefb95b91dd1cf24b1cccd2aca48f6f7a7",
+          "bytes": 3814010,
+          "duration": 65.47,
           "hasAudio": true
         },
         "voice": {
-          "sha256": "4ccc088b7863ac5e9d80653ec3b5a9515fdcce1d64c13e7bb8810bb16d193d95",
-          "bytes": 4422962,
-          "duration": 81.13,
+          "sha256": "a401cbfd8670a87ad94fc927ddfaf317f6360f3e321d7ec506bbec85e33fbf0a",
+          "bytes": 3523025,
+          "duration": 65.47,
           "hasAudio": true
         },
         "voiceMusic": {
-          "sha256": "5d8649febab020cdae1f5a72b7dfd5bbb8fd61c81a22ac823f37a084b5586937",
-          "bytes": 4930704,
-          "duration": 81.13,
+          "sha256": "35d47e299f6336d9ba634b0b8b4ceb9b42eaf92200595b2ff084bcd9ef59de3d",
+          "bytes": 3819364,
+          "duration": 65.47,
           "hasAudio": true
         }
       },
-      "videoBytes": 3274796
+      "videoBytes": 2479262
     }
   },
   "verification": {
@@ -981,22 +633,22 @@ window.PortalTutorialCapture = Object.freeze({
           "silent": {
             "videoStreams": 1,
             "audioStreams": 0,
-            "compressedVideoStreamHash": "SHA256=0ad9d6930ae6e9b5d3205758a100e6950195f5425f76c3d0bdac7deadf3a8364"
+            "compressedVideoStreamHash": "SHA256=d7a4be8504696a89ef9446fc9e2c308dc15b5dc2ddb2afccdf11cef32a6a42a0"
           },
           "music": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=0ad9d6930ae6e9b5d3205758a100e6950195f5425f76c3d0bdac7deadf3a8364"
+            "compressedVideoStreamHash": "SHA256=d7a4be8504696a89ef9446fc9e2c308dc15b5dc2ddb2afccdf11cef32a6a42a0"
           },
           "voice": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=0ad9d6930ae6e9b5d3205758a100e6950195f5425f76c3d0bdac7deadf3a8364"
+            "compressedVideoStreamHash": "SHA256=d7a4be8504696a89ef9446fc9e2c308dc15b5dc2ddb2afccdf11cef32a6a42a0"
           },
           "voiceMusic": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=0ad9d6930ae6e9b5d3205758a100e6950195f5425f76c3d0bdac7deadf3a8364"
+            "compressedVideoStreamHash": "SHA256=d7a4be8504696a89ef9446fc9e2c308dc15b5dc2ddb2afccdf11cef32a6a42a0"
           }
         }
       },
@@ -1006,30 +658,30 @@ window.PortalTutorialCapture = Object.freeze({
           "silent": {
             "videoStreams": 1,
             "audioStreams": 0,
-            "compressedVideoStreamHash": "SHA256=2d9bad5decf031dbd9b32e05b6a2d03c884c9d36c27b091ca3848865083ab68b"
+            "compressedVideoStreamHash": "SHA256=74d14b7dcdebe48d0730cb8169e8347424706997589a57da22d9a4306f76fe38"
           },
           "music": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=2d9bad5decf031dbd9b32e05b6a2d03c884c9d36c27b091ca3848865083ab68b"
+            "compressedVideoStreamHash": "SHA256=74d14b7dcdebe48d0730cb8169e8347424706997589a57da22d9a4306f76fe38"
           },
           "voice": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=2d9bad5decf031dbd9b32e05b6a2d03c884c9d36c27b091ca3848865083ab68b"
+            "compressedVideoStreamHash": "SHA256=74d14b7dcdebe48d0730cb8169e8347424706997589a57da22d9a4306f76fe38"
           },
           "voiceMusic": {
             "videoStreams": 1,
             "audioStreams": 1,
-            "compressedVideoStreamHash": "SHA256=2d9bad5decf031dbd9b32e05b6a2d03c884c9d36c27b091ca3848865083ab68b"
+            "compressedVideoStreamHash": "SHA256=74d14b7dcdebe48d0730cb8169e8347424706997589a57da22d9a4306f76fe38"
           }
         }
       }
     },
     "sourceImagesUntouched": true,
-    "aacDecodedMinimumMusicBelowVoiceDb": 22.308,
-    "aacDecodedMeasuredSpeechWindows": 136,
-    "fullDecodeWithoutErrors": true,
-    "mixedAacPeakDbFS": -2.945
+    "aacDecodedMinimumMusicBelowVoiceDb": 22.153,
+    "aacDecodedMeasuredSpeechWindows": 124,
+    "mixedAacPeakDbFS": -3.032,
+    "fullDecodeWithoutErrors": true
   }
 });
