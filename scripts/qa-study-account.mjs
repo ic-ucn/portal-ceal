@@ -220,4 +220,3 @@ try {
   await calCtx.close();
   console.log('Calendar UI: explicit event selection, send, external-change protection, detach and disconnect passed with controlled provider.');
 } finally { await browser.close(); }
-
