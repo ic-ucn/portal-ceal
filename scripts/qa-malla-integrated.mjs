@@ -43,13 +43,13 @@ try {
     await page.locator('[data-my-courses-search]').fill(canonical);
     await page.locator(`.my-courses-list [data-malla-detail="${canonical}"]`).click();
     const dialog = page.locator('[data-malla-course-dialog]');
-    await dialog.locator('[data-my-course-status]').selectOption('aprobado');
+    await dialog.locator('[data-my-course-status]').filter({ hasText: /^Aprobado$/ }).click();
     assert.deepEqual((await saved(page)).plans.planP.selected, [], 'approval does not select');
     await dialog.locator('[data-my-course-add]').click();
-    assert.equal(await dialog.locator('[data-my-course-status]').inputValue(), 'aprobado', 'selection does not alter approval');
-    await dialog.locator('[data-my-course-status]').selectOption('cursando');
+    assert.equal(await dialog.locator('[data-my-course-status]').evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'aprobado', 'selection does not alter approval');
+    await dialog.locator('[data-my-course-status]').filter({ hasText: /^Actual$/ }).click();
     await dialog.locator('[data-malla-detail-close]').click();
-    assert.equal(await page.locator(`[data-my-course-card="${canonical}"] [data-my-course-status]`).inputValue(), 'cursando');
+    assert.equal(await page.locator(`[data-my-course-card="${canonical}"] [data-my-course-status]`).evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'cursando');
     assert.equal(await page.evaluate(code => document.activeElement?.dataset.mallaDetail === code, canonical), true, 'dialog restores invoking button focus');
     const link = page.locator(`[data-my-course-card="${canonical}"] .my-course-material .link`);
     assert.ok((await link.getAttribute('href')).includes(`plan=planP&course=${canonical}`), 'material uses shared plan and official code');
@@ -66,7 +66,7 @@ try {
     }
     await card.press('Enter');
     await dialog.waitFor({ state: 'visible' });
-    assert.equal(await dialog.locator('[data-my-course-status]').inputValue(), 'cursando');
+    assert.equal(await dialog.locator('[data-my-course-status]').evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'cursando');
     for (let i = 0; i < 14; i++) {
       await page.keyboard.press('Tab');
       assert.equal(await dialog.evaluate(element => element.contains(document.activeElement)), true, 'native dialog traps focus');
@@ -81,7 +81,7 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     assert.equal(await page.locator('[data-malla-embed-plan="o"]').getAttribute('aria-pressed'), 'true');
     await page.locator('[data-malla-embed-plan="p"]').click();
-    assert.equal(await page.locator(`[data-my-course-card="${canonical}"] [data-my-course-status]`).inputValue(), 'cursando');
+    assert.equal(await page.locator(`[data-my-course-card="${canonical}"] [data-my-course-status]`).evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'cursando');
     await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
     assert.equal(new URL(page.url()).hash, '#/mallas?view=mis-ramos');
     assert.equal(await page.locator('.malla-personal-panel').isVisible(), true);

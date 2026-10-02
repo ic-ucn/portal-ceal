@@ -65,6 +65,7 @@ try {
     await page.locator('[data-malla-mark-toggle]').click();
     await frame(page).locator('html.mc-portal-marking').waitFor();
     assert.equal(await frame(page).locator('.mc-modal-overlay--visible').count(), 0, 'returning to marking closes modal');
+    await page.locator('[data-malla-batch-options] summary').click();
     await page.locator('[data-malla-mark-semester]').selectOption('2');
     const before = await state(page);
     const eligible = await page.evaluate(() => CURRICULA.planP.subjects.filter(course => course.semester <= 2).map(course => course.code));
@@ -84,15 +85,15 @@ try {
     const changedCode = pending[0];
     const changedCard = frame(page).locator(`.mc-card[data-mc-code="${changedCode}"]`).first();
     await changedCard.click();
-    await waitStatus(page, 'planP', changedCode, 'pendiente');
-    assert.equal((await state(page)).plans.planP.statuses[changedCode], 'pendiente');
+    await waitStatus(page, 'planP', changedCode, undefined);
+    assert.equal((await state(page)).plans.planP.statuses[changedCode], undefined);
     await page.locator('[data-malla-mark-undo]').click();
     await page.waitForFunction(({ key, code }) => {
       const saved = JSON.parse(localStorage.getItem(key) || 'null');
       return saved?.plans?.planP?.statuses?.[code] !== 'aprobado';
     }, { key, code: pending[1] });
     const undone = await state(page);
-    assert.equal(undone.plans.planP.statuses[changedCode], 'pendiente', 'undo preserves later manual edit');
+    assert.equal(undone.plans.planP.statuses[changedCode], undefined, 'undo preserves later manual edit');
     assert.ok(pending.slice(1).every(code => undone.plans.planP.statuses[code] !== 'aprobado'));
     assert.equal(undone.plans.planP.statuses[courseCode], 'aprobado', 'undo keeps approval from before batch');
     await page.locator('[data-malla-embed-plan="o"]').click();
@@ -100,6 +101,7 @@ try {
     assert.equal((await state(page)).plans.planO.selected.length, 0);
     assert.match(await page.locator('[data-malla-progress-count]').innerText(), /0 de 61 aprobados/);
     assert.equal(await page.locator('[data-malla-mark-semester] option').count(), 10);
+    await page.locator('[data-malla-batch-options] summary').click();
     await page.locator('[data-malla-mark-semester]').selectOption('10');
     await page.locator('[data-malla-mark-batch]').click();
     await page.waitForFunction(key => Object.values(JSON.parse(localStorage.getItem(key) || 'null')?.plans?.planO?.statuses || {}).filter(value => value === 'aprobado').length === 61, key);
@@ -107,7 +109,7 @@ try {
     await page.locator('[data-malla-embed-plan="p"]').click();
     await loaded(page);
     assert.equal(await page.locator('[data-malla-mark-semester] option').count(), 11);
-    assert.equal((await state(page)).plans.planP.statuses[changedCode], 'pendiente', 'plan switch keeps P state');
+    assert.equal((await state(page)).plans.planP.statuses[changedCode], undefined, 'plan switch keeps P state');
     await page.reload({ waitUntil: 'networkidle' });
     await loaded(page);
     assert.equal((await state(page)).plans.planO.statuses[Object.keys((await state(page)).plans.planO.statuses)[0]], 'aprobado');
@@ -153,6 +155,7 @@ try {
   await loaded(quotaPage);
   await quotaPage.locator('[data-malla-mark-toggle]').click();
   await frame(quotaPage).locator('html.mc-portal-marking').waitFor();
+  await quotaPage.locator('[data-malla-batch-options] summary').click();
   await quotaPage.locator('[data-malla-mark-semester]').selectOption('2');
   await quotaPage.locator('[data-malla-mark-batch]').click();
   await quotaPage.waitForFunction(() => window.__courseWrites === 1);
@@ -188,7 +191,7 @@ try {
   const tabCanonical = await coursesTab.evaluate(code => CURRICULA.planP.subjects.find(course => course.code === code || course.visibleCode === code)?.code, tabVisibleCode);
   assert.ok(tabCanonical || tabCode);
   await tabFirst.getByRole('button', { name: 'Agregar' }).click();
-  await coursesTab.locator(`[data-my-course-status="${tabCanonical}"]`).selectOption('aprobado');
+  await coursesTab.locator(`[data-my-course-status="${tabCanonical}"]`).filter({ hasText: /^Aprobado$/ }).click();
   await mallaTab.locator('[data-malla-progress-count]').getByText('1 de 64 aprobados').waitFor();
   await frame(mallaTab).locator(`.mc-card[data-mc-code="${tabCanonical}"].mc-portal-approved`).waitFor();
   await tabs.close();

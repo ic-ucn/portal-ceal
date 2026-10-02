@@ -5,6 +5,8 @@ Entrega interna. Sin IA, importación general de calendarios ni sincronización 
 ## Experiencia
 
 - Desde Mis ramos o la ficha integrada: Agregar actividad abre Mi semana con plan y ramo elegidos.
+- En la malla, «Marcar ramos» permite elegir Actuales (amarillo) o Aprobados (verde). Tocar nuevamente con la misma marca la retira. Pendiente es el estado por defecto y no se elige ni resalta. La ficha usa los mismos dos botones. Los registros anteriores se conservan; «actual» mantiene internamente el valor `cursando`.
+- La aprobación por semestre está plegada en «Aprobar semestres anteriores» y solo modifica ramos sin marcar. Conserva los actuales y los aprobados; permite deshacer el lote sin revertir cambios individuales posteriores.
 - Los ramos cursando aparecen primero. Próximas evaluaciones y entregas complementan la semana.
 - Sin cuenta: actividades, notas y ramos continúan en el navegador. Descarga/recuperación JSON y exportación ICS disponibles.
 - Guardar con mi cuenta UCN usa la autenticación Google del portal, validada por el servidor. No habilita acceso CEAL ni obliga a registrarse para usar el portal.

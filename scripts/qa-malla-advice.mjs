@@ -58,7 +58,7 @@ try {
     assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null, 'derived views make no storage writes');
     await page.locator('[data-eligibility-code="P-0101"] [data-malla-detail]').click();
     const dialog = page.locator('[data-malla-course-dialog]');
-    await dialog.locator('[data-my-course-status]').selectOption('cursando');
+    await dialog.locator('[data-my-course-status]').filter({ hasText: /^Actual$/ }).click();
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('[data-eligibility-code="P-0101"]').count(), 0);
     await page.locator('[data-eligibility-category="missing"] summary').click();
@@ -74,8 +74,8 @@ try {
     assert.deepEqual(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).plans.planP.selected, key), []);
     await page.reload({ waitUntil: 'networkidle' });
     assert.equal(await select.inputValue(), 'semester', 'URL restores derived section');
-    await page.locator('[data-my-course-card="P-0101"] [data-my-course-status]').focus();
-    await page.locator('[data-my-course-card="P-0101"] [data-my-course-status]').selectOption('aprobado');
+    await page.locator('[data-my-course-card="P-0101"] [data-my-course-status]').first().focus();
+    await page.locator('[data-my-course-card="P-0101"] [data-my-course-status]').filter({ hasText: /^Aprobado$/ }).click();
     assert.equal(await page.locator('[data-my-course-card="P-0101"]').count(), 0);
     assert.equal(await page.evaluate(() => document.activeElement.hasAttribute('data-my-courses-view')), true, 'removed semester row focuses view selector');
     await select.selectOption('eligible');
@@ -114,7 +114,7 @@ try {
     await other.goto(`${base}#/mallas?view=mis-ramos`, { waitUntil: 'networkidle' });
     await other.locator('[data-my-courses-search]').fill('P-0101');
     await other.locator('.my-courses-list [data-malla-detail="P-0101"]').click();
-    await other.locator('[data-malla-course-dialog] [data-my-course-status]').selectOption('pendiente');
+    await other.locator('[data-malla-course-dialog] [data-my-course-status]').filter({ hasText: /^Aprobado$/ }).click();
     await page.waitForFunction(() => document.querySelector('[data-eligibility-category="missing"] [data-eligibility-code="P-0201"]'));
     await page.locator(`${width > 920 ? '.sidebar .nav' : '.bottom-nav'} a[href="#/material"]`).click();
     await page.goBack();

@@ -121,13 +121,13 @@ try {
     const code = await first.locator('small').innerText().then(s => s.split(' · ')[0]);
     await first.getByRole('button', { name: 'Agregar' }).click();
     assert.match(await page.locator('.my-courses-selected').innerText(), /0 de 1 ramo seleccionado aprobado/);
-    await page.locator(`[data-my-course-status="${code}"]`).selectOption('aprobado');
+    await page.locator(`[data-my-course-status="${code}"]`).filter({ hasText: /^Aprobado$/ }).click();
     assert.match(await page.locator('.my-courses-selected').innerText(), /1 de 1 ramo seleccionado aprobado/);
     await page.locator(`.my-courses-selected [data-my-course-remove="${code}"]`).click();
     await page.locator(`.my-courses-list [data-my-course-add="${code}"]`).click();
-    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).inputValue(), 'aprobado');
+    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'aprobado');
     await page.reload({ waitUntil: 'networkidle' });
-    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).inputValue(), 'aprobado');
+    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'aprobado');
     await page.getByRole('button', { name: 'Plan O' }).click();
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 0);
     await page.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
@@ -142,7 +142,7 @@ try {
     assert.equal(await page.locator('[data-my-courses-semester]').inputValue(), 'all', 'invalid semester resets on plan switch');
     assert.equal(await page.locator('.my-course-option').count(), await page.evaluate(() => CURRICULA.planO.subjects.length));
     await page.getByRole('button', { name: 'Plan P' }).click();
-    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).inputValue(), 'aprobado');
+    assert.equal(await page.locator(`[data-my-course-status="${code}"]`).evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'aprobado');
     await page.locator('[data-my-courses-search]').fill('DAII-00600');
     await page.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 2, 'semesters can be mixed');
@@ -262,9 +262,9 @@ try {
   await apiPage.route('https://ic-ucn.github.io/**', route => route.abort());
   await apiPage.goto('http://127.0.0.1:18084/?qa=1&analytics=off#/mis-ramos', { waitUntil: 'networkidle' });
   await apiPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
-  await apiPage.locator('.my-courses-selected [data-my-course-status]').selectOption('cursando');
+  await apiPage.locator('.my-courses-selected [data-my-course-status]').filter({ hasText: /^Actual$/ }).click();
   await apiPage.reload({ waitUntil: 'networkidle' });
-  assert.equal(await apiPage.locator('.my-courses-selected [data-my-course-status]').inputValue(), 'cursando');
+  assert.equal(await apiPage.locator('.my-courses-selected [data-my-course-status]').evaluateAll(buttons => buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.value), 'cursando');
   assert.ok(apiPosts.every(post => !/P-0101|cursando|selected|statuses/.test(post.body)), 'API writes contain no personal selection or status');
   await apiContext.close();
   report.checks.push('isolated API bootstrap: selection persists only in browser; API payloads contain no course/status');
@@ -296,7 +296,7 @@ try {
   await prodPage.goto('https://ceicucn.cl/#/inicio', { waitUntil: 'networkidle' });
   await prodPage.goto('https://ceicucn.cl/#/mis-ramos', { waitUntil: 'networkidle' });
   await prodPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
-  await prodPage.locator('.my-courses-selected [data-my-course-status]').selectOption('aprobado');
+  await prodPage.locator('.my-courses-selected [data-my-course-status]').filter({ hasText: /^Aprobado$/ }).click();
   await prodPage.goto('https://ceicucn.cl/#/mallas', { waitUntil: 'networkidle' });
   await prodPage.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
   await prodPage.locator('[data-malla-mark-toggle]').click();
@@ -304,6 +304,7 @@ try {
   await prodFrame.locator('html.mc-portal-marking').waitFor();
   await prodFrame.locator('.mc-card[data-mc-code]').nth(1).click();
   await prodPage.locator('[data-malla-progress-count]').getByText('2 de 64 aprobados').waitFor();
+  await prodPage.locator('[data-malla-batch-options] summary').click();
   await prodPage.locator('[data-malla-mark-semester]').selectOption('2');
   await prodPage.locator('[data-malla-mark-batch]').click();
   await prodPage.locator('[data-malla-progress-count]').getByText('14 de 64 aprobados').waitFor();

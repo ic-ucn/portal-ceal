@@ -7282,7 +7282,24 @@ body.theme-dark .study-notice{background:#443716;color:#f5df9b;border-color:#8e7
 .malla-course-dialog .link-card-row{width:100%;background:transparent;text-align:left;font:inherit;cursor:pointer}
 .malla-course-dialog footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:20px}
 body.theme-dark .malla-personal-panel,body.theme-dark .malla-course-dialog{background:var(--bg-elevated,#1d2a30);color:var(--text-primary,#f8fafc)}
-body.theme-dark .malla-view-tabs button.active{background:var(--brand-blue);color:#fff}
+.malla-workspace .malla-view-tabs button{background:transparent;color:var(--text-primary,#203239)}
+.malla-workspace.is-light .malla-view-tabs button.active{background:#285e68;color:#fff;border-color:#285e68}
+.malla-workspace.is-dark .malla-view-tabs button.active{background:#a5d1d3;color:#142d32;border-color:#a5d1d3}
+.my-course-state,.malla-mark-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.malla-mark-status>span{font-size:.82rem;font-weight:600}
+.malla-mark-explainer{margin-top:7px}
+.malla-mark-notice:empty{display:none}
+.malla-mark-batch-options{margin-top:8px}
+.malla-mark-batch-options>summary{cursor:pointer;font-size:.78rem;min-height:32px;align-content:center}
+.course-state-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 12px;border:1px solid var(--border-color,#a5b7bc);border-radius:7px;background:var(--surface,#fff);color:var(--text-primary,#203239);font:inherit;font-size:.82rem;font-weight:650;cursor:pointer}
+.course-state-button::before{content:'';width:10px;height:10px;border-radius:50%;background:#e1b42c;border:1px solid #806010;flex:none}
+.course-state-button.is-aprobado::before{background:#379a58;border-color:#1c6538}
+.course-state-button[aria-pressed="true"].is-cursando{background:#fff3bf;color:#483700;border-color:#946200;box-shadow:inset 0 0 0 1px #946200}
+.course-state-button[aria-pressed="true"].is-aprobado{background:#e4f4e8;color:#16482b;border-color:#21804a;box-shadow:inset 0 0 0 1px #21804a}
+body.theme-dark .course-state-button[aria-pressed="true"].is-cursando{background:#483b13;color:#fff0b0;border-color:#f2ce59;box-shadow:inset 0 0 0 1px #f2ce59}
+body.theme-dark .course-state-button[aria-pressed="true"].is-aprobado{background:#173d2a;color:#c0f0cf;border-color:#70ce93;box-shadow:inset 0 0 0 1px #70ce93}
+.course-state-button:focus-visible{outline:3px solid var(--text-primary,#203239);outline-offset:3px}
+.course-state-button:disabled{cursor:not-allowed;opacity:.55}
 @media(max-width:1300px){.malla-commandbar{grid-template-columns:minmax(160px,auto) 1fr}.malla-commandbar-actions{grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap}}
 @media(max-width:920px){
   .malla-commandbar{grid-template-columns:1fr}
