@@ -114,8 +114,8 @@ try {
     page.on('request', request => { if (/\/api\/|goatcounter|cloudflareinsights/.test(request.url())) requests.push(request.url()); });
     page.on('pageerror', error => report.errors.push(error.message));
     await page.route('https://ic-ucn.github.io/**', route => route.abort());
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Mis ramos', exact: true }).waitFor();
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: /Ramos guardados/ }).waitFor();
     assert.equal(await page.locator('.bottom-nav .bottom-item').count(), 5);
     const first = page.locator('.my-course-option').first();
     const code = await first.locator('small').innerText().then(s => s.split(' · ')[0]);
@@ -152,7 +152,7 @@ try {
     await material.click();
     assert.equal(await page.locator('.material-count h2').innerText(), `${Math.min(count, 60)} de ${count} recursos`);
     assert.ok(page.url().includes('plan=planP&course=DAII-00600'));
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
     await page.locator('[data-my-courses-search]').fill('');
     await page.locator('[data-my-courses-semester]').selectOption('2');
     assert.equal(await page.locator('.my-course-option').count(), await page.evaluate(() => CURRICULA.planP.subjects.filter(c => c.semester === 2).length));
@@ -182,7 +182,7 @@ try {
     await page.goto(`${base}#/ramo/planP/DAII-00600`, { waitUntil: 'networkidle' });
     await page.locator('[data-my-course-add="DAII-00600"]').click();
     assert.equal(await page.evaluate(() => document.activeElement?.dataset.myCourseRemove), 'DAII-00600', 'course detail action retains focus');
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
     assert.equal(await page.locator('[data-my-course-card="DAII-00600"]').count(), 1);
     report.checks.push(`${width}px: selection, status, reload, plan, filters, material, privacy`);
     await context.close();
@@ -193,8 +193,8 @@ try {
   });
   const deniedPage = await deniedContext.newPage();
   deniedPage.on('pageerror', error => report.errors.push(error.message));
-  await deniedPage.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
-  await deniedPage.getByRole('heading', { name: 'Mis ramos' }).waitFor();
+  await deniedPage.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
+  await deniedPage.getByRole('heading', { name: /Ramos guardados/ }).waitFor();
   await deniedPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
   assert.match(await deniedPage.locator('.my-courses-notice').innerText(), /impide guardar/);
   await deniedContext.close();
@@ -222,8 +222,8 @@ try {
     }, { variant, key });
     const page = await context.newPage();
     page.on('pageerror', error => report.errors.push(error.message));
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Mis ramos' }).waitFor();
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: /Ramos guardados/ }).waitFor();
     assert.equal(await page.locator('.my-courses-list [data-my-course-add]:disabled').count() > 0, true);
     if (variant === 'corrupt') {
       await page.locator('[data-my-courses-recover]').click();
@@ -239,7 +239,7 @@ try {
   const tabs = await browser.newContext();
   const tabA = await tabs.newPage();
   const tabB = await tabs.newPage();
-  await Promise.all([tabA.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' }), tabB.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' })]);
+  await Promise.all([tabA.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' }), tabB.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' })]);
   await tabA.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
   await tabB.locator('.my-courses-selected .my-course-card').first().waitFor();
   await tabB.locator('[data-my-courses-search]').fill('DAII-00600');
@@ -260,7 +260,7 @@ try {
   apiPage.on('request', request => { if (request.method() !== 'GET' && request.url().includes('/api/')) apiPosts.push({ url: request.url(), body: request.postData() || '' }); });
   apiPage.on('pageerror', error => report.errors.push(error.message));
   await apiPage.route('https://ic-ucn.github.io/**', route => route.abort());
-  await apiPage.goto('http://127.0.0.1:18084/?qa=1&analytics=off#/mis-ramos', { waitUntil: 'networkidle' });
+  await apiPage.goto('http://127.0.0.1:18084/?qa=1&analytics=off#/mallas?view=mis-ramos&section=selected', { waitUntil: 'networkidle' });
   await apiPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
   await apiPage.locator('.my-courses-selected [data-my-course-status]').filter({ hasText: /^Actual$/ }).click();
   await apiPage.reload({ waitUntil: 'networkidle' });
@@ -294,7 +294,7 @@ try {
   const prodPage = await prodContext.newPage();
   prodPage.on('pageerror', error => report.errors.push(error.message));
   await prodPage.goto('https://ceicucn.cl/#/inicio', { waitUntil: 'networkidle' });
-  await prodPage.goto('https://ceicucn.cl/#/mis-ramos', { waitUntil: 'networkidle' });
+  await prodPage.goto('https://ceicucn.cl/#/mallas?view=mis-ramos&section=selected', { waitUntil: 'networkidle' });
   await prodPage.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
   await prodPage.locator('.my-courses-selected [data-my-course-status]').filter({ hasText: /^Aprobado$/ }).click();
   await prodPage.goto('https://ceicucn.cl/#/mallas', { waitUntil: 'networkidle' });

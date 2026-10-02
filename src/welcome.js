@@ -4,8 +4,8 @@
   const CHAPTERS = [
     { id: 'malla', title: 'Explorar la malla', href: '#/mallas', link: 'Abrir malla', copy: 'Elige tu plan y toca un ramo para consultar su ficha y sus prerrequisitos.' },
     { id: 'aprobados', title: 'Marcar ramos', href: '#/mallas', link: 'Abrir malla', copy: 'Actuales y aprobados llevan una etiqueta amarilla o verde. Toca de nuevo para quitarla. El color de la tarjeta identifica el área; los pendientes no llevan marca.' },
-    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre', copy: 'Mi selección permite reunir ramos. Este semestre muestra los que marcaste como actuales, aunque no estén en tu selección.' },
-    { id: 'eligible', title: 'Qué podrías cursar', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar', copy: 'Distingue los prerrequisitos que ya cumples de los que cumplirías al aprobar tus actuales. Confirma requisitos especiales, oferta, horarios y cupos con la universidad.' },
+    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Este semestre', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material, notas y actividades. Guardados conserva los ramos que quieras tener a mano.' },
+    { id: 'eligible', title: 'Qué podrías cursar', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar', copy: 'En Qué se abre, toca un actual para seguir sus caminos. Las marcas muestran los prerrequisitos aprobados y los que aún cursas. También puedes destacarlos en la malla.' },
     { id: 'material', title: 'Material de estudio', href: '#/material', link: 'Abrir material', copy: 'Busca por título o ramo, filtra el tipo y consulta los recursos disponibles.' },
     { id: 'calendario', title: 'Calendario académico', href: '#/calendario', link: 'Abrir calendario', copy: 'Cambia de mes y selecciona una fecha para consultar actividades y su fuente oficial.' }
   ];

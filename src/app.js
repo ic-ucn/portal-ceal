@@ -69,7 +69,10 @@
     materialCode: '',
     myCoursesPlan: MyCourses.read().activePlan,
     myCoursesQuery: '',
-    myCoursesView: 'selected',
+    myCoursesView: 'semester',
+    myCoursesOutlook: '',
+    myCoursesFocus: '',
+    mallaOutlook: 'all',
     myCoursesSemester: 'all',
     materialVisibleCount: 60,
     communicationCategory: 'Todas',
@@ -1604,7 +1607,7 @@
     if (path === '/mallas') {
       if (location.hash !== lastRenderedRouteKey) {
         state.mallaPersonalOpen = query.view === 'mis-ramos';
-        state.myCoursesView = ['semester', 'eligible'].includes(query.section) ? query.section : 'selected';
+        state.myCoursesView = ['semester', 'eligible', 'selected'].includes(query.section) ? query.section : 'semester';
       }
       return renderMallas();
     }
@@ -1795,21 +1798,34 @@
       (state.myCoursesSemester === 'all' || course.semester === Number(state.myCoursesSemester)) &&
       (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
     );
-    const views = `<label class="my-courses-view-label">Ver en Mis ramos<select class="select" data-my-courses-view><option value="semester"${state.myCoursesView === 'semester' ? ' selected' : ''}>Este semestre</option><option value="eligible"${state.myCoursesView === 'eligible' ? ' selected' : ''}>Qué podrías cursar</option><option value="selected"${state.myCoursesView === 'selected' ? ' selected' : ''}>Mi selección</option></select></label>`;
-    const privacy = `<p class="my-courses-privacy"><span data-study-save-status role="status">${window.PortalStudyAccount.statusText()}</span> No representan avance oficial.</p><a class="link" href="#/mi-semana">Mi semana y guardado</a>`;
+    const current = getCourses(plan).filter(course => record.statuses[course.code] === 'cursando');
+    const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
+    const forecast = evaluated.filter(item => item.afterCurrent);
+    const views = `<div class="courses-topline"><div class="courses-tabs" role="group" aria-label="Mis ramos"><button type="button" data-my-courses-view value="semester" aria-pressed="${state.myCoursesView === 'semester'}">Actuales <span>${current.length}</span></button><button type="button" data-my-courses-view value="eligible" aria-pressed="${state.myCoursesView === 'eligible'}">Qué se abre ${icon('arrow')}</button></div><button class="courses-saved-link" type="button" data-my-courses-view value="selected" aria-pressed="${state.myCoursesView === 'selected'}">Guardados${selected.length ? ` · ${selected.length}` : ''}</button></div>`;
+    const privacy = `<footer class="courses-footnote"><span data-study-save-status role="status">${window.PortalStudyAccount.statusText()}</span><a href="#/mi-semana">Mi semana</a></footer>`;
     if (state.myCoursesView === 'semester') {
-      const current = getCourses(plan).filter(course => record.statuses[course.code] === 'cursando');
-      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-semester"><h3 class="card-title">Este semestre · ${planShort(plan)}</h3><p class="small muted">Ramos que marcaste como actuales. ${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT de ramos marcados (referenciales).</p><div class="my-courses-grid">${current.map(course => `<article class="my-course-card" data-my-course-card="${esc(course.code)}"><small>${esc(course.visibleCode || course.code)} · Semestre curricular ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="my-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><div class="my-course-card-foot">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button></div></article>`).join('') || '<p class="small muted">Aún no marcaste ramos como actuales. Puedes hacerlo desde la ficha de un ramo o en Mi selección.</p>'}</div></section></div>`;
+      return `<div class="my-courses-page courses-canvas">${myCoursesNotice(health)}${views}<section class="my-courses-semester"><div class="courses-section-heading"><div><h3>Este semestre</h3><p>${current.length ? `${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT` : 'Empieza por los ramos que estás cursando.'}</p></div><button class="btn secondary sm" type="button" data-courses-mark>Editar en malla</button></div><div class="course-tile-grid">${current.map(course => `<article class="course-tile" data-my-course-card="${esc(course.code)}"><div class="course-tile-meta"><span class="course-area-dot area-${esc(courseDisplayArea(course))}"></span><span>${esc(AreaStyle[courseDisplayArea(course)] || '')}</span><span class="course-status-tag is-current">Actual</span></div><h3><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="course-tile-links"><a href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Material</a><a href="#/calculadora?plan=${plan}&course=${encodeURIComponent(course.code)}">Notas</a><button type="button" data-malla-detail="${esc(course.code)}" aria-label="Editar estado de ${esc(titleCase(course.name))}">Estado</button></div><a class="course-tile-activity" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">${icon('calendar')} Agregar actividad ${icon('arrow')}</a></article>`).join('') || `<div class="courses-empty"><span class="courses-empty-mark" aria-hidden="true">●</span><h3>¿Qué ramos estás tomando?</h3><p>Márcalos como actuales. Aquí tendrás sus actividades, material y notas.</p><button class="btn primary" type="button" data-courses-mark>Marcar mis actuales</button></div>`}</div>${current.length ? `<button class="courses-forward" type="button" data-my-courses-view value="eligible"><span><strong>${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'}` : 'Mira qué viene después'}</strong><small>Al aprobar tus actuales, junto con lo que ya aprobaste</small></span>${icon('arrow')}</button>` : ''}</section>${privacy}</div>`;
     }
     if (state.myCoursesView === 'eligible') {
-      const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
-      const groups = [['met', 'Cumplen prerrequisitos'], ['afterCurrent', 'Se abrirían al aprobar tus actuales'], ['review', 'Requisitos por revisar'], ['missing', 'Faltan requisitos']];
-      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-eligibility"><h3 class="card-title">Qué podrías cursar · ${planShort(plan)}</h3><p class="small muted">Tus aprobados habilitan prerrequisitos; tus actuales permiten proyectar qué se abriría al aprobarlos. Confirma oferta, horarios, cupos y requisitos con la universidad.</p>${groups.map(([category, label]) => { const items = evaluated.filter(item => (item.afterCurrent ? 'afterCurrent' : item.category) === category); return `<details class="my-courses-category" data-eligibility-category="${category}"${['met', 'afterCurrent'].includes(category) ? ' open' : ''}><summary>${label} · ${items.length}</summary><div class="my-courses-list">${items.map(item => `<article class="my-course-option" data-eligibility-code="${esc(item.code)}"><div><small>${esc(item.course.visibleCode || item.code)} · Semestre ${item.course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(item.course.name))}</button>${renderEligibilityEvidence(plan, item, true)}</div></article>`).join('') || `<p class="small muted">${category === 'afterCurrent' ? 'Ningún ramo depende solo de aprobar tus actuales.' : 'No hay ramos en esta categoría.'}</p>`}</div></details>`; }).join('')}${!evaluated.length ? '<p class="small muted">Todos los ramos del catálogo están marcados como aprobados o actuales.</p>' : ''}</section></div>`;
+      const groups = { met: evaluated.filter(item => item.category === 'met'), afterCurrent: forecast, other: evaluated.filter(item => !item.afterCurrent && item.category !== 'met') };
+      const outlook = ['met', 'afterCurrent', 'other'].includes(state.myCoursesOutlook) ? state.myCoursesOutlook : current.length ? 'afterCurrent' : 'met';
+      const focused = current.some(course => course.code === state.myCoursesFocus) ? state.myCoursesFocus : '';
+      const items = groups[outlook].filter(item => outlook !== 'afterCurrent' || !focused || item.inProgress.includes(focused));
+      const sources = outlook === 'afterCurrent' ? `<div class="course-path-sources"><div class="course-path-heading"><span class="course-step">1</span><h4>Apruebas tus actuales</h4></div><div class="course-source-options"><button class="course-source-all" type="button" data-course-focus="" aria-pressed="${!focused}">Ver todos juntos <span>${current.length}</span></button>${current.map(course => `<button class="course-source" type="button" data-course-focus="${esc(course.code)}" aria-pressed="${focused === course.code}"><span class="course-current-dot" aria-hidden="true"></span><strong>${esc(titleCase(course.name))}</strong>${icon('arrow')}</button>`).join('') || '<p class="small muted">Primero marca los ramos que cursas.</p>'}</div><p class="course-path-help">Toca un ramo para seguir su camino.</p></div><div class="course-path-arrow" aria-hidden="true">→</div>` : '';
+      return `<div class="my-courses-page courses-canvas">${myCoursesNotice(health)}${views}<section class="my-courses-eligibility"><div class="courses-section-heading"><div><p>Tus aprobados ya están considerados.</p></div><button type="button" class="btn secondary sm" data-courses-map="${outlook === 'other' ? 'all' : outlook}">${focused && outlook === 'afterCurrent' ? 'Ver todos en malla' : 'Ver en malla'}</button></div><div class="course-outlook-tabs" role="group" aria-label="Revisar prerrequisitos">${[['met','Ya cumples'],['afterCurrent','Al aprobar'],['other','Faltan']].map(([key, label]) => `<button type="button" data-course-outlook="${key}" aria-pressed="${outlook === key}">${label}<span>${groups[key].length}</span></button>`).join('')}</div><div class="course-path${outlook === 'afterCurrent' ? ' has-sources' : ''}" data-eligibility-category="${outlook}">${sources}<div class="course-path-destinations"><div class="course-path-heading">${outlook === 'afterCurrent' ? '<span class="course-step">2</span>' : ''}<h4>${outlook === 'afterCurrent' ? 'Se abrirían' : outlook === 'met' ? 'Prerrequisitos cumplidos' : 'Todavía faltan requisitos'} <span class="course-result-count" aria-live="polite">${items.length}</span></h4>${focused && outlook === 'afterCurrent' ? '<button class="link" type="button" data-course-focus="">Quitar filtro</button>' : ''}</div><div class="course-tile-grid">${items.map(item => renderCourseOutlookTile(plan, item, record.statuses)).join('') || `<div class="courses-empty"><h4>${outlook === 'afterCurrent' ? 'Aún no se abre otro ramo' : 'No hay ramos en este grupo'}</h4><p>${outlook === 'afterCurrent' ? 'Puede faltar otro prerrequisito. Revísalo en «Faltan requisitos» o actualiza tus marcas.' : 'Los ramos actuales y aprobados no se repiten aquí.'}</p></div>`}</div></div></div><p class="courses-disclaimer">Orientación por prerrequisitos. Confirma oferta y requisitos especiales con la universidad.</p></section>${privacy}</div>`;
     }
     return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}
-      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
-      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Aún no eliges ramos</h3><p>Toca un ramo en la malla o búscalo aquí para agregarlo.</p></div>`}</section>
+      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Ramos guardados · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
+      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Sin ramos guardados</h3><p>Toca un ramo en la malla o búscalo aquí para agregarlo.</p></div>`}</section>
       <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h3 id="my-courses-catalog-title" class="card-title">Buscar en la malla</h3><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option" data-my-course-option="${esc(course.code)}"><div><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></div><button type="button" class="btn ${record.selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${record.selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${record.selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
+  }
+  function renderCourseOutlookTile(plan, item, statuses) {
+    const course = item.course;
+    const prereqs = Array.isArray(course.prereqs) ? course.prereqs.filter(code => typeof code === 'string') : [];
+    const approved = prereqs.filter(code => statuses[code] === 'aprobado').length;
+    const category = item.afterCurrent ? 'afterCurrent' : item.category;
+    const marks = prereqs.map(code => `<span class="course-prereq-segment ${statuses[code] === 'aprobado' ? 'is-approved' : statuses[code] === 'cursando' ? 'is-current' : ''}" title="${esc(titleCase(findCourse(plan, code)?.name || code))}" aria-hidden="true"></span>`).join('');
+    return `<article class="course-tile course-outlook-tile" data-eligibility-code="${esc(item.code)}"><div class="course-tile-meta"><span class="course-area-dot area-${esc(courseDisplayArea(course))}"></span><span>Semestre ${course.semester}</span><span>${course.sct} SCT</span></div><h3><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(course.name))}</button></h3>${marks ? `<div class="course-prereq-meter" role="img" aria-label="${approved} de ${prereqs.length} prerrequisitos aprobados; ${item.inProgress.length} actuales">${marks}</div>` : ''}<div class="course-prereq-caption">${approved ? `<span class="course-prereq-approved">✓ ${approved} ${approved === 1 ? 'aprobado' : 'aprobados'}</span>` : ''}${!prereqs.length ? '<span>Sin prerrequisitos directos</span>' : ''}${category === 'met' && prereqs.length ? '<span>Todo listo</span>' : ''}</div>${item.missing.length ? `<div class="course-prereq-chips" aria-label="${item.afterCurrent ? 'Debes aprobar todos estos actuales' : 'Prerrequisitos pendientes'}">${item.missing.map(code => `<button type="button" class="course-prereq-chip ${item.inProgress.includes(code) ? 'is-current' : ''}" data-malla-detail="${esc(code)}"><span aria-hidden="true">${item.inProgress.includes(code) ? '●' : '○'}</span>${esc(titleCase(findCourse(plan, code)?.name || code))}</button>`).join('')}</div>` : ''}${item.afterCurrent ? '<p class="course-tile-condition">Al aprobar todos los actuales indicados.</p>' : ''}${item.unknown.length || item.extraRequirements.length ? '<span class="course-review-note">Requiere revisión · abre la ficha</span>' : ''}<button class="course-tile-locate" type="button" data-malla-locate="${esc(item.code)}">Ubicar en malla ${icon('arrow')}</button></article>`;
   }
   function myCoursesNotice(health) {
     return health.issue ? `<div class="my-courses-notice" role="status">${esc(health.issue)}${health.recoverable ? ' <button class="btn secondary sm" type="button" data-my-courses-recover>Recuperar Mis ramos</button>' : ''}${health.conflict ? ' <button class="btn secondary sm" type="button" data-my-courses-resolve="saved">Usar versión guardada</button><button class="btn secondary sm" type="button" data-my-courses-resolve="temporary">Conservar cambios de esta pestaña</button>' : ''}</div>` : '';
@@ -2026,6 +2042,7 @@
   }
 
   function renderMallas() {
+    if (state.mallaPersonalOpen) state.mallaApprovalMode = false;
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
     const dark = state.portalDark;
     const planKey = plan === 'o' ? 'planO' : 'planP';
@@ -2068,6 +2085,7 @@
           <details class="malla-mark-batch-options" data-malla-batch-options><summary>Aprobar semestres anteriores</summary><div class="malla-mark-batch"><label for="malla-mark-semester">Aprobar hasta el semestre</label><select id="malla-mark-semester" class="select" data-malla-mark-semester>${semesters.map(value => `<option value="${value}"${value === semester ? ' selected' : ''}>${value}</option>`).join('')}</select><span data-malla-batch-preview></span><button class="btn secondary sm" type="button" data-malla-mark-batch>Aplicar</button><button class="btn ghost sm" type="button" data-malla-mark-undo${mallaApprovalUndo?.plan === planKey ? '' : ' hidden'}>Deshacer lote</button></div></details>
           <p class="malla-mark-notice" data-malla-mark-notice role="status">${esc(health.issue || '')}</p>
         </div>
+        <div class="malla-outlook-bar" data-malla-outlook-bar>${renderMallaOutlook()}</div>
         <div class="malla-body"><div class="malla-embed-frame-wrap" data-malla-frame-wrap>
           <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
           <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
@@ -2079,6 +2097,12 @@
     const missing = compact ? item.missing.slice(0, 3) : item.missing;
     if (item.afterCurrent) return `<p class="my-course-requirements">Si apruebas ${missing.map(code => esc(titleCase(findCourse(plan, code)?.name || code))).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} actuales más; abre la ficha para verlos` : ''}, cumplirías sus prerrequisitos. Tus aprobados ya están considerados.</p>`;
     return `${missing.length ? `<p class="my-course-requirements">Falta aprobar: ${missing.map(code => `${esc(titleCase(findCourse(plan, code)?.name || code))}${item.inProgress.includes(code) ? ' (cursando, aún no aprobado)' : ''}`).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} más; abre la ficha para verlos` : ''}.</p>` : ''}${item.unknown.length ? `<p class="my-course-requirements">Información incompleta: ${item.unknown.map(value => esc(value)).join(', ')}. Confirma los prerrequisitos.</p>` : ''}${item.extraRequirements.map(text => `<p class="my-course-requirements">${esc(text)}</p>`).join('')}${item.extraRequirements.length ? '<p class="small muted">Requisito adicional por confirmar; no se evalúa automáticamente.</p>' : ''}`;
+  }
+  function renderMallaOutlook() {
+    const plan = state.myCoursesPlan, statuses = MyCourses.read().plans[plan].statuses;
+    const evaluated = MyCourses.evaluatePlan(getCourses(plan), statuses);
+    const counts = { met: evaluated.filter(item => item.category === 'met').length, afterCurrent: evaluated.filter(item => item.afterCurrent).length };
+    return `<div class="malla-outlook-filters" role="group" aria-label="Destacar en la malla">${[['all', 'Todos'], ['met', 'Ya cumples'], ['afterCurrent', 'Si apruebas actuales']].map(([value, label]) => `<button type="button" data-malla-outlook="${value}" aria-pressed="${state.mallaOutlook === value}">${label}${value === 'all' ? '' : ` <span>${counts[value]}</span>`}</button>`).join('')}</div><p>${state.mallaOutlook === 'all' ? 'Toca un ramo para ver su ficha.' : state.mallaOutlook === 'met' ? 'Destacados: ya cumples sus prerrequisitos.' : 'Destacados: tus actuales y lo que se abriría al aprobarlos.'}</p>`;
   }
   function syncMallaPersonal() {
     const content = app.querySelector('[data-malla-personal-content]');
@@ -2105,6 +2129,7 @@
     if (dialog?.open && state.mallaDetailCode) renderMallaDetail();
   }
   function setMallaView(personal) {
+    if (personal && state.mallaApprovalMode) setMallaMarking(false);
     state.mallaPersonalOpen = personal;
     app.querySelector('.malla-workspace')?.classList.toggle('is-personal-open', personal);
     const panel = app.querySelector('.malla-personal-panel');
@@ -2115,7 +2140,7 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? `#/mallas?view=mis-ramos${state.myCoursesView === 'selected' ? '' : `&section=${state.myCoursesView}`}` : '#/mallas'}`);
+    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? `#/mallas?view=mis-ramos${state.myCoursesView === 'semester' ? '' : `&section=${state.myCoursesView}`}` : '#/mallas'}`);
     lastRenderedRouteKey = location.hash;
   }
   let mallaDetailReturnFocus = null;
@@ -2130,7 +2155,7 @@
     const active = host.contains(document.activeElement) ? document.activeElement : null;
     const focusAction = active?.hasAttribute('data-my-course-status') ? 'status' : active?.hasAttribute('data-my-course-add') || active?.hasAttribute('data-my-course-remove') ? 'selection' : active?.hasAttribute('data-malla-detail-close') ? 'close' : null;
     const statusValue = active?.value;
-    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Toca la marca activa para quitarla. Los pendientes quedan sin marca. Agregar a Mis ramos no cambia el estado. ${window.PortalStudyAccount.status().user ? 'Guardado en tu cuenta.' : 'Registro personal en este navegador.'}</p><div class="malla-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
+    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Quitar de guardados' : 'Guardar ramo'}</button></div><p class="small muted">Toca la marca activa para quitarla. Los pendientes quedan sin marca. Guardar un ramo no cambia su estado. ${window.PortalStudyAccount.status().user ? 'Guardado en tu cuenta.' : 'Registro personal en este navegador.'}</p><div class="malla-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
     const focusSelector = { status: `[data-my-course-status][value="${statusValue}"]`, selection: '[data-my-course-add], [data-my-course-remove]', close: '[data-malla-detail-close]' }[focusAction];
     if (focusSelector) host.querySelector(focusSelector)?.focus({ preventScroll: true });
   }
@@ -2164,6 +2189,8 @@
     if (!findCourse(state.myCoursesPlan, code)) return;
     closeMallaDetail(false);
     setMallaView(false);
+    state.mallaOutlook = 'all';
+    syncMallaProgress();
     const frame = app.querySelector('[data-malla-frame]');
     frame?.contentWindow?.postMessage({ __mcPortalLocate: true, code }, '*');
   }
@@ -2202,8 +2229,24 @@
     if (batch) batch.disabled = health.locked || pending === 0;
     const undo = app.querySelector('[data-malla-mark-undo]');
     if (undo) undo.hidden = mallaApprovalUndo?.plan !== plan || !Object.keys(mallaApprovalUndo.previous).length;
-    if (frame.contentWindow && frame.srcdoc) frame.contentWindow.postMessage({ __mcPortalProgress: true, mode: state.mallaApprovalMode && !health.locked, approved, current }, '*');
+    const evaluated = MyCourses.evaluatePlan(getCourses(plan), statuses);
+    const outlookBar = app.querySelector('[data-malla-outlook-bar]');
+    const focusedOutlook = document.activeElement?.dataset.mallaOutlook;
+    if (outlookBar) outlookBar.innerHTML = renderMallaOutlook();
+    if (focusedOutlook) outlookBar?.querySelector(`[data-malla-outlook="${focusedOutlook}"]`)?.focus({ preventScroll: true });
+    if (frame.contentWindow && frame.srcdoc) frame.contentWindow.postMessage({ __mcPortalProgress: true, mode: state.mallaApprovalMode && !health.locked, approved, current, outlook: state.mallaOutlook, eligible: evaluated.filter(item => item.category === 'met').map(item => item.code), forecast: evaluated.filter(item => item.afterCurrent).map(item => item.code) }, '*');
     syncMallaPersonal();
+  }
+  function setMallaMarking(enabled) {
+    state.mallaApprovalMode = enabled;
+    app.querySelector('.malla-workspace')?.classList.toggle('is-marking', enabled);
+    const toggle = app.querySelector('[data-malla-mark-toggle]');
+    toggle?.classList.toggle('active', enabled);
+    toggle?.setAttribute('aria-pressed', String(enabled));
+    const label = toggle?.querySelector('span:not(.icon)');
+    if (label) label.textContent = enabled ? 'Terminar marcado' : 'Marcar ramos';
+    const panel = app.querySelector('[data-malla-mark-panel]');
+    if (panel) panel.hidden = !enabled;
   }
   function mallaEmbedUrl(plan) { return `${MALLA_BASE_URL}malla-${plan === 'o' ? 'o' : 'p'}.html`; }
   async function getMallaEmbedHtml(plan) {
@@ -2445,6 +2488,10 @@
       .mc-card .mc-portal-approved-label,.mc-card .mc-portal-current-label { position:absolute; left:4px; bottom:4px; padding:2px 4px; border-radius:4px; font-size:9px; line-height:1.1; font-weight:800; pointer-events:none; }
       .mc-portal-approved-label { background:#166a40; color:#fff; }
       .mc-portal-current-label { background:#f2ce59; color:#342900; }
+      .mc-portal-outlook-label { position:absolute; left:4px; bottom:4px; font-size:9px; font-weight:650; line-height:1.1; padding:2px 4px; border-radius:4px; background:var(--mc-card-bg); color:var(--mc-text); pointer-events:none; }
+      .mc-card.mc-portal-outside { opacity:.28 !important; filter:grayscale(.5); }
+      .mc-card.mc-portal-outside:focus-visible, .mc-card.mc-portal-outside:hover { opacity:1 !important; filter:none; }
+      .mc-card.mc-portal-match { opacity:1 !important; filter:none !important; }
       html.mc-portal-marking .mc-card { cursor: pointer; }
       html.mc-portal-marking .mc-card--dimmed { opacity:1 !important; filter:none !important; pointer-events:auto !important; transform:none !important; }
       html.mc-portal-marking .mc-peek { display:none !important; }
@@ -2566,6 +2613,7 @@
         var progressMode = false;
         var approvedCodes = new Set();
         var currentCodes = new Set();
+        var outlook = 'all', eligibleCodes = new Set(), forecastCodes = new Set();
         var areas = ${safeJsonForScript(AreaStyle)};
         var legend = document.querySelector('.mc-legend');
         if (!legend) { legend = document.createElement('div'); legend.className = 'mc-legend'; document.querySelector('.mc-grid')?.before(legend); }
@@ -2581,6 +2629,15 @@
             if (entry && areas[entry.area]) card.classList.add('mc-portal-area-' + entry.area);
             var approved = approvedCodes.has(progressCardCode(card));
             var current = !approved && currentCodes.has(progressCardCode(card));
+            var code = progressCardCode(card);
+            var matched = outlook === 'met' ? eligibleCodes.has(code) : outlook === 'afterCurrent' && (current || forecastCodes.has(code));
+            var filtering = !progressMode && outlook !== 'all';
+            card.classList.toggle('mc-portal-outside', filtering && !matched);
+            card.classList.toggle('mc-portal-match', filtering && matched);
+            var adviceLabel = card.querySelector('.mc-portal-outlook-label');
+            var adviceText = filtering && !approved && !current && matched ? (outlook === 'met' ? '✓ Prerreq. listos' : '↗ Se abriría') : '';
+            if (adviceText && !adviceLabel) { adviceLabel = document.createElement('span'); adviceLabel.className = 'mc-portal-outlook-label'; card.appendChild(adviceLabel); }
+            if (adviceLabel) { if (adviceText) adviceLabel.textContent = adviceText; else adviceLabel.remove(); }
             card.classList.toggle('mc-portal-approved', approved);
             card.classList.toggle('mc-portal-current', current);
             var label = card.querySelector('.mc-portal-approved-label, .mc-portal-current-label');
@@ -2596,6 +2653,7 @@
             if (!progressMode && !approved && !current && original) card.setAttribute('aria-label', original);
             else if (!progressMode && !approved && !current) card.removeAttribute('aria-label');
             else card.setAttribute('aria-label', courseName + ', ' + (approved ? 'aprobado' : current ? 'actual' : 'sin marca') + (progressMode ? ', tocar para cambiar' : ''));
+            if (adviceText) card.setAttribute('aria-label', courseName + ', ' + (outlook === 'met' ? 'prerrequisitos cumplidos' : 'se abriría al aprobar tus actuales'));
           });
         }
         window.addEventListener('click', function(event) {
@@ -2635,6 +2693,11 @@
             progressMode = data.mode;
             approvedCodes = new Set(data.approved);
             currentCodes = new Set(Array.isArray(data.current) && data.current.length <= 100 ? data.current.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
+            var nextOutlook = ['met', 'afterCurrent'].includes(data.outlook) ? data.outlook : 'all';
+            var outlookChanged = nextOutlook !== outlook;
+            outlook = nextOutlook;
+            eligibleCodes = new Set(Array.isArray(data.eligible) && data.eligible.length <= 100 ? data.eligible.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
+            forecastCodes = new Set(Array.isArray(data.forecast) && data.forecast.length <= 100 ? data.forecast.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
             if (progressMode) {
               try { window.__MC?.closeModal?.(); } catch (err) {}
               try { window.__MC?.clearHighlight?.(); } catch (err) {}
@@ -2642,6 +2705,16 @@
               hideHints();
             }
             paintProgress();
+            if (outlookChanged && !progressMode && outlook !== 'all' && window.matchMedia('(max-width:640px)').matches) {
+              var targets = outlook === 'met' ? eligibleCodes : forecastCodes;
+              var first = Array.from(document.querySelectorAll('.mc-card[data-mc-code]')).find(function(card) { return targets.has(progressCardCode(card)); });
+              if (first) {
+                var firstEntry = (window.__MC_MATERIAL || {})[first.dataset.mcCode];
+                var semesterSelect = document.querySelector('.mc-semester-select');
+                if (semesterSelect && firstEntry) { semesterSelect.value = String(firstEntry.semester); semesterSelect.dispatchEvent(new Event('change')); }
+                first.scrollIntoView({ block:'center', inline:'center', behavior:'instant' });
+              }
+            }
             return;
           }
           if (data.__mcPortalFont === true && data.font instanceof ArrayBuffer && data.font.byteLength < 100000) {
@@ -2940,7 +3013,7 @@
     const materialAction = resources.length ? `<a class="btn primary" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
     const inMyCourses = MyCourses.read().plans[plan].selected.includes(course.code);
     const myCoursesHealth = MyCourses.status();
-    return `${myCoursesNotice(myCoursesHealth)}<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" type="button" data-my-course-${inMyCourses ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${myCoursesHealth.locked ? ' disabled' : ''}>${inMyCourses ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div>`;
+    return `${myCoursesNotice(myCoursesHealth)}<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" type="button" data-my-course-${inMyCourses ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${myCoursesHealth.locked ? ' disabled' : ''}>${inMyCourses ? 'Quitar de guardados' : 'Guardar ramo'}</button></div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</a>`; }
   function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?plan=${plan}&course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Material disponible</h2><p class="small muted">Sin material asociado a este ramo.</p><a class="link" href="#/material/subir">Aportar material</a></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
@@ -3974,6 +4047,42 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
+    const courseView = e.target.closest('button[data-my-courses-view]');
+    if (courseView) {
+      state.myCoursesView = ['semester', 'eligible', 'selected'].includes(courseView.value) ? courseView.value : 'semester';
+      setMallaView(true); syncMallaPersonal();
+      app.querySelector(`[data-my-courses-view][value="${state.myCoursesView}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    const courseOutlook = e.target.closest('[data-course-outlook]');
+    if (courseOutlook) {
+      state.myCoursesOutlook = courseOutlook.dataset.courseOutlook;
+      state.myCoursesFocus = '';
+      syncMallaPersonal();
+      app.querySelector(`[data-course-outlook="${state.myCoursesOutlook}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    const courseFocus = e.target.closest('[data-course-focus]');
+    if (courseFocus) {
+      state.myCoursesFocus = state.myCoursesFocus === courseFocus.dataset.courseFocus ? '' : courseFocus.dataset.courseFocus;
+      syncMallaPersonal();
+      app.querySelector(`[data-course-focus="${CSS.escape(state.myCoursesFocus)}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    const mapOutlook = e.target.closest('[data-malla-outlook], [data-courses-map]');
+    if (mapOutlook) {
+      state.mallaOutlook = mapOutlook.dataset.mallaOutlook || mapOutlook.dataset.coursesMap;
+      setMallaView(false); syncMallaProgress();
+      app.querySelector(`[data-malla-outlook="${state.mallaOutlook}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    if (e.target.closest('[data-courses-mark]')) {
+      if (MyCourses.status().locked) return;
+      setMallaView(false); state.mallaMarkStatus = 'cursando'; setMallaMarking(true); syncMallaProgress();
+      app.querySelector('[data-malla-mark-status="cursando"]')?.focus({ preventScroll: true });
+      return;
+    }
+
     const mallaView = e.target.closest('[data-malla-view]');
     if (mallaView) {
       const closingPanel = mallaView.classList.contains('icon-btn');
@@ -3996,16 +4105,8 @@
     }
     if (e.target.closest('[data-malla-mark-toggle]')) {
       if (MyCourses.status().locked) return;
-      state.mallaApprovalMode = !state.mallaApprovalMode;
-      const workspace = app.querySelector('.malla-workspace');
-      workspace?.classList.toggle('is-marking', state.mallaApprovalMode);
-      const toggle = app.querySelector('[data-malla-mark-toggle]');
-      toggle?.classList.toggle('active', state.mallaApprovalMode);
-      toggle?.setAttribute('aria-pressed', String(state.mallaApprovalMode));
-      const label = toggle?.querySelector('span:not(.icon)');
-      if (label) label.textContent = state.mallaApprovalMode ? 'Terminar marcado' : 'Marcar ramos';
-      const panel = app.querySelector('[data-malla-mark-panel]');
-      if (panel) panel.hidden = !state.mallaApprovalMode;
+      if (state.mallaPersonalOpen) setMallaView(false);
+      setMallaMarking(!state.mallaApprovalMode);
       syncMallaProgress();
       return;
     }

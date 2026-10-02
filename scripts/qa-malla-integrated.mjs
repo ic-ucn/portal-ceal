@@ -30,9 +30,9 @@ try {
         : route.abort();
     });
     await page.goto(`${base}#/inicio`, { waitUntil: 'networkidle' });
-    assert.equal(await page.locator('.home-service-links a[href="#/mallas"]').count(), 1);
+    assert.equal(await page.locator('.home-current-courses a[href="#/mallas"]').count(), 1);
     assert.equal(await page.locator('a[href="#/mis-ramos"]').count(), 0, 'single navigation entry');
-    await page.locator('.home-service-links a[href="#/mallas"]').click();
+    await page.locator('.home-current-courses a[href="#/mallas"]').click();
     await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
     assert.equal(await page.locator('.malla-personal-panel').isVisible(), false, 'personal panel starts closed');
     const iframeHandle = await page.locator('[data-malla-frame]').elementHandle();
@@ -40,6 +40,7 @@ try {
     const rawCode = await frame(page).locator('.mc-card[data-mc-code]').evaluateAll((cards, canonical) => cards.find(card => (window.__MC_MATERIAL?.[card.dataset.mcCode]?.id || card.dataset.mcCode) === canonical)?.dataset.mcCode, canonical);
     assert.ok(rawCode, 'remote and fallback cards resolve official code');
     await page.locator('[data-malla-view="personal"]').click();
+    await page.locator('[data-my-courses-view][value="selected"]').click();
     await page.locator('[data-my-courses-search]').fill(canonical);
     await page.locator(`.my-courses-list [data-malla-detail="${canonical}"]`).click();
     const dialog = page.locator('[data-malla-course-dialog]');
@@ -98,7 +99,7 @@ try {
   await Promise.all([tabA.goto(`${base}#/inicio`, { waitUntil: 'networkidle' }), tabB.goto(`${base}#/mallas`, { waitUntil: 'networkidle' })]);
   await tabB.locator('[data-malla-embed-plan="o"]').click();
   await tabA.waitForFunction(key => JSON.parse(localStorage.getItem(key)).activePlan === 'planO', key);
-  await tabA.locator('.home-service-links a[href="#/mallas"]').click();
+  await tabA.locator('.home-current-courses a[href="#/mallas"]').click();
   assert.equal(await tabA.locator('[data-malla-embed-plan="o"]').getAttribute('aria-pressed'), 'true', 'external plan change is reflected when reentering from Inicio');
   await tabA.locator('[data-malla-view="personal"]').click();
   await tabA.locator('.bottom-nav a[href="#/material"]').click();

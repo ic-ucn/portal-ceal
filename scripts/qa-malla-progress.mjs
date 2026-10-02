@@ -37,7 +37,7 @@ try {
     page.on('request', request => {
       if (/\/api\/|goatcounter|cloudflareinsights/.test(request.url())) requests.push(request.url());
     });
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 0, 'fresh Mis ramos is empty');
     await page.goto(`${base}#/mallas`, { waitUntil: 'networkidle' });
     await loaded(page);
@@ -114,7 +114,7 @@ try {
     await loaded(page);
     assert.equal((await state(page)).plans.planO.statuses[Object.keys((await state(page)).plans.planO.statuses)[0]], 'aprobado');
     assert.equal(await frame(page).locator('.mc-portal-approved').count(), 1, 'approved P card is repainted on reload');
-    await page.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 0, 'batch approval never seeds selection');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal overflow');
     assert.deepEqual(requests, [], 'marking sends no API or analytics requests');
@@ -183,7 +183,7 @@ try {
   await mallaTab.route('https://ic-ucn.github.io/**', route => route.abort());
   await mallaTab.goto(`${base}#/mallas`, { waitUntil: 'networkidle' });
   await loaded(mallaTab);
-  await coursesTab.goto(`${base}#/mis-ramos`, { waitUntil: 'networkidle' });
+  await coursesTab.goto(`${base}#/mallas?view=mis-ramos&section=selected`, { waitUntil: 'networkidle' });
   const tabCode = await coursesTab.locator('.my-course-option').first().getAttribute('data-my-course-option');
   const tabFirst = coursesTab.locator('.my-course-option').first();
   const tabName = await tabFirst.locator('small').innerText();
