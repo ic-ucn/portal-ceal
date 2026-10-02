@@ -4,6 +4,9 @@ Entrega interna. Sin IA, importación general de calendarios ni sincronización 
 
 ## Experiencia
 
+- Inicio reúne actividades personales próximas, anteriores sin completar, ramos actuales del plan elegido, fechas UCN y accesos a notas/material. Usa los mismos registros de Mi semana y Mis ramos; no exige configurar otro perfil. Cada actividad abre su semana. Los cambios en otra pestaña actualizan Inicio.
+- «Qué podrías cursar» distingue prerrequisitos ya cumplidos de los que se cumplirían al aprobar todos los actuales requeridos. Combina aprobados y actuales, sin asumir aprobación, cadenas futuras ni oferta real. Los requisitos adicionales o ambiguos se mantienen por revisar.
+- Las tarjetas mantienen tintes por área y borde neutro uniforme, sin franjas laterales ni fondos de estado. Verde/amarillo solo identifican las etiquetas de aprobado/actual. Fe-cultura y Fe-ciencia (UNFV-00002/00003) tienen una subdivisión visual teológica; el catálogo permanece intacto.
 - Desde Mis ramos o la ficha integrada: Agregar actividad abre Mi semana con plan y ramo elegidos.
 - En la malla, «Marcar ramos» permite elegir Actuales (amarillo) o Aprobados (verde). Tocar nuevamente con la misma marca la retira. Pendiente es el estado por defecto y no se elige ni resalta. La ficha usa los mismos dos botones. Los registros anteriores se conservan; «actual» mantiene internamente el valor `cursando`.
 - La aprobación por semestre está plegada en «Aprobar semestres anteriores» y solo modifica ramos sin marcar. Conserva los actuales y los aprobados; permite deshacer el lote sin revertir cambios individuales posteriores.

@@ -171,8 +171,13 @@
     aplicada: 'Ingeniería aplicada',
     general: 'Formación general',
     proyecto: 'Proyectos',
-    electivo: 'Electivos'
+    electivo: 'Electivos profesionales',
+    teologica: 'Formación teológica'
   };
+  // A visual subdivision of Formación General, without changing the catalogue.
+  function courseDisplayArea(course) {
+    return ['UNFV-00002', 'UNFV-00003'].includes(course.code) ? 'teologica' : course.area;
+  }
 
   const SurveyPresets = {
     paralizacion: {
@@ -1616,11 +1621,23 @@
   function renderHome() {
     const upcomingEvents = currentAndFutureEvents();
     const count = (Data.resources || []).length.toLocaleString('es-CL');
-    const today = parseCalendarDate(portalTodayKey());
+    const todayKey = portalTodayKey();
+    const today = parseCalendarDate(todayKey);
     const dateLabel = today.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
-    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${portalTodayKey()}">${esc(dateLabel)}</time></div>
-      <div class="home-overview"><section class="home-calendar"><header><h2>Próximas fechas</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><figure class="home-campus-frame"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" width="720" height="460" /><figcaption>Ingeniería Civil <span>Universidad Católica del Norte</span></figcaption></figure></div>
-      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Malla</strong><small>Plan O · Plan P · Mis ramos</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
+    const stored = MyCourses.read(), plan = stored.activePlan, statuses = stored.plans[plan].statuses;
+    const current = getCourses(plan).filter(course => statuses[course.code] === 'cursando');
+    const forecast = MyCourses.evaluatePlan(getCourses(plan), statuses).filter(item => item.afterCurrent);
+    const tools = window.PortalStudyTools;
+    const pending = tools.read().events.filter(event => !event.done).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const upcoming = pending.filter(event => event.date >= todayKey).slice(0, 3);
+    const overdue = pending.filter(event => event.date < todayKey);
+    const eventsMarkup = upcoming.map(event => `<a class="home-study-event" data-home-activity="${esc(event.id)}" href="#/mi-semana?date=${esc(event.date)}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${esc(parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' }))}</span></time><span><small>${esc(event.type)}${event.time ? ` · ${esc(event.time)}` : ''}</small><strong>${esc(event.title)}</strong>${event.course ? `<small>${esc(titleCase(findCourse(event.plan, event.course)?.name || event.course))}</small>` : ''}</span>${icon('arrow')}</a>`).join('');
+    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>
+      <div class="home-study-overview">
+        <section class="home-study-section" aria-labelledby="home-week-title"><header><div><span class="kicker">Tu agenda</span><h2 id="home-week-title">Mi semana</h2></div><a class="link" href="#/mi-semana">Abrir agenda ${icon('arrow')}</a></header><p class="home-study-intro">Tus próximas actividades</p>${tools.status().issue ? `<p class="study-notice">${esc(tools.status().issue)} <a href="#/mi-semana">Revisar agenda</a></p>` : ''}${eventsMarkup || '<div class="home-study-empty"><p>Aún no tienes actividades próximas.</p><a class="btn primary" href="#/mi-semana">Agregar actividad</a></div>'}${overdue.length ? `<a class="home-study-pending link" href="#/mi-semana?date=${esc(overdue[0].date)}">${overdue.length} ${overdue.length === 1 ? 'actividad anterior sin completar' : 'actividades anteriores sin completar'} ${icon('arrow')}</a>` : ''}</section>
+        <section class="home-study-section" aria-labelledby="home-courses-title"><header><div><span class="kicker">${planShort(plan)}</span><h2 id="home-courses-title">Mis ramos actuales</h2></div><a class="link" href="#/mallas?view=mis-ramos&section=semester">${current.length ? `Ver ${current.length === 1 ? 'ramo' : `los ${current.length}`}` : 'Elegir ramos'} ${icon('arrow')}</a></header><div class="home-current-courses">${current.slice(0, 4).map(course => `<a class="home-current-course" data-home-course="${esc(course.code)}" href="#/ramo/${plan}/${encodeURIComponent(course.code)}"><span class="home-course-mark" aria-hidden="true"></span><span><strong>${esc(titleCase(course.name))}</strong><small>${esc(AreaStyle[courseDisplayArea(course)] || '')}</small></span>${icon('arrow')}</a>`).join('') || '<div class="home-study-empty"><p>Marca los ramos que estás cursando para tenerlos a mano.</p><a class="btn secondary" href="#/mallas">Marcar en la malla</a></div>'}</div>${current.length ? `<a class="home-study-pending link" href="#/mallas?view=mis-ramos&section=eligible">${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'} al aprobar tus actuales` : 'Revisar qué podrías cursar'} ${icon('arrow')}</a>` : ''}</section>
+      </div>
+      <div class="home-academic-overview"><section class="home-calendar"><header><h2>Fechas UCN</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><nav class="home-study-tools" aria-label="Herramientas de estudio"><a href="#/calculadora"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Calculadora de notas</strong><small>Revisa qué nota necesitas</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav></div>`;
   }
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
@@ -1786,8 +1803,8 @@
     }
     if (state.myCoursesView === 'eligible') {
       const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
-      const groups = [['met', 'Cumple prerrequisitos registrados'], ['review', 'Requisitos por revisar'], ['missing', 'Faltan prerrequisitos']];
-      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-eligibility"><h3 class="card-title">Qué podrías cursar · ${planShort(plan)}</h3><p class="small muted">Según tus aprobados y los prerrequisitos del catálogo. Confirma requisitos, oferta, horarios y cupos con la universidad.</p><p class="small muted">Cursando no cuenta como aprobado.</p>${groups.map(([category, label]) => { const items = evaluated.filter(item => item.category === category); return `<details class="my-courses-category" data-eligibility-category="${category}"${category === 'met' ? ' open' : ''}><summary>${label} · ${items.length}</summary><div class="my-courses-list">${items.map(item => `<article class="my-course-option" data-eligibility-code="${esc(item.code)}"><div><small>${esc(item.course.visibleCode || item.code)} · Semestre ${item.course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(item.course.name))}</button>${renderEligibilityEvidence(plan, item, true)}</div></article>`).join('') || '<p class="small muted">No hay ramos en esta categoría.</p>'}</div></details>`; }).join('')}${!evaluated.length ? '<p class="small muted">Todos los ramos del catálogo están marcados como aprobados o cursando.</p>' : ''}</section></div>`;
+      const groups = [['met', 'Cumplen prerrequisitos'], ['afterCurrent', 'Se abrirían al aprobar tus actuales'], ['review', 'Requisitos por revisar'], ['missing', 'Faltan requisitos']];
+      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-eligibility"><h3 class="card-title">Qué podrías cursar · ${planShort(plan)}</h3><p class="small muted">Tus aprobados habilitan prerrequisitos; tus actuales permiten proyectar qué se abriría al aprobarlos. Confirma oferta, horarios, cupos y requisitos con la universidad.</p>${groups.map(([category, label]) => { const items = evaluated.filter(item => (item.afterCurrent ? 'afterCurrent' : item.category) === category); return `<details class="my-courses-category" data-eligibility-category="${category}"${['met', 'afterCurrent'].includes(category) ? ' open' : ''}><summary>${label} · ${items.length}</summary><div class="my-courses-list">${items.map(item => `<article class="my-course-option" data-eligibility-code="${esc(item.code)}"><div><small>${esc(item.course.visibleCode || item.code)} · Semestre ${item.course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(item.course.name))}</button>${renderEligibilityEvidence(plan, item, true)}</div></article>`).join('') || `<p class="small muted">${category === 'afterCurrent' ? 'Ningún ramo depende solo de aprobar tus actuales.' : 'No hay ramos en esta categoría.'}</p>`}</div></details>`; }).join('')}${!evaluated.length ? '<p class="small muted">Todos los ramos del catálogo están marcados como aprobados o actuales.</p>' : ''}</section></div>`;
     }
     return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}
       <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Tu selección · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
@@ -2060,6 +2077,7 @@
   }
   function renderEligibilityEvidence(plan, item, compact = false) {
     const missing = compact ? item.missing.slice(0, 3) : item.missing;
+    if (item.afterCurrent) return `<p class="my-course-requirements">Si apruebas ${missing.map(code => esc(titleCase(findCourse(plan, code)?.name || code))).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} actuales más; abre la ficha para verlos` : ''}, cumplirías sus prerrequisitos. Tus aprobados ya están considerados.</p>`;
     return `${missing.length ? `<p class="my-course-requirements">Falta aprobar: ${missing.map(code => `${esc(titleCase(findCourse(plan, code)?.name || code))}${item.inProgress.includes(code) ? ' (cursando, aún no aprobado)' : ''}`).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} más; abre la ficha para verlos` : ''}.</p>` : ''}${item.unknown.length ? `<p class="my-course-requirements">Información incompleta: ${item.unknown.map(value => esc(value)).join(', ')}. Confirma los prerrequisitos.</p>` : ''}${item.extraRequirements.map(text => `<p class="my-course-requirements">${esc(text)}</p>`).join('')}${item.extraRequirements.length ? '<p class="small muted">Requisito adicional por confirmar; no se evalúa automáticamente.</p>' : ''}`;
   }
   function syncMallaPersonal() {
@@ -2248,11 +2266,11 @@
     const semesters = Array.from({ length: data.totalSemesters || Math.max(...subjects.map(c => c.semester), 1) }, (_, index) => index + 1);
     const columns = semesters.map(semester => {
       const cards = subjects.filter(course => course.semester === semester).map(course => {
-        const area = esc(course.area || 'general');
+        const area = esc(courseDisplayArea(course) || 'general');
         return `<article class="mc-card mc-area-${area}" data-mc-code="${esc(course.code)}" tabindex="0">
           <span class="mc-card__code">${esc(course.visibleCode || course.code)}</span>
           <strong class="mc-card__title">${esc(titleCase(course.name))}</strong>
-          <span class="mc-card__meta">${esc(AreaStyle[course.area] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
+          <span class="mc-card__meta">${esc(AreaStyle[courseDisplayArea(course)] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
         </article>`;
       }).join('');
       return `<section class="mc-semester" data-semester="${semester}"><h2>${semester} semestre</h2><div class="mc-semester__cards">${cards}</div></section>`;
@@ -2324,7 +2342,7 @@
     const planKey = plan === 'o' ? 'planO' : 'planP';
     const payload = {};
     for (const course of getCourses(planKey)) {
-      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code, id: course.code, semester: course.semester };
+      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code, id: course.code, semester: course.semester, area: courseDisplayArea(course) };
       payload[course.code] = entry;
       if (course.visibleCode && course.visibleCode !== course.code) payload[course.visibleCode] = entry;
     }
@@ -2396,6 +2414,7 @@
         font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         transition: background 220ms ease;
       }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important; animation:none !important; } }
       .mc-header {
         background: var(--mc-header-bg) !important;
         border-bottom-color: var(--mc-line) !important;
@@ -2410,17 +2429,19 @@
         border-radius: 8px !important;
         border-color: var(--mc-line) !important;
         border-left-width: 1px !important;
-        box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px var(--mc-card-glow) !important;
+        box-shadow: none !important;
       }
       .mc-card:hover { transform: translateY(-1px); }
-      .mc-card:not(.mc-portal-approved):not(.mc-portal-current) { background:var(--mc-card-bg) !important; border-color:var(--mc-border) !important; }
-      .mc-card.mc-portal-approved { background:#e4f4e8 !important; border-color:#21804a !important; outline:2px solid #21804a !important; outline-offset:-2px; }
-      .mc-card.mc-portal-current { background:#fff3bf !important; border-color:#946200 !important; outline:2px solid #946200 !important; outline-offset:-2px; }
-      .mc-card.mc-portal-approved,.mc-card.mc-portal-current { padding-bottom:26px !important; }
-      .mc-card:is(.mc-portal-approved,.mc-portal-current) :is(.mc-card__title,.mc-card__name,.mc-card__code,.mc-card__meta) { color:#20352b !important; transition:none !important; }
-      html:not(.mc-light) .mc-card.mc-portal-approved { background:#173d2a !important; border-color:#70ce93 !important; outline-color:#70ce93 !important; }
-      html:not(.mc-light) .mc-card.mc-portal-current { background:#483b13 !important; border-color:#f2ce59 !important; outline-color:#f2ce59 !important; }
-      html:not(.mc-light) .mc-card:is(.mc-portal-approved,.mc-portal-current) :is(.mc-card__title,.mc-card__name,.mc-card__code,.mc-card__meta) { color:#f5f7ed !important; }
+      :root { --mc-area-teologica:#e879c1; --mc-area-teologica-bg:rgba(232,121,193,.15); --mc-card-outline:#485958; }
+      html.mc-light { --mc-area-teologica:#a32778; --mc-area-teologica-bg:rgba(163,39,120,.10); --mc-card-outline:#d4d9d7; }
+      ${Object.keys(AreaStyle).map(area => `.mc-card.mc-portal-area-${area} { background:var(--mc-area-${area}-bg) !important; border:1px solid var(--mc-card-outline) !important; }`).join('\n')}
+      .mc-card { padding-bottom:26px !important; }
+      .mc-card__name { max-height:2.4em; flex:0 1 auto; -webkit-line-clamp:2 !important; }
+      .mc-legend__dot--teologica { background:var(--mc-area-teologica); }
+      .mc-local-shell .mc-legend { display:flex; flex-wrap:wrap; gap:8px 14px; padding:10px 0 16px; color:var(--mc-text); font-size:11px; }
+      .mc-local-shell .mc-legend__item { display:flex; align-items:center; gap:5px; }
+      .mc-local-shell .mc-legend__dot { width:8px; height:8px; border-radius:2px; }
+      ${Object.keys(AreaStyle).map(area => `.mc-local-shell .mc-legend__dot--${area} { background:var(--mc-area-${area}); }`).join('\n')}
       .mc-card .mc-portal-approved-label,.mc-card .mc-portal-current-label { position:absolute; left:4px; bottom:4px; padding:2px 4px; border-radius:4px; font-size:9px; line-height:1.1; font-weight:800; pointer-events:none; }
       .mc-portal-approved-label { background:#166a40; color:#fff; }
       .mc-portal-current-label { background:#f2ce59; color:#342900; }
@@ -2545,6 +2566,10 @@
         var progressMode = false;
         var approvedCodes = new Set();
         var currentCodes = new Set();
+        var areas = ${safeJsonForScript(AreaStyle)};
+        var legend = document.querySelector('.mc-legend');
+        if (!legend) { legend = document.createElement('div'); legend.className = 'mc-legend'; document.querySelector('.mc-grid')?.before(legend); }
+        legend.innerHTML = Object.keys(areas).map(function(area) { return '<span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--' + area + '"></span>' + areas[area] + '</span>'; }).join('');
         function progressCardCode(card) {
           var entry = (window.__MC_MATERIAL || {})[card.dataset.mcCode];
           return entry && entry.id || card.dataset.mcCode;
@@ -2552,6 +2577,8 @@
         function paintProgress() {
           document.documentElement.classList.toggle('mc-portal-marking', progressMode);
           document.querySelectorAll('.mc-card[data-mc-code]').forEach(function(card) {
+            var entry = (window.__MC_MATERIAL || {})[card.dataset.mcCode];
+            if (entry && areas[entry.area]) card.classList.add('mc-portal-area-' + entry.area);
             var approved = approvedCodes.has(progressCardCode(card));
             var current = !approved && currentCodes.has(progressCardCode(card));
             card.classList.toggle('mc-portal-approved', approved);
@@ -5221,7 +5248,7 @@
       return;
     }
     syncMallaProgress();
-    if (getRoute().path === '/mis-ramos' || getRoute().path.startsWith('/ramo/')) render({ scope: 'data', resetScroll: false });
+    if (['/', '/inicio', '/mis-ramos'].includes(getRoute().path) || getRoute().path.startsWith('/ramo/')) render({ scope: 'data', resetScroll: false });
   });
   window.addEventListener('storage', async e => {
     if (e.key !== 'portal.session') return;
@@ -5239,7 +5266,7 @@
   document.addEventListener('submit', onSubmit);
   StudyUI.init(() => render({ scope: 'data', resetScroll: false }));
   window.addEventListener('storage', e => {
-    if (e.key === window.PortalStudyTools.key && ['/mi-semana', '/calculadora'].includes(getRoute().path)) {
+    if (e.key === window.PortalStudyTools.key && ['/', '/inicio', '/mi-semana', '/calculadora'].includes(getRoute().path)) {
       StudyUI.externalChange();
     }
   });

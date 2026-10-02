@@ -18,6 +18,12 @@ assert.equal(evaluate('A').category, 'met', 'no approvals still allows no-prereq
 assert.equal(evaluate('B', { A: 'aprobado' }).category, 'met');
 assert.equal(evaluate('B', { A: 'cursando' }).category, 'missing');
 assert.deepEqual(Array.from(evaluate('B', { A: 'cursando' }).inProgress), ['A']);
+assert.equal(evaluate('B', { A: 'cursando' }).afterCurrent, true);
+assert.equal(evaluate('C', { A: 'aprobado', B: 'cursando' }).afterCurrent, true, 'approved plus current satisfies all direct prerequisites prospectively');
+assert.equal(evaluate('C', { A: 'cursando', B: 'cursando' }).afterCurrent, true, 'all current prerequisites must pass');
+assert.equal(evaluate('C', { A: 'cursando' }).afterCurrent, false, 'no speculative prerequisite chains');
+assert.equal(evaluate('B', { A: 'cursando' }, [course('A'), course('B', ['A'], ['Extra'])]).afterCurrent, false, 'additional rules cannot be forecast automatically');
+assert.equal(evaluate('B', { NO: 'cursando' }, [course('B', ['NO'])]).afterCurrent, false, 'unknown reference is not a current course');
 assert.equal(evaluate('B', { A: 'invalid' }).category, 'missing');
 assert.equal(evaluate('C', { A: 'aprobado' }).category, 'missing', 'AND does not accept one of two prerequisites');
 assert.equal(evaluate('D').category, 'review');
@@ -61,11 +67,11 @@ try {
     await dialog.locator('[data-my-course-status]').filter({ hasText: /^Actual$/ }).click();
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('[data-eligibility-code="P-0101"]').count(), 0);
-    await page.locator('[data-eligibility-category="missing"] summary').click();
     const calculus = page.locator('[data-eligibility-code="P-0201"]');
-    assert.match(await calculus.innerText(), /cursando, aún no aprobado/);
+    assert.equal(await page.locator('[data-eligibility-category="afterCurrent"] [data-eligibility-code="P-0201"]').count(), 1);
+    assert.match(await calculus.innerText(), /Si apruebas.*cumplirías sus prerrequisitos/);
     await calculus.locator('[data-malla-detail]').click();
-    assert.match(await dialog.innerText(), /Falta aprobar: Introducción Al Cálculo \(cursando, aún no aprobado\)/i);
+    assert.match(await dialog.innerText(), /Si apruebas Introducción Al Cálculo, cumplirías sus prerrequisitos/i);
     await dialog.locator('[data-malla-detail-close]').click();
     assert.equal(await page.evaluate(() => document.activeElement.dataset.mallaDetail), 'P-0201');
     await select.selectOption('semester');

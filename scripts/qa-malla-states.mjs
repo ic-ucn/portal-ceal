@@ -13,9 +13,10 @@ const contrast = async locator => locator.evaluate(element => {
   const rgb = color => color.match(/[\d.]+/g).slice(0, 3).map(Number);
   const light = color => rgb(color).map(value => { const x = value / 255; return x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }).reduce((sum, x, i) => sum + x * [.2126, .7152, .0722][i], 0);
   const style = getComputedStyle(element);
-  let parent = element, background = style.backgroundColor;
-  while (/rgba\([^)]*,\s*0\)/.test(background) && parent.parentElement) { parent = parent.parentElement; background = getComputedStyle(parent).backgroundColor; }
-  const a = light(style.color), b = light(background);
+  const layers = [];
+  for (let parent = element; parent; parent = parent.parentElement) layers.push(getComputedStyle(parent).backgroundColor.match(/[\d.]+/g).map(Number));
+  const background = layers.reverse().reduce((base, layer) => { const alpha = layer[3] ?? 1; return layer.slice(0, 3).map((v, i) => v * alpha + base[i] * (1 - alpha)); }, [255, 255, 255]);
+  const a = light(style.color), b = light(`rgb(${background.join(',')})`);
   return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
 });
 
@@ -36,6 +37,8 @@ try {
       const cards = frame.locator('.mc-card[data-mc-code]');
       const current = cards.nth(0), approved = cards.nth(1), untouched = cards.nth(2);
       await current.waitFor();
+      await frame.locator('.mc-portal-area-basica').first().waitFor();
+      const originalSurfaces = await cards.evaluateAll(list => list.slice(0, 3).map(el => ({ color: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderLeftColor })));
       if (await page.locator('[data-malla-mark-toggle]').getAttribute('aria-pressed') !== 'true') await page.locator('[data-malla-mark-toggle]').click();
       await page.getByRole('button', { name: 'Actuales', exact: true }).click();
       await current.press('Enter');
@@ -44,7 +47,10 @@ try {
       await approved.click();
       await approved.locator('.mc-portal-approved-label').waitFor();
       assert.equal(await untouched.locator('.mc-portal-current-label,.mc-portal-approved-label').count(), 0);
-      assert.equal(await untouched.evaluate(el => getComputedStyle(el).backgroundImage), 'none', 'Unmarked courses have a neutral surface');
+      assert.deepEqual(await cards.evaluateAll(list => list.slice(0, 3).map(el => ({ color: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderLeftColor }))), originalSurfaces, 'Marking never recolors course areas');
+      assert.equal(await frame.locator('.mc-portal-area-teologica').count(), 2, 'The two theology courses have their own color');
+      assert.ok(await cards.evaluateAll(list => new Set(list.map(el => getComputedStyle(el).backgroundColor)).size) >= 6, 'Academic categories retain distinct colors');
+      assert.ok(await cards.evaluateAll(list => list.every(el => { const s = getComputedStyle(el); return s.borderLeftWidth === s.borderRightWidth && s.borderLeftColor === s.borderRightColor; })), 'No colored left strips');
       await page.locator('[data-malla-batch-options] summary').click();
       await page.locator('[data-malla-mark-batch]').click();
       await current.locator('.mc-portal-current-label').waitFor();
@@ -71,7 +77,7 @@ try {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
         const filename = `malla-states-${source}-${plan}-${theme}-${width}.png`;
         await page.screenshot({ path: `${root}/qa-screenshots/${filename}` });
-        report.checks.push(`${source}/${plan}/${theme}/${width}: yellow current, green approved, untouched neutral, contrast>=4.5, no overflow`);
+        report.checks.push(`${source}/${plan}/${theme}/${width}: small status labels preserve category colors, theology distinct, contrast>=4.5, no overflow`);
       }
       await page.getByRole('button', { name: 'Actuales', exact: true }).click();
       await current.click();

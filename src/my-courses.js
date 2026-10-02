@@ -193,7 +193,10 @@
     const extraRequirements = Array.isArray(course?.requirements) ? course.requirements.filter(text => typeof text === 'string' && text.trim()) : [];
     if (course?.requirements !== undefined && (!Array.isArray(course.requirements) || course.requirements.some(text => typeof text !== 'string' || !text.trim()))) unknown.push('Requisitos adicionales sin información válida');
     const category = unknown.length ? 'review' : missing.length ? 'missing' : extraRequirements.length ? 'review' : 'met';
-    return { code: course?.code, category, missing, unknown, inProgress, extraRequirements };
+    // Only direct prerequisites: do not project a second generation of courses,
+    // or turn additional academic requirements into automatic eligibility.
+    const afterCurrent = missing.length > 0 && missing.length === inProgress.length && !unknown.length && !extraRequirements.length;
+    return { code: course?.code, category, afterCurrent, missing, unknown, inProgress, extraRequirements };
   }
   function evaluatePlan(subjects, statuses) {
     return (subjects || []).filter(course => !['aprobado', 'cursando'].includes(statuses?.[course.code]))

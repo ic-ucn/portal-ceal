@@ -174,6 +174,38 @@ body.theme-dark .home-campus-frame > img { mix-blend-mode: screen; filter: inver
 .home-service-links > a > .icon { width: 20px; color: var(--text-secondary); }
 .home-service-links a:hover strong { color: var(--brand-blue-text); }
 
+/* Personal study overview: existing agenda and course records, no extra setup. */
+.home-study-overview, .home-academic-overview { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); gap:48px; align-items:start; }
+.home-study-overview { margin-bottom:48px; }
+.home-study-section { min-width:0; }
+.home-study-section > header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:20px; border-bottom:1px solid var(--border-strong); }
+.home-study-section h2 { margin:6px 0 0; font-size:1.3rem; font-weight:550; letter-spacing:-.025em; }
+.home-study-section header > .link { flex-shrink:0; }
+.home-study-intro { color:var(--text-secondary); font-size:.85rem; margin:18px 0 0; }
+.home-study-event { display:grid; grid-template-columns:40px minmax(0,1fr) 18px; align-items:center; gap:18px; padding:18px 0; border-bottom:1px solid var(--border-subtle); }
+.home-study-event > time { display:grid; justify-items:center; gap:4px; }
+.home-study-event > time strong { font-size:1.6rem; font-weight:500; line-height:1; }
+.home-study-event > time span { font-size:.72rem; color:var(--text-secondary); }
+.home-study-event > span, .home-current-course > span:nth-child(2) { display:grid; gap:5px; min-width:0; overflow-wrap:anywhere; }
+.home-study-event strong, .home-current-course strong { font-size:.97rem; font-weight:550; line-height:1.35; }
+.home-study-event small, .home-current-course small { color:var(--text-secondary); font-size:.8rem; line-height:1.4; }
+.home-study-event > .icon, .home-current-course > .icon { width:17px; color:var(--text-secondary); }
+.home-current-course { display:grid; grid-template-columns:8px minmax(0,1fr) 18px; gap:13px; align-items:center; padding:17px 0; border-bottom:1px solid var(--border-subtle); }
+.home-course-mark { width:8px; height:8px; border-radius:50%; background:#e4bc42; border:1px solid #8a6615; }
+.home-study-pending { display:flex; gap:8px; align-items:center; margin-top:20px; line-height:1.5; }
+.home-study-pending .icon { flex-shrink:0; }
+.home-study-empty { padding:18px 0 8px; }
+.home-study-empty p { color:var(--text-secondary); line-height:1.55; margin:0 0 18px; max-width:36ch; }
+.home-study-tools { display:grid; gap:12px; }
+.home-study-tools .home-service-symbol { display:block; }
+.home-study-tools > a > span:nth-child(2) { min-width:0; overflow-wrap:anywhere; }
+.home-study-tools > a { display:grid; grid-template-columns:30px minmax(0,1fr) 18px; align-items:center; gap:18px; padding:24px; background:var(--surface-base); border:1px solid var(--border-subtle); border-radius:8px; }
+.home-study-tools strong { display:block; font-weight:550; }
+.home-study-tools small { display:block; margin-top:7px; color:var(--text-secondary); font-size:.8rem; }
+.home-study-event:hover strong, .home-current-course:hover strong, .home-study-tools a:hover strong { color:var(--brand-blue-text); }
+@media(max-width:1100px) { .home-study-overview, .home-academic-overview { gap:28px; } .home-study-section > header { flex-wrap:wrap; } }
+@media(max-width:700px) { .home-study-overview, .home-academic-overview { grid-template-columns:minmax(0,1fr); gap:32px; } .home-study-overview { margin-bottom:36px; } .home-study-section h2 { font-size:1.2rem; } .home-study-tools > a { padding:20px; } }
+
 /* Calendar: clear month controls, quiet rows, detail only when requested. */
 .refined-calendar-layout { grid-template-columns: minmax(0, 1fr) minmax(270px, 310px); gap: 36px; align-items: start; }
 .academic-calendar-card.card, body.theme-dark .academic-calendar-card.card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

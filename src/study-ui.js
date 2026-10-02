@@ -54,6 +54,10 @@
       <div class="study-form-actions"><button class="btn primary" type="submit">${saved ? 'Guardar cambios' : 'Agregar'}</button>${saved ? '<button class="btn secondary" type="button" data-study-cancel>Cancelar</button>' : ''}</div></form>`;
   }
   function renderWeek(today, query = {}) {
+    if (state.entryDate !== (query.date || '')) {
+      state.entryDate = query.date || '';
+      if (tools.validDate(query.date)) state.week = query.date;
+    }
     const presetKey = `${query.plan || ''}:${query.course || ''}`;
     if (presetKey !== state.presetKey) {
       state.presetKey = presetKey;
@@ -213,7 +217,8 @@
       state.gradeNotice = result.saved ? 'Cálculo guardado.' : ''; refresh();
     }
   });
-  function reset() { state.editing = ''; state.draft = null; state.preset = null; state.presetKey = ''; state.notice = ''; state.gradeNotice = ''; state.gradeDrafts = {}; }
+  function reset() { state.week = ''; state.entryDate = ''; state.editing = ''; state.draft = null; state.preset = null; state.presetKey = ''; state.notice = ''; state.gradeNotice = ''; state.gradeDrafts = {}; }
+  window.addEventListener('hashchange', () => { state.entryDate = ''; });
   window.addEventListener('beforeunload', event => { if (document.querySelector('[data-study-dirty]')) { event.preventDefault(); event.returnValue = ''; } });
   document.addEventListener('click', async event => { const link = event.target.closest('a[href]'); if (link && document.querySelector('[data-study-dirty]') && link.hash !== location.hash) { event.preventDefault(); event.stopImmediatePropagation(); if (await window.PortalStudyAccount.confirmAction('Hay cambios sin guardar en el formulario. ¿Salir sin guardarlos?', 'Salir sin guardar')) { state.draft = null; state.gradeDrafts = {}; location.assign(link.href); } } }, true);
   window.PortalStudyUI = Object.freeze({ reset, init, context, renderWeek, renderGrades, externalChange });
