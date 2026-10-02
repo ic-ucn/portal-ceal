@@ -351,9 +351,9 @@
     return { path: path || '/', query: Object.fromEntries(new URLSearchParams(queryString)) };
   }
   function loadSession() {
-    if (!SIGN_IN_ENABLED) return buildGuestUser();
     try {
       const user = JSON.parse(localStorage.getItem('portal.session') || 'null');
+      if (!SIGN_IN_ENABLED && !user?.studyAccount) return buildGuestUser();
       if (user?.role === 'guest') {
         localStorage.removeItem('portal.session');
         return sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null;
@@ -363,7 +363,7 @@
         return null;
       }
       return user || (sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null);
-    } catch { return null; }
+    } catch { return SIGN_IN_ENABLED ? null : buildGuestUser(); }
   }
   function saveSession(user) {
     sessionStorage.removeItem('portal.guestReview');
@@ -374,6 +374,7 @@
     try { localStorage.removeItem('portal.session'); } catch {}
     try { sessionStorage.removeItem('portal.guestReview'); } catch {}
     state.user = null;
+    window.PortalStudyAccount?.setUser(null);
   }
   function buildGuestUser() { return { id: 'guest-portal-review', name: 'Invitado', initials: 'IN', role: 'guest', accessMode: 'portal-review', label: 'Invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
   function startGuestSession() {
@@ -747,7 +748,7 @@
     sessionExpiredHandled = true;
     clearSession();
     showToast('Tu sesión expiró. Vuelve a ingresar.', 'orange');
-    routeTo('/login');
+    routeTo(SIGN_IN_ENABLED ? '/login' : '/mi-semana?account=expired');
     setTimeout(() => { sessionExpiredHandled = false; }, 1500);
   }
   async function fetchWithTimeout(url, options = {}, ms) {
@@ -777,7 +778,7 @@
       err.isSessionExpired = true;
       throw err;
     }
-    if (!res.ok || payload.ok === false) throw new Error(payload.error || `api ${res.status}`);
+    if (!res.ok || payload.ok === false) { const error = new Error(payload.error || `api ${res.status}`); error.payload = payload; error.status = res.status; throw error; }
     return payload;
   }
   function analyticsDevice() {
@@ -945,7 +946,7 @@
     }
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
-  function startGoogleRedirect(role) {
+  function startGoogleRedirect(role, studyAccount = false) {
     if (!GOOGLE_CLIENT_ID) {
       state.authMessage = 'Google UCN todavía no está configurado.';
       render({ transition: true, scope: 'panel', resetScroll: false });
@@ -955,7 +956,7 @@
     const hostedDomainHint = mode === 'jefatura' ? 'ucn.cl' : mode === 'internal' ? '' : GOOGLE_DOMAIN;
     const stateId = randomToken();
     const nonce = randomToken();
-    localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, createdAt: Date.now() }));
+    localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, studyAccount, createdAt: Date.now() }));
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: googleRedirectUri(),
@@ -975,19 +976,19 @@
     localStorage.removeItem(GOOGLE_OAUTH_STATE_KEY);
     try {
       if (params.has('error')) throw new Error(params.get('error_description') || 'Google no permitió iniciar sesión.');
-      if (!stored.stateId || params.get('state') !== stored.stateId) throw new Error('No se pudo validar la respuesta de Google. Intenta nuevamente.');
+      if (!stored.stateId || !Number.isFinite(stored.createdAt) || Date.now() - stored.createdAt > 600000 || params.get('state') !== stored.stateId) throw new Error('No se pudo validar la respuesta de Google. Intenta nuevamente.');
       const credential = params.get('id_token') || '';
       const decoded = decodeJwtPayload(credential);
       if (stored.nonce && decoded.nonce !== stored.nonce) throw new Error('La respuesta de Google no coincide con esta sesión.');
       const user = await loginGoogle(stored.role || 'student', credential);
       state.authMessage = '';
-      saveSession(user);
-      history.replaceState(null, '', `${location.pathname}${location.search}#${consumePostLoginRoute()}`);
+      saveSession({ ...user, studyAccount: stored.studyAccount === true });
+      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.studyAccount ? '/mi-semana' : consumePostLoginRoute()}`);
 
       return true;
     } catch (err) {
       state.authMessage = err.message || 'No se pudo iniciar con Google.';
-      history.replaceState(null, '', `${location.pathname}${location.search}#/login`);
+      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.studyAccount ? '/mi-semana?account=error' : '/login'}`);
       return true;
     }
   }
@@ -1162,10 +1163,13 @@
         headers: { accept: 'application/json', Authorization: `Bearer ${token}` }
       }, 15000);
       const payload = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) { clearSession(); return; }
       if (!response.ok || !payload?.user?.sessionToken) throw new Error(payload.error || 'invalid session');
-      saveSession(payload.user);
+      saveSession({ ...payload.user, studyAccount: state.user?.studyAccount === true });
     } catch {
-      clearSession();
+      // Keep the scoped cache available during a connection failure. The server still
+      // authenticates every account request; a cached profile is never authority.
+      if (!state.user?.studyAccount) clearSession();
     }
   }
   async function boot() {
@@ -1174,8 +1178,14 @@
       mergeDriveResources();
       ensureShape();
       document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
-      if (SIGN_IN_ENABLED) await handleGoogleRedirectCallback();
+      await handleGoogleRedirectCallback();
       await validateInitialSession();
+      await window.PortalStudyAccount.init({
+        user: () => state.user, available: Boolean(API_BASE && GOOGLE_CLIENT_ID), request: apiRequest,
+        login: () => startGoogleRedirect('student', true),
+        logout: async () => { try { await apiRequest('/auth/logout', { method: 'POST', body: '{}' }); } catch {} clearSession(); state.user = buildGuestUser(); },
+        refresh: () => { state.myCoursesPlan = MyCourses.read().activePlan; render({ scope: 'data', resetScroll: false }); }
+      });
       safeRender();
     } catch (err) {
       console.error(err);
@@ -1240,7 +1250,7 @@
       return paint(restoring);
     }
     if (!SIGN_IN_ENABLED) {
-      state.user = buildGuestUser();
+      if (!state.user?.studyAccount) state.user = buildGuestUser();
       if (path === '/login' || path === '/perfil') return routeTo('/');
     }
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
@@ -1544,7 +1554,7 @@
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/calendario') return renderCalendar();
-    if (path === '/mi-semana') { StudyUI.context(studyContext()); return StudyUI.renderWeek(portalTodayKey()); }
+    if (path === '/mi-semana') { StudyUI.context(studyContext()); return StudyUI.renderWeek(portalTodayKey(), query); }
     if (path === '/calculadora') { StudyUI.context(studyContext()); return StudyUI.renderGrades(query); }
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
@@ -1742,7 +1752,7 @@
   function renderMyCourseCard(plan, code, record, locked) {
     const course = findCourse(plan, code);
     if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
-    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}</div><a class="link" href="#/calculadora?plan=${plan}&course=${encodeURIComponent(code)}">Calcular notas</a></article>`;
+    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><a class="link" href="#/calculadora?plan=${plan}&course=${encodeURIComponent(code)}">Calcular notas</a></article>`;
   }
   function renderMyCourses() {
     const stored = MyCourses.read();
@@ -1761,10 +1771,10 @@
       (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
     );
     const views = `<label class="my-courses-view-label">Ver en Mis ramos<select class="select" data-my-courses-view><option value="semester"${state.myCoursesView === 'semester' ? ' selected' : ''}>Este semestre</option><option value="eligible"${state.myCoursesView === 'eligible' ? ' selected' : ''}>Qué podrías cursar</option><option value="selected"${state.myCoursesView === 'selected' ? ' selected' : ''}>Mi selección</option></select></label>`;
-    const privacy = state.myCoursesView === 'selected' ? '<p class="my-courses-privacy">Selección y estados guardados en este navegador. No representan avance oficial. Agregar un ramo no cambia su estado.</p>' : '<p class="my-courses-privacy">Avance personal guardado en este navegador.</p>';
+    const privacy = `<p class="my-courses-privacy"><span data-study-save-status role="status">${window.PortalStudyAccount.statusText()}</span> No representan avance oficial.</p><a class="link" href="#/mi-semana">Mi semana y guardado</a>`;
     if (state.myCoursesView === 'semester') {
       const current = getCourses(plan).filter(course => record.statuses[course.code] === 'cursando');
-      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-semester"><h3 class="card-title">Este semestre · ${planShort(plan)}</h3><p class="small muted">Ramos que marcaste como cursando. ${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT de ramos marcados (referenciales).</p><div class="my-courses-grid">${current.map(course => `<article class="my-course-card" data-my-course-card="${esc(course.code)}"><small>${esc(course.visibleCode || course.code)} · Semestre curricular ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="my-course-material">${myCourseMaterial(plan, course)}</div><div class="my-course-card-foot">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button></div></article>`).join('') || '<p class="small muted">Aún no marcaste ramos como cursando. Puedes hacerlo desde la ficha de un ramo o en Mi selección.</p>'}</div></section></div>`;
+      return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}<section class="my-courses-semester"><h3 class="card-title">Este semestre · ${planShort(plan)}</h3><p class="small muted">Ramos que marcaste como cursando. ${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT de ramos marcados (referenciales).</p><div class="my-courses-grid">${current.map(course => `<article class="my-course-card" data-my-course-card="${esc(course.code)}"><small>${esc(course.visibleCode || course.code)} · Semestre curricular ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="my-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><div class="my-course-card-foot">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button></div></article>`).join('') || '<p class="small muted">Aún no marcaste ramos como cursando. Puedes hacerlo desde la ficha de un ramo o en Mi selección.</p>'}</div></section></div>`;
     }
     if (state.myCoursesView === 'eligible') {
       const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
@@ -1833,6 +1843,7 @@
       source: Data.calendarSource || {},
       courses: { planO: getCourses('planO'), planP: getCourses('planP') },
       selectedPlan: state.myCoursesPlan,
+      statuses: { planO: MyCourses.read().plans.planO.statuses, planP: MyCourses.read().plans.planP.statuses },
       preferred: {
         planO: MyCourses.read().plans.planO.selected,
         planP: MyCourses.read().plans.planP.selected
@@ -2090,7 +2101,7 @@
     const selected = record.selected.includes(course.code);
     const active = host.contains(document.activeElement) ? document.activeElement : null;
     const focusAction = active?.hasAttribute('data-my-course-status') ? 'status' : active?.hasAttribute('data-my-course-add') || active?.hasAttribute('data-my-course-remove') ? 'selection' : active?.hasAttribute('data-malla-detail-close') ? 'close' : null;
-    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Agregar no cambia el estado. Aprobar no agrega el ramo a tu selección. Registro personal en este navegador.</p><div class="malla-course-material">${myCourseMaterial(plan, course)}</div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
+    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Retirar de Mis ramos' : 'Agregar a Mis ramos'}</button></div><p class="small muted">Agregar no cambia el estado. Aprobar no agrega el ramo a tu selección. ${window.PortalStudyAccount.status().user ? 'Guardado en tu cuenta.' : 'Registro personal en este navegador.'}</p><div class="malla-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
     const focusSelector = { status: '[data-my-course-status]', selection: '[data-my-course-add], [data-my-course-remove]', close: '[data-malla-detail-close]' }[focusAction];
     if (focusSelector) host.querySelector(focusSelector)?.focus({ preventScroll: true });
   }
@@ -5192,7 +5203,8 @@
     if (e.key !== 'portal.session') return;
     state.user = loadSession();
     await validateInitialSession();
-    if (!state.user) routeTo('/login');
+    await window.PortalStudyAccount.setUser(state.user);
+    if (!state.user && SIGN_IN_ENABLED) routeTo('/login');
     else render({ transition: false, scope: 'session', resetScroll: false });
   });
   document.addEventListener('click', onClick);

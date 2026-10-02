@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { createStudyService } from './server/study-service.mjs';
 import { promises as fs } from 'node:fs';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -1290,6 +1291,20 @@ function setCalendarTokens(integration, tokens) {
   integration.tokens = null;
 }
 
+const studyService = createStudyService({
+  config: () => ({
+    clientId: process.env.STUDY_CALENDAR_CLIENT_ID || calendarClientId,
+    secret: process.env.STUDY_CALENDAR_CLIENT_SECRET || calendarClientSecret,
+    redirect: process.env.STUDY_CALENDAR_REDIRECT_URI || '',
+    encryptionReady: Boolean(tokenEncryptionKey()),
+    returnUrl: process.env.STUDY_PORTAL_RETURN_URL || publicPortalUrl || `http://localhost:${port}/`
+  }),
+  oauth: c => new OAuth2Client(c.clientId, c.secret, c.redirect),
+  session: requirePortalSession, body: readBody, write: writeDb,
+  encrypt: encryptCalendarTokens, decrypt: decryptCalendarTokens,
+  json: sendJson, redirect: sendRedirect
+});
+
 function calendarHasRefreshToken(db) {
   return Boolean(calendarTokens(googleCalendarIntegration(db))?.refresh_token);
 }
@@ -2167,7 +2182,7 @@ function publicIntegrationData(data = {}) {
 
 function publicData(data = {}) {
   // Datos operativos, personales y estadisticas internas nunca viajan en el bootstrap publico.
-  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe } = data;
+  const { studyAccounts, sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
@@ -3053,6 +3068,8 @@ async function handleApi(req, res, url) {
   if (!features.tableReservations && ['reservations', 'reservas'].includes(resource)) {
     return sendError(res, 404, 'unknown api resource');
   }
+
+  if (resource === 'study') return studyService(req, res, url, db);
 
   if (!resource || resource === 'bootstrap') {
     const session = sessionFromRequest(req, db);

@@ -181,7 +181,7 @@ assert(appJs.includes("fetch(`${API_BASE}/analytics/collect`"), 'portal routes s
 assert(!appJs.includes("id === 'com-001' ?"), 'app should not retain a legacy communication fallback');
 assert(serverJs.includes('communications-retired-20260829'), 'backend should apply the communication retirement migration');
 assert(serverJs.includes("collectionName === 'communications'") && serverJs.includes('communications not enabled'), 'backend should reject retired communication APIs');
-assert(serverJs.includes("const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe }"), 'traffic analytics should stay out of the public bootstrap');
+assert(serverJs.includes("const { studyAccounts, sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe }"), 'traffic analytics should stay out of the public bootstrap');
 assert(serverJs.includes("id === 'summary'") && serverJs.includes('requireCealSession(req, db)'), 'traffic summaries should require a CEAL session');
 assert(!serverJs.includes('requestIp(req), body') && !serverJs.includes('analytics.email'), 'traffic records should not persist IP addresses or email identifiers');
 assert(!serverJs.includes("collectionName === 'communications' && id === 'com-001'"), 'backend should not retain a legacy communication fallback');

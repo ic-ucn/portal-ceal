@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const KEY = 'portal.myCourses.v1';
+  let KEY = 'portal.myCourses.v1';
   const PLANS = ['planO', 'planP'];
   const STATUSES = ['pendiente', 'cursando', 'aprobado'];
   const empty = () => ({ version: 1, activePlan: 'planP', plans: { planO: { selected: [], statuses: {} }, planP: { selected: [], statuses: {} } } });
@@ -19,10 +19,11 @@
     for (const plan of PLANS) {
       const record = input.plans[plan];
       if (!record || !Array.isArray(record.selected) || !record.statuses || typeof record.statuses !== 'object' || Array.isArray(record.statuses)) return null;
+      if (record.selected.length > 500 || Object.keys(record.statuses).length > 500) return null;
       if (record.selected.some(code => typeof code !== 'string' || !code || code.length > 80)) return null;
       result.plans[plan].selected = [...new Set(record.selected)];
       for (const [code, status] of Object.entries(record.statuses)) {
-        if (!code || code.length > 80 || !STATUSES.includes(status)) return null;
+        if (!code || ['__proto__', 'constructor', 'prototype'].includes(code) || code.length > 80 || !STATUSES.includes(status)) return null;
         result.plans[plan].statuses[code] = status;
       }
     }
@@ -69,6 +70,7 @@
     memory = next;
     try {
       localStorage.setItem(KEY, JSON.stringify(next));
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('study-data-changed'));
       issue = '';
       volatile = false;
     } catch {
@@ -92,6 +94,7 @@
     memory = next;
     try {
       localStorage.setItem(KEY, JSON.stringify(next));
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('study-data-changed'));
       issue = '';
       volatile = false;
     } catch {
@@ -104,7 +107,7 @@
     read();
     if (locked || conflict || !PLANS.includes(plan)) return false;
     memory = { ...memory, activePlan: plan };
-    try { localStorage.setItem(KEY, JSON.stringify(memory)); issue = ''; volatile = false; }
+    try { localStorage.setItem(KEY, JSON.stringify(memory)); issue = ''; volatile = false; if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('study-data-changed')); }
     catch { issue = 'El navegador impide guardar cambios. Puedes seguir usando Mis ramos mientras esta página permanezca abierta.'; volatile = true; }
     return true;
   }
@@ -198,6 +201,19 @@
       .sort((a, b) => ({ met: 0, review: 1, missing: 2 }[a.category] - { met: 0, review: 1, missing: 2 }[b.category]) || (a.category === 'missing' ? a.missing.length - b.missing.length : 0) || a.course.semester - b.course.semester || String(a.code).localeCompare(String(b.code)));
   }
   function status() { return { issue, locked: locked || conflict, conflict, recoverable: locked && issue.includes('recuperar') }; }
-  read();
-  window.PortalMyCourses = Object.freeze({ key: KEY, read, update, updateStatuses, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, evaluateCourse, evaluatePlan, status });
+  function useAccount(account = '') {
+    KEY = 'portal.myCourses.v1' + (account ? ':' + account : '');
+    memory = empty(); issue = ''; locked = false; volatile = false; conflict = false;
+    return read();
+  }
+  function replace(value) {
+    const valid = normalize(value);
+    if (!valid) throw new Error('No se pudieron recuperar los ramos.');
+    localStorage.setItem(KEY, JSON.stringify(valid)); volatile = false; conflict = false;
+    return read(true);
+  }
+  if (typeof window !== 'undefined') read();
+  const api = Object.freeze({ get key() { return KEY; }, empty, normalize, useAccount, replace, read, update, updateStatuses, setPlan, recover, externalChange, resolveConflict, resourcesForCourse, evaluateCourse, evaluatePlan, status });
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.PortalMyCourses = api;
 })();

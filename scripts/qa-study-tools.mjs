@@ -67,6 +67,7 @@ const browser = await chromium.launch({ headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  page.on('dialog', dialog => dialog.accept());
   await page.goto('http://127.0.0.1:8105/?static=1#/mi-semana');
   await page.getByRole('heading', { name: 'Mi semana' }).waitFor();
   await page.locator('[data-study-event-form] [name="date"]').fill('2026-10-01');
@@ -85,6 +86,7 @@ try {
   await page.locator('[data-study-event-form] button[type="submit"]').click();
   await page.getByText('Control editado', { exact: true }).waitFor();
   await page.locator('[data-study-delete]').first().click();
+  await page.getByRole('button', { name: 'Eliminar actividad', exact: true }).click();
   assert.equal(await page.getByText('Control editado', { exact: true }).count(), 0);
 
   await page.goto('http://127.0.0.1:8105/?static=1#/calculadora');

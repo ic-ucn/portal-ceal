@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const KEY = 'portal.studyTools.v1';
+  let KEY = 'portal.studyTools.v1';
   const empty = () => ({ version: 1, revision: 0, events: [], grades: {} });
   let memory = empty();
   let issue = '';
@@ -29,11 +29,14 @@
   function validTime(value) { return value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value); }
   function validEvent(event) {
     return event && typeof event.id === 'string' && event.id.length > 0 && event.id.length <= 100
+      && !['__proto__', 'constructor', 'prototype'].includes(event.id)
       && validDate(event.date) && typeof event.title === 'string' && event.title.trim().length > 0 && event.title.length <= 120
       && ['Evaluación', 'Entrega', 'Estudio', 'Personal'].includes(event.type)
       && typeof event.time === 'string' && validTime(event.time)
       && typeof event.plan === 'string' && ['', 'planO', 'planP'].includes(event.plan)
       && typeof event.course === 'string' && event.course.length <= 80
+      && (event.calendar === undefined || typeof event.calendar === 'boolean')
+      && (event.duration === undefined || (Number.isInteger(event.duration) && event.duration >= 0 && event.duration <= 720))
       && typeof event.done === 'boolean';
   }
   const hundredths = value => Math.round(value * 100);
@@ -86,6 +89,7 @@
     memory = next;
     try { localStorage.setItem(KEY, JSON.stringify(next)); issue = ''; volatile = false; }
     catch { issue = 'No se pudo guardar en este navegador. Los cambios siguen disponibles mientras esta pestaña permanezca abierta.'; volatile = true; }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('study-data-changed'));
     return { ok: true, saved: !volatile };
   }
   function status() { return { issue, locked, volatile }; }
@@ -140,7 +144,18 @@
       return chunks.join('\r\n');
     }).join('\r\n') + '\r\n';
   }
-  const api = Object.freeze({ key: KEY, read, update, status, validDate, shiftDate, weekDates, validEvent, validConfig, gradeSummary, makeICS });
+  function useAccount(account = '') {
+    KEY = 'portal.studyTools.v1' + (account ? ':' + account : '');
+    memory = empty(); issue = ''; locked = false; volatile = false;
+    return read();
+  }
+  function replace(value) {
+    const valid = normalize(value);
+    if (!valid) throw new Error('No se pudieron recuperar las actividades.');
+    localStorage.setItem(KEY, JSON.stringify(valid));
+    volatile = false; return read();
+  }
+  const api = Object.freeze({ get key() { return KEY; }, empty, normalize, useAccount, replace, read, update, status, validDate, shiftDate, weekDates, validEvent, validConfig, gradeSummary, makeICS });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.PortalStudyTools = api;
 })();

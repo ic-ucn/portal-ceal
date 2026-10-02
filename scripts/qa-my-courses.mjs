@@ -146,7 +146,7 @@ try {
     await page.locator('[data-my-courses-search]').fill('DAII-00600');
     await page.locator('.my-courses-list .my-course-option').first().getByRole('button', { name: 'Agregar' }).click();
     assert.equal(await page.locator('.my-courses-selected .my-course-card').count(), 2, 'semesters can be mixed');
-    const material = page.locator('[data-my-course-card="DAII-00600"] .link');
+    const material = page.locator('[data-my-course-card="DAII-00600"] a[href^="#/material?"]');
     const count = Number((await material.innerText()).match(/\d+/)?.[0]);
     assert.ok(count > 0, 'real Plan P material available');
     await material.click();
