@@ -73,12 +73,19 @@ try {
   page.on('dialog', dialog => dialog.accept());
   await page.goto('http://127.0.0.1:8105/?static=1#/mi-semana');
   await page.getByRole('heading', { name: 'Mi semana' }).waitFor();
-  await page.locator('[data-study-event-form] [name="date"]').fill('2026-10-01');
+  await page.locator('.study-extra > summary').click();
+  await page.getByRole('button', { name: 'Semana siguiente', exact: true }).click();
+  assert.equal(await page.locator('.study-extra').evaluate(node => node.open), true, 'Expanded activity options survive a refresh');
+  await page.getByRole('button', { name: 'Esta semana', exact: true }).click();
+  await page.locator('.study-extra > summary').click();
+  const activityDate = await page.locator('[data-study-event-form] [name="date"]').inputValue();
+  assert.match(activityDate, /^\d{4}-\d{2}-\d{2}$/);
+  await page.locator('[data-study-event-form] [name="date"]').fill(activityDate);
   await page.locator('[data-study-event-form] [name="title"]').fill('Control propio');
   await page.locator('[data-study-event-form] button[type="submit"]').click();
-  assert.equal(await page.getByText('Control propio').count(), 1);
+  assert.equal(await page.locator('.study-days').getByText('Control propio', { exact: true }).count(), 1);
   await page.reload();
-  await page.getByText('Control propio').waitFor();
+  await page.locator('.study-days').getByText('Control propio', { exact: true }).waitFor();
   await page.locator('[data-study-done]').first().click();
   assert.match(await page.locator('.study-entry.is-done').first().innerText(), /Completada/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
@@ -87,10 +94,10 @@ try {
   await page.locator('[data-study-edit]').first().click();
   await page.locator('[name="title"]').fill('Control editado');
   await page.locator('[data-study-event-form] button[type="submit"]').click();
-  await page.getByText('Control editado', { exact: true }).waitFor();
+  await page.locator('.study-days').getByText('Control editado', { exact: true }).waitFor();
   await page.locator('[data-study-delete]').first().click();
   await page.getByRole('button', { name: 'Eliminar actividad', exact: true }).click();
-  assert.equal(await page.getByText('Control editado', { exact: true }).count(), 0);
+  assert.equal(await page.locator('.study-days').getByText('Control editado', { exact: true }).count(), 0);
 
   await page.goto('http://127.0.0.1:8105/?static=1#/calculadora');
   await page.getByRole('heading', { name: 'Calculadora de notas' }).waitFor();

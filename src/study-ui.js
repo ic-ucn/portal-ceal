@@ -2,12 +2,23 @@
   'use strict';
   const tools = window.PortalStudyTools;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-  const titleCase = value => String(value || '').toLocaleLowerCase('es-CL').replace(/(^|\s)\S/g, part => part.toLocaleUpperCase('es-CL'));
-  const dateLabel = key => new Date(`${key}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const titleCase = value => {
+    const acronyms = new Set(['BIM', 'UCN', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+    const connectors = new Set(['a', 'al', 'de', 'del', 'en', 'el', 'la', 'las', 'los', 'y', 'para', 'por', 'con', 'sin']);
+    return String(value || '').toLocaleLowerCase('es-CL').split(/(\s+|\/|-)/).map((part, index) => {
+      if (acronyms.has(part.toLocaleUpperCase('es-CL'))) return part.toLocaleUpperCase('es-CL');
+      if (index > 0 && connectors.has(part)) return part;
+      return part.charAt(0).toLocaleUpperCase('es-CL') + part.slice(1);
+    }).join('');
+  };
+  const dateLabel = key => {
+    const label = new Date(`${key}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    return label.charAt(0).toLocaleUpperCase('es-CL') + label.slice(1);
+  };
   const shortDate = key => new Date(`${key}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
   const number = value => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 2 }).format(value);
   const exactNeed = value => Math.ceil((value - 1e-12) * 100) / 100;
-  const state = { week: '', today: '', editing: '', notice: '', gradeNotice: '', preset: null, presetKey: '', draft: null, gradeDrafts: {} };
+  const state = { week: '', today: '', editing: '', notice: '', gradeNotice: '', preset: null, presetKey: '', draft: null, gradeDrafts: {}, extraOpen: null };
   let refresh = () => {};
   let current = { calendar: [], source: {}, courses: { planO: [], planP: [] }, selectedPlan: 'planP' };
   const keyFor = (plan, code) => `${plan}:${code}`;
@@ -50,7 +61,7 @@
       <label>Actividad<input class="input" name="title" required maxlength="120" value="${esc(item.title)}" placeholder="Ej.: estudiar capítulo 3"></label>
       <div class="study-form-grid"><label>Hora (opcional)<input class="input" type="time" name="time" value="${esc(item.time)}"></label><label>Plan (opcional)<select class="select" name="plan" data-study-plan><option value="">Sin ramo</option><option value="planO"${plan === 'planO' ? ' selected' : ''}>Plan O</option><option value="planP"${plan === 'planP' ? ' selected' : ''}>Plan P</option></select></label></div>
       <label>Ramo<select class="select" name="course" data-study-course><option value="">Sin ramo</option>${courses.map(itemCourse => `<option value="${esc(itemCourse.code)}"${item.course === itemCourse.code ? ' selected' : ''}>${current.statuses?.[plan]?.[itemCourse.code] === 'cursando' ? 'Cursando · ' : ''}${esc(titleCase(itemCourse.name))}</option>`).join('')}</select></label>
-      <details class="study-extra"${item.time || item.calendar ? ' open' : ''}><summary>Duración y calendario</summary><label>Duración en minutos (si indicas hora)<input class="input" type="number" min="0" max="720" step="5" name="duration" value="${item.duration || 0}"><small class="muted">Para Google Calendar, indica una duración si eliges una hora.</small></label>${window.PortalStudyAccount.status().connected || item.calendar ? `<label class="study-check"><input type="checkbox" name="calendar"${item.calendar ? ' checked' : ''}${window.PortalStudyAccount.status().detached.includes(item.id) ? ' disabled' : ''}> ${window.PortalStudyAccount.status().detached.includes(item.id) ? 'Se conserva por separado en Google' : 'Llevar a Google Calendar'}</label>` : `<p class="small muted">${window.PortalStudyAccount.status().available ? 'Puedes conectar Google Calendar desde el guardado de tu agenda.' : 'Descarga tus eventos para agregarlos a tu calendario.'}</p>`}</details>
+      <details class="study-extra"${(state.extraOpen ?? Boolean(item.time || item.calendar)) ? ' open' : ''}><summary>Duración y calendario</summary><label>Duración en minutos (si indicas hora)<input class="input" type="number" min="0" max="720" step="5" name="duration" value="${item.duration || 0}"><small class="muted">Indica cuánto dura la actividad para incluir su hora de término.</small></label>${window.PortalStudyAccount.status().connected || item.calendar ? `<label class="study-check"><input type="checkbox" name="calendar"${item.calendar ? ' checked' : ''}${window.PortalStudyAccount.status().detached.includes(item.id) ? ' disabled' : ''}> ${window.PortalStudyAccount.status().detached.includes(item.id) ? 'Se conserva por separado en Google' : 'Llevar a Google Calendar'}</label>` : `<p class="small muted">${window.PortalStudyAccount.status().available ? 'Puedes conectar Google Calendar desde el guardado de tu agenda.' : 'Descarga tus eventos para agregarlos a tu calendario.'}</p>`}</details>
       <div class="study-form-actions"><button class="btn primary" type="submit">${saved ? 'Guardar cambios' : 'Agregar'}</button>${saved ? '<button class="btn secondary" type="button" data-study-cancel>Cancelar</button>' : ''}</div></form>`;
   }
   function renderWeek(today, query = {}) {
@@ -135,7 +146,7 @@
     if (target.hasAttribute('data-study-reload')) { state.gradeNotice = ''; state.notice = ''; state.draft = null; state.gradeDrafts = {}; refresh(); return; }
     if (target.hasAttribute('data-study-week')) { const day = state.week || state.today; state.week = tools.shiftDate(day, Number(target.dataset.studyWeek)); refresh(); }
     if (target.hasAttribute('data-study-today')) { state.week = ''; refresh(); }
-    if (target.hasAttribute('data-study-edit')) { state.editing = target.dataset.studyEdit; state.draft = null; state.notice = ''; refresh(); document.querySelector('[data-study-event-form] [name="title"]')?.focus(); }
+    if (target.hasAttribute('data-study-edit')) { state.editing = target.dataset.studyEdit; state.draft = null; state.extraOpen = null; state.notice = ''; refresh(); document.querySelector('[data-study-event-form] [name="title"]')?.focus(); }
     if (target.hasAttribute('data-study-focus-form')) { document.querySelector('[data-study-event-form]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector('[data-study-event-form] [name="title"]')?.focus(); }
     if (target.hasAttribute('data-study-cancel')) { state.editing = ''; state.draft = null; refresh(); }
     if (target.hasAttribute('data-study-export')) {
@@ -161,6 +172,9 @@
     if (target.hasAttribute('data-study-add-row')) { const form = target.closest('form'); const rows = form.querySelector('[data-study-grade-rows]'); if (rows.children.length < 40) { rows.insertAdjacentHTML('beforeend', rowHtml({ id: '', name: '', weight: '', grade: null })); form.dataset.studyDirty = ''; } }
     if (target.hasAttribute('data-study-remove-row')) { const form = target.closest('form'); target.closest('[data-study-grade-row]')?.remove(); form.dataset.studyDirty = ''; form.dispatchEvent(new Event('input', { bubbles: true })); }
   });
+  document.addEventListener('toggle', event => {
+    if (event.target.matches('.study-extra') && event.target.isConnected) state.extraOpen = event.target.open;
+  }, true);
   document.addEventListener('change', event => {
     if (event.target.matches('[data-study-plan]')) {
       const form = event.target.closest('form');
@@ -217,7 +231,7 @@
       state.gradeNotice = result.saved ? 'Cálculo guardado.' : ''; refresh();
     }
   });
-  function reset() { state.week = ''; state.entryDate = ''; state.editing = ''; state.draft = null; state.preset = null; state.presetKey = ''; state.notice = ''; state.gradeNotice = ''; state.gradeDrafts = {}; }
+  function reset() { state.week = ''; state.entryDate = ''; state.editing = ''; state.draft = null; state.preset = null; state.presetKey = ''; state.notice = ''; state.gradeNotice = ''; state.gradeDrafts = {}; state.extraOpen = null; }
   window.addEventListener('hashchange', () => { state.entryDate = ''; });
   window.addEventListener('beforeunload', event => { if (document.querySelector('[data-study-dirty]')) { event.preventDefault(); event.returnValue = ''; } });
   document.addEventListener('click', async event => { const link = event.target.closest('a[href]'); if (link && document.querySelector('[data-study-dirty]') && link.hash !== location.hash) { event.preventDefault(); event.stopImmediatePropagation(); if (await window.PortalStudyAccount.confirmAction('Hay cambios sin guardar en el formulario. ¿Salir sin guardarlos?', 'Salir sin guardar')) { state.draft = null; state.gradeDrafts = {}; location.assign(link.href); } } }, true);

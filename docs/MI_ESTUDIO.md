@@ -1,6 +1,8 @@
 # Mi estudio — arquitectura y operación
 
-Entrega interna. Sin IA, importación general de calendarios ni sincronización bidireccional. No publicar sin indicación explícita.
+Lanzamiento público autorizado el 2026-10-05. Sin IA, importación general de calendarios ni sincronización bidireccional.
+
+La versión pública ofrece Inicio personal, Mi semana, calculadora y ramos sin cuenta, con guardado en el navegador, copias JSON y exportación ICS. `PORTAL_SIGN_IN_ENABLED` permanece desactivado: la sincronización por cuenta y la conexión directa a Google Calendar descritas abajo son capacidades preparadas, pendientes de configurar y verificar en el entorno de producción. Las pruebas con un proveedor controlado no acreditan esa conexión real.
 
 ## Experiencia
 

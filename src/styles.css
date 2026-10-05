@@ -7209,10 +7209,10 @@ body.theme-dark .my-courses-page .link,body.theme-dark .my-courses-page .muted a
 .study-page .page-head{margin-bottom:0}
 .study-page .page-head .hstack{flex-wrap:wrap}
 .study-controls,.study-form-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-.study-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,350px);gap:18px;align-items:start;min-width:0}
+.study-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,380px);gap:18px;align-items:start;min-width:0}
 .study-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;align-items:start}
 .study-day{min-width:0;padding:18px!important}
-.study-day h2{display:flex;justify-content:space-between;align-items:center;gap:8px;text-transform:capitalize;font-size:1rem;margin:0 0 12px}
+.study-day h2{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:1rem;margin:0 0 12px}
 .study-entry{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border-color,#dbe3ea);min-width:0}
 .study-entry>div:first-child{display:grid;gap:3px;min-width:0}
 .study-entry strong{line-height:1.35;overflow-wrap:anywhere}

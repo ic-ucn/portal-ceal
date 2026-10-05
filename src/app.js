@@ -475,8 +475,8 @@
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
   }
   function titleCase(str) {
-    const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
-    const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
+    const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'BIM', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+    const lowerWords = new Set(['de', 'del', 'al', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
     return tx(str).toLocaleLowerCase('es-CL')
       .split(/(\s+|\/|-)/)
       .map((part, index) => {
@@ -1607,6 +1607,11 @@
     if (path === '/mallas') {
       if (location.hash !== lastRenderedRouteKey) {
         state.mallaPersonalOpen = query.view === 'mis-ramos';
+        if (query.mark === 'actuales' && !MyCourses.status().locked) {
+          state.mallaPersonalOpen = false;
+          state.mallaMarkStatus = 'cursando';
+          state.mallaApprovalMode = true;
+        }
         state.myCoursesView = ['semester', 'eligible', 'selected'].includes(query.section) ? query.section : 'semester';
       }
       return renderMallas();
@@ -1638,7 +1643,7 @@
     return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>
       <div class="home-study-overview">
         <section class="home-study-section" aria-labelledby="home-week-title"><header><div><span class="kicker">Tu agenda</span><h2 id="home-week-title">Mi semana</h2></div><a class="link" href="#/mi-semana">Abrir agenda ${icon('arrow')}</a></header><p class="home-study-intro">Tus próximas actividades</p>${tools.status().issue ? `<p class="study-notice">${esc(tools.status().issue)} <a href="#/mi-semana">Revisar agenda</a></p>` : ''}${eventsMarkup || '<div class="home-study-empty"><p>Aún no tienes actividades próximas.</p><a class="btn primary" href="#/mi-semana">Agregar actividad</a></div>'}${overdue.length ? `<a class="home-study-pending link" href="#/mi-semana?date=${esc(overdue[0].date)}">${overdue.length} ${overdue.length === 1 ? 'actividad anterior sin completar' : 'actividades anteriores sin completar'} ${icon('arrow')}</a>` : ''}</section>
-        <section class="home-study-section" aria-labelledby="home-courses-title"><header><div><span class="kicker">${planShort(plan)}</span><h2 id="home-courses-title">Mis ramos actuales</h2></div><a class="link" href="#/mallas?view=mis-ramos&section=semester">${current.length ? `Ver ${current.length === 1 ? 'ramo' : `los ${current.length}`}` : 'Elegir ramos'} ${icon('arrow')}</a></header><div class="home-current-courses">${current.slice(0, 4).map(course => `<a class="home-current-course" data-home-course="${esc(course.code)}" href="#/ramo/${plan}/${encodeURIComponent(course.code)}"><span class="home-course-mark" aria-hidden="true"></span><span><strong>${esc(titleCase(course.name))}</strong><small>${esc(AreaStyle[courseDisplayArea(course)] || '')}</small></span>${icon('arrow')}</a>`).join('') || '<div class="home-study-empty"><p>Marca los ramos que estás cursando para tenerlos a mano.</p><a class="btn secondary" href="#/mallas">Marcar en la malla</a></div>'}</div>${current.length ? `<a class="home-study-pending link" href="#/mallas?view=mis-ramos&section=eligible">${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'} al aprobar tus actuales` : 'Revisar qué podrías cursar'} ${icon('arrow')}</a>` : ''}</section>
+        <section class="home-study-section" aria-labelledby="home-courses-title"><header><div><span class="kicker">${planShort(plan)}</span><h2 id="home-courses-title">Mis ramos actuales</h2></div><a class="link" href="#/mallas?view=mis-ramos&section=semester">${current.length ? `Ver ${current.length === 1 ? 'ramo' : `los ${current.length}`}` : 'Elegir ramos'} ${icon('arrow')}</a></header><div class="home-current-courses">${current.slice(0, 4).map(course => `<a class="home-current-course" data-home-course="${esc(course.code)}" href="#/ramo/${plan}/${encodeURIComponent(course.code)}"><span class="home-course-mark" aria-hidden="true"></span><span><strong>${esc(titleCase(course.name))}</strong><small>${esc(AreaStyle[courseDisplayArea(course)] || '')}</small></span>${icon('arrow')}</a>`).join('') || '<div class="home-study-empty"><p>Marca los ramos que estás cursando para tenerlos a mano.</p><a class="btn secondary" href="#/mallas?mark=actuales">Marcar en la malla</a></div>'}</div>${current.length ? `<a class="home-study-pending link" href="#/mallas?view=mis-ramos&section=eligible">${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'} al aprobar tus actuales` : 'Revisar qué podrías cursar'} ${icon('arrow')}</a>` : ''}</section>
       </div>
       <div class="home-academic-overview"><section class="home-calendar"><header><h2>Fechas UCN</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><nav class="home-study-tools" aria-label="Herramientas de estudio"><a href="#/calculadora"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Calculadora de notas</strong><small>Revisa qué nota necesitas</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav></div>`;
   }

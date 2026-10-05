@@ -21,6 +21,11 @@ try {
     assert.equal(await page.getByRole('link', { name: 'Agregar actividad', exact: true }).count(), 1);
     assert.equal(await page.locator('[data-home-course]').count(), 0);
     assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), null, 'Home does not create course records');
+    await page.getByRole('link', { name: 'Marcar en la malla', exact: true }).click();
+    await page.locator('[data-malla-mark-status="cursando"][aria-pressed="true"]').waitFor();
+    assert.equal(await page.locator('.malla-workspace.is-marking').count(), 1, 'Home opens marking current courses directly');
+    assert.equal(await page.evaluate(() => localStorage.getItem('portal.myCourses.v1')), null, 'Opening marking does not change saved courses');
+    await page.goto(`${base}#/inicio`, { waitUntil: 'networkidle' });
     const dates = await page.evaluate(() => {
       const today = document.querySelector('.home-heading time').dateTime;
       const next = PortalStudyTools.shiftDate(today, 15), before = PortalStudyTools.shiftDate(today, -8);
