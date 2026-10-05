@@ -1190,7 +1190,7 @@
       await handleGoogleRedirectCallback();
       await validateInitialSession();
       await window.PortalStudyAccount.init({
-        user: () => state.user, available: Boolean(API_BASE && GOOGLE_CLIENT_ID), request: apiRequest,
+        user: () => state.user, available: Boolean(SIGN_IN_ENABLED && API_BASE && GOOGLE_CLIENT_ID), request: apiRequest,
         login: () => startGoogleRedirect('student', true),
         logout: async () => { try { await apiRequest('/auth/logout', { method: 'POST', body: '{}' }); } catch {} clearSession(); state.user = buildGuestUser(); },
         refresh: () => { state.myCoursesPlan = MyCourses.read().activePlan; render({ scope: 'data', resetScroll: false }); }

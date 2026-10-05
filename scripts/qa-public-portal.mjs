@@ -51,7 +51,7 @@ try {
     assert.equal(new URL(page.url()).hash, '#/inicio', 'welcome leads to the home section');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
-    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
+    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mi-semana', 'mi-semana'], ['/calculadora', 'calculadora'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
       if (name === 'mallas') {
         await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
@@ -59,6 +59,7 @@ try {
       } else {
         await page.locator('.page-title').waitFor();
       }
+      assert.equal(await page.locator('[data-study-account-action=login]').count(), 0, 'Public study tools must not offer disabled account access');
       const metrics = await page.evaluate(() => {
         const nav = document.querySelector('.bottom-nav');
         return {
