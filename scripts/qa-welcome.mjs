@@ -11,15 +11,16 @@ const configs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] :
 const out = new URL('../qa-screenshots/', import.meta.url);
 await mkdir(out, { recursive: true });
 const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
-vm.runInNewContext(await readFile(new URL('../assets/tutorial-real/manifest.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(await readFile(new URL('../assets/tutorial-novedades/manifest.js', import.meta.url), 'utf8'), sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
 assert.equal(manifest.captureMethod, 'computer-use');
-const chapters = ['malla', 'aprobados', 'mis-ramos', 'eligible', 'semana', 'notas', 'material', 'calendario'];
+const chapters = ['aprobados', 'mis-ramos', 'eligible', 'semana', 'notas', 'inicio'];
 for (const [format, recording] of Object.entries(manifest.formats)) {
   assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], chapters);
   for (const step of recording.steps) {
-    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'source Computer Use screenshots stay unchanged');
-    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-real/${format}/`));
+    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'editorial still hash matches manifest');
+    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256, 'source Computer Use screenshot stays unchanged');
+    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-novedades/${format}/`));
   }
   assert.equal(recording.duration, recording.steps.at(-1).end);
 }
@@ -46,8 +47,8 @@ try {
     const format = width <= 920 ? 'mobile' : 'desktop', recording = manifest.formats[format];
     assert.equal(await guide.locator('[data-guide-root]').getAttribute('data-capture-format'), format);
     assert.equal(await guide.locator('[data-guide-tab]').count(), chapters.length);
-    assert.equal(await video.getAttribute('src'), recording.video);
-    assert.equal(await video.evaluate(v => v.paused && v.muted && !v.autoplay && v.controls), true);
+    assert.equal(await video.getAttribute('src'), recording.variants.voice);
+    assert.equal(await video.evaluate(v => v.paused && !v.muted && !v.autoplay && v.controls), true);
     assert.ok(await guide.locator('[data-guide-play]').evaluate(node => node.getBoundingClientRect().bottom < innerHeight), 'primary CTA is visible before media');
     assert.ok(await guide.locator('[data-guide-caption]').evaluate(node => node.getBoundingClientRect().bottom < document.querySelector('.guide-media').getBoundingClientRect().top), 'action caption is above media');
     await page.waitForFunction(() => { const image = document.querySelector('[data-guide-still]'); return image?.complete && image.naturalWidth > 0; });
@@ -72,17 +73,17 @@ try {
       await guide.locator(`[data-guide-tab="${index}"]`).click();
       assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps.find(step => step.chapter === chapters[index]).image);
     }
-    await guide.locator('[data-guide-tab="6"]').click();
+    await guide.locator('[data-guide-tab="5"]').click();
     const supportsVideo = await video.evaluate(v => !!v.canPlayType('video/mp4; codecs="avc1.64001f"'));
     if (supportsVideo) {
       await guide.locator('[data-guide-play]').click(); await ready(page);
       assert.equal(await video.isVisible(), true);
       const decoded = await video.evaluate(v => ({ width: v.videoWidth, height: v.videoHeight }));
       assert.ok(decoded.width > 0 && (engine === 'webkit' || Math.abs(decoded.width / decoded.height - recording.width / recording.height) < .002), 'native player decodes the captured stream (WebKit Windows reports rendered dimensions)');
-      const startedAt = await video.evaluate(v => v.currentTime), expectedStart = recording.steps.find(step => step.chapter === 'material').start;
+      const startedAt = await video.evaluate(v => v.currentTime), expectedStart = recording.steps.find(step => step.chapter === 'inicio').start;
       assert.ok(Math.abs(startedAt - expectedStart) < 2, `chapter playback expected ${expectedStart}s, received ${startedAt}s`);
       await video.evaluate((v, time) => { v.currentTime = time; }, recording.steps.find(step => step.chapter === 'eligible').start + .2);
-      await page.waitForFunction(() => document.querySelector('[data-guide-tab="3"]')?.getAttribute('aria-selected') === 'true');
+      await page.waitForFunction(() => document.querySelector('[data-guide-tab="2"]')?.getAttribute('aria-selected') === 'true');
       await guide.locator('[data-guide-play]').click();
       const paused = await video.evaluate(v => v.currentTime); await page.waitForTimeout(300);
       assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - paused) < .1);
@@ -108,7 +109,7 @@ try {
         assert.equal(await video.getAttribute('src'), recording.variants.silent);
         assert.equal(await video.evaluate(v => v.paused && v.muted), true);
         assert.equal(await guide.locator('audio').count(), 0);
-        assert.equal(await video.locator('track').getAttribute('default'), '');
+        assert.equal(await video.locator('track').getAttribute('default'), null);
         await guide.locator('[data-guide-play]').click(); await ready(page);
       }
       await video.evaluate((v, time) => { v.currentTime = time; }, recording.duration - .3);
@@ -154,7 +155,7 @@ try {
   assert.equal(await guide.locator('[data-guide-still]').isVisible(), true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForFunction(() => document.querySelector('[data-guide-root]').dataset.captureFormat === 'desktop');
-  assert.equal(await guide.locator('video').getAttribute('src'), manifest.formats.desktop.video);
+  assert.equal(await guide.locator('video').getAttribute('src'), manifest.formats.desktop.variants.voice);
   assert.equal(await guide.locator('video').evaluate(v => v.paused), true);
   await page.evaluate(() => { location.hash = '/inicio'; }); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
   assert.equal(await page.locator('.portal-reception video').count(), 0);
@@ -174,7 +175,7 @@ try {
     await player.locator('[data-guide-mode]').selectOption('voice');
     await player.locator('[data-guide-music]').click();
     await player.locator('[data-guide-tab="1"]').click();
-    const expected = manifest.formats.desktop.steps.find(step => step.chapter === 'aprobados').start;
+    const expected = manifest.formats.desktop.steps.find(step => step.chapter === 'mis-ramos').start;
     await player.locator('[data-guide-play]').click(); await ready(sample);
     assert.ok(Math.abs(await media.evaluate(v => v.currentTime) - expected) < 2, 'no-Range host plays the requested voice/music chapter');
     const localSource = await media.getAttribute('src');

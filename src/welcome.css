@@ -99,7 +99,7 @@ button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: 
   .guide-stage { max-width: 430px; padding: 12px; }
   .guide-media.is-video { width: min(100%, calc(var(--guide-media-available, calc(100dvh - 280px)) * var(--guide-aspect))); max-height: var(--guide-media-available, max(140px, calc(100dvh - 280px))); }
   .guide-content { max-width: 600px; display: flex; flex-direction: column; gap: 12px; }
-  .guide-chapters { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .guide-chapters { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .guide-chapters button { display: grid; justify-items: center; gap: 3px; min-height: 49px; padding: 5px 2px; text-align: center; font-size: 9px; }
   .guide-chapters button > span { width: 19px; height: 19px; flex-basis: 19px; }
   .guide-chapters i { left: 2px; }

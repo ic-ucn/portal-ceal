@@ -108,3 +108,11 @@ Capturas reales de escritorio y móvil en un origen separado, sin utilizar datos
 La búsqueda en los chats Portal CEAL de mayo/junio y agosto encontró el cliente OAuth de la agenda de Jefatura y su configuración prevista en Render (`portal-ceic-api`). La última revisión de agosto mantuvo Calendar pendiente; no acredita una conexión personal por estudiante. No se recuperaron ni copiaron secretos históricos. La configuración actual requiere el preflight y la prueba real de esta integración.
 
 `qa:study-persistence` inicia dos procesos consecutivos con una base nueva en `.data/qa-study-restart-*`: comprueba documento/revisión tras reinicio, rechazo de escrituras atrasadas y aislamiento entre cuentas. No reinicia el preview ni certifica la durabilidad del volumen de producción.
+
+## Recorrido breve (2026-10-05)
+
+La guía vigente dura 32,53 segundos y cubre solo las herramientas personales nuevas: marcas, Mis ramos, proyección de prerrequisitos, Mi semana, calculadora e Inicio. Reemplaza el recorrido de 65 segundos en el reproductor. Los medios anteriores se conservan como archivo.
+
+`python scripts/build-novedades-video.py` genera horizontal 1920×1080 y vertical 1080×1920 a 30 fps desde PNG obtenidos con Computer Use. El guion y los recortes viven en ese archivo; los PNG originales y sus hashes se conservan. Voz femenina Dalia, subtítulos breves integrados y pista VTT opcional; música apagada inicialmente y ninguna reproducción automática. Las cuatro variantes comparten tiempos; los pasos estáticos siguen disponibles con movimiento reducido.
+
+El montaje no promete conexión Google Calendar ni IA en el portal. La proyección sigue siendo condicional y se recuerda confirmar oferta y requisitos con la universidad. `npm run qa:welcome` verifica reproducción, capítulos, formatos, subtítulos, conservación de datos y accesibilidad de controles.

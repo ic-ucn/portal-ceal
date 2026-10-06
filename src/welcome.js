@@ -2,14 +2,12 @@
   'use strict';
   const SEEN_KEY = 'portal.welcome.v1', SKIP_KEY = 'portal.tutorial.skip';
   const CHAPTERS = [
-    { id: 'malla', title: 'Explorar la malla', href: '#/mallas', link: 'Abrir malla', copy: 'Elige tu plan y toca un ramo para consultar su ficha y sus prerrequisitos.' },
-    { id: 'aprobados', title: 'Marcar ramos', href: '#/mallas', link: 'Abrir malla', copy: 'Actuales y aprobados llevan una etiqueta amarilla o verde. Toca de nuevo para quitarla. El color de la tarjeta identifica el área; los pendientes no llevan marca.' },
+    { id: 'aprobados', title: 'Marcar ramos', href: '#/mallas?mark=actuales', link: 'Marcar mis ramos', copy: 'Elige tu plan. Marca los actuales en amarillo y los aprobados en verde. Toca de nuevo para quitar la marca; el color de la tarjeta conserva su área.' },
     { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Actuales', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material, notas y actividades. Guardados conserva los ramos que quieras tener a mano.' },
-    { id: 'eligible', title: 'Qué podrías cursar', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué podrías cursar', copy: 'En Qué se abre, toca un actual para seguir sus caminos. Las marcas muestran los prerrequisitos aprobados y los que aún cursas. También puedes destacarlos en la malla.' },
+    { id: 'eligible', title: 'Qué se abriría', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué se abriría', copy: 'En Qué se abre, toca un actual para seguir sus caminos. La proyección considera tus aprobados y los actuales que aún debes aprobar. Confirma oferta y requisitos con la universidad.' },
     { id: 'semana', title: 'Mi semana', href: '#/mi-semana', link: 'Abrir Mi semana', copy: 'Inicio reúne tus actividades y ramos actuales. En Mi semana agrega evaluaciones, entregas o estudio, vincúlalos a un ramo y márcalos al completar.' },
     { id: 'notas', title: 'Calculadora de notas', href: '#/calculadora', link: 'Calcular mis notas', copy: 'Elige un ramo, ingresa notas y ponderaciones y ajusta tu meta. Guarda el cálculo para continuarlo después; es una estimación personal.' },
-    { id: 'material', title: 'Material de estudio', href: '#/material', link: 'Abrir material', copy: 'Busca por título o ramo, filtra el tipo y consulta los recursos disponibles.' },
-    { id: 'calendario', title: 'Calendario académico', href: '#/calendario', link: 'Abrir calendario', copy: 'Cambia de mes y selecciona una fecha para consultar actividades y su fuente oficial.' }
+    { id: 'inicio', title: 'Tu Inicio', href: '#/inicio', link: 'Ir a mi Inicio', copy: 'Tus próximas actividades y ramos actuales aparecen juntos en Inicio. Guarda una copia de tus datos desde Mi semana para recuperarlos cuando la necesites.' }
   ];
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const formatQuery = matchMedia('(max-width: 920px)');
@@ -45,7 +43,7 @@
       this.video = this.find('video');
       this.still = this.find('still');
       this.videoMode = this.pendingPlay = false;
-      this.mode = 'text';
+      this.mode = 'voice';
       this.music = false;
       this.loadAbort = null;
       this.blobUrl = null;
@@ -138,6 +136,8 @@
       this.video.src = this.mediaSource;
       this.video.muted = key === 'silent';
       this.video.querySelector('track').src = this.recording.track;
+      this.video.querySelector('track').default = !window.PortalTutorialCapture?.openCaptions;
+      for (const track of this.video.textTracks) track.mode = window.PortalTutorialCapture?.openCaptions ? 'disabled' : 'showing';
       this.root.dataset.audioMode = this.mode;
       this.root.dataset.music = String(this.music);
       this.find('mode').value = this.mode;
