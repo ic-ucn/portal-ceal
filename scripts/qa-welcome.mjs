@@ -11,7 +11,7 @@ const configs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] :
 const out = new URL('../qa-screenshots/', import.meta.url);
 await mkdir(out, { recursive: true });
 const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
-vm.runInNewContext(await readFile(new URL('../assets/tutorial-novedades/manifest.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(await readFile(new URL('../assets/tutorial-motion/manifest.js', import.meta.url), 'utf8'), sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
 assert.equal(manifest.captureMethod, 'computer-use');
 const chapters = ['aprobados', 'mis-ramos', 'eligible', 'semana', 'notas', 'inicio'];
@@ -20,7 +20,7 @@ for (const [format, recording] of Object.entries(manifest.formats)) {
   for (const step of recording.steps) {
     assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'editorial still hash matches manifest');
     assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256, 'source Computer Use screenshot stays unchanged');
-    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-novedades/${format}/`));
+    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-motion/${format}/`));
   }
   assert.equal(recording.duration, recording.steps.at(-1).end);
 }

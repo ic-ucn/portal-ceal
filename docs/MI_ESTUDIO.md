@@ -116,3 +116,8 @@ La guía vigente dura 32,53 segundos y cubre solo las herramientas personales nu
 `python scripts/build-novedades-video.py` genera horizontal 1920×1080 y vertical 1080×1920 a 30 fps desde PNG obtenidos con Computer Use. El guion y los recortes viven en ese archivo; los PNG originales y sus hashes se conservan. Voz femenina Dalia, subtítulos breves integrados y pista VTT opcional; música apagada inicialmente y ninguna reproducción automática. Las cuatro variantes comparten tiempos; los pasos estáticos siguen disponibles con movimiento reducido.
 
 El montaje no promete conexión Google Calendar ni IA en el portal. La proyección sigue siendo condicional y se recuerda confirmar oferta y requisitos con la universidad. `npm run qa:welcome` verifica reproducción, capítulos, formatos, subtítulos, conservación de datos y accesibilidad de controles.
+
+
+## Tutorial de novedades con movimiento — 2026-10-05
+
+La guía usa ahora `assets/tutorial-motion/manifest.js`: 41,567 segundos, ocho tomas y seis capítulos. La pantalla real domina el video, con acercamientos a controles y resultados, marcas de clic y encuadres propios para teléfono. Voz femenina Dalia, subtítulos integrados y música opcional apagada por defecto. Se conservan navegación por pasos y alternativa sin movimiento. Fuente reproducible en `scripts/tutorial-motion/`; las capturas previas permanecen intactas. Google Calendar no se anuncia como conectado.
