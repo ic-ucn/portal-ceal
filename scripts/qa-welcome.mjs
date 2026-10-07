@@ -39,7 +39,7 @@ try {
   for (const [engine, width, height] of configs) {
     browser = await ({ chromium, webkit, firefox }[engine]).launch();
     const context = await browser.newContext({ viewport: { width, height } }), page = await context.newPage();
-    page.setDefaultTimeout(15000);
+    page.setDefaultTimeout(production ? 45000 : 15000);
     page.on('pageerror', error => report.errors.push(`${engine}/${width}: ${error.message}`));
     const requests = [];
     page.on('request', request => { if (/\.(mp4|mp3|m4a|wav)(?:\?|$)/.test(request.url())) requests.push(request.url()); });
