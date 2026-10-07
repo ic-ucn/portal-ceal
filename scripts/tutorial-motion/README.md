@@ -5,7 +5,7 @@ Opus 5.5 produjo la dirección y el compositor inicial; las coordenadas, secuenc
 capturas, integración y revisión se ajustaron contra la aplicación real.
 
 El contenido enseña marcas de ramos, prerrequisitos condicionales, agenda,
-calculadora e Inicio. No anuncia Google Calendar conectado ni sincronización
+Inicio y Mis ramos. No anuncia Google Calendar conectado ni sincronización
 por cuenta. Los ejemplos son ficticios y se crearon en un origen de prueba aislado.
 
 ## Reconstrucción
@@ -64,3 +64,19 @@ From `scripts/tutorial-motion`: `node render-story.mjs`.
 Back at repository root: `python scripts/tutorial-motion/finalize-story.py`.
 
 Opus supplied the earlier structural review; Codex implements this focused retirement and new voice. Earlier calculator compositor is historical and is not used by the current guide.
+
+
+## Precision pass (2026-10-07)
+
+The current narrative uses one continuous Kore female take with neutral Latin
+American tutorial delivery, stored as `narration/narration.wav`. `timing.json`
+and the word alignment refer to that file; rebuilding has no API cost.
+The form has separate name/date/time/course/saved captures. The browser's
+focus scroll is compensated using measured offsets and capture scale. Native
+field focus provides the cue; no approximate synthetic pointer or click is
+rendered. The camera settles before inputs and cuts to the saved result.
+Stills are rendered after every state change for desktop and portrait QA.
+
+The current examples are Civil department courses: Geología para Ingeniería and
+Mecánica de Sólidos approved, Mecánica de Suelos 1 current, Suelos 2 projected.
+The same Control de Suelos appears in the form, saved activity and Inicio.

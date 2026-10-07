@@ -11,164 +11,164 @@ window.PortalTutorialCapture = Object.freeze({
         "rate": "natural",
         "sampleRate": 48000,
         "musicSource": "original repository composition; lowpass 1600Hz",
-        "musicGain": 0.01265236621631619,
+        "musicGain": 0.008399413247801257,
         "balanceWindowSeconds": 0.4,
         "speechEnergyThresholdDbFS": -40,
         "minimumMusicBelowVoiceDb": 22.0,
-        "measuredSpeechWindows": 72,
-        "mixedPeakDbFS": -3.313,
+        "measuredSpeechWindows": 79,
+        "mixedPeakDbFS": -3.326,
         "accessibilityNote": "Measured narration/music balance only; no global AAA compliance claim."
       },
       "formats": {
         "desktop": {
           "width": 1920,
           "height": 1080,
-          "duration": 32.933,
+          "duration": 34.6,
           "steps": [
             {
               "id": "marcas",
               "chapter": "aprobados",
-              "image": "assets/tutorial-story/semestre/desktop/marcas-9b2c8b50eb7c.jpg",
-              "sha256": "9b2c8b50eb7c175e079bb25416b5592d0699806670df56439522a0e69983b815",
+              "image": "assets/tutorial-story/semestre/desktop/marcas-629a6fbe177a.jpg",
+              "sha256": "629a6fbe177a57758eeae2e6821c1e50811699d2ac742477dd9a0865c1c97bd2",
               "sourceImage": "assets/tutorial-story/captures/malla-current.png",
-              "sourceSha256": "d130e601e6219c296da55d1a7c7f677175ff13431d248ad794d1860dbb5ef857",
+              "sourceSha256": "43bb79610a8c0cebf8809dc5189b14d10b532af6168069294626c56fbe301912",
               "caption": "Parte por la malla de tu carrera. Marca los ramos que ya aprobaste. Y los que estás cursando ahora.",
               "start": 0,
-              "end": 5.8,
-              "voiceDuration": 5.8
+              "end": 6.32,
+              "voiceDuration": 6.32
             },
             {
               "id": "caminos",
               "chapter": "eligible",
-              "image": "assets/tutorial-story/semestre/desktop/caminos-780775245906.jpg",
-              "sha256": "780775245906747922d9fc15356678c694b65ba6bf642a67d6058a0b3b7f5737",
+              "image": "assets/tutorial-story/semestre/desktop/caminos-18b271e556cd.jpg",
+              "sha256": "18b271e556cdaa89fe242a6ebc98529ab7c21880590d709701c3dd477bf07951",
               "sourceImage": "assets/tutorial-story/captures/paths.png",
-              "sourceSha256": "fa1d4167d1c53e4af35442b0c0a96ff6a79db696430a43a3e2abe9b020097344",
-              "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Cálculo dos requiere aprobar Cálculo uno. Confirma también la oferta con la universidad.",
-              "start": 5.8,
-              "end": 14.733,
-              "voiceDuration": 8.933
+              "sourceSha256": "9533ce5bc395e7062908e32ceba21420aa6fb54c37f03e25d1eb2f8ec6eb551d",
+              "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Mecánica de Suelos dos requiere aprobar Mecánica de Suelos uno. Confirma también la oferta con la universidad.",
+              "start": 6.32,
+              "end": 17.32,
+              "voiceDuration": 11.0
             },
             {
               "id": "agenda",
               "chapter": "semana",
-              "image": "assets/tutorial-story/semestre/desktop/agenda-48d44bb43b4c.jpg",
-              "sha256": "48d44bb43b4c056af4a5dc1f9fedba781023d7d42274db1dad6d2186130cdcf0",
+              "image": "assets/tutorial-story/semestre/desktop/agenda-89a5f9e7d12c.jpg",
+              "sha256": "89a5f9e7d12cb1300f58130147482f83ff391e854ebef5b42406f8c2e654b450",
               "sourceImage": "assets/tutorial-story/captures/week-saved.png",
-              "sourceSha256": "197eb9b4144a906706347c8675a81b2ec586e75ba380aea46d8fce97601f0c81",
+              "sourceSha256": "369791cff1eecaa66c7f69293d819fc84843a5aedeff38060f8ffb4f82167eda",
               "caption": "Para anotar un control, entra a Mi semana y agrega una actividad. Escribe el nombre, la fecha y la hora. Elige el ramo y guarda.",
-              "start": 14.733,
-              "end": 24.967,
-              "voiceDuration": 10.233
+              "start": 17.32,
+              "end": 26.36,
+              "voiceDuration": 9.04
             },
             {
               "id": "inicio",
               "chapter": "inicio",
-              "image": "assets/tutorial-story/semestre/desktop/inicio-0754f0e46541.jpg",
-              "sha256": "0754f0e46541f39af3dd634f1b9b4ad7b68d2337dda4a7a9e5a18278bae4dd5e",
+              "image": "assets/tutorial-story/semestre/desktop/inicio-6254b90408a5.jpg",
+              "sha256": "6254b90408a54c069008281107d453d3aae8e13e15ac5c0928a90c4bb8a7198e",
               "sourceImage": "assets/tutorial-story/captures/home.png",
-              "sourceSha256": "c691653ecd37c6ef09792ddf4e3ad7b83c720b904c363cdebe91f8dc5230d9b7",
+              "sourceSha256": "83a66c68a284e3842ec08af2ddae7f46ecbfe9649803dca0c79797c6f7a5fbbb",
               "caption": "La actividad aparece en Inicio, junto con tus ramos actuales.",
-              "start": 24.967,
-              "end": 28.8,
-              "voiceDuration": 3.833
+              "start": 26.36,
+              "end": 29.88,
+              "voiceDuration": 3.52
             },
             {
               "id": "ramos",
               "chapter": "mis-ramos",
-              "image": "assets/tutorial-story/semestre/desktop/ramos-ba2128bedd52.jpg",
-              "sha256": "ba2128bedd52e46e282b9d07cb5c1db76da2ec5b0fac41885929e3806a8cff7d",
+              "image": "assets/tutorial-story/semestre/desktop/ramos-d4549cfc1132.jpg",
+              "sha256": "d4549cfc1132267b1e758bf173e90c6457434d991978e673b7178be7dcbd6205",
               "sourceImage": "assets/tutorial-story/captures/courses.png",
-              "sourceSha256": "129596c7df4bdc1e823f790877791d33929097cf28f42318b002a65fe7d40571",
+              "sourceSha256": "bc0168a0d160ce754441e5e4d25e150b9f395b23441a39cddf1d6d618d547ec7",
               "caption": "En Mis ramos tienes el material y un acceso para agregar actividades.",
-              "start": 28.8,
-              "end": 32.933,
-              "voiceDuration": 4.133
+              "start": 29.88,
+              "end": 34.6,
+              "voiceDuration": 4.72
             }
           ],
           "variants": {
-            "silent": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=3d29b5a1143e",
-            "voice": "assets/tutorial-story/semestre/desktop/recorrido-voice.mp4?v=c614a77d8914",
-            "music": "assets/tutorial-story/semestre/desktop/recorrido-music.mp4?v=0b9ccbf1d337",
-            "voiceMusic": "assets/tutorial-story/semestre/desktop/recorrido-voiceMusic.mp4?v=c15c9d1d1733"
+            "silent": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=74d048af2a28",
+            "voice": "assets/tutorial-story/semestre/desktop/recorrido-voice.mp4?v=e8d7c6b9766d",
+            "music": "assets/tutorial-story/semestre/desktop/recorrido-music.mp4?v=5a1b5c2b8632",
+            "voiceMusic": "assets/tutorial-story/semestre/desktop/recorrido-voiceMusic.mp4?v=5ac947f88273"
           },
-          "video": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=3d29b5a1143e",
-          "track": "assets/tutorial-story/semestre/desktop/recorrido.vtt?v=6f4ecb095ef5"
+          "video": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=74d048af2a28",
+          "track": "assets/tutorial-story/semestre/desktop/recorrido.vtt?v=d1e9bb65c2d5"
         },
         "mobile": {
           "width": 1080,
           "height": 1920,
-          "duration": 32.933,
+          "duration": 34.6,
           "steps": [
             {
               "id": "marcas",
               "chapter": "aprobados",
-              "image": "assets/tutorial-story/semestre/mobile/marcas-0fa9b49ce685.jpg",
-              "sha256": "0fa9b49ce6856d8a30b10d30099084db251f73c7baf61dfb53b1d4427cf53f08",
+              "image": "assets/tutorial-story/semestre/mobile/marcas-c1b8d5048129.jpg",
+              "sha256": "c1b8d5048129939ea160a4712771dd13bc0fa25d59d0a76da432776a3f9116b3",
               "sourceImage": "assets/tutorial-story/captures/malla-current.png",
-              "sourceSha256": "d130e601e6219c296da55d1a7c7f677175ff13431d248ad794d1860dbb5ef857",
+              "sourceSha256": "43bb79610a8c0cebf8809dc5189b14d10b532af6168069294626c56fbe301912",
               "caption": "Parte por la malla de tu carrera. Marca los ramos que ya aprobaste. Y los que estás cursando ahora.",
               "start": 0,
-              "end": 5.8,
-              "voiceDuration": 5.8
+              "end": 6.32,
+              "voiceDuration": 6.32
             },
             {
               "id": "caminos",
               "chapter": "eligible",
-              "image": "assets/tutorial-story/semestre/mobile/caminos-c8043d917b9f.jpg",
-              "sha256": "c8043d917b9fe7c38a39dfa4a544a84957abb0fcd00047979f1b95cfbcfe107c",
+              "image": "assets/tutorial-story/semestre/mobile/caminos-c31d35c82f0c.jpg",
+              "sha256": "c31d35c82f0c905fe3cad2c55248690a0bb50c3bae692b07f2d41ddd0ae9a004",
               "sourceImage": "assets/tutorial-story/captures/paths.png",
-              "sourceSha256": "fa1d4167d1c53e4af35442b0c0a96ff6a79db696430a43a3e2abe9b020097344",
-              "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Cálculo dos requiere aprobar Cálculo uno. Confirma también la oferta con la universidad.",
-              "start": 5.8,
-              "end": 14.733,
-              "voiceDuration": 8.933
+              "sourceSha256": "9533ce5bc395e7062908e32ceba21420aa6fb54c37f03e25d1eb2f8ec6eb551d",
+              "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Mecánica de Suelos dos requiere aprobar Mecánica de Suelos uno. Confirma también la oferta con la universidad.",
+              "start": 6.32,
+              "end": 17.32,
+              "voiceDuration": 11.0
             },
             {
               "id": "agenda",
               "chapter": "semana",
-              "image": "assets/tutorial-story/semestre/mobile/agenda-970efc89e94b.jpg",
-              "sha256": "970efc89e94b4e5752cd3c2da264ddda1dce974cbe4762fe2435634e79998cfc",
+              "image": "assets/tutorial-story/semestre/mobile/agenda-5c721dc7db8f.jpg",
+              "sha256": "5c721dc7db8fc420d24c5dbde2f89f254861660bb2354d93444aa9e51dbd1f0a",
               "sourceImage": "assets/tutorial-story/captures/week-saved.png",
-              "sourceSha256": "197eb9b4144a906706347c8675a81b2ec586e75ba380aea46d8fce97601f0c81",
+              "sourceSha256": "369791cff1eecaa66c7f69293d819fc84843a5aedeff38060f8ffb4f82167eda",
               "caption": "Para anotar un control, entra a Mi semana y agrega una actividad. Escribe el nombre, la fecha y la hora. Elige el ramo y guarda.",
-              "start": 14.733,
-              "end": 24.967,
-              "voiceDuration": 10.233
+              "start": 17.32,
+              "end": 26.36,
+              "voiceDuration": 9.04
             },
             {
               "id": "inicio",
               "chapter": "inicio",
-              "image": "assets/tutorial-story/semestre/mobile/inicio-8a683f486ba7.jpg",
-              "sha256": "8a683f486ba738214cf6bae6b1739a03432d5fd5979a91788c8e778527762dd0",
+              "image": "assets/tutorial-story/semestre/mobile/inicio-2d4ef419baf0.jpg",
+              "sha256": "2d4ef419baf0b3e31820af4b276613e2e59533068f1729d379cb4d2b0e2bc686",
               "sourceImage": "assets/tutorial-story/captures/home.png",
-              "sourceSha256": "c691653ecd37c6ef09792ddf4e3ad7b83c720b904c363cdebe91f8dc5230d9b7",
+              "sourceSha256": "83a66c68a284e3842ec08af2ddae7f46ecbfe9649803dca0c79797c6f7a5fbbb",
               "caption": "La actividad aparece en Inicio, junto con tus ramos actuales.",
-              "start": 24.967,
-              "end": 28.8,
-              "voiceDuration": 3.833
+              "start": 26.36,
+              "end": 29.88,
+              "voiceDuration": 3.52
             },
             {
               "id": "ramos",
               "chapter": "mis-ramos",
-              "image": "assets/tutorial-story/semestre/mobile/ramos-62c804774c77.jpg",
-              "sha256": "62c804774c77d342bc6c5e0e875346aba5749e754a6b3fe8b808c553ce19bd33",
+              "image": "assets/tutorial-story/semestre/mobile/ramos-8ba47b86192b.jpg",
+              "sha256": "8ba47b86192b3f1ffe1065961f346f4d5a08100b227fa21346383c525d1f306d",
               "sourceImage": "assets/tutorial-story/captures/courses.png",
-              "sourceSha256": "129596c7df4bdc1e823f790877791d33929097cf28f42318b002a65fe7d40571",
+              "sourceSha256": "bc0168a0d160ce754441e5e4d25e150b9f395b23441a39cddf1d6d618d547ec7",
               "caption": "En Mis ramos tienes el material y un acceso para agregar actividades.",
-              "start": 28.8,
-              "end": 32.933,
-              "voiceDuration": 4.133
+              "start": 29.88,
+              "end": 34.6,
+              "voiceDuration": 4.72
             }
           ],
           "variants": {
-            "silent": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=bfb4f9e82f88",
-            "voice": "assets/tutorial-story/semestre/mobile/recorrido-voice.mp4?v=5b58c1654f51",
-            "music": "assets/tutorial-story/semestre/mobile/recorrido-music.mp4?v=1e00605e9d18",
-            "voiceMusic": "assets/tutorial-story/semestre/mobile/recorrido-voiceMusic.mp4?v=a9c4f31294ea"
+            "silent": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=95ae00e1134d",
+            "voice": "assets/tutorial-story/semestre/mobile/recorrido-voice.mp4?v=e346452a74d7",
+            "music": "assets/tutorial-story/semestre/mobile/recorrido-music.mp4?v=2b86216a920a",
+            "voiceMusic": "assets/tutorial-story/semestre/mobile/recorrido-voiceMusic.mp4?v=4ae73baddf33"
           },
-          "video": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=bfb4f9e82f88",
-          "track": "assets/tutorial-story/semestre/mobile/recorrido.vtt?v=6f4ecb095ef5"
+          "video": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=95ae00e1134d",
+          "track": "assets/tutorial-story/semestre/mobile/recorrido.vtt?v=d1e9bb65c2d5"
         }
       }
     }
@@ -177,152 +177,152 @@ window.PortalTutorialCapture = Object.freeze({
     "desktop": {
       "width": 1920,
       "height": 1080,
-      "duration": 32.933,
+      "duration": 34.6,
       "steps": [
         {
           "id": "marcas",
           "chapter": "aprobados",
-          "image": "assets/tutorial-story/semestre/desktop/marcas-9b2c8b50eb7c.jpg",
-          "sha256": "9b2c8b50eb7c175e079bb25416b5592d0699806670df56439522a0e69983b815",
+          "image": "assets/tutorial-story/semestre/desktop/marcas-629a6fbe177a.jpg",
+          "sha256": "629a6fbe177a57758eeae2e6821c1e50811699d2ac742477dd9a0865c1c97bd2",
           "sourceImage": "assets/tutorial-story/captures/malla-current.png",
-          "sourceSha256": "d130e601e6219c296da55d1a7c7f677175ff13431d248ad794d1860dbb5ef857",
+          "sourceSha256": "43bb79610a8c0cebf8809dc5189b14d10b532af6168069294626c56fbe301912",
           "caption": "Parte por la malla de tu carrera. Marca los ramos que ya aprobaste. Y los que estás cursando ahora.",
           "start": 0,
-          "end": 5.8,
-          "voiceDuration": 5.8
+          "end": 6.32,
+          "voiceDuration": 6.32
         },
         {
           "id": "caminos",
           "chapter": "eligible",
-          "image": "assets/tutorial-story/semestre/desktop/caminos-780775245906.jpg",
-          "sha256": "780775245906747922d9fc15356678c694b65ba6bf642a67d6058a0b3b7f5737",
+          "image": "assets/tutorial-story/semestre/desktop/caminos-18b271e556cd.jpg",
+          "sha256": "18b271e556cdaa89fe242a6ebc98529ab7c21880590d709701c3dd477bf07951",
           "sourceImage": "assets/tutorial-story/captures/paths.png",
-          "sourceSha256": "fa1d4167d1c53e4af35442b0c0a96ff6a79db696430a43a3e2abe9b020097344",
-          "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Cálculo dos requiere aprobar Cálculo uno. Confirma también la oferta con la universidad.",
-          "start": 5.8,
-          "end": 14.733,
-          "voiceDuration": 8.933
+          "sourceSha256": "9533ce5bc395e7062908e32ceba21420aa6fb54c37f03e25d1eb2f8ec6eb551d",
+          "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Mecánica de Suelos dos requiere aprobar Mecánica de Suelos uno. Confirma también la oferta con la universidad.",
+          "start": 6.32,
+          "end": 17.32,
+          "voiceDuration": 11.0
         },
         {
           "id": "agenda",
           "chapter": "semana",
-          "image": "assets/tutorial-story/semestre/desktop/agenda-48d44bb43b4c.jpg",
-          "sha256": "48d44bb43b4c056af4a5dc1f9fedba781023d7d42274db1dad6d2186130cdcf0",
+          "image": "assets/tutorial-story/semestre/desktop/agenda-89a5f9e7d12c.jpg",
+          "sha256": "89a5f9e7d12cb1300f58130147482f83ff391e854ebef5b42406f8c2e654b450",
           "sourceImage": "assets/tutorial-story/captures/week-saved.png",
-          "sourceSha256": "197eb9b4144a906706347c8675a81b2ec586e75ba380aea46d8fce97601f0c81",
+          "sourceSha256": "369791cff1eecaa66c7f69293d819fc84843a5aedeff38060f8ffb4f82167eda",
           "caption": "Para anotar un control, entra a Mi semana y agrega una actividad. Escribe el nombre, la fecha y la hora. Elige el ramo y guarda.",
-          "start": 14.733,
-          "end": 24.967,
-          "voiceDuration": 10.233
+          "start": 17.32,
+          "end": 26.36,
+          "voiceDuration": 9.04
         },
         {
           "id": "inicio",
           "chapter": "inicio",
-          "image": "assets/tutorial-story/semestre/desktop/inicio-0754f0e46541.jpg",
-          "sha256": "0754f0e46541f39af3dd634f1b9b4ad7b68d2337dda4a7a9e5a18278bae4dd5e",
+          "image": "assets/tutorial-story/semestre/desktop/inicio-6254b90408a5.jpg",
+          "sha256": "6254b90408a54c069008281107d453d3aae8e13e15ac5c0928a90c4bb8a7198e",
           "sourceImage": "assets/tutorial-story/captures/home.png",
-          "sourceSha256": "c691653ecd37c6ef09792ddf4e3ad7b83c720b904c363cdebe91f8dc5230d9b7",
+          "sourceSha256": "83a66c68a284e3842ec08af2ddae7f46ecbfe9649803dca0c79797c6f7a5fbbb",
           "caption": "La actividad aparece en Inicio, junto con tus ramos actuales.",
-          "start": 24.967,
-          "end": 28.8,
-          "voiceDuration": 3.833
+          "start": 26.36,
+          "end": 29.88,
+          "voiceDuration": 3.52
         },
         {
           "id": "ramos",
           "chapter": "mis-ramos",
-          "image": "assets/tutorial-story/semestre/desktop/ramos-ba2128bedd52.jpg",
-          "sha256": "ba2128bedd52e46e282b9d07cb5c1db76da2ec5b0fac41885929e3806a8cff7d",
+          "image": "assets/tutorial-story/semestre/desktop/ramos-d4549cfc1132.jpg",
+          "sha256": "d4549cfc1132267b1e758bf173e90c6457434d991978e673b7178be7dcbd6205",
           "sourceImage": "assets/tutorial-story/captures/courses.png",
-          "sourceSha256": "129596c7df4bdc1e823f790877791d33929097cf28f42318b002a65fe7d40571",
+          "sourceSha256": "bc0168a0d160ce754441e5e4d25e150b9f395b23441a39cddf1d6d618d547ec7",
           "caption": "En Mis ramos tienes el material y un acceso para agregar actividades.",
-          "start": 28.8,
-          "end": 32.933,
-          "voiceDuration": 4.133
+          "start": 29.88,
+          "end": 34.6,
+          "voiceDuration": 4.72
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=3d29b5a1143e",
-        "voice": "assets/tutorial-story/semestre/desktop/recorrido-voice.mp4?v=c614a77d8914",
-        "music": "assets/tutorial-story/semestre/desktop/recorrido-music.mp4?v=0b9ccbf1d337",
-        "voiceMusic": "assets/tutorial-story/semestre/desktop/recorrido-voiceMusic.mp4?v=c15c9d1d1733"
+        "silent": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=74d048af2a28",
+        "voice": "assets/tutorial-story/semestre/desktop/recorrido-voice.mp4?v=e8d7c6b9766d",
+        "music": "assets/tutorial-story/semestre/desktop/recorrido-music.mp4?v=5a1b5c2b8632",
+        "voiceMusic": "assets/tutorial-story/semestre/desktop/recorrido-voiceMusic.mp4?v=5ac947f88273"
       },
-      "video": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=3d29b5a1143e",
-      "track": "assets/tutorial-story/semestre/desktop/recorrido.vtt?v=6f4ecb095ef5"
+      "video": "assets/tutorial-story/semestre/desktop/recorrido.mp4?v=74d048af2a28",
+      "track": "assets/tutorial-story/semestre/desktop/recorrido.vtt?v=d1e9bb65c2d5"
     },
     "mobile": {
       "width": 1080,
       "height": 1920,
-      "duration": 32.933,
+      "duration": 34.6,
       "steps": [
         {
           "id": "marcas",
           "chapter": "aprobados",
-          "image": "assets/tutorial-story/semestre/mobile/marcas-0fa9b49ce685.jpg",
-          "sha256": "0fa9b49ce6856d8a30b10d30099084db251f73c7baf61dfb53b1d4427cf53f08",
+          "image": "assets/tutorial-story/semestre/mobile/marcas-c1b8d5048129.jpg",
+          "sha256": "c1b8d5048129939ea160a4712771dd13bc0fa25d59d0a76da432776a3f9116b3",
           "sourceImage": "assets/tutorial-story/captures/malla-current.png",
-          "sourceSha256": "d130e601e6219c296da55d1a7c7f677175ff13431d248ad794d1860dbb5ef857",
+          "sourceSha256": "43bb79610a8c0cebf8809dc5189b14d10b532af6168069294626c56fbe301912",
           "caption": "Parte por la malla de tu carrera. Marca los ramos que ya aprobaste. Y los que estás cursando ahora.",
           "start": 0,
-          "end": 5.8,
-          "voiceDuration": 5.8
+          "end": 6.32,
+          "voiceDuration": 6.32
         },
         {
           "id": "caminos",
           "chapter": "eligible",
-          "image": "assets/tutorial-story/semestre/mobile/caminos-c8043d917b9f.jpg",
-          "sha256": "c8043d917b9fe7c38a39dfa4a544a84957abb0fcd00047979f1b95cfbcfe107c",
+          "image": "assets/tutorial-story/semestre/mobile/caminos-c31d35c82f0c.jpg",
+          "sha256": "c31d35c82f0c905fe3cad2c55248690a0bb50c3bae692b07f2d41ddd0ae9a004",
           "sourceImage": "assets/tutorial-story/captures/paths.png",
-          "sourceSha256": "fa1d4167d1c53e4af35442b0c0a96ff6a79db696430a43a3e2abe9b020097344",
-          "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Cálculo dos requiere aprobar Cálculo uno. Confirma también la oferta con la universidad.",
-          "start": 5.8,
-          "end": 14.733,
-          "voiceDuration": 8.933
+          "sourceSha256": "9533ce5bc395e7062908e32ceba21420aa6fb54c37f03e25d1eb2f8ec6eb551d",
+          "caption": "En Qué se abre, revisa los ramos que podrías tomar después. Por ejemplo, Mecánica de Suelos dos requiere aprobar Mecánica de Suelos uno. Confirma también la oferta con la universidad.",
+          "start": 6.32,
+          "end": 17.32,
+          "voiceDuration": 11.0
         },
         {
           "id": "agenda",
           "chapter": "semana",
-          "image": "assets/tutorial-story/semestre/mobile/agenda-970efc89e94b.jpg",
-          "sha256": "970efc89e94b4e5752cd3c2da264ddda1dce974cbe4762fe2435634e79998cfc",
+          "image": "assets/tutorial-story/semestre/mobile/agenda-5c721dc7db8f.jpg",
+          "sha256": "5c721dc7db8fc420d24c5dbde2f89f254861660bb2354d93444aa9e51dbd1f0a",
           "sourceImage": "assets/tutorial-story/captures/week-saved.png",
-          "sourceSha256": "197eb9b4144a906706347c8675a81b2ec586e75ba380aea46d8fce97601f0c81",
+          "sourceSha256": "369791cff1eecaa66c7f69293d819fc84843a5aedeff38060f8ffb4f82167eda",
           "caption": "Para anotar un control, entra a Mi semana y agrega una actividad. Escribe el nombre, la fecha y la hora. Elige el ramo y guarda.",
-          "start": 14.733,
-          "end": 24.967,
-          "voiceDuration": 10.233
+          "start": 17.32,
+          "end": 26.36,
+          "voiceDuration": 9.04
         },
         {
           "id": "inicio",
           "chapter": "inicio",
-          "image": "assets/tutorial-story/semestre/mobile/inicio-8a683f486ba7.jpg",
-          "sha256": "8a683f486ba738214cf6bae6b1739a03432d5fd5979a91788c8e778527762dd0",
+          "image": "assets/tutorial-story/semestre/mobile/inicio-2d4ef419baf0.jpg",
+          "sha256": "2d4ef419baf0b3e31820af4b276613e2e59533068f1729d379cb4d2b0e2bc686",
           "sourceImage": "assets/tutorial-story/captures/home.png",
-          "sourceSha256": "c691653ecd37c6ef09792ddf4e3ad7b83c720b904c363cdebe91f8dc5230d9b7",
+          "sourceSha256": "83a66c68a284e3842ec08af2ddae7f46ecbfe9649803dca0c79797c6f7a5fbbb",
           "caption": "La actividad aparece en Inicio, junto con tus ramos actuales.",
-          "start": 24.967,
-          "end": 28.8,
-          "voiceDuration": 3.833
+          "start": 26.36,
+          "end": 29.88,
+          "voiceDuration": 3.52
         },
         {
           "id": "ramos",
           "chapter": "mis-ramos",
-          "image": "assets/tutorial-story/semestre/mobile/ramos-62c804774c77.jpg",
-          "sha256": "62c804774c77d342bc6c5e0e875346aba5749e754a6b3fe8b808c553ce19bd33",
+          "image": "assets/tutorial-story/semestre/mobile/ramos-8ba47b86192b.jpg",
+          "sha256": "8ba47b86192b3f1ffe1065961f346f4d5a08100b227fa21346383c525d1f306d",
           "sourceImage": "assets/tutorial-story/captures/courses.png",
-          "sourceSha256": "129596c7df4bdc1e823f790877791d33929097cf28f42318b002a65fe7d40571",
+          "sourceSha256": "bc0168a0d160ce754441e5e4d25e150b9f395b23441a39cddf1d6d618d547ec7",
           "caption": "En Mis ramos tienes el material y un acceso para agregar actividades.",
-          "start": 28.8,
-          "end": 32.933,
-          "voiceDuration": 4.133
+          "start": 29.88,
+          "end": 34.6,
+          "voiceDuration": 4.72
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=bfb4f9e82f88",
-        "voice": "assets/tutorial-story/semestre/mobile/recorrido-voice.mp4?v=5b58c1654f51",
-        "music": "assets/tutorial-story/semestre/mobile/recorrido-music.mp4?v=1e00605e9d18",
-        "voiceMusic": "assets/tutorial-story/semestre/mobile/recorrido-voiceMusic.mp4?v=a9c4f31294ea"
+        "silent": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=95ae00e1134d",
+        "voice": "assets/tutorial-story/semestre/mobile/recorrido-voice.mp4?v=e346452a74d7",
+        "music": "assets/tutorial-story/semestre/mobile/recorrido-music.mp4?v=2b86216a920a",
+        "voiceMusic": "assets/tutorial-story/semestre/mobile/recorrido-voiceMusic.mp4?v=4ae73baddf33"
       },
-      "video": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=bfb4f9e82f88",
-      "track": "assets/tutorial-story/semestre/mobile/recorrido.vtt?v=6f4ecb095ef5"
+      "video": "assets/tutorial-story/semestre/mobile/recorrido.mp4?v=95ae00e1134d",
+      "track": "assets/tutorial-story/semestre/mobile/recorrido.vtt?v=d1e9bb65c2d5"
     }
   },
   "audio": {
@@ -330,12 +330,12 @@ window.PortalTutorialCapture = Object.freeze({
     "rate": "natural",
     "sampleRate": 48000,
     "musicSource": "original repository composition; lowpass 1600Hz",
-    "musicGain": 0.01265236621631619,
+    "musicGain": 0.008399413247801257,
     "balanceWindowSeconds": 0.4,
     "speechEnergyThresholdDbFS": -40,
     "minimumMusicBelowVoiceDb": 22.0,
-    "measuredSpeechWindows": 72,
-    "mixedPeakDbFS": -3.313,
+    "measuredSpeechWindows": 79,
+    "mixedPeakDbFS": -3.326,
     "accessibilityNote": "Measured narration/music balance only; no global AAA compliance claim."
   }
 });

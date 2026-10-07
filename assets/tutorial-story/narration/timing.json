@@ -1,0 +1,71 @@
+{
+  "captions": [
+    {
+      "start": 0,
+      "end": 2,
+      "text": "Parte por la malla de tu carrera."
+    },
+    {
+      "start": 2.34,
+      "end": 3.9,
+      "text": "Marca los ramos que ya aprobaste."
+    },
+    {
+      "start": 4.22,
+      "end": 5.9,
+      "text": "Y los que estás cursando ahora."
+    },
+    {
+      "start": 6.32,
+      "end": 9.85,
+      "text": "En Qué se abre, revisa los ramos que podrías tomar después."
+    },
+    {
+      "start": 10.08,
+      "end": 14.3,
+      "text": "Por ejemplo, Mecánica de Suelos dos requiere aprobar Mecánica de Suelos uno."
+    },
+    {
+      "start": 14.6,
+      "end": 16.8,
+      "text": "Confirma también la oferta con la universidad."
+    },
+    {
+      "start": 17.32,
+      "end": 21.85,
+      "text": "Para anotar un control, entra a Mi semana y agrega una actividad."
+    },
+    {
+      "start": 22.1,
+      "end": 24.15,
+      "text": "Escribe el nombre, la fecha y la hora."
+    },
+    {
+      "start": 24.48,
+      "end": 26.05,
+      "text": "Elige el ramo y guarda."
+    },
+    {
+      "start": 26.36,
+      "end": 29.6,
+      "text": "La actividad aparece en Inicio, junto con tus ramos actuales."
+    },
+    {
+      "start": 29.88,
+      "end": 34.35,
+      "text": "En Mis ramos tienes el material y un acceso para agregar actividades."
+    }
+  ],
+  "beats": {
+    "intro": 0,
+    "approved": 2.34,
+    "current": 4.22,
+    "paths": 6.32,
+    "condition": 10.08,
+    "week": 17.32,
+    "form": 22.1,
+    "home": 26.36,
+    "courses": 29.88
+  },
+  "duration": 34.6
+}

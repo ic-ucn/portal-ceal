@@ -9,7 +9,7 @@ try{for(const lesson of ['semestre'])for(const format of ['desktop','mobile']){
  const inputProps=JSON.parse(await readFile(path.join(work,lesson,format+'.json'),'utf8'));
  const composition=await selectComposition({serveUrl,id:lesson==='semestre'?'Semestre':'Notas',inputProps,puppeteerInstance:browser});
  const opts={serveUrl,composition,inputProps,puppeteerInstance:browser};const folder=path.join(work,lesson,format);await mkdir(folder,{recursive:true});
- const seconds=inputProps.scenes.flatMap(scene=>[scene.start+.3,(scene.start+scene.end)/2,scene.end-.3]);
+ const seconds=inputProps.scenes.flatMap(scene=>[scene.start+.3,(scene.start+scene.end)/2,scene.end-.3,...scene.states.map(state=>scene.start+state.t+.12)]);
  for(const sec of seconds)await renderStill({...opts,frame:Math.round(sec*30),output:path.join(folder,`frame-${Math.round(sec*30)}.jpg`),imageFormat:'jpeg',jpegQuality:95});
  console.log('Stills',lesson,format);
  if(process.argv[2]!=='stills')await renderMedia({...opts,codec:'h264',crf:19,concurrency:2,outputLocation:path.join(folder,'silent.mp4'),onProgress:({progress})=>{if(progress===1)console.log('Rendered',lesson,format)}});
