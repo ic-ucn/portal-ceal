@@ -26,8 +26,10 @@ for (const [format, recording] of Object.entries(manifest.formats)) {
   assert.equal(recording.duration, recording.steps.at(-1).end);
 }
 
-const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
+const url = (route = '/') => { const value = new URL(base); if (!value.searchParams.has('review')) value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
 const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
+// Background API requests must not gate the guide. Each check below waits for
+// its actual UI, image or video readiness instead of global network silence.
 async function stable(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.equal(await page.locator('.guide-course, .guide-visual, .guide-mini-detail').count(), 0, 'no synthetic portal UI');
@@ -43,7 +45,7 @@ try {
     page.on('pageerror', error => report.errors.push(`${engine}/${width}: ${error.message}`));
     const requests = [];
     page.on('request', request => { if (/\.(mp4|mp3|m4a|wav)(?:\?|$)/.test(request.url())) requests.push(request.url()); });
-    await page.goto(url(), { waitUntil: 'networkidle' });
+    await page.goto(url(), { waitUntil: 'domcontentloaded' });
     const guide = page.locator('.portal-reception'), video = guide.locator('video');
     await guide.waitFor();
     const format = width <= 920 ? 'mobile' : 'desktop', recording = manifest.formats[format];
@@ -131,16 +133,16 @@ try {
     for (let count = 0; count < 12; count++) { await page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(node => node.contains(document.activeElement))); }
     await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('.portal-welcome video').evaluate(v => v.paused), true);
-    await page.goto(url(), { waitUntil: 'networkidle' }); await page.locator('[data-reception-dismiss]').click();
+    await page.goto(url(), { waitUntil: 'domcontentloaded' }); await page.locator('[data-reception-dismiss]').click();
     assert.equal(await page.evaluate(() => localStorage.getItem('portal.tutorial.skip')), 'yes');
-    await page.goto(url(), { waitUntil: 'networkidle' }); await page.waitForURL(value => value.hash === '#/inicio');
-    await page.goto(url('/bienvenida'), { waitUntil: 'networkidle' }); await page.locator('.portal-reception').waitFor();
+    await page.goto(url(), { waitUntil: 'domcontentloaded' }); await page.waitForURL(value => value.hash === '#/inicio');
+    await page.goto(url('/bienvenida'), { waitUntil: 'domcontentloaded' }); await page.locator('.portal-reception').waitFor();
     report.cases.push({ engine, width, height, format, realCaptures: recording.steps.length, nativeVideo: supportsVideo, noAutoplay: true, isolatedStorage: true });
     await context.close(); await browser.close(); browser = null;
   }
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' }), page = await context.newPage();
-  await page.goto(url(), { waitUntil: 'networkidle' });
+  await page.goto(url(), { waitUntil: 'domcontentloaded' });
   const guide = page.locator('.portal-reception');
   assert.equal(await guide.locator('[data-guide-play]').isDisabled(), true);
   for (let step = 0; step < manifest.formats.mobile.steps.length; step++) {
@@ -174,7 +176,7 @@ try {
       URL.createObjectURL = value => { const result = create(value); window.guideBlobEvents.push(['create', result, value.size]); return result; };
       URL.revokeObjectURL = value => { window.guideBlobEvents.push(['revoke', value]); revoke(value); };
     });
-    await sample.goto(process.env.QA_WELCOME_NORANGE_URL, { waitUntil: 'networkidle' });
+    await sample.goto(process.env.QA_WELCOME_NORANGE_URL, { waitUntil: 'domcontentloaded' });
     const player = sample.locator('.portal-reception'), media = player.locator('video');
     await player.locator('[data-guide-mode]').selectOption('voice');
     await player.locator('[data-guide-music]').click();
