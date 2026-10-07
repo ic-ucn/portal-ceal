@@ -47,11 +47,11 @@ La licencia de Remotion permite este uso por una organización sin fines de lucr
 Revisar sus condiciones si este compositor se reutiliza en otra organización.
 
 
-## Two focused lessons (2026-10-06)
+## Focused semester tutorial (2026-10-06)
 
-The current guide uses `assets/tutorial-story/manifest.js`. `semestre` follows one course through marking, prerequisite projection, an activity, Inicio and Mis ramos. `notas` explains a personal weighted-grade calculation separately. Both have horizontal and vertical output, open captions and four audio modes. Google Aoede narration is cached; rebuilding makes no paid requests.
+The current guide uses `assets/tutorial-story/manifest.js`. It follows marking courses, prerequisite projection, an activity, Inicio and Mis ramos. The grade calculator was retired at the user's request. Its UI, tutorial selector and lesson are removed. Legacy saved data remains readable in backups to avoid destructive migration.
 
-Opus 5.5 supplied the structural review. Sonnet 5.5 supplied CalculatorSample; Codex adapted real captures, timing, layouts and integration. Astra checked clarity and caught mobile occlusion/encoding issues before release. This does not imply user aesthetic approval.
+Narration: Google Kore, direct screen-tutorial delivery, cached WAV files. No paid calls during rebuild. Captures are actual Computer Use screenshots; vertical camera crops show the same workflow. Word anchors use local transcription and measured phrase boundaries.
 
 From repository root:
 
@@ -60,16 +60,7 @@ python scripts/tutorial-motion/prepare-story.py
 python scripts/tutorial-motion/story-props.py
 ```
 
-From `scripts/tutorial-motion`:
+From `scripts/tutorial-motion`: `node render-story.mjs`.
+Back at repository root: `python scripts/tutorial-motion/finalize-story.py`.
 
-```powershell
-node render-story.mjs
-```
-
-Back at repository root:
-
-```powershell
-python scripts/tutorial-motion/finalize-story.py
-```
-
-Captures and narration are versioned in `assets/tutorial-story`. Source capture pixels stay unchanged. Vertical camera crops in the semester lesson show the same desktop workflow; the calculator has separate mobile captures. Word anchors were checked against a local transcription; the generated narration is the timing source, not percentages of scene duration. Camera offsets align browser scroll positions in the form shots.
+Opus supplied the earlier structural review; Codex implements this focused retirement and new voice. Earlier calculator compositor is historical and is not used by the current guide.

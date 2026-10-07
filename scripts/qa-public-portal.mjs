@@ -51,7 +51,7 @@ try {
     assert.equal(new URL(page.url()).hash, '#/inicio', 'welcome leads to the home section');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
-    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mi-semana', 'mi-semana'], ['/calculadora', 'calculadora'], ['/mallas', 'mallas']]) {
+    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mi-semana', 'mi-semana'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
       if (name === 'mallas') {
         await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();

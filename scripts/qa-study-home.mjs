@@ -72,14 +72,14 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     for (const theme of ['light', 'dark']) {
       assert.equal(await page.locator('#home-week-title').count(), 1, 'Screenshot is the personal home');
-      assert.equal(await page.locator('.home-study-tools > a').count(), 2);
+      assert.equal(await page.locator('.home-study-tools > a').count(), 1);
       await page.evaluate(theme => { document.body.classList.toggle('theme-dark', theme === 'dark'); }, theme);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       assert.ok(await page.locator('.home-study-tools > a > span:nth-child(2)').evaluateAll(els => els.every(el => el.getBoundingClientRect().width >= 140)), 'Tool labels have usable width on mobile');
       mkdirSync(`${root}/qa-screenshots`, { recursive: true });
       await page.screenshot({ path: `${root}/qa-screenshots/study-home-${theme}-${width}.png`, fullPage: true });
     }
-    await page.goto(`${base}#/calculadora`);
+    await page.goto(`${base}#/mi-semana`);
     await page.evaluate(() => { PortalMyCourses.useAccount('isolated-account'); PortalStudyTools.useAccount('isolated-account'); location.hash = '/inicio'; });
     await page.locator('#home-week-title').waitFor();
     assert.equal(await page.locator('[data-home-activity],[data-home-course]').count(), 0, 'Home reads only the active account scope');

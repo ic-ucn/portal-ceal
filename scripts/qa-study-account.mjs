@@ -111,6 +111,17 @@ assert.ok(user?.sessionToken, 'Run against isolated QA_TEST_MODE server');
 assert.equal((await api('/study')).status, 401);
 const browser = await chromium.launch({ headless: true });
 try {
+  const legacyContext = await browser.newContext();
+  await legacyContext.addInitScript(user => {
+    localStorage.setItem('portal.session', JSON.stringify({ ...user, studyAccount: true }));
+    localStorage.setItem('portal.studyTools.v1', JSON.stringify({ version: 1, revision: 1, events: [], grades: { 'planP:P-0101': { goal: 4, rows: [{ id: 'old', name: 'Anterior', weight: 100, grade: 5 }] } } }));
+  }, user);
+  const legacyPage = await legacyContext.newPage();
+  await legacyPage.goto(base + '/?analytics=off#/mi-semana');
+  await legacyPage.getByRole('heading', { name: 'Tu agenda, contigo' }).waitFor();
+  assert.equal(await legacyPage.locator('[data-study-account-action=import]').count(), 0, 'Retired-only data does not offer an empty activity migration');
+  assert.equal(await legacyPage.evaluate(() => JSON.parse(localStorage.getItem('portal.studyTools.v1')).grades['planP:P-0101'].rows[0].grade), 5, 'Legacy backup data is preserved');
+  await legacyContext.close();
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage(); page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => d.accept());
@@ -153,13 +164,6 @@ try {
   await cancelPicker;
   await page.locator('[data-study-restore]').dispatchEvent('cancel');
   assert.equal(await page.getByRole('button', { name: 'Recuperar una copia', exact: true }).isEnabled(), true, 'Cancelling the picker releases the panel');
-  await page.goto(base + '/?analytics=off#/calculadora?plan=planP&course=P-0101');
-  await page.locator('[name=row-name]').first().fill('Certamen');
-  await page.locator('[name=row-weight]').first().fill('100');
-  await page.locator('[name=row-grade]').first().fill('5');
-  await page.locator('[data-study-grades-form] button[type=submit]').click();
-  await page.waitForFunction(() => !window.PortalStudyAccount.status().dirty);
-  assert.equal((await api('/study', undefined, user.sessionToken)).data.document.study.grades['planP:P-0101'].rows[0].grade, 5);
   await page.goto(base + '/?analytics=off#/mi-semana');
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await ctx2.addInitScript(user => localStorage.setItem('portal.session', JSON.stringify({ ...user, studyAccount: true })), user);
@@ -201,7 +205,7 @@ try {
   assert.equal(await page.locator('.study-entry').filter({ hasText: 'Actividad sin conexión' }).count(), 0);
   assert.deepEqual(errors, []);
   await ctx.close(); await ctx2.close();
-  console.log('Browser: guest, preset, migration, offline/retry, backup/restore, grades, second device, conflict, logout, account switch, session revocation, privacy and 320/390/1440 passed.');
+  console.log('Browser: guest, preset, migration, offline/retry, backup/restore, second device, conflict, logout, account switch, session revocation, privacy and 320/390/1440 passed.');
   // Exercise the actual Calendar UI with the tested service and a controlled Google provider.
   // Portal authentication is real QA authentication; no calls are made to a Google account.
   const calendarUser = (await api('/auth/qa-session', { email: `calendar-${unique}@alumnos.ucn.cl`, name: 'Cuenta Calendar de prueba', role: 'student', accessMode: 'student' })).data.user;

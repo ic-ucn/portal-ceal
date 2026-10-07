@@ -7,7 +7,8 @@ import vm from 'node:vm';
 // Browser interaction validates the player. Tutorial content comes only from Computer Use.
 const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1&analytics=off';
 const production = new URL(base).hostname === 'ceicucn.cl';
-const configs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
+const allConfigs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
+const configs = process.env.QA_WELCOME_ENGINE ? allConfigs.filter(([engine]) => engine === process.env.QA_WELCOME_ENGINE) : allConfigs;
 const out = new URL('../qa-screenshots/', import.meta.url);
 await mkdir(out, { recursive: true });
 const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
@@ -24,15 +25,7 @@ for (const [format, recording] of Object.entries(manifest.formats)) {
   }
   assert.equal(recording.duration, recording.steps.at(-1).end);
 }
-for (const [format, recording] of Object.entries(manifest.lessons.notas.formats)) {
-  assert.equal(recording.duration, recording.steps.at(-1).end);
-  assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], ['notas']);
-  for (const step of recording.steps) {
-    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256);
-    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256);
-    assert.ok(step.end > step.start && step.image.startsWith(`assets/tutorial-story/notas/${format}/`));
-  }
-}
+
 const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
 const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
 async function stable(page) {
@@ -126,19 +119,8 @@ try {
       assert.match(await guide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
     }
     assert.ok(requests.every(request => Object.values(recording.variants).some(source => request.includes(source))), 'only matching captured variants; one native timeline');
-    await guide.locator('[data-guide-lesson]').selectOption('notas');
-    const notes = manifest.lessons.notas.formats[format];
-    assert.equal(await guide.locator('[data-guide-tab]').count(), 1);
-    assert.equal(await video.evaluate(v => v.paused), true, 'lesson selection never autoplays');
-    await guide.locator('[data-guide-mode]').selectOption('voice');
-    assert.equal(await video.getAttribute('src'), notes.variants.voice);
-    assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), notes.steps[0].image);
-    await stable(page);
-    if (supportsVideo) { await guide.locator('[data-guide-play]').click(); await ready(page); }
-    await guide.locator('[data-guide-lesson]').selectOption('semestre');
-    assert.equal(await video.evaluate(v => v.paused), true, 'switching tutorial stops old playback');
-    assert.equal(await guide.locator('[data-guide-tab]').count(), 5);
-    assert.equal(await snapshot(page), before, 'both lessons preserve study data');
+    assert.equal(await guide.locator('[data-guide-lesson]').count(), 0, 'one focused tutorial');
+    assert.equal(await snapshot(page), before, 'tutorial preserves study data');
     await page.locator('.reception-enter').click(); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
     if (width <= 920) { await page.locator('.bottom-more').click(); await page.locator('.menu-sheet [data-open-welcome]').click(); }
     else await page.locator('.sidebar [data-open-welcome]').click();

@@ -15,10 +15,10 @@ def audio(ids,folder):
   dur=math.ceil((len(a)/SR+.28)*30)/30;beats[ident]=cursor;cues.append({'start':cursor,'end':cursor+len(a)/SR,'text':phrases[ident]});segments.append(np.pad(a,((0,round(dur*SR)-len(a)),(0,0))));cursor+=dur
  joined=np.concatenate(segments);H['wav_write'](folder/'voice.wav',joined);return cues,beats,cursor
 if __name__=='__main__':
- for lesson in ['semestre','notas']:
+ for lesson in ['semestre']:
   (W/lesson).mkdir(parents=True,exist_ok=True)
   shutil.copyfile(O/'narration'/f'{lesson}-alignment.json',W/lesson/'alignment.json')
- for lesson,ids in [('semestre',[x for b in blocks for x in b[3]]),('notas',['goal','grade','weight','result','limit'])]:
+ for lesson,ids in [('semestre',[x for b in blocks for x in b[3]])]:
   if not all((W/'tts/full'/f'{i}.wav').exists() for i in ids):raise SystemExit('Audio pending')
   cues,beats,total=audio(ids,W/lesson);(W/lesson/'timing.json').write_text(json.dumps({'captions':cues,'beats':beats,'duration':total},ensure_ascii=False),encoding='utf-8')
   print(lesson,total,beats)

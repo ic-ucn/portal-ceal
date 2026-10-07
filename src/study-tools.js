@@ -93,27 +93,6 @@
     return { ok: true, saved: !volatile };
   }
   function status() { return { issue, locked, volatile }; }
-  function gradeSummary(config) {
-    const rows = config?.rows || [];
-    const goal = config?.goal ?? 4;
-    const assigned = rows.reduce((sum, row) => sum + Math.round(row.weight * 100), 0) / 100;
-    const graded = rows.filter(row => row.grade !== null);
-    const gradedWeight = graded.reduce((sum, row) => sum + Math.round(row.weight * 100), 0) / 100;
-    // Integer hundredths preserve exact comparisons at the target boundary.
-    const pointUnits = graded.reduce((sum, row) => sum + hundredths(row.grade) * hundredths(row.weight), 0);
-    const points = pointUnits / 10000;
-    const remaining = Math.max(0, 100 - gradedWeight);
-    const neededUnits = hundredths(goal) * 10000 - pointUnits;
-    const remainingUnits = hundredths(remaining);
-    const required = remaining ? neededUnits / (remainingUnits * 100) : null;
-    let outcome = 'pending';
-    if (remaining === 0) outcome = neededUnits <= 0 ? 'final-met' : 'final-below';
-    else if (neededUnits > 700 * remainingUnits) outcome = 'impossible';
-    else if (neededUnits <= 100 * remainingUnits) outcome = 'guaranteed';
-    return { goal, assigned, unassigned: Math.max(0, 100 - assigned), gradedWeight,
-      weightedAccumulated: points / 100, gradedAverage: gradedWeight ? points / gradedWeight : null,
-      remaining, required, outcome };
-  }
   function escapeICS(value) { return String(value).replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
   function makeICS(events, stamp = new Date()) {
     const dtstamp = stamp.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
@@ -155,7 +134,7 @@
     localStorage.setItem(KEY, JSON.stringify(valid));
     volatile = false; return read();
   }
-  const api = Object.freeze({ get key() { return KEY; }, empty, normalize, useAccount, replace, read, update, status, validDate, shiftDate, weekDates, validEvent, validConfig, gradeSummary, makeICS });
+  const api = Object.freeze({ get key() { return KEY; }, empty, normalize, useAccount, replace, read, update, status, validDate, shiftDate, weekDates, validEvent, validConfig, makeICS });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.PortalStudyTools = api;
 })();

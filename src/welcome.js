@@ -3,14 +3,13 @@
   const SEEN_KEY = 'portal.welcome.v1', SKIP_KEY = 'portal.tutorial.skip';
   const CHAPTERS = [
     { id: 'aprobados', title: 'Marcar ramos', href: '#/mallas?mark=actuales', link: 'Marcar mis ramos', copy: 'Elige tu plan. Marca los actuales en amarillo y los aprobados en verde. Toca de nuevo para quitar la marca; el color de la tarjeta conserva su área.' },
-    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Actuales', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material, notas y actividades. Guardados conserva los ramos que quieras tener a mano.' },
+    { id: 'mis-ramos', title: 'Organizar Mis ramos', href: '#/mallas?view=mis-ramos&section=semester', link: 'Abrir Actuales', copy: 'Actuales reúne los ramos que estás cursando, con acceso a material y actividades. Guardados conserva los ramos que quieras tener a mano.' },
     { id: 'eligible', title: 'Qué se abriría', href: '#/mallas?view=mis-ramos&section=eligible', link: 'Ver qué se abriría', copy: 'En Qué se abre, toca un actual para seguir sus caminos. La proyección considera tus aprobados y los actuales que aún debes aprobar. Confirma oferta y requisitos con la universidad.' },
     { id: 'semana', title: 'Mi semana', href: '#/mi-semana', link: 'Abrir Mi semana', copy: 'Inicio reúne tus actividades y ramos actuales. En Mi semana agrega evaluaciones, entregas o estudio, vincúlalos a un ramo y márcalos al completar.' },
-    { id: 'notas', title: 'Calculadora de notas', href: '#/calculadora', link: 'Calcular mis notas', copy: 'Elige un ramo, ingresa notas y ponderaciones y ajusta tu meta. Guarda el cálculo para continuarlo después; es una estimación personal.' },
     { id: 'inicio', title: 'Tu Inicio', href: '#/inicio', link: 'Ir a mi Inicio', copy: 'Tus próximas actividades y ramos actuales aparecen juntos en Inicio. Guarda una copia de tus datos desde Mi semana para recuperarlos cuando la necesites.' }
   ];
   const SEMESTER_IDS = ['aprobados', 'eligible', 'semana', 'inicio', 'mis-ramos'];
-  const chaptersFor = lesson => lesson === 'notas' ? CHAPTERS.filter(c => c.id === 'notas') : SEMESTER_IDS.map(id => CHAPTERS.find(c => c.id === id));
+  const chaptersFor = lesson => SEMESTER_IDS.map(id => CHAPTERS.find(c => c.id === id));
   const chapterTabs = chapters => chapters.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('');
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const formatQuery = matchMedia('(max-width: 920px)');
@@ -21,7 +20,7 @@
   function shell(isDialog, themeControl = '') {
     const inner = `<div class="guide-layout" data-guide-root>
       <section class="guide-stage" aria-label="Guía del portal">
-        <div class="guide-stage-head"><label class="guide-example">Tutorial <select data-guide-lesson aria-label="Elegir tutorial"><option value="semestre">Organiza tu semestre</option><option value="notas">Calcula tus notas</option></select></label></div>
+        <div class="guide-stage-head"><span class="guide-example">Organiza tu semestre</span></div>
         <h3 class="guide-scene-title" data-guide-scene-title></h3>
         <div class="guide-toolbar"><div class="guide-playbar"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><button type="button" class="guide-secondary" data-guide-fullscreen>Pantalla completa</button></div><div class="guide-audio-controls"><label>Recorrido<select data-guide-mode><option value="text">Solo texto</option><option value="voice">Voz y texto</option></select></label><button type="button" class="guide-secondary" data-guide-music aria-pressed="false">Música: desactivada</button></div></div>
         <p class="guide-caption" data-guide-caption></p>
@@ -29,7 +28,7 @@
         <div class="guide-step-controls"><button type="button" data-guide-step-prev aria-label="Paso anterior">←</button><span data-guide-step-position></span><button type="button" data-guide-step-next aria-label="Paso siguiente">→</button><a data-guide-image-link target="_blank" rel="noopener">Ampliar imagen ↗</a></div>
       </section>
       <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${chapterTabs(chaptersFor("semestre"))}</div>
-        <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tus ramos, actividades y notas son personales. Puedes guardar una copia desde Mi semana. No reemplazan tu avance académico oficial.</p></div>
+        <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tus ramos y actividades son personales. Puedes guardar una copia desde Mi semana. No reemplazan tu avance académico oficial.</p></div>
         <div class="guide-actions"><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir capítulo</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
         <p class="guide-status" data-guide-status role="status"></p>
       </div>
@@ -54,7 +53,6 @@
       this.onClick = event => this.click(event);
       this.onKeydown = event => this.keydown(event);
       this.onChange = event => {
-        if (event.target.matches('[data-guide-lesson]')) { this.setLesson(event.target.value); return; }
         if (!event.target.matches('[data-guide-mode]')) return;
         this.mode = event.target.value;
         this.applySelection();
@@ -104,14 +102,6 @@
       this.configure();
     }
     get chapters() { return chaptersFor(this.lesson); }
-    setLesson(lesson) {
-      if (!['semestre', 'notas'].includes(lesson) || this.lesson === lesson) return;
-      this.pause(false); this.exitFullscreen(); this.lesson = lesson;
-      this.recording = null; this.index = this.stepIndex = this.desiredTime = 0;
-      this.find('lesson').value = lesson;
-      this.root.querySelector('.guide-chapters').innerHTML = chapterTabs(this.chapters);
-      this.configure();
-    }
     find(name) { return this.root.querySelector(`[data-guide-${name}]`); }
     configure() {
       const previous = this.recording?.steps[this.stepIndex];
@@ -435,7 +425,6 @@
     if (dialog.open || typeof dialog.showModal !== 'function') return;
     returnFocus = trigger;
     routeAtOpen = location.hash;
-    if (options.chapter) dialogGuide.setLesson(options.chapter === 'notas' ? 'notas' : 'semestre');
     const chapterIndex = dialogGuide.chapters.findIndex(chapter => chapter.id === options.chapter);
     dialogGuide.go(chapterIndex >= 0 ? chapterIndex : dialogGuide.index);
     dialogGuide.stopMotion();
