@@ -45,3 +45,31 @@ Referencias consultadas el 2026-10-05:
 
 La licencia de Remotion permite este uso por una organización sin fines de lucro.
 Revisar sus condiciones si este compositor se reutiliza en otra organización.
+
+
+## Two focused lessons (2026-10-06)
+
+The current guide uses `assets/tutorial-story/manifest.js`. `semestre` follows one course through marking, prerequisite projection, an activity, Inicio and Mis ramos. `notas` explains a personal weighted-grade calculation separately. Both have horizontal and vertical output, open captions and four audio modes. Google Aoede narration is cached; rebuilding makes no paid requests.
+
+Opus 5.5 supplied the structural review. Sonnet 5.5 supplied CalculatorSample; Codex adapted real captures, timing, layouts and integration. Astra checked clarity and caught mobile occlusion/encoding issues before release. This does not imply user aesthetic approval.
+
+From repository root:
+
+```powershell
+python scripts/tutorial-motion/prepare-story.py
+python scripts/tutorial-motion/story-props.py
+```
+
+From `scripts/tutorial-motion`:
+
+```powershell
+node render-story.mjs
+```
+
+Back at repository root:
+
+```powershell
+python scripts/tutorial-motion/finalize-story.py
+```
+
+Captures and narration are versioned in `assets/tutorial-story`. Source capture pixels stay unchanged. Vertical camera crops in the semester lesson show the same desktop workflow; the calculator has separate mobile captures. Word anchors were checked against a local transcription; the generated narration is the timing source, not percentages of scene duration. Camera offsets align browser scroll positions in the form shots.

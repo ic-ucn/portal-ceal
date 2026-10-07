@@ -11,18 +11,27 @@ const configs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] :
 const out = new URL('../qa-screenshots/', import.meta.url);
 await mkdir(out, { recursive: true });
 const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
-vm.runInNewContext(await readFile(new URL('../assets/tutorial-motion/manifest.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(await readFile(new URL('../assets/tutorial-story/manifest.js', import.meta.url), 'utf8'), sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
 assert.equal(manifest.captureMethod, 'computer-use');
-const chapters = ['aprobados', 'mis-ramos', 'eligible', 'semana', 'notas', 'inicio'];
+const chapters = ['aprobados', 'eligible', 'semana', 'inicio', 'mis-ramos'];
 for (const [format, recording] of Object.entries(manifest.formats)) {
   assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], chapters);
   for (const step of recording.steps) {
     assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'editorial still hash matches manifest');
     assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256, 'source Computer Use screenshot stays unchanged');
-    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-motion/${format}/`));
+    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-story/semestre/${format}/`));
   }
   assert.equal(recording.duration, recording.steps.at(-1).end);
+}
+for (const [format, recording] of Object.entries(manifest.lessons.notas.formats)) {
+  assert.equal(recording.duration, recording.steps.at(-1).end);
+  assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], ['notas']);
+  for (const step of recording.steps) {
+    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256);
+    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256);
+    assert.ok(step.end > step.start && step.image.startsWith(`assets/tutorial-story/notas/${format}/`));
+  }
 }
 const url = (route = '/') => { const value = new URL(base); value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
 const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
@@ -73,7 +82,7 @@ try {
       await guide.locator(`[data-guide-tab="${index}"]`).click();
       assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps.find(step => step.chapter === chapters[index]).image);
     }
-    await guide.locator('[data-guide-tab="5"]').click();
+    await guide.locator('[data-guide-tab="3"]').click();
     const supportsVideo = await video.evaluate(v => !!v.canPlayType('video/mp4; codecs="avc1.64001f"'));
     if (supportsVideo) {
       await guide.locator('[data-guide-play]').click(); await ready(page);
@@ -83,7 +92,7 @@ try {
       const startedAt = await video.evaluate(v => v.currentTime), expectedStart = recording.steps.find(step => step.chapter === 'inicio').start;
       assert.ok(Math.abs(startedAt - expectedStart) < 2, `chapter playback expected ${expectedStart}s, received ${startedAt}s`);
       await video.evaluate((v, time) => { v.currentTime = time; }, recording.steps.find(step => step.chapter === 'eligible').start + .2);
-      await page.waitForFunction(() => document.querySelector('[data-guide-tab="2"]')?.getAttribute('aria-selected') === 'true');
+      await page.waitForFunction(() => document.querySelector('[data-guide-tab="1"]')?.getAttribute('aria-selected') === 'true');
       await guide.locator('[data-guide-play]').click();
       const paused = await video.evaluate(v => v.currentTime); await page.waitForTimeout(300);
       assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - paused) < .1);
@@ -117,6 +126,19 @@ try {
       assert.match(await guide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
     }
     assert.ok(requests.every(request => Object.values(recording.variants).some(source => request.includes(source))), 'only matching captured variants; one native timeline');
+    await guide.locator('[data-guide-lesson]').selectOption('notas');
+    const notes = manifest.lessons.notas.formats[format];
+    assert.equal(await guide.locator('[data-guide-tab]').count(), 1);
+    assert.equal(await video.evaluate(v => v.paused), true, 'lesson selection never autoplays');
+    await guide.locator('[data-guide-mode]').selectOption('voice');
+    assert.equal(await video.getAttribute('src'), notes.variants.voice);
+    assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), notes.steps[0].image);
+    await stable(page);
+    if (supportsVideo) { await guide.locator('[data-guide-play]').click(); await ready(page); }
+    await guide.locator('[data-guide-lesson]').selectOption('semestre');
+    assert.equal(await video.evaluate(v => v.paused), true, 'switching tutorial stops old playback');
+    assert.equal(await guide.locator('[data-guide-tab]').count(), 5);
+    assert.equal(await snapshot(page), before, 'both lessons preserve study data');
     await page.locator('.reception-enter').click(); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
     if (width <= 920) { await page.locator('.bottom-more').click(); await page.locator('.menu-sheet [data-open-welcome]').click(); }
     else await page.locator('.sidebar [data-open-welcome]').click();
@@ -174,7 +196,7 @@ try {
     const player = sample.locator('.portal-reception'), media = player.locator('video');
     await player.locator('[data-guide-mode]').selectOption('voice');
     await player.locator('[data-guide-music]').click();
-    await player.locator('[data-guide-tab="1"]').click();
+    await player.locator('[data-guide-tab="4"]').click();
     const expected = manifest.formats.desktop.steps.find(step => step.chapter === 'mis-ramos').start;
     await player.locator('[data-guide-play]').click(); await ready(sample);
     assert.ok(Math.abs(await media.evaluate(v => v.currentTime) - expected) < 2, 'no-Range host plays the requested voice/music chapter');

@@ -145,3 +145,11 @@ button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: 
 @media (prefers-reduced-motion: reduce) {
   .portal-reception *, .portal-welcome * { animation: none !important; transition: none !important; }
 }
+
+/* The two short lessons share one accessible player. */
+.guide-stage-head .guide-example { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; }
+.guide-stage-head select { font:inherit; color:inherit; background:transparent; border:1px solid currentColor; border-radius:6px; padding:.55rem .75rem; min-height:44px; max-width:100%; }
+.guide-stage-head select option { color:#17252b; background:#fff; }
+
+.guide-stage-head select { font-size:14px; }
+[data-guide-root][data-lesson="notas"] .guide-chapters { grid-template-columns:1fr; }

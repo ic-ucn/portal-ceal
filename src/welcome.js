@@ -9,6 +9,9 @@
     { id: 'notas', title: 'Calculadora de notas', href: '#/calculadora', link: 'Calcular mis notas', copy: 'Elige un ramo, ingresa notas y ponderaciones y ajusta tu meta. Guarda el cálculo para continuarlo después; es una estimación personal.' },
     { id: 'inicio', title: 'Tu Inicio', href: '#/inicio', link: 'Ir a mi Inicio', copy: 'Tus próximas actividades y ramos actuales aparecen juntos en Inicio. Guarda una copia de tus datos desde Mi semana para recuperarlos cuando la necesites.' }
   ];
+  const SEMESTER_IDS = ['aprobados', 'eligible', 'semana', 'inicio', 'mis-ramos'];
+  const chaptersFor = lesson => lesson === 'notas' ? CHAPTERS.filter(c => c.id === 'notas') : SEMESTER_IDS.map(id => CHAPTERS.find(c => c.id === id));
+  const chapterTabs = chapters => chapters.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('');
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const formatQuery = matchMedia('(max-width: 920px)');
   const prefersReducedMotion = () => motionQuery.matches;
@@ -18,14 +21,14 @@
   function shell(isDialog, themeControl = '') {
     const inner = `<div class="guide-layout" data-guide-root>
       <section class="guide-stage" aria-label="Guía del portal">
-        <div class="guide-stage-head"><span class="guide-example">Paso a paso</span></div>
+        <div class="guide-stage-head"><label class="guide-example">Tutorial <select data-guide-lesson aria-label="Elegir tutorial"><option value="semestre">Organiza tu semestre</option><option value="notas">Calcula tus notas</option></select></label></div>
         <h3 class="guide-scene-title" data-guide-scene-title></h3>
         <div class="guide-toolbar"><div class="guide-playbar"><button type="button" class="guide-primary" data-guide-play>Reproducir recorrido</button><button type="button" class="guide-secondary" data-guide-fullscreen>Pantalla completa</button></div><div class="guide-audio-controls"><label>Recorrido<select data-guide-mode><option value="text">Solo texto</option><option value="voice">Voz y texto</option></select></label><button type="button" class="guide-secondary" data-guide-music aria-pressed="false">Música: desactivada</button></div></div>
         <p class="guide-caption" data-guide-caption></p>
         <div class="guide-media"><img data-guide-still alt="" decoding="async"><video data-guide-video controls muted playsinline preload="none" hidden aria-label="Recorrido del portal"><track kind="captions" srclang="es" label="Español" default></video></div>
         <div class="guide-step-controls"><button type="button" data-guide-step-prev aria-label="Paso anterior">←</button><span data-guide-step-position></span><button type="button" data-guide-step-next aria-label="Paso siguiente">→</button><a data-guide-image-link target="_blank" rel="noopener">Ampliar imagen ↗</a></div>
       </section>
-      <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${CHAPTERS.map((chapter, i) => `<button type="button" role="tab" data-guide-tab="${i}" aria-label="Capítulo ${i + 1}: ${chapter.title}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"><span>${i + 1}</span><strong>${chapter.title}</strong><i></i></button>`).join('')}</div>
+      <div class="guide-content"><div class="guide-chapters" role="tablist" aria-label="Capítulos del recorrido">${chapterTabs(chaptersFor("semestre"))}</div>
         <div class="guide-copy"><span data-guide-position></span><h2 data-guide-title></h2><p data-guide-copy></p><p class="guide-privacy">Tus ramos, actividades y notas son personales. Puedes guardar una copia desde Mi semana. No reemplazan tu avance académico oficial.</p></div>
         <div class="guide-actions"><div class="guide-transport"><button type="button" data-guide-prev>Anterior</button><button type="button" data-guide-next>Siguiente</button><button type="button" data-guide-replay>Repetir capítulo</button></div><a class="guide-open" data-guide-link href="#/mallas">Abrir sección ↗</a></div>
         <p class="guide-status" data-guide-status role="status"></p>
@@ -38,6 +41,7 @@
   class Guide {
     constructor(root, { onLink = () => {} } = {}) {
       this.root = root;
+      this.lesson = 'semestre';
       this.onLink = onLink;
       this.index = this.stepIndex = this.desiredTime = this.playRequest = 0;
       this.video = this.find('video');
@@ -50,6 +54,7 @@
       this.onClick = event => this.click(event);
       this.onKeydown = event => this.keydown(event);
       this.onChange = event => {
+        if (event.target.matches('[data-guide-lesson]')) { this.setLesson(event.target.value); return; }
         if (!event.target.matches('[data-guide-mode]')) return;
         this.mode = event.target.value;
         this.applySelection();
@@ -98,14 +103,24 @@
       Object.entries(this.mediaListeners).forEach(([name, listener]) => this.video.addEventListener(name, listener));
       this.configure();
     }
+    get chapters() { return chaptersFor(this.lesson); }
+    setLesson(lesson) {
+      if (!['semestre', 'notas'].includes(lesson) || this.lesson === lesson) return;
+      this.pause(false); this.exitFullscreen(); this.lesson = lesson;
+      this.recording = null; this.index = this.stepIndex = this.desiredTime = 0;
+      this.find('lesson').value = lesson;
+      this.root.querySelector('.guide-chapters').innerHTML = chapterTabs(this.chapters);
+      this.configure();
+    }
     find(name) { return this.root.querySelector(`[data-guide-${name}]`); }
     configure() {
       const previous = this.recording?.steps[this.stepIndex];
       const previousTime = this.videoMode ? this.video.currentTime : this.desiredTime;
       this.pause(false);
       this.format = formatQuery.matches ? 'mobile' : 'desktop';
-      this.recording = window.PortalTutorialCapture?.formats?.[this.format];
+      this.recording = (window.PortalTutorialCapture?.lessons?.[this.lesson] || window.PortalTutorialCapture)?.formats?.[this.format];
       this.root.dataset.captureFormat = this.format;
+      this.root.dataset.lesson = this.lesson;
       if (!this.recording?.steps?.length) {
         this.find('mode').disabled = true;
         this.find('music').disabled = true;
@@ -114,7 +129,7 @@
         return;
       }
       const sameStep = this.recording.steps.findIndex(step => step.id === previous?.id);
-      this.stepIndex = sameStep >= 0 ? sameStep : Math.max(0, this.recording.steps.findIndex(step => step.chapter === CHAPTERS[this.index].id));
+      this.stepIndex = sameStep >= 0 ? sameStep : Math.max(0, this.recording.steps.findIndex(step => step.chapter === this.chapters[this.index].id));
       const step = this.recording.steps[this.stepIndex];
       this.desiredTime = previous ? Math.max(step.start, Math.min(step.end - .01, step.start + previousTime - previous.start)) : step.start;
       this.applySelection(false);
@@ -151,19 +166,19 @@
     }
     render() {
       const step = this.recording?.steps[this.stepIndex];
-      if (step) this.index = Math.max(0, CHAPTERS.findIndex(chapter => chapter.id === step.chapter));
-      const chapter = CHAPTERS[this.index];
+      if (step) this.index = Math.max(0, this.chapters.findIndex(chapter => chapter.id === step.chapter));
+      const chapter = this.chapters[this.index];
       this.find('scene-title').textContent = chapter.title;
       this.find('title').textContent = chapter.title;
       this.find('copy').textContent = chapter.copy;
       this.find('caption').textContent = step?.caption || chapter.copy;
-      this.find('position').textContent = `${this.index + 1} de ${CHAPTERS.length}${this.recording ? ` · ${Math.round(this.recording.duration)} s` : ''}`;
+      this.find('position').textContent = `${this.index + 1} de ${this.chapters.length}${this.recording ? ` · ${Math.round(this.recording.duration)} s` : ''}`;
       this.find('link').href = chapter.href;
       this.find('link').textContent = `${chapter.link} ↗`;
       this.find('prev').disabled = this.index === 0;
-      this.find('next').disabled = this.index === CHAPTERS.length - 1;
+      this.find('next').disabled = this.index === this.chapters.length - 1;
       this.find('step-prev').disabled = !step || this.stepIndex === 0;
-      this.find('step-next').disabled = !step || this.stepIndex === this.recording.steps.length - 1;
+      this.find('step-next').disabled = !step || this.stepIndex === (this.recording?.steps.length || 0) - 1;
       this.find('step-position').textContent = step ? `Paso ${this.stepIndex + 1} de ${this.recording.steps.length}` : '';
       this.root.querySelectorAll('[data-guide-tab]').forEach((tab, i) => {
         tab.setAttribute('aria-selected', String(i === this.index));
@@ -185,7 +200,7 @@
     }
     progress(time) {
       this.root.querySelectorAll('[data-guide-tab] i').forEach((bar, index) => {
-        const steps = this.recording?.steps.filter(step => step.chapter === CHAPTERS[index].id) || [];
+        const steps = this.recording?.steps.filter(step => step.chapter === this.chapters[index].id) || [];
         const start = steps[0]?.start || 0, end = steps.at(-1)?.end || start;
         bar.style.width = `${end > start ? Math.max(0, Math.min(100, (time - start) / (end - start) * 100)) : 0}%`;
       });
@@ -208,7 +223,7 @@
         const oldChapter = this.index;
         this.stepIndex = next;
         this.render();
-        if (oldChapter !== this.index) this.announce(`Capítulo ${this.index + 1} de ${CHAPTERS.length}: ${CHAPTERS[this.index].title}`);
+        if (oldChapter !== this.index) this.announce(`Capítulo ${this.index + 1} de ${this.chapters.length}: ${this.chapters[this.index].title}`);
       }
       this.progress(time);
     }
@@ -319,13 +334,13 @@
     }
     go(index) {
       this.pause(false);
-      this.index = Math.max(0, Math.min(CHAPTERS.length - 1, index));
-      const found = this.recording?.steps.findIndex(step => step.chapter === CHAPTERS[this.index].id);
+      this.index = Math.max(0, Math.min(this.chapters.length - 1, index));
+      const found = this.recording?.steps.findIndex(step => step.chapter === this.chapters[this.index].id);
       this.stepIndex = found >= 0 ? found : 0;
       this.desiredTime = this.recording?.steps[this.stepIndex]?.start || 0;
       this.showStill();
       this.render();
-      this.announce(`Capítulo ${this.index + 1} de ${CHAPTERS.length}: ${CHAPTERS[this.index].title}`);
+      this.announce(`Capítulo ${this.index + 1} de ${this.chapters.length}: ${this.chapters[this.index].title}`);
     }
     goStep(index) {
       if (!this.recording) return;
@@ -352,7 +367,7 @@
     keydown(event) {
       if (!event.target.closest('[data-guide-tab]') || !['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const index = event.key === 'Home' ? 0 : event.key === 'End' ? CHAPTERS.length - 1 : (this.index + (event.key === 'ArrowRight' ? 1 : -1) + CHAPTERS.length) % CHAPTERS.length;
+      const index = event.key === 'Home' ? 0 : event.key === 'End' ? this.chapters.length - 1 : (this.index + (event.key === 'ArrowRight' ? 1 : -1) + this.chapters.length) % this.chapters.length;
       this.go(index);
       this.root.querySelector(`[data-guide-tab="${index}"]`).focus();
       track('tutorial/capitulo');
@@ -420,7 +435,8 @@
     if (dialog.open || typeof dialog.showModal !== 'function') return;
     returnFocus = trigger;
     routeAtOpen = location.hash;
-    const chapterIndex = CHAPTERS.findIndex(chapter => chapter.id === options.chapter);
+    if (options.chapter) dialogGuide.setLesson(options.chapter === 'notas' ? 'notas' : 'semestre');
+    const chapterIndex = dialogGuide.chapters.findIndex(chapter => chapter.id === options.chapter);
     dialogGuide.go(chapterIndex >= 0 ? chapterIndex : dialogGuide.index);
     dialogGuide.stopMotion();
     document.body.classList.add('welcome-open');

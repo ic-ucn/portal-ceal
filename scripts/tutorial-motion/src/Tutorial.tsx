@@ -20,6 +20,7 @@ export type Rect = { x: number; y: number; w: number; h: number };
 /** Estado real capturado. t = segundos relativos al inicio de la escena. */
 export type SourceState = {
   t: number;
+  offsetY?: number;
   image: string; // ruta relativa a public/, ej. 'captures/desktop-02-marked.png'
   width: number; // tamaño intrínseco del PNG
   height: number;
@@ -448,9 +449,9 @@ const SceneView: React.FC<{
         }}
       >
         {prev && curOpacity < 1 ? (
-          <Img src={staticFile(prev.image)} style={imgStyle(1)} />
+          <Img src={staticFile(prev.image)} style={{...imgStyle(1), top: prev.offsetY ?? 0}} />
         ) : null}
-        <Img src={staticFile(cur.image)} style={imgStyle(curOpacity)} />
+        <Img src={staticFile(cur.image)} style={{...imgStyle(curOpacity), top: cur.offsetY ?? 0}} />
       </div>
       {focusEls}
       {cursorEl}
