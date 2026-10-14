@@ -3,8 +3,6 @@
   let Data = window.PortalMock;
   const bundledCalendar = { source: { ...Data.calendarSource }, events: Data.events.map(event => ({ ...event })) };
   const Curricula = window.CURRICULA;
-  const MyCourses = window.PortalMyCourses;
-  const StudyUI = window.PortalStudyUI;
   const DATA_CONTENT_VERSION = '20260821c';
   const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
@@ -24,15 +22,12 @@
   const GOOGLE_DOMAIN = String(window.PORTAL_GOOGLE_DOMAIN || 'alumnos.ucn.cl').trim().toLowerCase();
   const GOOGLE_OAUTH_STATE_KEY = 'portal.google.oauth.state';
   const PORTAL_THEME_KEY = 'portal.theme';
-  function safeStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
-  function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch {} }
   const QA_MODE = URL_PARAMS.has('qa');
   const MALLA_BASE_URL = 'https://ic-ucn.github.io/malla-curricular/';
   const mallaEmbedCache = {};
   let mallaFontPromise;
-  let mallaApprovalUndo = null;
   // Si el usuario ya eligió tema, se respeta. Una cuenta nueva comienza en claro.
-  const storedPortalTheme = safeStorageGet(PORTAL_THEME_KEY);
+  const storedPortalTheme = localStorage.getItem(PORTAL_THEME_KEY);
   const initialPortalDark = storedPortalTheme
     ? storedPortalTheme === 'dark'
     : false;
@@ -55,8 +50,8 @@
 
   const state = {
     user: loadSession(),
-    activePlan: safeStorageGet('portal.activePlan') || 'planP',
-    mobileSemester: Number(safeStorageGet('portal.mobileSemester') || 4),
+    activePlan: localStorage.getItem('portal.activePlan') || 'planP',
+    mobileSemester: Number(localStorage.getItem('portal.mobileSemester') || 4),
     selectedCourse: null,
     selectedResourceId: null,
     selectedAgreementId: null,
@@ -65,15 +60,6 @@
     materialQuery: '',
     materialType: 'all',
     materialCourse: 'all',
-    materialPlan: '',
-    materialCode: '',
-    myCoursesPlan: MyCourses.read().activePlan,
-    myCoursesQuery: '',
-    myCoursesView: 'semester',
-    myCoursesOutlook: '',
-    myCoursesFocus: '',
-    mallaOutlook: 'all',
-    myCoursesSemester: 'all',
     materialVisibleCount: 60,
     communicationCategory: 'Todas',
     communicationQuery: '',
@@ -131,12 +117,7 @@
     rsvSubmitting: false,
     rsvActionBusy: '',
     rsvJustCreated: null,
-    mallaEmbedPlan: MyCourses.read().activePlan === 'planO' ? 'o' : 'p',
-    mallaPersonalOpen: false,
-    mallaDetailCode: null,
-    mallaApprovalMode: false,
-    mallaMarkStatus: 'aprobado',
-    mallaApprovalSemester: { planO: 1, planP: 1 },
+    mallaEmbedPlan: localStorage.getItem('portal.malla.embedPlan') || 'p',
     portalDark: initialPortalDark,
     mallaEmbedDark: initialPortalDark,
     loginMemberId: null,
@@ -174,13 +155,8 @@
     aplicada: 'Ingeniería aplicada',
     general: 'Formación general',
     proyecto: 'Proyectos',
-    electivo: 'Electivos profesionales',
-    teologica: 'Formación teológica'
+    electivo: 'Electivos'
   };
-  // A visual subdivision of Formación General, without changing the catalogue.
-  function courseDisplayArea(course) {
-    return ['UNFV-00002', 'UNFV-00003'].includes(course.code) ? 'teologica' : course.area;
-  }
 
   const SurveyPresets = {
     paralizacion: {
@@ -305,8 +281,8 @@
   function setPortalTheme(dark) {
     state.portalDark = Boolean(dark);
     state.mallaEmbedDark = state.portalDark;
-    safeStorageSet(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
-    safeStorageSet('portal.malla.embedDark', state.portalDark ? '1' : '0');
+    localStorage.setItem(PORTAL_THEME_KEY, state.portalDark ? 'dark' : 'light');
+    localStorage.setItem('portal.malla.embedDark', state.portalDark ? '1' : '0');
     // Cambio de tema SIN re-render: así la vista actual (scroll, malla abierta,
     // formularios a medio llenar) no se pierde. Solo se actualizan clases y
     // los botones de toggle existentes, y el iframe de mallas cambia en vivo.
@@ -350,7 +326,7 @@
     if (restore && !path.includes('?')) {
       nextHash = [...routeViews.keys()].reverse().find(key => key.split('?')[0] === nextHash) || nextHash;
     }
-    if (location.hash !== nextHash) history.pushState(null, '', `${location.pathname}${location.search}${nextHash}`);
+    if (location.hash !== nextHash) history.pushState(null, '', nextHash);
     safeRender({ transition: true, scope: 'route', restoreView: restore });
   }
   function prefersReducedMotion() { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
@@ -360,9 +336,9 @@
     return { path: path || '/', query: Object.fromEntries(new URLSearchParams(queryString)) };
   }
   function loadSession() {
+    if (!SIGN_IN_ENABLED) return buildGuestUser();
     try {
       const user = JSON.parse(localStorage.getItem('portal.session') || 'null');
-      if (!SIGN_IN_ENABLED && !user?.studyAccount) return buildGuestUser();
       if (user?.role === 'guest') {
         localStorage.removeItem('portal.session');
         return sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null;
@@ -372,7 +348,7 @@
         return null;
       }
       return user || (sessionStorage.getItem('portal.guestReview') === '1' ? buildGuestUser() : null);
-    } catch { return SIGN_IN_ENABLED ? null : buildGuestUser(); }
+    } catch { return null; }
   }
   function saveSession(user) {
     sessionStorage.removeItem('portal.guestReview');
@@ -383,7 +359,6 @@
     try { localStorage.removeItem('portal.session'); } catch {}
     try { sessionStorage.removeItem('portal.guestReview'); } catch {}
     state.user = null;
-    window.PortalStudyAccount?.setUser(null);
   }
   function buildGuestUser() { return { id: 'guest-portal-review', name: 'Invitado', initials: 'IN', role: 'guest', accessMode: 'portal-review', label: 'Invitado', plan: 'planP', yearLabel: 'Solo lectura', email: '', permissions: [] }; }
   function startGuestSession() {
@@ -475,8 +450,8 @@
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
   }
   function titleCase(str) {
-    const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'BIM', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
-    const lowerWords = new Set(['de', 'del', 'al', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
+    const keepUpper = new Set(['UCN', 'CEIC', 'CEAL', 'PPT', 'PDF', 'APR', 'NCH', 'RIDAA', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+    const lowerWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'a', 'en', 'por', 'para', 'con', 'sin']);
     return tx(str).toLocaleLowerCase('es-CL')
       .split(/(\s+|\/|-)/)
       .map((part, index) => {
@@ -593,17 +568,13 @@
     return courseIndex().byName.get(normalized) || null;
   }
   function canonicalizeResourceCourse(resource) {
-    const sourcePlan = Curricula[resource.plan] ? resource.plan : '';
-    const match = sourcePlan
-      ? (findCourse(sourcePlan, resource.courseCode) || getCourses(sourcePlan).find(c => plain(c.name) === plain(resource.courseName)))
-      : null;
-    const fallback = sourcePlan ? null : officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
-    const course = match || fallback?.course;
-    if (!course) return resource;
+    const match = officialCourseByCode(resource.courseCode) || officialCourseByName(resource.courseName);
+    if (!match) return resource;
+    const { plan, course } = match;
     return {
       ...resource,
-      courseCode: resource.courseCode === course.code || resource.courseCode === course.visibleCode ? (course.visibleCode || course.code) : resource.courseCode,
-      plan: resource.plan,
+      courseCode: course.visibleCode || course.code,
+      plan: Curricula[resource.plan] ? resource.plan : plan,
       courseName: titleCase(course.name),
       semester: course.semester || resource.semester
     };
@@ -657,10 +628,12 @@
   }
   function getSuccessors(plan, code) { return getCourses(plan).filter(c => (c.prereqs || []).includes(code)); }
   function getResourcesForCourse(plan, code) {
-    return MyCourses.resourcesForCourse(Curricula, Data.resources, plan, code);
-  }
-  function isRelatedCourseResource(plan, course, resource) {
-    return resource.courseCode !== course.code && resource.courseCode !== course.visibleCode;
+    const course = findCourse(plan, code);
+    const courseName = plain(course?.name || '');
+    return Data.resources.filter(r => (
+      r.courseCode === code
+      || (courseName && plain(r.courseName) === courseName)
+    ));
   }
   function cealMembers() { return Data.cealMembers || []; }
   function getCealMember(id) { return cealMembers().find(m => m.id === id) || cealMembers()[0]; }
@@ -757,7 +730,7 @@
     sessionExpiredHandled = true;
     clearSession();
     showToast('Tu sesión expiró. Vuelve a ingresar.', 'orange');
-    routeTo(SIGN_IN_ENABLED ? '/login' : '/mi-semana?account=expired');
+    routeTo('/login');
     setTimeout(() => { sessionExpiredHandled = false; }, 1500);
   }
   async function fetchWithTimeout(url, options = {}, ms) {
@@ -787,7 +760,7 @@
       err.isSessionExpired = true;
       throw err;
     }
-    if (!res.ok || payload.ok === false) { const error = new Error(payload.error || `api ${res.status}`); error.payload = payload; error.status = res.status; throw error; }
+    if (!res.ok || payload.ok === false) throw new Error(payload.error || `api ${res.status}`);
     return payload;
   }
   function analyticsDevice() {
@@ -955,7 +928,7 @@
     }
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
-  function startGoogleRedirect(role, studyAccount = false) {
+  function startGoogleRedirect(role) {
     if (!GOOGLE_CLIENT_ID) {
       state.authMessage = 'Google UCN todavía no está configurado.';
       render({ transition: true, scope: 'panel', resetScroll: false });
@@ -965,7 +938,7 @@
     const hostedDomainHint = mode === 'jefatura' ? 'ucn.cl' : mode === 'internal' ? '' : GOOGLE_DOMAIN;
     const stateId = randomToken();
     const nonce = randomToken();
-    localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, studyAccount, createdAt: Date.now() }));
+    localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, JSON.stringify({ stateId, nonce, role: mode, createdAt: Date.now() }));
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: googleRedirectUri(),
@@ -985,19 +958,19 @@
     localStorage.removeItem(GOOGLE_OAUTH_STATE_KEY);
     try {
       if (params.has('error')) throw new Error(params.get('error_description') || 'Google no permitió iniciar sesión.');
-      if (!stored.stateId || !Number.isFinite(stored.createdAt) || Date.now() - stored.createdAt > 600000 || params.get('state') !== stored.stateId) throw new Error('No se pudo validar la respuesta de Google. Intenta nuevamente.');
+      if (!stored.stateId || params.get('state') !== stored.stateId) throw new Error('No se pudo validar la respuesta de Google. Intenta nuevamente.');
       const credential = params.get('id_token') || '';
       const decoded = decodeJwtPayload(credential);
       if (stored.nonce && decoded.nonce !== stored.nonce) throw new Error('La respuesta de Google no coincide con esta sesión.');
       const user = await loginGoogle(stored.role || 'student', credential);
       state.authMessage = '';
-      saveSession({ ...user, studyAccount: stored.studyAccount === true });
-      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.studyAccount ? '/mi-semana' : consumePostLoginRoute()}`);
+      saveSession(user);
+      history.replaceState(null, '', `${location.pathname}${location.search}#${consumePostLoginRoute()}`);
 
       return true;
     } catch (err) {
       state.authMessage = err.message || 'No se pudo iniciar con Google.';
-      history.replaceState(null, '', `${location.pathname}${location.search}#${stored.studyAccount ? '/mi-semana?account=error' : '/login'}`);
+      history.replaceState(null, '', `${location.pathname}${location.search}#/login`);
       return true;
     }
   }
@@ -1108,7 +1081,6 @@
     if (filterRenderTimer) clearTimeout(filterRenderTimer);
     filterRenderTimer = setTimeout(() => {
       filterRenderTimer = null;
-      if (getRoute().path === '/mallas') { syncMallaPersonal(); return; }
       render({ scope: 'filter', resetScroll: false, preserveFocus: true });
     }, 120);
   }
@@ -1144,7 +1116,6 @@
     const writesAtStart = localWrites;
     try {
       const payload = await apiRequest('/bootstrap', { cache: 'no-store' });
-      if (!payload?.data || typeof payload.data !== 'object') throw new Error('bootstrap unavailable');
       if (localWrites > writesAtStart) {
         if (allowRetry) setTimeout(() => { runBootstrap(false); }, 3000);
         return;
@@ -1172,13 +1143,10 @@
         headers: { accept: 'application/json', Authorization: `Bearer ${token}` }
       }, 15000);
       const payload = await response.json().catch(() => ({}));
-      if (response.status === 401 || response.status === 403) { clearSession(); return; }
       if (!response.ok || !payload?.user?.sessionToken) throw new Error(payload.error || 'invalid session');
-      saveSession({ ...payload.user, studyAccount: state.user?.studyAccount === true });
+      saveSession(payload.user);
     } catch {
-      // Keep the scoped cache available during a connection failure. The server still
-      // authenticates every account request; a cached profile is never authority.
-      if (!state.user?.studyAccount) clearSession();
+      clearSession();
     }
   }
   async function boot() {
@@ -1187,14 +1155,8 @@
       mergeDriveResources();
       ensureShape();
       document.body.classList.toggle('compact-mode', Boolean(getPrefs().compacto));
-      await handleGoogleRedirectCallback();
+      if (SIGN_IN_ENABLED) await handleGoogleRedirectCallback();
       await validateInitialSession();
-      await window.PortalStudyAccount.init({
-        user: () => state.user, available: Boolean(SIGN_IN_ENABLED && API_BASE && GOOGLE_CLIENT_ID), request: apiRequest,
-        login: () => startGoogleRedirect('student', true),
-        logout: async () => { try { await apiRequest('/auth/logout', { method: 'POST', body: '{}' }); } catch {} clearSession(); state.user = buildGuestUser(); },
-        refresh: () => { state.myCoursesPlan = MyCourses.read().activePlan; render({ scope: 'data', resetScroll: false }); }
-      });
       safeRender();
     } catch (err) {
       console.error(err);
@@ -1209,7 +1171,7 @@
     const items = [
       [SIGN_IN_ENABLED ? '/' : '/inicio', 'home', 'Inicio'],
       ['/calendario', 'calendar', 'Calendario'],
-      ['/mallas', 'grid', 'Malla'],
+      ['/mallas', 'grid', 'Mallas'],
       ['/material', 'book', 'Material']
     ];
     if (FEATURES.surveys) items.splice(3, 0, ['/encuestas', 'check', 'Encuestas']);
@@ -1221,7 +1183,7 @@
   }
   function isActive(path, itemPath) {
     if (itemPath === '/') return path === '/';
-    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && (path.startsWith('/acuerdos/') || path === '/mi-semana')) || (itemPath === '/mallas' && (path.startsWith('/ramo/')));
+    return path === itemPath || path.startsWith(itemPath + '/') || (itemPath === '/calendario' && path.startsWith('/acuerdos/')) || (itemPath === '/mallas' && path.startsWith('/ramo/'));
   }
   function pageHead(title, subtitle = '', actions = '', crumbs = '') {
     return `<div class="page-head"><div>${crumbs || ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="hstack">${actions}</div>` : ''}</div>`;
@@ -1253,13 +1215,8 @@
   function paint(restoring = false) {
     applyPortalTheme();
     const { path, query } = getRoute();
-    if (path === '/mis-ramos') {
-      history.replaceState(null, '', `${location.pathname}${location.search}#/mallas?view=mis-ramos`);
-      state.mallaPersonalOpen = true;
-      return paint(restoring);
-    }
     if (!SIGN_IN_ENABLED) {
-      if (!state.user?.studyAccount) state.user = buildGuestUser();
+      state.user = buildGuestUser();
       if (path === '/login' || path === '/perfil') return routeTo('/');
     }
     if (!state.user && path !== '/login') { savePostLoginRoute(); return routeTo('/login'); }
@@ -1280,7 +1237,7 @@
       return routeTo('/inicio');
     }
     if (!SIGN_IN_ENABLED && (path === '/' || path === '/bienvenida')) {
-      if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception();
+      if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception(themeToggleButton('reception-theme'));
       return true;
     }
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query, restoring), path);
@@ -1306,7 +1263,7 @@
       .filter(node => node.scrollTop || node.scrollLeft)
       .map(node => ({ selector: viewLocator(node), top: node.scrollTop, left: node.scrollLeft }));
     return { top: window.scrollY, left: window.scrollX, positions, focus,
-      material: { materialQuery: state.materialQuery, materialCourse: state.materialCourse, materialPlan: state.materialPlan, materialCode: state.materialCode, materialType: state.materialType, materialVisibleCount: state.materialVisibleCount },
+      material: { materialQuery: state.materialQuery, materialCourse: state.materialCourse, materialType: state.materialType, materialVisibleCount: state.materialVisibleCount },
       selection: active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
         ? [active.selectionStart, active.selectionEnd, active.selectionDirection] : null };
   }
@@ -1356,7 +1313,7 @@
     afterRender();
     window.PortalAnalytics?.page(getRoute().path);
     trackPortalView(getRoute().path);
-    lastRenderedRouteKey = location.hash || '#/';
+    lastRenderedRouteKey = routeKey;
     if (retainedView) restoreView(retainedView, !overlayOnly);
     else if (!samePage) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -1379,11 +1336,6 @@
     if (calendarOverlay) app.querySelector('.app-shell')?.append(calendarOverlay);
     document.querySelectorAll('.app-main, .sidebar').forEach(node => { node.inert = state.menuOpen || Boolean(calendarOverlay); });
     hydrateMallaEmbed();
-    const mallaDialog = app.querySelector('[data-malla-course-dialog]');
-    if (mallaDialog) {
-      mallaDialog.addEventListener('cancel', event => { event.preventDefault(); closeMallaDetail(); });
-      mallaDialog.addEventListener('click', event => { if (event.target === mallaDialog) closeMallaDetail(); });
-    }
     hydrateCalendarStatus();
     hydrateCalendarUpdates();
     hydrateAnalytics();
@@ -1530,7 +1482,7 @@
     const bottom = bottomRoutes
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('')
       + `<button class="bottom-item bottom-more ${moreActive ? 'active' : ''}" type="button" data-open-menu aria-label="Más secciones" aria-expanded="${state.menuOpen}" aria-controls="portal-menu" aria-haspopup="dialog"><span class="bottom-item-ico">${icon('menu')}</span><span class="bottom-item-label">Más</span></button>`;
-    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav><button class="portal-guide-link" type="button" data-open-welcome>${icon('play')}<span>Novedades del portal</span></button></aside>
+    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav><button class="portal-guide-link" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span></button></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}</div></header>
       <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a>` : ''}</div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
@@ -1548,7 +1500,7 @@
           <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
         </header>
         <nav class="menu-sheet-nav" aria-label="Todas las secciones">${items}
-          <button class="menu-sheet-item" type="button" data-open-welcome>${icon('play')}<span>Novedades del portal</span>${icon('arrow', 'menu-item-arrow')}</button>
+          <button class="menu-sheet-item" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span>${icon('arrow', 'menu-item-arrow')}</button>
           ${SIGN_IN_ENABLED ? `<a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>` : ''}
         </nav>
         <footer class="menu-sheet-foot">
@@ -1563,7 +1515,6 @@
     if (path === '/perfil') return renderProfile();
     if (path === '/buscar') return renderSearch(query.q || '');
     if (path === '/calendario') return renderCalendar();
-    if (path === '/mi-semana') { StudyUI.context(studyContext()); return StudyUI.renderWeek(portalTodayKey(), query); }
     if (path === '/encuestas') return FEATURES.surveys ? renderSurveys() : renderNotFound();
     if (path === '/encuestas/nueva') return FEATURES.surveys ? renderSurveyBuilder() : renderNotFound();
     if (path.startsWith('/encuestas/')) return FEATURES.surveys ? renderSurveyDetail(path.split('/')[2]) : renderNotFound();
@@ -1574,7 +1525,6 @@
     if (path.startsWith('/acuerdos/')) return renderAgreementDetail(path.split('/')[2]);
     if (path === '/casos' || path === '/casos/nuevo' || path.startsWith('/casos/')) return renderMallas();
     if (path === '/material') {
-      if (!query.course && !restoring && location.hash !== lastRenderedRouteKey) { state.materialPlan = ''; state.materialCode = ''; }
       if (query.course && !restoring && (location.hash !== lastRenderedRouteKey)) {
         const courseCode = safeDecode(String(query.course));
         if (courseCode !== null) {
@@ -1582,18 +1532,13 @@
           // curso (los recursos están canonicalizados a ese mismo nombre) y
           // NO se usa búsqueda de texto, para que solo aparezca material que
           // pertenece de verdad al ramo.
-          const requestedPlan = Curricula[query.plan] ? query.plan : '';
-          const match = requestedPlan ? findCourse(requestedPlan, courseCode.trim()) : officialCourseByCode(courseCode.trim())?.course;
+          const match = officialCourseByCode(courseCode.trim());
           if (match) {
-            state.materialCourse = titleCase(match.name);
-            state.materialPlan = requestedPlan;
-            state.materialCode = requestedPlan ? match.code : '';
+            state.materialCourse = titleCase(match.course.name);
             state.materialQuery = '';
             state.materialType = 'all';
           } else {
             state.materialCourse = 'all';
-            state.materialPlan = '';
-            state.materialCode = '';
             state.materialQuery = courseCode;
           }
           state.selectedResourceId = null;
@@ -1603,18 +1548,7 @@
     }
     if (path === '/material/subir') return renderUploadMaterial();
     if (path.startsWith('/material/')) return renderMaterialDetailPage(path.split('/')[2]);
-    if (path === '/mallas') {
-      if (location.hash !== lastRenderedRouteKey) {
-        state.mallaPersonalOpen = query.view === 'mis-ramos';
-        if (query.mark === 'actuales' && !MyCourses.status().locked) {
-          state.mallaPersonalOpen = false;
-          state.mallaMarkStatus = 'cursando';
-          state.mallaApprovalMode = true;
-        }
-        state.myCoursesView = ['semester', 'eligible', 'selected'].includes(query.section) ? query.section : 'semester';
-      }
-      return renderMallas();
-    }
+    if (path === '/mallas') return renderMallas();
     if (path.startsWith('/ramo/')) {
       const [, , plan, code] = path.split('/');
       const decodedCode = safeDecode(code);
@@ -1628,26 +1562,11 @@
   function renderHome() {
     const upcomingEvents = currentAndFutureEvents();
     const count = (Data.resources || []).length.toLocaleString('es-CL');
-    const todayKey = portalTodayKey();
-    const today = parseCalendarDate(todayKey);
+    const today = parseCalendarDate(portalTodayKey());
     const dateLabel = today.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
-    const stored = MyCourses.read(), plan = stored.activePlan, statuses = stored.plans[plan].statuses;
-    const current = getCourses(plan).filter(course => statuses[course.code] === 'cursando');
-    const forecast = MyCourses.evaluatePlan(getCourses(plan), statuses).filter(item => item.afterCurrent);
-    const tools = window.PortalStudyTools;
-    const pending = tools.read().events.filter(event => !event.done).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-    const upcoming = pending.filter(event => event.date >= todayKey).slice(0, 3);
-    const overdue = pending.filter(event => event.date < todayKey);
-    const eventsMarkup = upcoming.map(event => `<a class="home-study-event" data-home-activity="${esc(event.id)}" href="#/mi-semana?date=${esc(event.date)}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${esc(parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' }))}</span></time><span><small>${esc(event.type)}${event.time ? ` · ${esc(event.time)}` : ''}</small><strong>${esc(event.title)}</strong>${event.course ? `<small>${esc(titleCase(findCourse(event.plan, event.course)?.name || event.course))}</small>` : ''}</span>${icon('arrow')}</a>`).join('');
-    let showNews = true;
-    try { showNews = localStorage.getItem('portal.news.dismissed') !== '20261013'; } catch {}
-    const news = showNews ? `<aside class="home-news" aria-label="Novedades del portal"><div><p><strong>Novedades</strong> · Tus ramos, material y actividades, a mano.</p><div class="home-news-links"><a href="#/mallas?view=mis-ramos&section=semester">Ir a Mis ramos</a><button type="button" data-open-welcome>Ver video</button></div></div><button type="button" class="home-news-close" data-dismiss-news aria-label="Cerrar aviso de novedades">${icon('x')}</button></aside>` : '';
-    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>${news}
-      <div class="home-study-overview">
-        <section class="home-study-section" aria-labelledby="home-week-title"><header><div><span class="kicker">Tu agenda</span><h2 id="home-week-title">Mi semana</h2></div><a class="link" href="#/mi-semana">Abrir agenda ${icon('arrow')}</a></header><p class="home-study-intro">Tus próximas actividades</p>${tools.status().issue ? `<p class="study-notice">${esc(tools.status().issue)} <a href="#/mi-semana">Revisar agenda</a></p>` : ''}${eventsMarkup || '<div class="home-study-empty"><p>Aún no tienes actividades próximas.</p><a class="btn primary" href="#/mi-semana">Agregar actividad</a></div>'}${overdue.length ? `<a class="home-study-pending link" href="#/mi-semana?date=${esc(overdue[0].date)}">${overdue.length} ${overdue.length === 1 ? 'actividad anterior sin completar' : 'actividades anteriores sin completar'} ${icon('arrow')}</a>` : ''}</section>
-        <section class="home-study-section" aria-labelledby="home-courses-title"><header><div><span class="kicker">${planShort(plan)}</span><h2 id="home-courses-title">Mis ramos actuales</h2></div><a class="link" href="#/mallas?view=mis-ramos&section=semester">${current.length ? `Ver ${current.length === 1 ? 'ramo' : `los ${current.length}`}` : 'Elegir ramos'} ${icon('arrow')}</a></header><div class="home-current-courses">${current.slice(0, 4).map(course => `<a class="home-current-course" data-home-course="${esc(course.code)}" href="#/ramo/${plan}/${encodeURIComponent(course.code)}"><span class="home-course-mark" aria-hidden="true"></span><span><strong>${esc(titleCase(course.name))}</strong><small>${esc(AreaStyle[courseDisplayArea(course)] || '')}</small></span>${icon('arrow')}</a>`).join('') || '<div class="home-study-empty"><p>Marca los ramos que estás cursando para tenerlos a mano.</p><a class="btn secondary" href="#/mallas?mark=actuales">Marcar en la malla</a></div>'}</div>${current.length ? `<a class="home-study-pending link" href="#/mallas?view=mis-ramos&section=eligible">${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'} al aprobar tus actuales` : 'Revisar qué podrías cursar'} ${icon('arrow')}</a>` : ''}</section>
-      </div>
-      <div class="home-academic-overview"><section class="home-calendar"><header><h2>Fechas UCN</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><nav class="home-study-tools" aria-label="Herramientas de estudio"><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav></div>`;
+    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${portalTodayKey()}">${esc(dateLabel)}</time></div>
+      <div class="home-overview"><section class="home-calendar"><header><h2>Próximas fechas</h2><a class="link" href="#/calendario">Calendario ${icon('arrow')}</a></header><div class="home-date-list">${upcomingEvents.slice(0, 3).map(dateRow).join('') || (!dataReady ? skeletonList(3) : '<p class="muted">Sin fechas próximas.</p>')}</div></section><figure class="home-campus-frame"><img src="${CAMPUS_IMAGE_SRC}" alt="Campus Universidad Católica del Norte" width="720" height="460" /><figcaption>Ingeniería Civil <span>Universidad Católica del Norte</span></figcaption></figure></div>
+      <nav class="home-service-links" aria-label="Recursos académicos"><a href="#/mallas"><span class="home-service-symbol">${icon('grid')}</span><span><strong>Mallas curriculares</strong><small>Plan O · Plan P</small></span>${icon('arrow')}</a><a href="#/material"><span class="home-service-symbol">${icon('book')}</span><span><strong>Material de estudio</strong><small>${count} recursos</small></span>${icon('arrow')}</a></nav>`;
   }
   function renderHomeDigest() {
     const d = Data.aiCommunicationsDigest;
@@ -1766,77 +1685,6 @@
       && !/\bqa\b|prueba|demo/i.test([item.title, item.summary, item.origin].join(' '))
     ));
   }
-  function myCourseMaterial(plan, course) {
-    const resources = getResourcesForCourse(plan, course.code);
-    const related = resources.filter(resource => isRelatedCourseResource(plan, course, resource)).length;
-    return resources.length
-      ? `<a class="link" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">${resources.length} ${resources.length === 1 ? 'recurso' : 'recursos'}${related ? ` · ${related} ${related === 1 ? 'material relacionado' : 'materiales relacionados'}` : ''} ${icon('arrow')}</a>`
-      : `<span class="small muted">Sin material asociado. <a href="#/material/subir">Aportar material</a></span>`;
-  }
-  function myCourseStatusControl(plan, code, record, locked) {
-    const status = record.statuses[code];
-    return `<div class="my-course-state" role="group" aria-label="Estado de ${esc(titleCase(findCourse(plan, code)?.name || code))}">${[['cursando', 'Actual'], ['aprobado', 'Aprobado']].map(([value, label]) => `<button type="button" class="course-state-button is-${value}" data-my-course-status="${esc(code)}" data-my-course-plan="${plan}" value="${value}" aria-pressed="${status === value}"${locked ? ' disabled' : ''}>${label}</button>`).join('')}</div>`;
-  }
-  function toggleCourseStatus(plan, code, status) {
-    if (!findCourse(plan, code) || !['cursando', 'aprobado'].includes(status)) return;
-    const current = MyCourses.read().plans[plan].statuses[code];
-    const saved = current === status ? MyCourses.updateStatuses(plan, { [code]: null }) : MyCourses.update(plan, code, 'status', status);
-    if (saved && mallaApprovalUndo?.plan === plan) delete mallaApprovalUndo.previous[code];
-    refreshMyCourses();
-  }
-  function renderMyCourseCard(plan, code, record, locked) {
-    const course = findCourse(plan, code);
-    if (!course) return `<article class="my-course-card my-course-orphan"><div><strong>Ramo no disponible en este catálogo</strong><small>${esc(code)}</small></div><button class="btn secondary sm" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}"${locked ? ' disabled' : ''}>Retirar</button></article>`;
-    return `<article class="my-course-card" data-my-course-card="${esc(code)}"><div class="my-course-card-top"><div><small>${esc(course.visibleCode || code)} · Semestre ${course.semester}</small><h3><button type="button" class="my-course-title" data-malla-detail="${esc(code)}">${esc(titleCase(course.name))}</button></h3></div><button class="btn ghost sm" type="button" data-my-course-remove="${esc(code)}" data-my-course-plan="${plan}" aria-label="Retirar ${esc(titleCase(course.name))} de Mis ramos"${locked ? ' disabled' : ''}>Retirar</button></div><div class="my-course-card-foot">${myCourseStatusControl(plan, code, record, locked)}<button class="btn ghost sm" type="button" data-malla-locate="${esc(code)}">Ubicar en malla</button></div><div class="my-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div></article>`;
-  }
-  function renderMyCourses() {
-    const stored = MyCourses.read();
-    const health = MyCourses.status();
-    const plan = state.myCoursesPlan;
-    const semesters = [...new Set(getCourses(plan).map(course => course.semester))].sort((a, b) => a - b);
-    if (state.myCoursesSemester !== 'all' && !semesters.includes(Number(state.myCoursesSemester))) state.myCoursesSemester = 'all';
-    const record = stored.plans[plan];
-    // Stable priority: display current courses first without mutating saved order.
-    const selected = record.selected.map((code, index) => ({ code, index })).sort((a, b) => Number(record.statuses[b.code] === 'cursando') - Number(record.statuses[a.code] === 'cursando') || a.index - b.index).map(item => item.code);
-    const valid = selected.filter(code => findCourse(plan, code));
-    const approved = valid.filter(code => record.statuses[code] === 'aprobado').length;
-    const query = plain(state.myCoursesQuery);
-    const courses = getCourses(plan).filter(course =>
-      (state.myCoursesSemester === 'all' || course.semester === Number(state.myCoursesSemester)) &&
-      (!query || plain([course.name, course.code, course.visibleCode].join(' ')).includes(query))
-    );
-    const current = getCourses(plan).filter(course => record.statuses[course.code] === 'cursando');
-    const evaluated = MyCourses.evaluatePlan(getCourses(plan), record.statuses);
-    const forecast = evaluated.filter(item => item.afterCurrent);
-    const views = `<div class="courses-topline"><div class="courses-tabs" role="group" aria-label="Mis ramos"><button type="button" data-my-courses-view value="semester" aria-pressed="${state.myCoursesView === 'semester'}">Actuales <span>${current.length}</span></button><button type="button" data-my-courses-view value="eligible" aria-pressed="${state.myCoursesView === 'eligible'}">Qué se abre ${icon('arrow')}</button></div><button class="courses-saved-link" type="button" data-my-courses-view value="selected" aria-pressed="${state.myCoursesView === 'selected'}">Guardados${selected.length ? ` · ${selected.length}` : ''}</button></div>`;
-    const privacy = `<footer class="courses-footnote"><span data-study-save-status role="status">${window.PortalStudyAccount.statusText()}</span><a href="#/mi-semana">Mi semana</a></footer>`;
-    if (state.myCoursesView === 'semester') {
-      return `<div class="my-courses-page courses-canvas">${myCoursesNotice(health)}${views}<section class="my-courses-semester"><div class="courses-section-heading"><div><h3>Este semestre</h3><p>${current.length ? `${current.length} ${current.length === 1 ? 'ramo' : 'ramos'} · ${current.reduce((sum, course) => sum + course.sct, 0)} SCT` : 'Empieza por los ramos que estás cursando.'}</p></div><button class="btn secondary sm" type="button" data-courses-mark>Editar en malla</button></div><div class="course-tile-grid">${current.map(course => `<article class="course-tile" data-my-course-card="${esc(course.code)}"><div class="course-tile-meta"><span class="course-area-dot area-${esc(courseDisplayArea(course))}"></span><span>${esc(AreaStyle[courseDisplayArea(course)] || '')}</span><span class="course-status-tag is-current">Actual</span></div><h3><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></h3><div class="course-tile-links"><a href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Material</a><button type="button" data-malla-detail="${esc(course.code)}" aria-label="Editar estado de ${esc(titleCase(course.name))}">Estado</button></div><a class="course-tile-activity" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">${icon('calendar')} Agregar actividad ${icon('arrow')}</a></article>`).join('') || `<div class="courses-empty"><span class="courses-empty-mark" aria-hidden="true">●</span><h3>¿Qué ramos estás tomando?</h3><p>Márcalos como actuales. Aquí tendrás sus actividades y material.</p><button class="btn primary" type="button" data-courses-mark>Marcar mis actuales</button></div>`}</div>${current.length ? `<button class="courses-forward" type="button" data-my-courses-view value="eligible"><span><strong>${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'}` : 'Mira qué viene después'}</strong><small>Al aprobar tus actuales, junto con lo que ya aprobaste</small></span>${icon('arrow')}</button>` : ''}</section>${privacy}</div>`;
-    }
-    if (state.myCoursesView === 'eligible') {
-      const groups = { met: evaluated.filter(item => item.category === 'met'), afterCurrent: forecast, other: evaluated.filter(item => !item.afterCurrent && item.category !== 'met') };
-      const outlook = ['met', 'afterCurrent', 'other'].includes(state.myCoursesOutlook) ? state.myCoursesOutlook : current.length ? 'afterCurrent' : 'met';
-      const focused = current.some(course => course.code === state.myCoursesFocus) ? state.myCoursesFocus : '';
-      const items = groups[outlook].filter(item => outlook !== 'afterCurrent' || !focused || item.inProgress.includes(focused));
-      const sources = outlook === 'afterCurrent' ? `<div class="course-path-sources"><div class="course-path-heading"><span class="course-step">1</span><h4>Apruebas tus actuales</h4></div><div class="course-source-options"><button class="course-source-all" type="button" data-course-focus="" aria-pressed="${!focused}">Ver todos juntos <span>${current.length}</span></button>${current.map(course => `<button class="course-source" type="button" data-course-focus="${esc(course.code)}" aria-pressed="${focused === course.code}"><span class="course-current-dot" aria-hidden="true"></span><strong>${esc(titleCase(course.name))}</strong>${icon('arrow')}</button>`).join('') || '<p class="small muted">Primero marca los ramos que cursas.</p>'}</div><p class="course-path-help">Toca un ramo para seguir su camino.</p></div><div class="course-path-arrow" aria-hidden="true">→</div>` : '';
-      return `<div class="my-courses-page courses-canvas">${myCoursesNotice(health)}${views}<section class="my-courses-eligibility"><div class="courses-section-heading"><div><p>Tus aprobados ya están considerados.</p></div><button type="button" class="btn secondary sm" data-courses-map="${outlook === 'other' ? 'all' : outlook}">${focused && outlook === 'afterCurrent' ? 'Ver todos en malla' : 'Ver en malla'}</button></div><div class="course-outlook-tabs" role="group" aria-label="Revisar prerrequisitos">${[['met','Ya cumples'],['afterCurrent','Al aprobar'],['other','Faltan']].map(([key, label]) => `<button type="button" data-course-outlook="${key}" aria-pressed="${outlook === key}">${label}<span>${groups[key].length}</span></button>`).join('')}</div><div class="course-path${outlook === 'afterCurrent' ? ' has-sources' : ''}" data-eligibility-category="${outlook}">${sources}<div class="course-path-destinations"><div class="course-path-heading">${outlook === 'afterCurrent' ? '<span class="course-step">2</span>' : ''}<h4>${outlook === 'afterCurrent' ? 'Se abrirían' : outlook === 'met' ? 'Prerrequisitos cumplidos' : 'Todavía faltan requisitos'} <span class="course-result-count" aria-live="polite">${items.length}</span></h4>${focused && outlook === 'afterCurrent' ? '<button class="link" type="button" data-course-focus="">Quitar filtro</button>' : ''}</div><div class="course-tile-grid">${items.map(item => renderCourseOutlookTile(plan, item, record.statuses)).join('') || `<div class="courses-empty"><h4>${outlook === 'afterCurrent' ? 'Aún no se abre otro ramo' : 'No hay ramos en este grupo'}</h4><p>${outlook === 'afterCurrent' ? 'Puede faltar otro prerrequisito. Revísalo en «Faltan requisitos» o actualiza tus marcas.' : 'Los ramos actuales y aprobados no se repiten aquí.'}</p></div>`}</div></div></div><p class="courses-disclaimer">Orientación por prerrequisitos. Confirma oferta y requisitos especiales con la universidad.</p></section>${privacy}</div>`;
-    }
-    return `<div class="my-courses-page">${myCoursesNotice(health)}${views}${privacy}
-      <section class="my-courses-selected" aria-labelledby="my-courses-selected-title"><div class="row-between"><div><h3 id="my-courses-selected-title" class="card-title">Ramos guardados · ${planShort(plan)}</h3><p class="small muted">${approved} de ${valid.length} ${valid.length === 1 ? 'ramo seleccionado aprobado' : 'ramos seleccionados aprobados'}</p></div></div>
-      ${selected.length ? `<div class="my-courses-grid">${selected.map(code => renderMyCourseCard(plan, code, record, health.locked)).join('')}</div>` : `<div class="empty-state"><h3>Sin ramos guardados</h3><p>Toca un ramo en la malla o búscalo aquí para agregarlo.</p></div>`}</section>
-      <section class="my-courses-catalog" aria-labelledby="my-courses-catalog-title"><h3 id="my-courses-catalog-title" class="card-title">Buscar en la malla</h3><div class="my-courses-filters"><label>Nombre o código<input class="input" type="search" data-my-courses-search value="${esc(state.myCoursesQuery)}" placeholder="Buscar ramo" autocomplete="off"></label><label>Semestre curricular<select class="select" data-my-courses-semester><option value="all">Todos los semestres</option>${semesters.map(semester => `<option value="${semester}"${state.myCoursesSemester === String(semester) ? ' selected' : ''}>Semestre ${semester}</option>`).join('')}</select></label></div><p class="small muted">${courses.length} ramos en el catálogo</p><div class="my-courses-list">${courses.map(course => `<article class="my-course-option" data-my-course-option="${esc(course.code)}"><div><small>${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><button class="my-course-title" type="button" data-malla-detail="${esc(course.code)}">${esc(titleCase(course.name))}</button></div><button type="button" class="btn ${record.selected.includes(course.code) ? 'secondary' : 'primary'} sm" data-my-course-${record.selected.includes(course.code) ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${record.selected.includes(course.code) ? 'Retirar' : 'Agregar'}</button></article>`).join('') || '<p class="small muted">No hay ramos con esos filtros.</p>'}</div></section></div>`;
-  }
-  function renderCourseOutlookTile(plan, item, statuses) {
-    const course = item.course;
-    const prereqs = Array.isArray(course.prereqs) ? course.prereqs.filter(code => typeof code === 'string') : [];
-    const approved = prereqs.filter(code => statuses[code] === 'aprobado').length;
-    const category = item.afterCurrent ? 'afterCurrent' : item.category;
-    const marks = prereqs.map(code => `<span class="course-prereq-segment ${statuses[code] === 'aprobado' ? 'is-approved' : statuses[code] === 'cursando' ? 'is-current' : ''}" title="${esc(titleCase(findCourse(plan, code)?.name || code))}" aria-hidden="true"></span>`).join('');
-    return `<article class="course-tile course-outlook-tile" data-eligibility-code="${esc(item.code)}"><div class="course-tile-meta"><span class="course-area-dot area-${esc(courseDisplayArea(course))}"></span><span>Semestre ${course.semester}</span><span>${course.sct} SCT</span></div><h3><button class="my-course-title" type="button" data-malla-detail="${esc(item.code)}">${esc(titleCase(course.name))}</button></h3>${marks ? `<div class="course-prereq-meter" role="img" aria-label="${approved} de ${prereqs.length} prerrequisitos aprobados; ${item.inProgress.length} actuales">${marks}</div>` : ''}<div class="course-prereq-caption">${approved ? `<span class="course-prereq-approved">✓ ${approved} ${approved === 1 ? 'aprobado' : 'aprobados'}</span>` : ''}${!prereqs.length ? '<span>Sin prerrequisitos directos</span>' : ''}${category === 'met' && prereqs.length ? '<span>Todo listo</span>' : ''}</div>${item.missing.length ? `<div class="course-prereq-chips" aria-label="${item.afterCurrent ? 'Debes aprobar todos estos actuales' : 'Prerrequisitos pendientes'}">${item.missing.map(code => `<button type="button" class="course-prereq-chip ${item.inProgress.includes(code) ? 'is-current' : ''}" data-malla-detail="${esc(code)}"><span aria-hidden="true">${item.inProgress.includes(code) ? '●' : '○'}</span>${esc(titleCase(findCourse(plan, code)?.name || code))}</button>`).join('')}</div>` : ''}${item.afterCurrent ? '<p class="course-tile-condition">Al aprobar todos los actuales indicados.</p>' : ''}${item.unknown.length || item.extraRequirements.length ? '<span class="course-review-note">Requiere revisión · abre la ficha</span>' : ''}<button class="course-tile-locate" type="button" data-malla-locate="${esc(item.code)}">Ubicar en malla ${icon('arrow')}</button></article>`;
-  }
-  function myCoursesNotice(health) {
-    return health.issue ? `<div class="my-courses-notice" role="status">${esc(health.issue)}${health.recoverable ? ' <button class="btn secondary sm" type="button" data-my-courses-recover>Recuperar Mis ramos</button>' : ''}${health.conflict ? ' <button class="btn secondary sm" type="button" data-my-courses-resolve="saved">Usar versión guardada</button><button class="btn secondary sm" type="button" data-my-courses-resolve="temporary">Conservar cambios de esta pestaña</button>' : ''}</div>` : '';
-  }
   function findAgreementById(id) {
     return portalAgreements().find(x => x.id === id);
   }
@@ -1857,7 +1705,7 @@
   function renderCalendar() {
     const exportAction = isGuest() ? '' : `<button class="btn secondary" data-download-calendar>${icon('calendar')} Exportar agenda</button>`;
     const updateAction = hasCealAccess() ? `<a class="btn primary" href="#/gestion/calendario">${icon('upload')} Actualizar calendario</a>` : '';
-    const calendarAction = `<a class="btn primary" href="#/mi-semana">Mi semana</a>${exportAction}${updateAction}`;
+    const calendarAction = `${exportAction}${updateAction}`;
     const todayKey = portalTodayKey();
     const routeDate = String(getRoute().query.date || '').slice(0, 10);
     const validRouteDate = /^\d{4}-\d{2}-\d{2}$/.test(routeDate) ? routeDate : '';
@@ -1883,20 +1731,6 @@
       : `<span>${esc(sourceText)}</span>`;
     return `${pageHead('Calendario', 'Antofagasta', calendarAction)}<div class="calendar-audience" role="group" aria-label="Actividades del calendario"><button class="chip-btn" data-calendar-audience="students" aria-pressed="${state.calendarAudience !== 'all'}">Estudiantes</button><button class="chip-btn" data-calendar-audience="all" aria-pressed="${state.calendarAudience === 'all'}">Todas las actividades</button></div>
       <div class="calendar-layout refined-calendar-layout"><section class="card pad academic-calendar-card"><div class="calendar-card-head"><div><h2 class="card-title">${esc(calendarMonthLabel(currentMonth))}</h2></div>${monthActions}</div>${renderMonthCalendar(currentMonth, events, state.calendarSelectedDate)}<div class="divider"></div><div class="row-between calendar-agenda-title"><h2 class="card-title">Eventos del mes</h2><span class="pill gray">${monthEventCount}</span></div>${renderMonthEventAgenda(currentMonth, events, state.calendarSelectedDate)}</section><aside class="calendar-side-panel"><section class="card pad"><div class="row-between"><h2 class="card-title">Próximos hitos</h2><span class="pill blue">${nextEvents.length}</span></div><div class="card-list">${nextEvents.slice(0, 6).map(calendarNextRow).join('') || '<p class="small muted">Sin fechas próximas.</p>'}</div><div class="divider"></div><div class="calendar-source"><span class="kicker">Fuente</span>${sourceMarkup}<small>${esc(source.decree || '')}${source.campus ? ` · ${esc(source.campus)}` : ''}</small><small>${esc(source.note || '')}</small></div></section><section class="card pad"><div class="row-between"><h2 class="card-title">Acuerdos y seguimiento</h2>${agreementAction}</div><div class="card-list">${agreementRows}</div></section></aside></div>${state.calendarDetailOpen ? renderCalendarDetailModal(state.calendarSelectedDate, events) : ''}`;
-  }
-
-  function studyContext() {
-    return {
-      calendar: Data.events || [],
-      source: Data.calendarSource || {},
-      courses: { planO: getCourses('planO'), planP: getCourses('planP') },
-      selectedPlan: state.myCoursesPlan,
-      statuses: { planO: MyCourses.read().plans.planO.statuses, planP: MyCourses.read().plans.planP.statuses },
-      preferred: {
-        planO: MyCourses.read().plans.planO.selected,
-        planP: MyCourses.read().plans.planP.selected
-      }
-    };
   }
 
   function tutorialLibraryCard({ iconName, audience, title, description, duration, href, pending = false }) {
@@ -1970,14 +1804,7 @@
       state.materialCourse = 'all';
     }
     const q = plain(state.materialQuery);
-    const scopedIds = state.materialPlan && state.materialCode ? new Set(getResourcesForCourse(state.materialPlan, state.materialCode).map(r => r.id)) : null;
-    const seenScoped = new Set();
-    const items = Data.resources.filter(r => {
-      const matches = (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (scopedIds ? scopedIds.has(r.id) : state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse));
-      if (!matches || (scopedIds && seenScoped.has(r.id))) return false;
-      if (scopedIds) seenScoped.add(r.id);
-      return true;
-    });
+    const items = Data.resources.filter(r => (!q || plain([r.title, r.courseName, r.courseCode, r.type, r.origin].join(' ')).includes(q)) && (state.materialType === 'all' || plain(r.type) === plain(state.materialType)) && (state.materialCourse === 'all' || plain(r.courseName) === plain(state.materialCourse)));
     const types = ['all', ...[...new Set(Data.resources.map(r => r.type).filter(Boolean))].sort((a, b) => tx(a).localeCompare(tx(b), 'es-CL'))];
     const typeCounts = {};
     Data.resources.forEach(r => { if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1; });
@@ -1988,8 +1815,10 @@
       state.materialType !== 'all' ? ['type', `Tipo: ${state.materialType}`] : null,
       state.materialCourse !== 'all' ? ['course', `Ramo: ${state.materialCourse}`] : null
     ].filter(Boolean);
-    const planPNotice = '';
-    const uploadAction = `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>`;
+    const planPNotice = state.materialCourse !== 'all' && isPlanPCourseName(state.materialCourse)
+      ? `<div class="material-plan-note">${icon('grid')}<span>Plan P: se incluyen recursos equivalentes de Plan O cuando corresponde.</span></div>`
+      : '';
+    const uploadAction = API_BASE ? `<a class="btn primary" href="#/material/subir">${icon('upload')} Subir material</a>` : '';
     const visibleCount = Math.max(0, Number(state.materialVisibleCount) || 60);
     const visible = items.slice(0, visibleCount);
     const remaining = items.length - visible.length;
@@ -1998,13 +1827,9 @@
     const appliedFilters = activeFilters.length ? `<div class="applied-filters active-filter-row">${activeFilters.map(([kind, label]) => `<button class="filter-token" data-material-clear="${esc(kind)}" type="button">${esc(label)} <span class="filter-chip-remove">${icon('x')}</span></button>`).join('')}<button class="btn ghost sm applied-filters-clear" data-material-clear="all" type="button">Limpiar todo</button></div>` : '';
     return `${pageHead('Material', '', uploadAction)}
       <section class="material-library material-browser"><div class="material-search-panel"><label class="sr-only" for="material-search-input">Buscar recurso</label><div class="material-search-box">${icon('search')}<input id="material-search-input" data-material-search value="${esc(state.materialQuery)}" placeholder="Buscar por título, ramo o código" autocomplete="off" /></div><div class="material-controls"><label><span>Ramo</span><select class="select" data-material-course-select><option value="all"${state.materialCourse === 'all' ? ' selected' : ''}>Todos los ramos</option>${courses.map(c => `<option value="${esc(c)}"${state.materialCourse === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label><label><span>Tipo</span><select class="select" data-material-type-select><option value="all"${state.materialType === 'all' ? ' selected' : ''}>Todos los tipos</option>${types.filter(t => t !== 'all').map(t => `<option value="${esc(t)}"${state.materialType === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div><div class="material-type-tabs quick-chip-row" aria-label="Filtrar por tipo"><button class="${state.materialType === 'all' ? 'active' : ''}" aria-pressed="${state.materialType === 'all'}" data-material-type="all" type="button">Todos</button>${quickTypes.map(t => `<button class="${state.materialType === t ? 'active' : ''}" aria-pressed="${state.materialType === t}" data-material-type="${esc(t)}" type="button">${esc(t)} <small>${typeCounts[t] || 0}</small></button>`).join('')}</div>${appliedFilters}${planPNotice}</div>
-      <div class="row-between material-count"><h2 class="card-title">${visible.length} de ${items.length.toLocaleString('es-CL')} recursos</h2><span>Recientes primero</span></div><div class="table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Año</th><th><span class="sr-only">Abrir</span></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="file-format">${esc(r.format)}</span><div><a class="resource-title-link" href="#/material/${esc(r.id)}">${esc(r.title)}</a><span class="resource-type">${esc(r.type)}${isRelatedInMaterial(r) ? ' · Material relacionado' : ''}${!['validado', 'validadoCeal', 'publicado'].includes(r.status) ? ` · ${esc(Status[r.status]?.[0] || r.status)}` : ''}</span></div></div></td><td><span>${esc(r.courseName)}</span><small class="resource-course-code">${esc(r.courseCode)}</small></td><td>${esc(r.year)}</td><td>${icon('arrow')}</td></tr>`).join('')}</tbody></table>${!visible.length ? (noDataYet ? skeletonList(3) : renderEmptyMaterial()) : ''}</div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section>`;
+      <div class="row-between material-count"><h2 class="card-title">${visible.length} de ${items.length.toLocaleString('es-CL')} recursos</h2><span>Recientes primero</span></div><div class="table-card"><table class="data-table"><thead><tr><th>Recurso</th><th>Ramo</th><th>Año</th><th><span class="sr-only">Abrir</span></th></tr></thead><tbody>${visible.map(r => `<tr class="clickable" data-resource-row="${esc(r.id)}"><td><div class="resource-cell"><span class="file-format">${esc(r.format)}</span><div><a class="resource-title-link" href="#/material/${esc(r.id)}">${esc(r.title)}</a><span class="resource-type">${esc(r.type)}${!['validado', 'validadoCeal', 'publicado'].includes(r.status) ? ` · ${esc(Status[r.status]?.[0] || r.status)}` : ''}</span></div></div></td><td><span>${esc(r.courseName)}</span><small class="resource-course-code">${esc(r.courseCode)}</small></td><td>${esc(r.year)}</td><td>${icon('arrow')}</td></tr>`).join('')}</tbody></table>${!visible.length ? (noDataYet ? skeletonList(3) : renderEmptyMaterial()) : ''}</div><div class="mobile-card-list">${visible.map(resourceCard).join('') || (noDataYet ? skeletonList(3) : renderEmptyMaterial())}</div>${showMore}</section>`;
   }
-  function isRelatedInMaterial(resource) {
-    const course = state.materialPlan && state.materialCode ? findCourse(state.materialPlan, state.materialCode) : null;
-    return Boolean(course && isRelatedCourseResource(state.materialPlan, course, resource));
-  }
-  function resourceCard(r) { return `<a class="item-card material-list-item" href="#/material/${esc(r.id)}"><span class="file-format">${esc(r.format)}</span><span class="material-list-copy"><h3>${esc(r.title)}</h3><p>${esc(r.courseName)}</p><small>${esc(r.type)} · ${esc(r.year)}${isRelatedInMaterial(r) ? ' · Material relacionado' : ''}</small></span>${icon('arrow')}</a>`; }
+  function resourceCard(r) { return `<a class="item-card material-list-item" href="#/material/${esc(r.id)}"><span class="file-format">${esc(r.format)}</span><span class="material-list-copy"><h3>${esc(r.title)}</h3><p>${esc(r.courseName)}</p><small>${esc(r.type)} · ${esc(r.year)}</small></span>${icon('arrow')}</a>`; }
   function renderResourcePreview(r) {
     if (QA_MODE) {
       return `<section class="resource-preview-shell resource-preview-empty"><div><span class="kicker">Vista previa</span><h2 class="card-title">Previsualización omitida</h2><p class="small muted">La revisión automática usa los datos del recurso sin cargar servicios externos.</p></div></section>`;
@@ -2018,14 +1843,13 @@
     return `<section class="resource-preview-shell"><div class="resource-preview-head"><div><span class="kicker">Vista previa</span><h2 class="card-title">${esc(r.title)}</h2></div>${openInDriveLink}</div><iframe class="resource-preview-frame" src="${esc(previewUrl)}" title="Vista previa de ${esc(r.title)}" loading="lazy" allow="autoplay"></iframe></section>`;
   }
   function renderResourceDetail(r, options = {}) {
-    const resourcePlan = Curricula[r.plan] ? r.plan : (state.materialPlan && findCourse(state.materialPlan, r.courseCode) ? state.materialPlan : findCoursePlanForCode(r.courseCode));
     const detailExternalUrl = safeUrl(r.externalUrl);
     const openAction = detailExternalUrl
       ? `<a class="btn primary" href="${esc(detailExternalUrl)}" target="_blank" rel="noopener">${icon('download')} Abrir material</a>`
       : `<button class="btn primary" data-download-resource="${esc(r.id)}">${icon('download')} Descargar</button>`;
     const actions = isGuest()
-      ? `${openAction}<a class="btn ghost" href="#/ramo/${resourcePlan}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
-      : `<button class="btn secondary" data-save-resource="${esc(r.id)}" aria-pressed="${Data.saved.resources.includes(r.id)}">${icon('bookmark')} ${Data.saved.resources.includes(r.id) ? 'Guardado' : 'Guardar'}</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${resourcePlan}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
+      ? `${openAction}<a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`
+      : `<button class="btn secondary" data-save-resource="${esc(r.id)}" aria-pressed="${Data.saved.resources.includes(r.id)}">${icon('bookmark')} ${Data.saved.resources.includes(r.id) ? 'Guardado' : 'Guardar'}</button>${openAction}<button class="btn danger-lite" data-report-resource="${esc(r.id)}">${icon('x')} Reportar error</button><a class="btn ghost" href="#/ramo/${findCoursePlanForCode(r.courseCode)}/${encodeURIComponent(r.courseCode)}">Ver ramo ${icon('arrow')}</a>`;
     const closeControl = options.hideClose ? '' : `<button class="icon-btn" data-clear-panel>${icon('x')}</button>`;
     return `<div class="row-between"><div><h2 class="card-title">${esc(r.title)}</h2></div>${closeControl}</div><div class="hstack" style="flex-wrap:wrap"><span data-resource-status="${esc(r.id)}">${badge(r.status)}</span><span class="pill blue">${esc(r.format)}</span><span class="pill gray">${esc(r.size)}</span></div><p class="small muted" style="line-height:1.55;margin-top:14px">${esc(r.description)}</p><div class="detail-block resource-meta-block"><div class="detail-row"><span>Ramo</span><strong>${esc(r.courseName)}</strong></div><div class="detail-row"><span>Código</span><strong>${esc(r.courseCode)}</strong></div><div class="detail-row"><span>Semestre</span><strong>${esc(r.semester)}</strong></div><div class="detail-row"><span>Año</span><strong>${esc(r.year)}</strong></div><div class="detail-row"><span>Origen</span><strong>${esc(r.origin)}</strong></div><div class="detail-row"><span>Subido por</span><strong>${esc(r.uploadedBy)}</strong></div></div><div class="vstack">${actions}</div>`;
   }
@@ -2034,41 +1858,28 @@
     const r = findResourceById(id);
     if (!r && !dataReady) return renderLoading('Material', 'Abriendo el recurso…');
     if (!r) return renderNotFound('No encontramos el recurso solicitado.');
-    const rPlan = Curricula[r.plan] ? r.plan : (state.materialPlan && findCourse(state.materialPlan, r.courseCode) ? state.materialPlan : findCoursePlanForCode(r.courseCode));
+    const rPlan = Curricula[r.plan] ? r.plan : findCoursePlanForCode(r.courseCode);
     return `${pageHead('Detalle de recurso', `${r.courseName} - ${r.type}`, `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split wide resource-detail-layout"><section class="card pad resource-detail-main">${renderResourcePreview(r)}${renderResourceDetail(r, { hideClose: true })}</section><aside class="card pad"><h2 class="card-title">Ramo relacionado</h2>${findCourse(rPlan, r.courseCode) ? courseCard(rPlan, findCourse(rPlan, r.courseCode)) : '<p class="small muted">Recurso sin ramo asociado en malla.</p>'}</aside></div>`;
   }
   function renderUploadMaterial() {
-    const head = pageHead('Subir material', 'Envía un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`);
-    if (LOCAL_API_BASE && !dataReady) return `${head}<section class="card pad"><p class="muted">Preparando formulario…</p></section>`;
-    if (!API_BASE || (LOCAL_API_BASE && dataMode !== 'backend')) {
-      const isPublished = location.hostname === 'ceicucn.cl' || location.hostname === 'www.ceicucn.cl';
-      return `${head}<section class="card pad"><h2 class="card-title">${isPublished ? 'Envío temporalmente no disponible' : 'Aporta material desde ceicucn.cl'}</h2><p class="muted">${isPublished ? 'No se pudo conectar con el servicio de recepción. Vuelve a intentarlo más tarde.' : 'Para enviar el archivo a revisión, abre el formulario del portal publicado.'}</p>${isPublished ? '' : `<a class="btn primary" href="https://ceicucn.cl/#/material/subir" target="_blank" rel="noopener noreferrer">${icon('upload')} Abrir formulario en ceicucn.cl</a>`}</section>`;
-    }
-    const unavailable = '';
+    const unavailable = !API_BASE ? `<div class="google-auth-note"><strong>Envío no disponible</strong><span>Abre esta sección desde el portal publicado para aportar material.</span></div>` : '';
     return `${pageHead('Subir material', 'Envía un recurso para revisión CEAL', `<a class="btn secondary" href="#/material">Volver</a>`)}<div class="split"><form class="card pad form" data-form="upload-material">${unavailable}<div class="form-field"><label id="f-upload-type-label">Tipo de recurso</label><div class="segmented" role="group" aria-labelledby="f-upload-type-label">${['Apunte','Guía','Prueba','PPT','PDF','Resumen','Otro'].map((t, i) => `<button type="button" class="${i === 0 ? 'active' : ''}" data-select-segment="type">${t}</button>`).join('')}</div><input type="hidden" name="type" value="Apunte" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-title">Título</label><input id="f-upload-title" class="input" name="title" required minlength="6" /></div><div class="form-field"><label for="f-upload-course">Ramo</label><input id="f-upload-course" class="input" name="course" required /></div></div><div class="form-grid"><div class="form-field"><label for="f-upload-plan">Plan</label><select id="f-upload-plan" class="select" name="plan"><option value="planP">Plan P</option><option value="planO">Plan O</option><option value="both">Ambos</option></select></div><div class="form-field"><label for="f-upload-year">Año</label><select id="f-upload-year" class="select" name="year"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div></div><div class="form-field"><label for="f-upload-description">Descripción</label><textarea id="f-upload-description" class="textarea" name="description" required minlength="20"></textarea></div><div class="form-field"><label for="f-upload-file">Archivo</label><label class="upload-zone">${icon('upload')}<strong>Seleccionar archivo</strong><span class="help">PDF, DOCX, PPTX, XLSX, PNG, JPG o ZIP · máximo 8 MB</span><input id="f-upload-file" class="sr-only" type="file" name="file" accept=".pdf,.docx,.pptx,.xlsx,.png,.jpg,.jpeg,.zip" required /></label></div><div class="form-field"><label for="f-upload-origin">Fuente u origen</label><input id="f-upload-origin" class="input" name="origin" required placeholder="Apuntes propios, profesor, ayudantía…" /></div><div class="form-grid"><div class="form-field"><label for="f-upload-name">Tu nombre</label><input id="f-upload-name" class="input" name="contributorName" required autocomplete="name" /></div><div class="form-field"><label for="f-upload-email">Tu correo</label><input id="f-upload-email" class="input" type="email" name="contributorEmail" required autocomplete="email" /></div></div><div class="sr-only" aria-hidden="true"><label for="f-upload-website">Sitio web</label><input id="f-upload-website" name="website" tabindex="-1" autocomplete="off" /></div><label class="checkbox-row"><input type="checkbox" name="permission" required /> Confirmo que el recurso puede compartirse como apoyo académico.</label><div class="hstack"><button class="btn primary" type="submit"${!API_BASE ? ' disabled' : ''}>${icon('upload')} Enviar a revisión</button></div></form><aside class="card pad"><h2 class="card-title">Cómo funciona</h2>${timeline([{ title:'Archivo recibido', detail:'Se guarda directamente en la carpeta de revisión.', at:new Date() }, { title:'Aviso al CEAL', detail:'El equipo recibe un correo para revisarlo.', at:new Date() }, { title:'Publicación', detail:'Solo se incorpora a la biblioteca después de validarlo.', at:new Date() }])}</aside></div>`;
   }
 
   function renderMallas() {
-    if (state.mallaPersonalOpen) state.mallaApprovalMode = false;
     const plan = state.mallaEmbedPlan === 'o' ? 'o' : 'p';
     const dark = state.portalDark;
     const planKey = plan === 'o' ? 'planO' : 'planP';
     const planLabelText = plan === 'o' ? 'Plan O - Catálogo 2016' : 'Plan P - Catálogo 2025';
     const accountLabel = 'Mi cuenta';
     const mallaTotalCourses = getCourses(planKey).length;
-    const approved = mallaApprovedCodes(planKey).length;
-    const health = MyCourses.status();
-    const semesters = [...new Set(getCourses(planKey).map(course => course.semester))].sort((a, b) => a - b);
-    const semester = semesters.includes(Number(state.mallaApprovalSemester[planKey])) ? Number(state.mallaApprovalSemester[planKey]) : semesters[0];
-    state.mallaApprovalSemester[planKey] = semester;
-    const mallaProgressMarkup = mallaTotalCourses ? `<span class="malla-progress-label" data-malla-progress-count aria-live="polite">${approved} de ${mallaTotalCourses} aprobados</span>` : '';
-    state.myCoursesPlan = planKey;
-    return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'} ${state.mallaApprovalMode ? 'is-marking' : ''} ${state.mallaPersonalOpen ? 'is-personal-open' : ''}" aria-label="Malla y ramos personales">
+    const mallaProgressMarkup = mallaTotalCourses ? `<span class="malla-progress-label">${mallaTotalCourses} ramos</span>` : '';
+    return `<section class="malla-workspace ${dark ? 'is-dark' : 'is-light'}" aria-label="Malla curricular embebida">
         <header class="malla-commandbar">
           <a class="malla-commandbar-title" href="#/" aria-label="Volver al inicio del portal">
             <span class="malla-mini-mark">${icon('grid')}</span>
             <span>
-              <strong>Malla</strong>
+              <strong>Mallas</strong>
               <small>${esc(planLabelText)}</small>
             </span>
           </a>
@@ -2076,184 +1887,19 @@
           <a class="icon-btn malla-close" href="#${SIGN_IN_ENABLED ? '/' : '/inicio'}" aria-label="Cerrar malla y volver al inicio">${icon('x')}</a>
           <div class="malla-commandbar-actions">
             <div class="segmented malla-plan-tabs" aria-label="Seleccionar plan curricular">
-              <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o" aria-pressed="${plan === 'o'}">Plan O</button>
-              <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p" aria-pressed="${plan === 'p'}">Plan P</button>
+              <button class="${plan === 'o' ? 'active' : ''}" data-malla-embed-plan="o">Plan O</button>
+              <button class="${plan === 'p' ? 'active' : ''}" data-malla-embed-plan="p">Plan P</button>
             </div>
-            <div class="segmented malla-view-tabs" aria-label="Vista de la malla"><button type="button" data-malla-view="malla" class="${state.mallaPersonalOpen ? '' : 'active'}" aria-pressed="${!state.mallaPersonalOpen}">Malla completa</button><button type="button" data-malla-view="personal" class="${state.mallaPersonalOpen ? 'active' : ''}" aria-pressed="${state.mallaPersonalOpen}" aria-controls="malla-personal-panel">Mis ramos</button></div>
-            <button class="malla-tool-btn malla-mark-toggle ${state.mallaApprovalMode ? 'active' : ''}" type="button" data-malla-mark-toggle aria-pressed="${state.mallaApprovalMode}"${health.locked ? ' disabled' : ''}>${icon('check')}<span>${state.mallaApprovalMode ? 'Terminar marcado' : 'Marcar ramos'}</span></button>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
-            <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Novedades del portal">${icon('play')}<span>Guía</span></button>
+            <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Guía del portal">${icon('play')}<span>Guía</span></button>
             ${SIGN_IN_ENABLED ? `<a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}
           </div>
         </header>
-        <div class="malla-mark-panel" data-malla-mark-panel${state.mallaApprovalMode ? '' : ' hidden'}>
-          <div class="malla-mark-status" role="group" aria-label="Marcar ramos como"><span>Marcar como</span>${[['cursando', 'Actuales'], ['aprobado', 'Aprobados']].map(([value, label]) => `<button type="button" class="course-state-button is-${value}" data-malla-mark-status="${value}" aria-pressed="${state.mallaMarkStatus === value}">${label}</button>`).join('')}</div>
-          <p class="malla-mark-explainer">Elige una marca y toca los ramos. Toca de nuevo para quitarla. Los pendientes quedan sin marca.</p>
-          <details class="malla-mark-batch-options" data-malla-batch-options><summary>Aprobar semestres anteriores</summary><div class="malla-mark-batch"><label for="malla-mark-semester">Aprobar hasta el semestre</label><select id="malla-mark-semester" class="select" data-malla-mark-semester>${semesters.map(value => `<option value="${value}"${value === semester ? ' selected' : ''}>${value}</option>`).join('')}</select><span data-malla-batch-preview></span><button class="btn secondary sm" type="button" data-malla-mark-batch>Aplicar</button><button class="btn ghost sm" type="button" data-malla-mark-undo${mallaApprovalUndo?.plan === planKey ? '' : ' hidden'}>Deshacer lote</button></div></details>
-          <p class="malla-mark-notice" data-malla-mark-notice role="status">${esc(health.issue || '')}</p>
-        </div>
-        <div class="malla-outlook-bar" data-malla-outlook-bar>${renderMallaOutlook()}</div>
-        <div class="malla-body"><div class="malla-embed-frame-wrap" data-malla-frame-wrap>
+        <div class="malla-embed-frame-wrap" data-malla-frame-wrap>
           <div class="malla-embed-loading"><span class="icon-box">${icon('grid')}</span><strong>Cargando malla...</strong></div>
           <iframe class="malla-embed-frame" data-malla-frame data-plan="${plan}" data-theme="${dark ? 'dark' : 'light'}" title="Malla curricular ${plan === 'o' ? 'Plan O' : 'Plan P'}" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
-        </div><aside class="malla-personal-panel" id="malla-personal-panel" aria-labelledby="malla-personal-title"${state.mallaPersonalOpen ? '' : ' hidden'}><header><h2 id="malla-personal-title">Mis ramos</h2><button class="icon-btn" type="button" data-malla-view="malla" aria-label="Cerrar Mis ramos">${icon('x')}</button></header><div class="malla-personal-content" data-malla-personal-content>${renderMyCourses()}</div></aside></div>
-        <dialog class="malla-course-dialog" data-malla-course-dialog aria-labelledby="malla-course-title"><div data-malla-course-detail></div></dialog>
+        </div>
       </section>`;
-  }
-  function renderEligibilityEvidence(plan, item, compact = false) {
-    const missing = compact ? item.missing.slice(0, 3) : item.missing;
-    if (item.afterCurrent) return `<p class="my-course-requirements">Si apruebas ${missing.map(code => esc(titleCase(findCourse(plan, code)?.name || code))).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} actuales más; abre la ficha para verlos` : ''}, cumplirías sus prerrequisitos. Tus aprobados ya están considerados.</p>`;
-    return `${missing.length ? `<p class="my-course-requirements">Falta aprobar: ${missing.map(code => `${esc(titleCase(findCourse(plan, code)?.name || code))}${item.inProgress.includes(code) ? ' (cursando, aún no aprobado)' : ''}`).join(', ')}${compact && item.missing.length > 3 ? ` y ${item.missing.length - 3} más; abre la ficha para verlos` : ''}.</p>` : ''}${item.unknown.length ? `<p class="my-course-requirements">Información incompleta: ${item.unknown.map(value => esc(value)).join(', ')}. Confirma los prerrequisitos.</p>` : ''}${item.extraRequirements.map(text => `<p class="my-course-requirements">${esc(text)}</p>`).join('')}${item.extraRequirements.length ? '<p class="small muted">Requisito adicional por confirmar; no se evalúa automáticamente.</p>' : ''}`;
-  }
-  function renderMallaOutlook() {
-    const plan = state.myCoursesPlan, statuses = MyCourses.read().plans[plan].statuses;
-    const evaluated = MyCourses.evaluatePlan(getCourses(plan), statuses);
-    const counts = { met: evaluated.filter(item => item.category === 'met').length, afterCurrent: evaluated.filter(item => item.afterCurrent).length };
-    return `<div class="malla-outlook-filters" role="group" aria-label="Destacar en la malla">${[['all', 'Todos'], ['met', 'Ya cumples'], ['afterCurrent', 'Si apruebas actuales']].map(([value, label]) => `<button type="button" data-malla-outlook="${value}" aria-pressed="${state.mallaOutlook === value}">${label}${value === 'all' ? '' : ` <span>${counts[value]}</span>`}</button>`).join('')}</div><p>${state.mallaOutlook === 'all' ? 'Toca un ramo para ver su ficha.' : state.mallaOutlook === 'met' ? 'Destacados: ya cumples sus prerrequisitos.' : 'Destacados: tus actuales y lo que se abriría al aprobarlos.'}</p>`;
-  }
-  function syncMallaPersonal() {
-    const content = app.querySelector('[data-malla-personal-content]');
-    if (!content) return;
-    const active = document.activeElement;
-    const focus = content.contains(active) ? viewLocator(active) : null;
-    const statusCode = content.contains(active) ? active.dataset.myCourseStatus : null;
-    const statusValue = statusCode ? active.value : null;
-    const selection = active instanceof HTMLInputElement ? [active.selectionStart, active.selectionEnd] : null;
-    const scroll = content.scrollTop;
-    const categories = [...content.querySelectorAll('[data-eligibility-category]')].map(element => [element.dataset.eligibilityCategory, element.open]);
-    content.innerHTML = renderMyCourses();
-    for (const [category, open] of categories) {
-      const element = content.querySelector(`[data-eligibility-category="${category}"]`);
-      if (element) element.open = open;
-    }
-    content.scrollTop = scroll;
-    if (focus) {
-      const next = statusCode ? content.querySelector(`[data-my-course-status="${CSS.escape(statusCode)}"][value="${statusValue}"]`) : document.querySelector(focus);
-      (next || content.querySelector('[data-my-courses-view]'))?.focus({ preventScroll: true });
-      if (selection && next?.setSelectionRange) try { next.setSelectionRange(...selection); } catch {}
-    }
-    const dialog = app.querySelector('[data-malla-course-dialog]');
-    if (dialog?.open && state.mallaDetailCode) renderMallaDetail();
-  }
-  function setMallaView(personal) {
-    if (personal && state.mallaApprovalMode) setMallaMarking(false);
-    state.mallaPersonalOpen = personal;
-    app.querySelector('.malla-workspace')?.classList.toggle('is-personal-open', personal);
-    const panel = app.querySelector('.malla-personal-panel');
-    if (panel) panel.hidden = !personal;
-    app.querySelectorAll('[data-malla-view]').forEach(button => {
-      if (button.classList.contains('icon-btn')) return;
-      const active = (button.dataset.mallaView === 'personal') === personal;
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', String(active));
-    });
-    history.replaceState(null, '', `${location.pathname}${location.search}${personal ? `#/mallas?view=mis-ramos${state.myCoursesView === 'semester' ? '' : `&section=${state.myCoursesView}`}` : '#/mallas'}`);
-    lastRenderedRouteKey = location.hash;
-  }
-  let mallaDetailReturnFocus = null;
-  let mallaDetailReturnSelector = null;
-  function renderMallaDetail() {
-    const plan = state.myCoursesPlan;
-    const course = findCourse(plan, state.mallaDetailCode);
-    const host = app.querySelector('[data-malla-course-detail]');
-    if (!course || !host) return;
-    const record = MyCourses.read().plans[plan], health = MyCourses.status();
-    const selected = record.selected.includes(course.code);
-    const active = host.contains(document.activeElement) ? document.activeElement : null;
-    const focusAction = active?.hasAttribute('data-my-course-status') ? 'status' : active?.hasAttribute('data-my-course-add') || active?.hasAttribute('data-my-course-remove') ? 'selection' : active?.hasAttribute('data-malla-detail-close') ? 'close' : null;
-    const statusValue = active?.value;
-    host.innerHTML = `<header class="malla-course-head"><div><small>${planShort(plan)} · ${esc(course.visibleCode || course.code)} · Semestre ${course.semester}</small><h2 id="malla-course-title">${esc(titleCase(course.name))}</h2></div><button class="icon-btn" type="button" data-malla-detail-close aria-label="Cerrar ficha del ramo">${icon('x')}</button></header>${myCoursesNotice(health)}<div class="malla-course-actions">${myCourseStatusControl(plan, course.code, record, health.locked)}<button class="btn secondary" type="button" data-my-course-${selected ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${health.locked ? ' disabled' : ''}>${selected ? 'Quitar de guardados' : 'Guardar ramo'}</button></div><p class="small muted">Toca la marca activa para quitarla. Los pendientes quedan sin marca. Guardar un ramo no cambia su estado. ${window.PortalStudyAccount.status().user ? 'Guardado en tu cuenta.' : 'Registro personal en este navegador.'}</p><div class="malla-course-material">${myCourseMaterial(plan, course)}<div class="study-course-actions"><a class="btn secondary sm" href="#/mi-semana?plan=${plan}&course=${encodeURIComponent(course.code)}">Agregar actividad</a></div></div><section class="malla-course-requirements" aria-label="Revisión de prerrequisitos">${renderEligibilityEvidence(plan, MyCourses.evaluateCourse(getCourses(plan), record.statuses, course))}</section><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${getPrereqs(plan, course).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${getSuccessors(plan, course.code).map(c => `<button class="link-card-row" type="button" data-malla-detail="${esc(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</button>`).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div><footer><button class="btn secondary" type="button" data-malla-locate="${esc(course.code)}">Ubicar en malla</button><a class="link" href="#/ramo/${plan}/${encodeURIComponent(course.code)}">Ver ficha completa ${icon('arrow')}</a></footer>`;
-    const focusSelector = { status: `[data-my-course-status][value="${statusValue}"]`, selection: '[data-my-course-add], [data-my-course-remove]', close: '[data-malla-detail-close]' }[focusAction];
-    if (focusSelector) host.querySelector(focusSelector)?.focus({ preventScroll: true });
-  }
-  function openMallaDetail(code, trigger = document.activeElement) {
-    if (!findCourse(state.myCoursesPlan, code)) return;
-    const dialog = app.querySelector('[data-malla-course-dialog]');
-    if (!dialog) return;
-    if (!dialog.open) {
-      mallaDetailReturnFocus = trigger;
-      mallaDetailReturnSelector = trigger?.dataset.mallaDetail
-        ? `[data-malla-personal-content] [data-malla-detail="${CSS.escape(trigger.dataset.mallaDetail)}"]`
-        : viewLocator(trigger);
-    }
-    state.mallaDetailCode = code;
-    renderMallaDetail();
-    if (!dialog.open) dialog.showModal();
-    dialog.querySelector('[data-malla-detail-close]')?.focus({ preventScroll: true });
-  }
-  function closeMallaDetail(focus = true) {
-    const dialog = app.querySelector('[data-malla-course-dialog]');
-    dialog?.close();
-    state.mallaDetailCode = null;
-    if (focus) {
-      const target = mallaDetailReturnFocus?.isConnected ? mallaDetailReturnFocus : mallaDetailReturnSelector && app.querySelector(mallaDetailReturnSelector);
-      (target || app.querySelector('[data-my-courses-view]') || app.querySelector('[data-malla-view="personal"]'))?.focus({ preventScroll: true });
-    }
-    mallaDetailReturnFocus = null;
-    mallaDetailReturnSelector = null;
-  }
-  function locateMallaCourse(code) {
-    if (!findCourse(state.myCoursesPlan, code)) return;
-    closeMallaDetail(false);
-    setMallaView(false);
-    state.mallaOutlook = 'all';
-    syncMallaProgress();
-    const frame = app.querySelector('[data-malla-frame]');
-    frame?.contentWindow?.postMessage({ __mcPortalLocate: true, code }, '*');
-  }
-  function refreshMyCourses() {
-    if (getRoute().path === '/mallas') syncMallaProgress();
-    else render({ scope: 'panel' });
-  }
-  function mallaApprovedCodes(plan) {
-    const statuses = MyCourses.read().plans[plan].statuses;
-    return getCourses(plan).filter(course => statuses[course.code] === 'aprobado').map(course => course.code);
-  }
-  function mallaBatchChanges(plan, semester) {
-    const statuses = MyCourses.read().plans[plan].statuses;
-    return getCourses(plan).filter(course => course.semester <= semester && !['aprobado', 'cursando'].includes(statuses[course.code]));
-  }
-  function syncMallaProgress() {
-    const frame = app.querySelector('[data-malla-frame]');
-    if (!frame) return;
-    const plan = frame.dataset.plan === 'o' ? 'planO' : 'planP';
-    const approved = mallaApprovedCodes(plan);
-    const statuses = MyCourses.read().plans[plan].statuses;
-    const current = getCourses(plan).filter(course => statuses[course.code] === 'cursando').map(course => course.code);
-    const count = app.querySelector('[data-malla-progress-count]');
-    if (count) count.textContent = `${approved.length} de ${getCourses(plan).length} aprobados`;
-    const health = MyCourses.status();
-    const toggle = app.querySelector('[data-malla-mark-toggle]');
-    if (toggle) toggle.disabled = health.locked;
-    app.querySelectorAll('[data-malla-mark-status]').forEach(button => { button.disabled = health.locked; button.setAttribute('aria-pressed', String(button.dataset.mallaMarkStatus === state.mallaMarkStatus)); });
-    const notice = app.querySelector('[data-malla-mark-notice]');
-    if (notice) notice.textContent = health.issue || '';
-    const semester = Number(app.querySelector('[data-malla-mark-semester]')?.value || state.mallaApprovalSemester[plan]);
-    const pending = mallaBatchChanges(plan, semester).length;
-    const preview = app.querySelector('[data-malla-batch-preview]');
-    if (preview) preview.textContent = `${pending} ${pending === 1 ? 'ramo pendiente' : 'ramos pendientes'} hasta el semestre ${semester}`;
-    const batch = app.querySelector('[data-malla-mark-batch]');
-    if (batch) batch.disabled = health.locked || pending === 0;
-    const undo = app.querySelector('[data-malla-mark-undo]');
-    if (undo) undo.hidden = mallaApprovalUndo?.plan !== plan || !Object.keys(mallaApprovalUndo.previous).length;
-    const evaluated = MyCourses.evaluatePlan(getCourses(plan), statuses);
-    const outlookBar = app.querySelector('[data-malla-outlook-bar]');
-    const focusedOutlook = document.activeElement?.dataset.mallaOutlook;
-    if (outlookBar) outlookBar.innerHTML = renderMallaOutlook();
-    if (focusedOutlook) outlookBar?.querySelector(`[data-malla-outlook="${focusedOutlook}"]`)?.focus({ preventScroll: true });
-    if (frame.contentWindow && frame.srcdoc) frame.contentWindow.postMessage({ __mcPortalProgress: true, mode: state.mallaApprovalMode && !health.locked, approved, current, outlook: state.mallaOutlook, eligible: evaluated.filter(item => item.category === 'met').map(item => item.code), forecast: evaluated.filter(item => item.afterCurrent).map(item => item.code) }, '*');
-    syncMallaPersonal();
-  }
-  function setMallaMarking(enabled) {
-    state.mallaApprovalMode = enabled;
-    app.querySelector('.malla-workspace')?.classList.toggle('is-marking', enabled);
-    const toggle = app.querySelector('[data-malla-mark-toggle]');
-    toggle?.classList.toggle('active', enabled);
-    toggle?.setAttribute('aria-pressed', String(enabled));
-    const label = toggle?.querySelector('span:not(.icon)');
-    if (label) label.textContent = enabled ? 'Terminar marcado' : 'Marcar ramos';
-    const panel = app.querySelector('[data-malla-mark-panel]');
-    if (panel) panel.hidden = !enabled;
   }
   function mallaEmbedUrl(plan) { return `${MALLA_BASE_URL}malla-${plan === 'o' ? 'o' : 'p'}.html`; }
   async function getMallaEmbedHtml(plan) {
@@ -2284,7 +1930,6 @@
     wrap?.classList.remove('is-loaded', 'is-fallback');
     const markLoaded = () => {
       wrap?.classList.add('is-loaded');
-      syncMallaProgress();
       // The sandbox has an opaque origin. Send public font bytes from the
       // parent so its typography works without weakening the iframe sandbox.
       mallaFontPromise ||= fetch('assets/fonts/InstrumentSans-latin.woff2').then(response => {
@@ -2316,11 +1961,11 @@
     const semesters = Array.from({ length: data.totalSemesters || Math.max(...subjects.map(c => c.semester), 1) }, (_, index) => index + 1);
     const columns = semesters.map(semester => {
       const cards = subjects.filter(course => course.semester === semester).map(course => {
-        const area = esc(courseDisplayArea(course) || 'general');
+        const area = esc(course.area || 'general');
         return `<article class="mc-card mc-area-${area}" data-mc-code="${esc(course.code)}" tabindex="0">
           <span class="mc-card__code">${esc(course.visibleCode || course.code)}</span>
           <strong class="mc-card__title">${esc(titleCase(course.name))}</strong>
-          <span class="mc-card__meta">${esc(AreaStyle[courseDisplayArea(course)] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
+          <span class="mc-card__meta">${esc(AreaStyle[course.area] || course.area || 'Asignatura')} · ${Number(course.sct || 0)} SCT</span>
         </article>`;
       }).join('');
       return `<section class="mc-semester" data-semester="${semester}"><h2>${semester} semestre</h2><div class="mc-semester__cards">${cards}</div></section>`;
@@ -2392,7 +2037,7 @@
     const planKey = plan === 'o' ? 'planO' : 'planP';
     const payload = {};
     for (const course of getCourses(planKey)) {
-      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code, id: course.code, semester: course.semester, area: courseDisplayArea(course) };
+      const entry = { n: getResourcesForCourse(planKey, course.code).length, name: titleCase(course.name), code: course.visibleCode || course.code };
       payload[course.code] = entry;
       if (course.visibleCode && course.visibleCode !== course.code) payload[course.visibleCode] = entry;
     }
@@ -2464,7 +2109,6 @@
         font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         transition: background 220ms ease;
       }
-      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important; animation:none !important; } }
       .mc-header {
         background: var(--mc-header-bg) !important;
         border-bottom-color: var(--mc-line) !important;
@@ -2475,35 +2119,12 @@
       .mc-header__hint { color: var(--mc-text-muted); border-color: var(--mc-hint-line); }
       .mc-theme-toggle { display:none !important; }
       .mc-card {
-        position: relative;
         border-radius: 8px !important;
         border-color: var(--mc-line) !important;
         border-left-width: 1px !important;
-        box-shadow: none !important;
+        box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 22px var(--mc-card-glow) !important;
       }
       .mc-card:hover { transform: translateY(-1px); }
-      :root { --mc-area-teologica:#e879c1; --mc-area-teologica-bg:rgba(232,121,193,.15); --mc-card-outline:#485958; }
-      html.mc-light { --mc-area-teologica:#a32778; --mc-area-teologica-bg:rgba(163,39,120,.10); --mc-card-outline:#d4d9d7; }
-      ${Object.keys(AreaStyle).map(area => `.mc-card.mc-portal-area-${area} { background:var(--mc-area-${area}-bg) !important; border:1px solid var(--mc-card-outline) !important; }`).join('\n')}
-      .mc-card { padding-bottom:26px !important; }
-      .mc-card__name { max-height:2.4em; flex:0 1 auto; -webkit-line-clamp:2 !important; }
-      .mc-legend__dot--teologica { background:var(--mc-area-teologica); }
-      .mc-local-shell .mc-legend { display:flex; flex-wrap:wrap; gap:8px 14px; padding:10px 0 16px; color:var(--mc-text); font-size:11px; }
-      .mc-local-shell .mc-legend__item { display:flex; align-items:center; gap:5px; }
-      .mc-local-shell .mc-legend__dot { width:8px; height:8px; border-radius:2px; }
-      ${Object.keys(AreaStyle).map(area => `.mc-local-shell .mc-legend__dot--${area} { background:var(--mc-area-${area}); }`).join('\n')}
-      .mc-card .mc-portal-approved-label,.mc-card .mc-portal-current-label { position:absolute; left:4px; bottom:4px; padding:2px 4px; border-radius:4px; font-size:9px; line-height:1.1; font-weight:800; pointer-events:none; }
-      .mc-portal-approved-label { background:#166a40; color:#fff; }
-      .mc-portal-current-label { background:#f2ce59; color:#342900; }
-      .mc-portal-outlook-label { position:absolute; left:4px; bottom:4px; font-size:9px; font-weight:650; line-height:1.1; padding:2px 4px; border-radius:4px; background:var(--mc-card-bg); color:var(--mc-text); pointer-events:none; }
-      .mc-card.mc-portal-outside { opacity:.28 !important; filter:grayscale(.5); }
-      .mc-card.mc-portal-outside:focus-visible, .mc-card.mc-portal-outside:hover { opacity:1 !important; filter:none; }
-      .mc-card.mc-portal-match { opacity:1 !important; filter:none !important; }
-      html.mc-portal-marking .mc-card { cursor: pointer; }
-      html.mc-portal-marking .mc-card--dimmed { opacity:1 !important; filter:none !important; pointer-events:auto !important; transform:none !important; }
-      html.mc-portal-marking .mc-peek { display:none !important; }
-      html.mc-portal-marking .mc-card:focus-visible { outline: 3px solid ${planAccent} !important; outline-offset: 2px; }
-      html.mc-portal-marking .mc-portal-action, html.mc-portal-marking .mc-portal-scroll-hint { display:none !important; }
       .mc-card--highlight-self { box-shadow:0 0 0 2px ${planAccent},0 0 0 5px rgba(249,115,22,.28),0 16px 38px rgba(15,23,42,.18) !important; }
       .mc-footer,
       .mc-zoom-controls,
@@ -2616,114 +2237,9 @@
   function mallaEmbedGuidanceScript() {
     return `<script>
       (function() {
-        var parentOrigin = ${safeJsonForScript(location.origin)};
-        var progressMode = false;
-        var approvedCodes = new Set();
-        var currentCodes = new Set();
-        var outlook = 'all', eligibleCodes = new Set(), forecastCodes = new Set();
-        var areas = ${safeJsonForScript(AreaStyle)};
-        var legend = document.querySelector('.mc-legend');
-        if (!legend) { legend = document.createElement('div'); legend.className = 'mc-legend'; document.querySelector('.mc-grid')?.before(legend); }
-        legend.innerHTML = Object.keys(areas).map(function(area) { return '<span class="mc-legend__item"><span class="mc-legend__dot mc-legend__dot--' + area + '"></span>' + areas[area] + '</span>'; }).join('');
-        function progressCardCode(card) {
-          var entry = (window.__MC_MATERIAL || {})[card.dataset.mcCode];
-          return entry && entry.id || card.dataset.mcCode;
-        }
-        function paintProgress() {
-          document.documentElement.classList.toggle('mc-portal-marking', progressMode);
-          document.querySelectorAll('.mc-card[data-mc-code]').forEach(function(card) {
-            var entry = (window.__MC_MATERIAL || {})[card.dataset.mcCode];
-            if (entry && areas[entry.area]) card.classList.add('mc-portal-area-' + entry.area);
-            var approved = approvedCodes.has(progressCardCode(card));
-            var current = !approved && currentCodes.has(progressCardCode(card));
-            var code = progressCardCode(card);
-            var matched = outlook === 'met' ? eligibleCodes.has(code) : outlook === 'afterCurrent' && (current || forecastCodes.has(code));
-            var filtering = !progressMode && outlook !== 'all';
-            card.classList.toggle('mc-portal-outside', filtering && !matched);
-            card.classList.toggle('mc-portal-match', filtering && matched);
-            var adviceLabel = card.querySelector('.mc-portal-outlook-label');
-            var adviceText = filtering && !approved && !current && matched ? (outlook === 'met' ? '✓ Prerreq. listos' : '↗ Se abriría') : '';
-            if (adviceText && !adviceLabel) { adviceLabel = document.createElement('span'); adviceLabel.className = 'mc-portal-outlook-label'; card.appendChild(adviceLabel); }
-            if (adviceLabel) { if (adviceText) adviceLabel.textContent = adviceText; else adviceLabel.remove(); }
-            card.classList.toggle('mc-portal-approved', approved);
-            card.classList.toggle('mc-portal-current', current);
-            var label = card.querySelector('.mc-portal-approved-label, .mc-portal-current-label');
-            if ((approved || current) && !label) {
-              label = document.createElement('span');
-              card.appendChild(label);
-            }
-            if (label && (approved || current)) { label.className = approved ? 'mc-portal-approved-label' : 'mc-portal-current-label'; label.textContent = approved ? '✓ Aprobado' : 'Actual'; }
-            else if (label) label.remove();
-            if (card.dataset.mcPortalOriginalAria === undefined) card.dataset.mcPortalOriginalAria = card.getAttribute('aria-label') || '';
-            var original = card.dataset.mcPortalOriginalAria;
-            var courseName = original || (card.querySelector('.mc-card__title, .mc-card__name') || card).textContent.trim();
-            if (!progressMode && !approved && !current && original) card.setAttribute('aria-label', original);
-            else if (!progressMode && !approved && !current) card.removeAttribute('aria-label');
-            else card.setAttribute('aria-label', courseName + ', ' + (approved ? 'aprobado' : current ? 'actual' : 'sin marca') + (progressMode ? ', tocar para cambiar' : ''));
-            if (adviceText) card.setAttribute('aria-label', courseName + ', ' + (outlook === 'met' ? 'prerrequisitos cumplidos' : 'se abriría al aprobar tus actuales'));
-          });
-        }
-        window.addEventListener('click', function(event) {
-          if (!event.isTrusted) return;
-          var card = event.target.closest && event.target.closest('.mc-card[data-mc-code]');
-          if (!card) return;
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          if (!progressMode) { activeCode = card.dataset.mcCode; applyActiveHighlight(); }
-          window.parent.postMessage({ __mcPortal: true, type: progressMode ? 'toggle-status' : 'open-course', code: progressCardCode(card) }, parentOrigin);
-        }, true);
-        window.addEventListener('keydown', function(event) {
-          if (!event.isTrusted || (event.key !== 'Enter' && event.key !== ' ')) return;
-          var card = event.target.closest && event.target.closest('.mc-card[data-mc-code]');
-          if (!card) return;
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          if (!progressMode) { activeCode = card.dataset.mcCode; applyActiveHighlight(); }
-          window.parent.postMessage({ __mcPortal: true, type: progressMode ? 'toggle-status' : 'open-course', code: progressCardCode(card) }, parentOrigin);
-        }, true);
         window.addEventListener('message', function(event) {
           var data = event.data;
-          if (event.source !== window.parent || event.origin !== parentOrigin || !data) return;
-          if (data.__mcPortalLocate === true && typeof data.code === 'string' && data.code.length <= 80) {
-            var target = Array.from(document.querySelectorAll('.mc-card[data-mc-code]')).find(function(card) { return progressCardCode(card) === data.code; });
-            if (!target) return;
-            var entry = (window.__MC_MATERIAL || {})[target.dataset.mcCode];
-            var select = document.querySelector('.mc-semester-select');
-            if (select && entry) { select.value = String(entry.semester); select.dispatchEvent(new Event('change')); }
-            activeCode = target.dataset.mcCode;
-            applyActiveHighlight();
-            target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-            target.focus({ preventScroll: true });
-            return;
-          }
-          if (data.__mcPortalProgress === true && typeof data.mode === 'boolean' && Array.isArray(data.approved) && data.approved.length <= 100 && data.approved.every(function(code) { return typeof code === 'string' && code.length <= 80; })) {
-            progressMode = data.mode;
-            approvedCodes = new Set(data.approved);
-            currentCodes = new Set(Array.isArray(data.current) && data.current.length <= 100 ? data.current.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
-            var nextOutlook = ['met', 'afterCurrent'].includes(data.outlook) ? data.outlook : 'all';
-            var outlookChanged = nextOutlook !== outlook;
-            outlook = nextOutlook;
-            eligibleCodes = new Set(Array.isArray(data.eligible) && data.eligible.length <= 100 ? data.eligible.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
-            forecastCodes = new Set(Array.isArray(data.forecast) && data.forecast.length <= 100 ? data.forecast.filter(function(code) { return typeof code === 'string' && code.length <= 80; }) : []);
-            if (progressMode) {
-              try { window.__MC?.closeModal?.(); } catch (err) {}
-              try { window.__MC?.clearHighlight?.(); } catch (err) {}
-              activeCode = null;
-              hideHints();
-            }
-            paintProgress();
-            if (outlookChanged && !progressMode && outlook !== 'all' && window.matchMedia('(max-width:640px)').matches) {
-              var targets = outlook === 'met' ? eligibleCodes : forecastCodes;
-              var first = Array.from(document.querySelectorAll('.mc-card[data-mc-code]')).find(function(card) { return targets.has(progressCardCode(card)); });
-              if (first) {
-                var firstEntry = (window.__MC_MATERIAL || {})[first.dataset.mcCode];
-                var semesterSelect = document.querySelector('.mc-semester-select');
-                if (semesterSelect && firstEntry) { semesterSelect.value = String(firstEntry.semester); semesterSelect.dispatchEvent(new Event('change')); }
-                first.scrollIntoView({ block:'center', inline:'center', behavior:'instant' });
-              }
-            }
-            return;
-          }
+          if (event.source !== window.parent || !data) return;
           if (data.__mcPortalFont === true && data.font instanceof ArrayBuffer && data.font.byteLength < 100000) {
             var font = new FontFace('Instrument Sans', data.font, { weight: '400 700' });
             font.load().then(function(loaded) { document.fonts.add(loaded); }).catch(function() {});
@@ -3015,15 +2531,13 @@
     const successors = getSuccessors(plan, course.code);
     const resources = getResourcesForCourse(plan, course.code);
     const materialBlock = resources.length
-      ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${isRelatedCourseResource(plan, course, r) ? 'Material relacionado · ' : ''}${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
+      ? `<div class="detail-block course-material-block"><div class="row-between"><h3 class="card-title">Material del ramo</h3><span class="pill blue">${resources.length}</span></div>${resources.slice(0,4).map(r => `<a class="link-card-row" href="#/material/${r.id}"><span><strong>${esc(r.title)}</strong><span>${esc(r.type)} - ${esc(r.format)}</span></span>${icon('arrow')}</a>`).join('')}${resources.length > 4 ? `<a class="link" href="#/material?course=${encodeURIComponent(course.code)}">Ver todos ${icon('arrow')}</a>` : ''}</div>`
       : (plan === 'planP' ? `<div class="material-plan-note compact">${icon('grid')}<span>Material Plan P en carga progresiva. Revisa la biblioteca por nombre del ramo si existe continuidad con Plan O.</span></div>` : '');
-    const materialAction = resources.length ? `<a class="btn primary" href="#/material?plan=${plan}&course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
-    const inMyCourses = MyCourses.read().plans[plan].selected.includes(course.code);
-    const myCoursesHealth = MyCourses.status();
-    return `${myCoursesNotice(myCoursesHealth)}<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}<button class="btn secondary" type="button" data-my-course-${inMyCourses ? 'remove' : 'add'}="${esc(course.code)}" data-my-course-plan="${plan}"${myCoursesHealth.locked ? ' disabled' : ''}>${inMyCourses ? 'Quitar de guardados' : 'Guardar ramo'}</button></div>`;
+    const materialAction = resources.length ? `<a class="btn primary" href="#/material?course=${encodeURIComponent(course.code)}">Ver material</a>` : '';
+    return `<div class="course-detail-head"><div><span class="kicker">${esc(course.visibleCode || course.code)}</span><h2 class="card-title">${esc(titleCase(course.name))}</h2></div>${inline ? `<button class="icon-btn" aria-label="Cerrar detalle" title="Cerrar detalle" data-clear-panel>${icon('x')}</button>` : ''}</div><div class="hstack" style="flex-wrap:wrap"><span class="pill blue">${course.semester} semestre</span><span class="pill gray">${course.sct || 0} SCT</span>${resources.length ? `<span class="pill green">${resources.length} recursos</span>` : ''}</div>${courseDescription(course, plan) ? `<p class="small muted" style="line-height:1.6">${esc(courseDescription(course, plan))}</p>` : ''}<div class="detail-block"><div class="detail-row"><span>Plan</span><strong>${planShort(plan)}</strong></div><div class="detail-row"><span>Área</span><strong>${esc(AreaStyle[course.area] || course.area)}</strong></div><div class="detail-row"><span>Tipo</span><strong>${esc(course.type || 'Asignatura curricular')}</strong></div></div><div class="grid two"><section><h3 class="card-title">Prerrequisitos</h3>${prereqs.map(p => miniCourse(plan, p)).join('') || '<p class="small muted">Sin prerrequisitos.</p>'}</section><section><h3 class="card-title">Ramos que abre</h3>${successors.slice(0,4).map(s => miniCourse(plan, s)).join('') || '<p class="small muted">No abre ramos directos.</p>'}</section></div>${materialBlock}<div class="hstack">${materialAction}${isGuest() ? '' : `<button class="btn secondary" data-save-course="${courseKey(plan, course.code)}">Guardar ramo</button>`}</div>`;
   }
   function miniCourse(plan, c) { return `<a class="link-card-row" href="#/ramo/${plan}/${encodeURIComponent(c.code)}"><span><strong>${esc(titleCase(c.name))}</strong><span>${esc(c.visibleCode || c.code)}</span></span>${icon('arrow')}</a>`; }
-  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?plan=${plan}&course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Material disponible</h2><p class="small muted">Sin material asociado a este ramo.</p><a class="link" href="#/material/subir">Aportar material</a></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
+  function renderCourseDetailPage(plan, code) { const c = findCourse(plan, code); if (!c) return renderNotFound('No encontramos el ramo.'); const resources = getResourcesForCourse(plan, c.code); const side = resources.length ? `<aside class="card pad"><div class="row-between"><h2 class="card-title">Material disponible</h2><span class="pill blue">${resources.length}</span></div>${resources.slice(0,6).map(r => resourceCard(r)).join('')}<a class="btn secondary full" href="#/material?course=${encodeURIComponent(c.code)}">Abrir biblioteca filtrada</a></aside>` : `<aside class="card pad"><h2 class="card-title">Conexiones</h2><p class="small muted">Revisa prerrequisitos, ramos posteriores y avance desde la ficha del ramo.</p></aside>`; return `${pageHead(titleCase(c.name), `${planLabel(plan)} - ${c.visibleCode || c.code}`, `<a class="btn secondary" href="#/mallas">Volver a malla</a>`)}<div class="split wide"><section class="card pad">${renderCourseDetail(c, plan, false)}</section>${side}</div>`; }
 
   function renderSupport() { return renderMaterial(); }
   function tutoringCard(t) { return `<a class="item-card" href="#/ayudantias/${t.id}"><div class="row-between"><span class="icon-box">${icon('users')}</span><span class="pill blue">${esc(t.mode)}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.courseName)} - ${fmtDate(t.date)} - ${esc(t.time)} - ${esc(t.location)}</p></a>`; }
@@ -4054,139 +3568,8 @@
   function timeline(items) { return `<div class="timeline">${items.map(h => `<div class="timeline-row"><span class="timeline-dot"></span><div class="timeline-content"><strong>${esc(h.title)}</strong><span>${h.at ? `${fmtDate(h.at)} - ` : ''}${esc(h.detail || '')}</span></div></div>`).join('')}</div>`; }
 
   async function onClick(e) {
-    const courseView = e.target.closest('button[data-my-courses-view]');
-    if (courseView) {
-      state.myCoursesView = ['semester', 'eligible', 'selected'].includes(courseView.value) ? courseView.value : 'semester';
-      setMallaView(true); syncMallaPersonal();
-      app.querySelector(`[data-my-courses-view][value="${state.myCoursesView}"]`)?.focus({ preventScroll: true });
-      return;
-    }
-    const courseOutlook = e.target.closest('[data-course-outlook]');
-    if (courseOutlook) {
-      state.myCoursesOutlook = courseOutlook.dataset.courseOutlook;
-      state.myCoursesFocus = '';
-      syncMallaPersonal();
-      app.querySelector(`[data-course-outlook="${state.myCoursesOutlook}"]`)?.focus({ preventScroll: true });
-      return;
-    }
-    const courseFocus = e.target.closest('[data-course-focus]');
-    if (courseFocus) {
-      state.myCoursesFocus = state.myCoursesFocus === courseFocus.dataset.courseFocus ? '' : courseFocus.dataset.courseFocus;
-      syncMallaPersonal();
-      app.querySelector(`[data-course-focus="${CSS.escape(state.myCoursesFocus)}"]`)?.focus({ preventScroll: true });
-      return;
-    }
-    const mapOutlook = e.target.closest('[data-malla-outlook], [data-courses-map]');
-    if (mapOutlook) {
-      state.mallaOutlook = mapOutlook.dataset.mallaOutlook || mapOutlook.dataset.coursesMap;
-      setMallaView(false); syncMallaProgress();
-      app.querySelector(`[data-malla-outlook="${state.mallaOutlook}"]`)?.focus({ preventScroll: true });
-      return;
-    }
-    if (e.target.closest('[data-courses-mark]')) {
-      if (MyCourses.status().locked) return;
-      setMallaView(false); state.mallaMarkStatus = 'cursando'; setMallaMarking(true); syncMallaProgress();
-      app.querySelector('[data-malla-mark-status="cursando"]')?.focus({ preventScroll: true });
-      return;
-    }
-
-    const mallaView = e.target.closest('[data-malla-view]');
-    if (mallaView) {
-      const closingPanel = mallaView.classList.contains('icon-btn');
-      setMallaView(mallaView.dataset.mallaView === 'personal');
-      if (closingPanel) app.querySelector('[data-malla-view="personal"]')?.focus({ preventScroll: true });
-      return;
-    }
-    const mallaDetail = e.target.closest('[data-malla-detail]');
-    if (mallaDetail) { openMallaDetail(mallaDetail.dataset.mallaDetail, mallaDetail); return; }
-    if (e.target.closest('[data-malla-detail-close]')) { closeMallaDetail(); return; }
-    const mallaLocate = e.target.closest('[data-malla-locate]');
-    if (mallaLocate) { locateMallaCourse(mallaLocate.dataset.mallaLocate); return; }
-    const statusButton = e.target.closest('[data-my-course-status]');
-    if (statusButton) { toggleCourseStatus(statusButton.dataset.myCoursePlan || state.myCoursesPlan, statusButton.dataset.myCourseStatus, statusButton.value); return; }
-    const markStatus = e.target.closest('[data-malla-mark-status]');
-    if (markStatus) {
-      if (MyCourses.status().locked || !['cursando', 'aprobado'].includes(markStatus.dataset.mallaMarkStatus)) return;
-      state.mallaMarkStatus = markStatus.dataset.mallaMarkStatus;
-      syncMallaProgress(); return;
-    }
-    if (e.target.closest('[data-malla-mark-toggle]')) {
-      if (MyCourses.status().locked) return;
-      if (state.mallaPersonalOpen) setMallaView(false);
-      setMallaMarking(!state.mallaApprovalMode);
-      syncMallaProgress();
-      return;
-    }
-    if (e.target.closest('[data-malla-mark-batch]')) {
-      if (!state.mallaApprovalMode || MyCourses.status().locked) return;
-      const plan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
-      const semester = Number(app.querySelector('[data-malla-mark-semester]')?.value);
-      if (!Number.isInteger(semester) || !getCourses(plan).some(course => course.semester === semester)) return;
-      const pending = mallaBatchChanges(plan, semester);
-      if (!pending.length) return;
-      const statuses = MyCourses.read().plans[plan].statuses;
-      const previous = Object.fromEntries(pending.map(course => [course.code, statuses[course.code] || null]));
-      const changes = Object.fromEntries(pending.map(course => [course.code, 'aprobado']));
-      if (MyCourses.updateStatuses(plan, changes)) {
-        mallaApprovalUndo = { plan, previous };
-        syncMallaProgress();
-        if (!MyCourses.status().issue) showToast(`${pending.length} ${pending.length === 1 ? 'ramo marcado' : 'ramos marcados'} como aprobados`, 'green');
-      }
-      return;
-    }
-    if (e.target.closest('[data-malla-mark-undo]')) {
-      const plan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
-      if (!state.mallaApprovalMode || mallaApprovalUndo?.plan !== plan || MyCourses.status().locked) return;
-      const statuses = MyCourses.read().plans[plan].statuses;
-      const previous = Object.fromEntries(Object.entries(mallaApprovalUndo.previous).filter(([code]) => statuses[code] === 'aprobado'));
-      if (Object.keys(previous).length && !MyCourses.updateStatuses(plan, previous)) return;
-      mallaApprovalUndo = null;
-      syncMallaProgress();
-      if (!MyCourses.status().issue) showToast('Último lote deshecho', 'blue');
-      return;
-    }
-    if (e.target.closest('[data-my-courses-recover]')) { MyCourses.recover(); refreshMyCourses(); return; }
-    const myResolve = e.target.closest('[data-my-courses-resolve]');
-    if (myResolve) {
-      if (MyCourses.resolveConflict(myResolve.dataset.myCoursesResolve)) {
-        state.myCoursesPlan = MyCourses.read().activePlan;
-        state.mallaEmbedPlan = state.myCoursesPlan === 'planO' ? 'o' : 'p';
-        closeMallaDetail(false);
-        render({ scope: 'panel' });
-      } else refreshMyCourses();
-      return;
-    }
-    const myAdd = e.target.closest('[data-my-course-add]');
-    const myRemove = e.target.closest('[data-my-course-remove]');
-    if (myAdd || myRemove) {
-      const target = myAdd || myRemove;
-      const plan = target.dataset.myCoursePlan || state.myCoursesPlan;
-      const code = target.dataset.myCourseAdd || target.dataset.myCourseRemove;
-      const fromCatalog = Boolean(target.closest('.my-courses-list'));
-      const fromDialog = Boolean(target.closest('[data-malla-course-dialog]'));
-      if (!findCourse(plan, code) && myAdd) return;
-      if (MyCourses.update(plan, code, myAdd ? 'select' : 'remove')) {
-        refreshMyCourses();
-        const opposite = `[data-my-course-${myAdd ? 'remove' : 'add'}="${CSS.escape(code)}"]`;
-        const preferred = fromCatalog ? `.my-courses-list ${opposite}` : `.my-courses-selected ${opposite}`;
-        const next = (fromDialog && app.querySelector(`[data-malla-course-dialog] ${opposite}`)) || app.querySelector(preferred)
-          || app.querySelector(fromCatalog ? `.my-courses-selected ${opposite}` : `.my-courses-list ${opposite}`)
-          || app.querySelector(opposite)
-          || app.querySelector('.my-courses-selected [data-my-course-remove]')
-          || app.querySelector('[data-my-courses-search]');
-        next?.focus({ preventScroll: true });
-      }
-      return;
-    }
     const audience = e.target.closest('[data-calendar-audience]');
     if (audience) { state.calendarAudience = audience.dataset.calendarAudience; render(); return; }
-    const dismissNews = e.target.closest('[data-dismiss-news]');
-    if (dismissNews) {
-      try { localStorage.setItem('portal.news.dismissed', '20261013'); } catch {}
-      dismissNews.closest('.home-news')?.remove();
-      document.querySelector('#main-content')?.focus({ preventScroll: true });
-      return;
-    }
     const guideTrigger = e.target.closest('[data-open-welcome]');
     if (guideTrigger) {
       let returnTarget = guideTrigger;
@@ -4195,7 +3578,7 @@
         render({ scope: 'overlay' });
         returnTarget = document.querySelector(menuReturnFocus);
       }
-      window.PortalWelcome?.open(returnTarget, getRoute().path === '/mallas' ? { chapter: state.mallaPersonalOpen ? state.myCoursesView === 'eligible' ? 'eligible' : 'mis-ramos' : 'malla' } : {});
+      window.PortalWelcome?.open(returnTarget);
       return;
     }
     if (e.target.closest('a[href]') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0)) return;
@@ -4875,31 +4258,28 @@
     const mallaEmbedPlan = e.target.closest('[data-malla-embed-plan]');
     if (mallaEmbedPlan) {
       state.mallaEmbedPlan = mallaEmbedPlan.dataset.mallaEmbedPlan === 'o' ? 'o' : 'p';
-      safeStorageSet('portal.malla.embedPlan', state.mallaEmbedPlan);
+      localStorage.setItem('portal.malla.embedPlan', state.mallaEmbedPlan);
       state.activePlan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
-      state.myCoursesPlan = state.activePlan;
-      MyCourses.setPlan(state.myCoursesPlan);
-      closeMallaDetail(false);
-      safeStorageSet('portal.activePlan', state.activePlan);
+      localStorage.setItem('portal.activePlan', state.activePlan);
       render({ transition: true, scope: 'panel' });
       return;
     }
     const planBtn = e.target.closest('[data-plan]');
-    if (planBtn) { state.activePlan = planBtn.dataset.plan; safeStorageSet('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
+    if (planBtn) { state.activePlan = planBtn.dataset.plan; localStorage.setItem('portal.activePlan', state.activePlan); state.selectedCourse = null; state.mobileSemester = Math.min(state.mobileSemester, getPlanData(state.activePlan).totalSemesters); render({ transition: true, scope: 'panel' }); return; }
     const semBtn = e.target.closest('[data-mobile-sem]');
-    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); safeStorageSet('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render({ transition: true, scope: 'panel' }); return; }
+    if (semBtn) { state.mobileSemester = Number(semBtn.dataset.mobileSem); localStorage.setItem('portal.mobileSemester', state.mobileSemester); state.selectedCourse = null; render({ transition: true, scope: 'panel' }); return; }
     const course = e.target.closest('[data-course]');
     if (course) { state.selectedCourse = { plan: course.dataset.coursePlan, code: course.dataset.course }; const c = findCourse(course.dataset.coursePlan, course.dataset.course); if (c) state.mobileSemester = c.semester; render({ transition: true, scope: 'panel' }); return; }
     const typeBtn = e.target.closest('[data-material-type]');
     if (typeBtn) { state.materialType = typeBtn.dataset.materialType; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const courseFilter = e.target.closest('[data-material-course]');
-    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.materialPlan = ''; state.materialCode = ''; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
+    if (courseFilter) { state.materialCourse = courseFilter.dataset.materialCourse; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     const clearMaterial = e.target.closest('[data-material-clear]');
     if (clearMaterial) {
       const target = clearMaterial.dataset.materialClear;
       if (target === 'search' || target === 'all') state.materialQuery = '';
       if (target === 'type' || target === 'all') state.materialType = 'all';
-      if (target === 'course' || target === 'all') { state.materialCourse = 'all'; state.materialPlan = ''; state.materialCode = ''; }
+      if (target === 'course' || target === 'all') state.materialCourse = 'all';
       state.selectedResourceId = null;
       state.materialVisibleCount = 60;
       render({ transition: true, scope: 'panel' });
@@ -4939,7 +4319,6 @@
 
   }
   function onInput(e) {
-    if (e.target.matches('[data-my-courses-search]')) { state.myCoursesQuery = e.target.value; scheduleFilterRender(); return; }
     const bookingRowField = e.target.closest('[data-booking-row-field]');
     if (bookingRowField) {
       const draft = currentBookingConfig();
@@ -4968,19 +4347,6 @@
     if (e.target.matches('[data-com-search]')) { state.communicationQuery = e.target.value; scheduleFilterRender(); }
   }
   function onChange(e) {
-    if (e.target.matches('[data-my-courses-view]')) {
-      state.myCoursesView = ['semester', 'eligible'].includes(e.target.value) ? e.target.value : 'selected';
-      setMallaView(true);
-      syncMallaPersonal();
-      return;
-    }
-    if (e.target.matches('[data-malla-mark-semester]')) {
-      const plan = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
-      state.mallaApprovalSemester[plan] = Number(e.target.value);
-      syncMallaProgress();
-      return;
-    }
-    if (e.target.matches('[data-my-courses-semester]')) { state.myCoursesSemester = e.target.value; syncMallaPersonal(); return; }
     const bookingActive = e.target.closest('[data-booking-setting="active"]');
     if (bookingActive) {
       currentBookingConfig().bookingSettings.active = Boolean(bookingActive.checked);
@@ -5020,7 +4386,7 @@
     if (draftSurvey && e.target.matches('[data-survey-q-type]')) { const i = Number(e.target.dataset.surveyQType); const q = draftSurvey.questions?.[i]; if (q) { q.type = e.target.value; if (['single', 'multiple'].includes(q.type) && (!q.options || !q.options.length)) q.options = ['Opción 1', 'Opción 2']; } render({ transition: true, scope: 'panel' }); return; }
     if (draftSurvey && e.target.matches('[data-survey-q-required]')) { const i = Number(e.target.dataset.surveyQRequired); if (draftSurvey.questions?.[i]) draftSurvey.questions[i].required = e.target.checked; return; }
     if (e.target.matches('[data-material-type-select]')) { state.materialType = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
-    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.materialPlan = ''; state.materialCode = ''; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
+    if (e.target.matches('[data-material-course-select]')) { state.materialCourse = e.target.value; state.selectedResourceId = null; state.materialVisibleCount = 60; render({ transition: true, scope: 'panel' }); return; }
     if (e.target.matches('[data-malla-area]')) { state.mallaArea = e.target.value; render(); }
   }
   function onFocusOut(e) {
@@ -5049,7 +4415,6 @@
   }
   function onKeydown(e) {
     if (e.key === 'Escape') {
-      if (app.querySelector('[data-malla-course-dialog]')?.open) { e.preventDefault(); closeMallaDetail(); return; }
       if (state.calendarDetailOpen) {
         closeCalendarDetail();
         return;
@@ -5059,9 +4424,9 @@
       if (state.toast) { if (toastTimer) clearTimeout(toastTimer); state.toast = null; updateToast(); return; }
       if (state.selectedCourse || state.selectedResourceId) { state.selectedCourse = null; state.selectedResourceId = null; render({ transition: true, scope: 'panel' }); return; }
     }
-    if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen || app.querySelector('[data-malla-course-dialog]')?.open)) {
-      const modal = document.querySelector(state.menuOpen ? '.menu-sheet' : state.calendarDetailOpen ? '.calendar-detail-modal' : '[data-malla-course-dialog]');
-      const focusable = [...(modal?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])].filter(node => !node.disabled && node.getClientRects().length);
+    if (e.key === 'Tab' && (state.menuOpen || state.calendarDetailOpen)) {
+      const modal = document.querySelector(state.menuOpen ? '.menu-sheet' : '.calendar-detail-modal');
+      const focusable = [...(modal?.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])].filter(node => !node.disabled);
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -5326,52 +4691,31 @@
   // forma esperada; el código se resuelve contra el catálogo oficial.
   window.addEventListener('message', (event) => {
     const data = event.data;
-    if (!data || data.__mcPortal !== true || !['open-material', 'open-course', 'select-course', 'toggle-status'].includes(data.type)) return;
+    if (!data || data.__mcPortal !== true || !['open-material', 'open-course', 'select-course'].includes(data.type)) return;
     const frame = app.querySelector('[data-malla-frame]');
-    if (!frame || event.source !== frame.contentWindow || event.origin !== 'null' || frame.dataset.plan !== state.mallaEmbedPlan) return;
+    if (!frame || event.source !== frame.contentWindow) return;
     const code = String(data.code || '').trim().slice(0, 40);
     if (!code) return;
     const planKey = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';
     const inPlan = findCourse(planKey, code);
-    if (data.type === 'toggle-status') {
-      if (!state.mallaApprovalMode || MyCourses.status().locked || !inPlan) return;
-      toggleCourseStatus(planKey, inPlan.code, state.mallaMarkStatus);
-      return;
-    }
     const match = inPlan ? { plan: planKey, course: inPlan } : officialCourseByCode(code);
     if (!match) { showToast('No encontramos ese ramo en el catálogo oficial.', 'blue'); return; }
-    if (data.type === 'select-course') return;
+    if (data.type === 'select-course') { window.PortalAnalytics?.event('mallas/ramo'); return; }
     if (data.type === 'open-material') {
       window.PortalAnalytics?.event('mallas/material');
-      routeTo(`/material?plan=${match.plan}&course=${encodeURIComponent(match.course.code)}`);
+      routeTo(`/material?course=${encodeURIComponent(match.course.visibleCode || match.course.code)}`);
     } else {
-      if (inPlan) openMallaDetail(inPlan.code, frame);
+      window.PortalAnalytics?.event('mallas/ficha');
+      routeTo(`/ramo/${match.plan}/${encodeURIComponent(match.course.code)}`);
     }
   });
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
-  window.addEventListener('storage', e => {
-    if (e.key === 'portal.news.dismissed' && e.newValue === '20261013') app.querySelector('.home-news')?.remove();
-    if (e.key !== MyCourses.key) return;
-    state.myCoursesPlan = MyCourses.externalChange().activePlan;
-    mallaApprovalUndo = null;
-    const embedPlan = state.myCoursesPlan === 'planO' ? 'o' : 'p';
-    const planChanged = state.mallaEmbedPlan !== embedPlan;
-    state.mallaEmbedPlan = embedPlan;
-    if (getRoute().path === '/mallas' && planChanged) {
-      closeMallaDetail(false);
-      render({ scope: 'data', resetScroll: false });
-      return;
-    }
-    syncMallaProgress();
-    if (['/', '/inicio', '/mis-ramos'].includes(getRoute().path) || getRoute().path.startsWith('/ramo/')) render({ scope: 'data', resetScroll: false });
-  });
   window.addEventListener('storage', async e => {
     if (e.key !== 'portal.session') return;
     state.user = loadSession();
     await validateInitialSession();
-    await window.PortalStudyAccount.setUser(state.user);
-    if (!state.user && SIGN_IN_ENABLED) routeTo('/login');
+    if (!state.user) routeTo('/login');
     else render({ transition: false, scope: 'session', resetScroll: false });
   });
   document.addEventListener('click', onClick);
@@ -5380,11 +4724,5 @@
   document.addEventListener('change', onChange);
   document.addEventListener('focusout', onFocusOut);
   document.addEventListener('submit', onSubmit);
-  StudyUI.init(() => render({ scope: 'data', resetScroll: false }));
-  window.addEventListener('storage', e => {
-    if (e.key === window.PortalStudyTools.key && ['/', '/inicio', '/mi-semana'].includes(getRoute().path)) {
-      StudyUI.externalChange();
-    }
-  });
   boot().catch(err => { console.error(err); });
 })();

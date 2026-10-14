@@ -1,91 +1,57 @@
 import assert from 'node:assert/strict';
-import { chromium, webkit, firefox } from 'playwright';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
-import vm from 'node:vm';
-const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18114/?static=1&analytics=off';
-const production = new URL(base).hostname === 'ceicucn.cl';
-const configs = production ? [['chromium',1440,900],['chromium',390,844]] : [['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
-const sandbox = {window:{}}; vm.runInNewContext(await readFile('assets/tutorial-story/manifest.js','utf8'),sandbox);
-const manifest = sandbox.window.PortalTutorialCapture;
-assert.equal(manifest.captureMethod,'computer-use');
-for (const rec of Object.values(manifest.formats)) for (const step of rec.steps) {
-  assert.equal(createHash('sha256').update(await readFile(step.image)).digest('hex'),step.sha256);
-  assert.equal(createHash('sha256').update(await readFile(step.sourceImage)).digest('hex'),step.sourceSha256);
-  assert.ok(step.end > step.start);
-}
-const url = route => {const u=new URL(base);u.searchParams.set('review','20261013news');u.hash=route;return u.href;};
-const report={ok:false,production,cases:[],errors:[]}; let browser;
-async function layout(page, scope='.portal-reception') {
-  assert.equal(await page.locator(scope+' button').count(),2,'exactly two external actions');
-  assert.equal(await page.locator(scope+' select, '+scope+' a, '+scope+' .guide-chapters, '+scope+' .guide-copy').count(),0);
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  const fit=await page.locator(scope+' .reception-actions').evaluate(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});
-  assert.equal(fit,true,'both actions fit the viewport');
-  assert.ok(await page.locator(scope+' button').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().height>=44)));
-}
-try {
- for (const [engine,width,height] of configs) {
-  if (process.env.QA_WELCOME_ENGINE && process.env.QA_WELCOME_ENGINE!==engine) continue;
-  browser=await ({chromium,webkit,firefox}[engine]).launch();
-  const context=await browser.newContext({viewport:{width,height}}),page=await context.newPage();page.setDefaultTimeout(production?45000:20000);
-  page.on('pageerror',e=>report.errors.push(engine+'/'+width+': '+e.message));
-  await page.goto(url('/'),{waitUntil:'domcontentloaded'}); await page.locator('.news-video').waitFor();await layout(page);
-  const video=page.locator('.portal-reception video');
-  assert.equal(await video.evaluate(v=>v.paused&&!v.autoplay),true);
-  assert.match(await video.getAttribute('src'),/voice/);
-  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),null);
-  await video.press('Enter');
-  await page.waitForFunction(()=>{const v=document.querySelector('.portal-reception video');return v&&!v.paused&&v.currentTime>.2;});
-  await video.press('Enter'); assert.equal(await video.evaluate(v=>v.paused),true);
-  assert.equal(await video.evaluate(v=>v.error),null);
-  // Seek near the real ending, then allow playback to complete naturally.
-  await video.evaluate(v=>{v.currentTime=v.duration-.35;}); await video.press('Enter');
-  await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+import {chromium,webkit,firefox} from 'playwright';
+import {mkdir,writeFile} from 'node:fs/promises';
+const base=process.env.QA_WELCOME_URL||'http://127.0.0.1:18084/?static=1';
+const production=new URL(base).hostname==='ceicucn.cl';
+const configs=production?[['chromium',1440,900],['chromium',390,844]]:[['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
+const out=new URL('../qa-screenshots/',import.meta.url);await mkdir(out,{recursive:true});
+const report={ok:false,production,cases:[],errors:[]};
+const url=(route='/')=>{const u=new URL(base);u.searchParams.set('review','20260921d');u.hash=route;return u.href;};
+try{
+ for(const [engine,width,height] of configs){
+  const browser=await({chromium,webkit,firefox}[engine]).launch();const context=await browser.newContext({viewport:{width,height}});const page=await context.newPage();page.setDefaultNavigationTimeout(90000);
+  page.on('pageerror',e=>report.errors.push(e.message));const media=[];page.on('request',r=>{if(/portal-guia-.*\.mp4/.test(r.url()))media.push(r.url());});
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  assert.equal(await page.getByRole('dialog').count(),0,'entry is a page, not a modal');assert.deepEqual(media,[],'no initial video download');
+  assert.equal(await page.locator('.reception-sections a').count(),0,'welcome contains no section shortcuts');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'receiving page has no horizontal overflow');
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-light.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  await page.evaluate(()=>localStorage.setItem('portal.welcome.v1','done'));await page.reload({waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await page.locator('body.theme-dark').count(),1);
+  await page.screenshot({path:new URL(`reception-${production?'production-':''}${engine}-${width}-dark.png`,out).pathname.replace(/^\/(?=[A-Z]:)/,'')});
+  // Headless Windows audio can suspend playback: decode silently for automation.
+  const player=page.locator('.portal-reception video');await player.evaluate(v=>{v.muted=true;v.dataset.identity='preserved';});
+  await page.locator('[data-reception-play]').click();await page.waitForFunction(()=>document.querySelector('.portal-reception video')?.currentTime>.5,null,{timeout:20000});
+  const duration=await player.evaluate(v=>v.duration);assert.ok(duration>60&&duration<160,'unhurried short tutorial');
+  const expectedFormat=width<=920?'mobile':'desktop';
+  assert.ok((await player.getAttribute('src')).includes(`portal-guia-${expectedFormat}.mp4`),'video matches portal layout');
+  assert.ok((await player.getAttribute('poster')).includes(`portal-guia-${expectedFormat}.jpg`));
+  assert.ok((await player.locator('track').getAttribute('src')).includes(`portal-guia-${expectedFormat}.vtt`));
+  if(expectedFormat==='mobile') assert.ok(await player.evaluate(v=>Math.abs(v.videoWidth/v.videoHeight-480/700)<.005),'mobile video preserves the full screen ratio without a text strip');
+  await page.locator('[data-portal-theme-toggle]').click();assert.equal(await player.getAttribute('data-identity'),'preserved');assert.equal(await player.evaluate(v=>v.paused),false,'theme does not interrupt video');
+  await player.evaluate(v=>v.addEventListener('pause',()=>{window.__receptionPausedBeforeLeaving=true},{once:true}));
+  await page.locator('.reception-enter').click();assert.equal(await page.evaluate(()=>window.__receptionPausedBeforeLeaving),true,'Ir al portal pauses the tutorial before navigating');await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/calendario"]`).click();await page.locator('.month-grid').waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
+  await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/calendario','deep links remain direct');assert.equal(await page.getByRole('dialog').count(),0);
+  await page.locator(`${width<=920?'.bottom-nav':'.sidebar'} a[href="#/mallas"]`).click();
+  await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
+  assert.equal(await page.getByRole('link',{name:'Original',exact:true}).count(),0,'mallas has no Original shortcut');
+  await page.locator('.malla-close').click();
+  await page.locator(width<=920?'.mobile-brand':'.sidebar-brand').click();await page.locator('.portal-reception').waitFor();
+  await page.locator('.reception-enter').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(new URL(page.url()).hash,'#/inicio');
+  if(width<=920){await page.locator('.bottom-more').click();await page.locator('.menu-sheet [data-open-welcome]').click();}else await page.locator('.sidebar [data-open-welcome]').click();
+  const dialog=page.getByRole('dialog',{name:'Así funciona el portal'});await dialog.waitFor();
+  assert.ok((await dialog.locator('video').getAttribute('data-source')).includes(`portal-guia-${expectedFormat}.mp4`),'manual guide uses the same device format');
+  for(let i=0;i<12;i++){await page.keyboard.press('Tab');assert.ok(await dialog.evaluate(d=>d.contains(document.activeElement)));}
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.reception-skip').click();
   assert.equal(new URL(page.url()).hash,'#/inicio');
-  await page.goto(url('/'));await page.locator('.news-video').waitFor();
-  await page.locator('.reception-skip').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),null,'skip does not set a permanent preference');
-  await page.goto(url('/'));await page.locator('[data-reception-dismiss]').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  await page.goto(url(),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  await page.locator('[data-reception-dismiss]').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),'yes');
-  await page.goto(url('/'));await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
-  await page.goto(url('/mi-semana'));await page.getByRole('heading',{name:'Mi semana',exact:true}).waitFor();assert.equal(await page.locator('.portal-reception').count(),0,'deep links open directly');
-  // Voluntary reopening respects the current section, including Escape and ending.
-  await page.evaluate(()=>PortalWelcome.open(document.querySelector('#main-content')));
-  await page.locator('.portal-welcome[open]').waitFor();await layout(page,'.portal-welcome[open]');
-  const modalVideo=page.locator('.portal-welcome video');await modalVideo.press('Enter');
-  await page.waitForFunction(()=>{const v=document.querySelector('.portal-welcome video');return !v.paused&&v.currentTime>.2;});
-  await modalVideo.evaluate(v=>{v.currentTime=v.duration-.35;});await page.waitForFunction(()=>!document.querySelector('.portal-welcome').open);
-  assert.equal(new URL(page.url()).hash,'#/mi-semana','reopened video never redirects');
-  await page.evaluate(()=>PortalWelcome.open(document.querySelector('#main-content')));await modalVideo.press('Escape');
-  assert.equal(await page.locator('.portal-welcome').evaluate(n=>n.open),false);
-  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),'yes');
-  report.cases.push({engine,width,height,playback:true,naturalEnd:true,twoActions:true,permanentChoice:true,reopen:true});
-  await context.close();await browser.close();browser=null;
+  await page.goto(url(),{waitUntil:'networkidle'});await page.waitForURL(u=>u.hash==='#/inicio');
+  await page.reload({waitUntil:'networkidle'});assert.equal(new URL(page.url()).hash,'#/inicio','remember skip on future visits');
+  await page.goto(url('/bienvenida'),{waitUntil:'networkidle'});await page.locator('.portal-reception').waitFor();
+  report.cases.push({engine,width,height,welcomeOnly:true,rememberSkip:true,noInitialDownload:true,deepLink:true,playback:duration,themePreservesPlayback:true});await context.close();await browser.close();
  }
- if(!production){
-  browser=await chromium.launch();const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});const page=await context.newPage();
-  page.on('pageerror',e=>report.errors.push(e.message));await page.goto(url('/'));const video=page.locator('.portal-reception video');
-  assert.equal(await video.evaluate(v=>v.paused),true);await video.press('Enter');await page.waitForFunction(()=>document.querySelector('video').currentTime>1);
-  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});assert.equal(await video.evaluate(v=>v.paused),true);
-  const position=await video.evaluate(v=>v.currentTime);await page.setViewportSize({width:1440,height:900});await page.waitForFunction(()=>{const v=document.querySelector('video');return v.src.includes('/desktop/')&&v.readyState>=2&&!v.seeking;});
-  assert.ok(Math.abs((await video.evaluate(v=>v.currentTime))-position)<.6);assert.equal(await video.evaluate(v=>v.paused),true);
-  await page.getByRole('button',{name:'Saltar video',exact:true}).click();assert.equal(await page.locator('.portal-reception').count(),0);
-  await context.close();await browser.close();browser=null;report.cases.push({reducedMotion:true,visibilityPause:true,resizePreservesPosition:true});
-  if(process.env.QA_WELCOME_NORANGE_URL){
-   browser=await chromium.launch();const ctx=await browser.newContext();const sample=await ctx.newPage();
-   await ctx.addInitScript(()=>{window.blobRevoked=[];const original=URL.revokeObjectURL;URL.revokeObjectURL=url=>{window.blobRevoked.push(url);original(url);};});
-   await sample.goto(process.env.QA_WELCOME_NORANGE_URL);const player=sample.locator('.portal-reception video');await player.press('Enter');
-   await sample.waitForFunction(()=>{const v=document.querySelector('video');return v.src.startsWith('blob:')&&!v.paused&&v.currentTime>.3;});
-   const blob=await player.getAttribute('src');await player.evaluate(v=>{v.currentTime=v.duration-.35;});
-   await sample.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(await sample.evaluate(blob=>window.blobRevoked.includes(blob),blob),true);
-   report.cases.push({noRangeFallback:true,realEnding:true,blobRevoked:true});await ctx.close();await browser.close();browser=null;
-  }
-  // Failed media leaves both exits usable.
-  browser=await chromium.launch();const failure=await browser.newPage();await failure.route('**/*.mp4*',r=>r.abort());await failure.goto(url('/'));
-  await failure.locator('video').press('Enter');await failure.locator('.news-media-error').waitFor({state:'visible'});await failure.locator('.reception-skip').click();await failure.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
-  report.cases.push({failedVideoCanSkip:true});
- }
- assert.deepEqual(report.errors,[]);report.ok=true;
-} catch(e){report.errors.push(e.stack||String(e));throw e;}
-finally{await browser?.close();await mkdir('qa-screenshots',{recursive:true});await writeFile('qa-screenshots/welcome-real-'+(production?'production':'local')+'-report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));}
+ assert.deepEqual(report.errors,[]);report.ok=true;console.log(JSON.stringify(report));
+}finally{await writeFile(new URL(`welcome-${production?'production':'local'}-report.json`,out),JSON.stringify(report,null,2));}

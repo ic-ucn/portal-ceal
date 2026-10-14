@@ -109,7 +109,6 @@ async function loginStudent(page, studentUser) {
   await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
-    window.PortalMyCourses?.setPlan('planP');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify(user));
@@ -142,7 +141,6 @@ async function loginCeal(page, cealUser) {
   await page.evaluate(user => {
     localStorage.removeItem('portal.session');
     localStorage.removeItem('portal.malla.embedPlan');
-    window.PortalMyCourses?.setPlan('planP');
     localStorage.removeItem('portal.malla.embedDark');
     localStorage.removeItem('portal.theme');
     localStorage.setItem('portal.session', JSON.stringify(user));
@@ -275,7 +273,7 @@ async function auditMobileMenu(page, width = 390) {
   await page.locator('.bottom-nav').waitFor({ state: 'visible' });
   const items = page.locator('.bottom-nav .bottom-item');
   const labels = (await items.allTextContents()).map(text => text.trim());
-  if (labels.join('|') !== 'Inicio|Calendario|Malla|Material|Más') fail('mobile navigation must show all five labeled actions');
+  if (labels.join('|') !== 'Inicio|Calendario|Mallas|Material|Más') fail('mobile navigation must show all five labeled actions');
   const { bounds, navRight } = await items.evaluateAll(nodes => ({ navRight: document.querySelector('.bottom-nav').getBoundingClientRect().right, bounds: nodes.map(node => {
     const rect = node.getBoundingClientRect();
     const label = node.querySelector('.bottom-item-label');
@@ -350,9 +348,9 @@ async function runPublicFlowTests(page, studentUser) {
   await page.getByText('Material recibido. Te avisaremos si necesitamos más información.', { exact: true }).waitFor();
   report.flows.push('student uploads material to private review intake');
 
-  await page.goto(appUrl('/ramo/planP/DAII-00600'), { waitUntil: 'networkidle' });
-  await page.locator('a.btn.primary[href*="/material?plan=planP&course="]').click();
-  await page.waitForURL(/#\/material\?plan=planP&course=/);
+  await page.goto(appUrl('/ramo/planP/P-0402'), { waitUntil: 'networkidle' });
+  await page.locator('a.btn.primary[href*="/material?course="]').click();
+  await page.waitForURL(/#\/material\?course=/);
   await page.waitForSelector('.page-title');
   report.flows.push('course detail routes to filtered material');
 

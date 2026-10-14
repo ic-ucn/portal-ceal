@@ -46,12 +46,12 @@ try {
     page.on('pageerror', error => report.errors.push(error.message));
     await page.goto(url('/login'), { waitUntil: 'networkidle' });
     await page.locator('.portal-reception').waitFor();
-    await page.locator('.reception-skip').click();
+    await page.locator('.reception-enter').click();
     await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
     assert.equal(new URL(page.url()).hash, '#/inicio', 'welcome leads to the home section');
     assert.equal(await page.locator('[data-google-redirect], [data-guest-login], a[href="#/perfil"]').count(), 0);
     if (width === 1440) await auditNavigationHover(page, 'light');
-    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mi-semana', 'mi-semana'], ['/mallas', 'mallas']]) {
+    for (const [route, name] of [['/inicio', 'inicio'], ['/calendario', 'calendario'], ['/material', 'material'], ['/mallas', 'mallas']]) {
       await page.goto(url(route), { waitUntil: 'networkidle' });
       if (name === 'mallas') {
         await page.locator('.malla-embed-frame-wrap.is-loaded').waitFor();
@@ -59,7 +59,6 @@ try {
       } else {
         await page.locator('.page-title').waitFor();
       }
-      assert.equal(await page.locator('[data-study-account-action=login]').count(), 0, 'Public study tools must not offer disabled account access');
       const metrics = await page.evaluate(() => {
         const nav = document.querySelector('.bottom-nav');
         return {
@@ -79,7 +78,7 @@ try {
       if (label === 'production') assert.ok(!(await page.locator('#main-content').innerText()).includes('Acuerdo QA de seguimiento'), 'legacy test agreements must not appear as public content');
       if (width <= 920) {
         assert.ok(metrics.navVisible, 'mobile navigation must remain visible');
-        assert.equal(metrics.items.map(item => item.label).join('|'), 'Inicio|Calendario|Malla|Material|Más');
+        assert.equal(metrics.items.map(item => item.label).join('|'), 'Inicio|Calendario|Mallas|Material|Más');
         assert.ok(metrics.items.every(item => item.left >= 0 && item.right <= width && item.width >= 44 && item.height >= 44));
       }
       await page.screenshot({ path: new URL(`${label}-${width}-${name}.png`, output).pathname.replace(/^\/(?=[A-Z]:)/, '') });
@@ -123,16 +122,7 @@ try {
     assert.equal(new URL(page.url()).hash, '#/', 'internal routes remain protected');
     await page.goto(url('/material/subir'), { waitUntil: 'networkidle' });
     assert.equal(new URL(page.url()).hash, '#/material/subir', 'public material contribution route stays available');
-    const uploadForm = await page.locator('form[data-form="upload-material"]').count();
-    const publishedFormLink = await page.locator('a[href="https://ceicucn.cl/#/material/subir"]').count();
-    if (staticMode) {
-      assert.equal(uploadForm, 0, 'static preview does not show a disabled contribution form');
-      assert.equal(publishedFormLink, 1, 'static preview directs contributions to the published portal');
-    } else if (label === 'production') {
-      assert.equal(uploadForm, 1, 'published portal shows the contribution form');
-    } else {
-      assert.equal(uploadForm + publishedFormLink, 1, 'local preview offers a working upload path');
-    }
+    assert.equal(await page.locator('form[data-form="upload-material"]').count(), 1, 'public material contribution form is visible');
     assert.deepEqual(authRequests, [], 'public browsing does not validate or transmit saved credentials');
     await context.close();
   }

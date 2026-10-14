@@ -1,5 +1,4 @@
 import http from 'node:http';
-import { createStudyService } from './server/study-service.mjs';
 import { promises as fs } from 'node:fs';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -1291,20 +1290,6 @@ function setCalendarTokens(integration, tokens) {
   integration.tokens = null;
 }
 
-const studyService = createStudyService({
-  config: () => ({
-    clientId: process.env.STUDY_CALENDAR_CLIENT_ID || calendarClientId,
-    secret: process.env.STUDY_CALENDAR_CLIENT_SECRET || calendarClientSecret,
-    redirect: process.env.STUDY_CALENDAR_REDIRECT_URI || '',
-    encryptionReady: Boolean(tokenEncryptionKey()),
-    returnUrl: process.env.STUDY_PORTAL_RETURN_URL || publicPortalUrl || `http://localhost:${port}/`
-  }),
-  oauth: c => new OAuth2Client(c.clientId, c.secret, c.redirect),
-  session: requirePortalSession, body: readBody, write: writeDb,
-  encrypt: encryptCalendarTokens, decrypt: decryptCalendarTokens,
-  json: sendJson, redirect: sendRedirect
-});
-
 function calendarHasRefreshToken(db) {
   return Boolean(calendarTokens(googleCalendarIntegration(db))?.refresh_token);
 }
@@ -2182,7 +2167,7 @@ function publicIntegrationData(data = {}) {
 
 function publicData(data = {}) {
   // Datos operativos, personales y estadisticas internas nunca viajan en el bootstrap publico.
-  const { studyAccounts, sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe } = data;
+  const { sessions, aiUsage, aiDrafts, integrations, appointments, bookingAvailability, reservations, calendarUpdateRequests, cealMembers, staffProfiles, analytics, ...safe } = data;
   return {
     ...safe,
     integrations: publicIntegrationData(data),
@@ -3068,8 +3053,6 @@ async function handleApi(req, res, url) {
   if (!features.tableReservations && ['reservations', 'reservas'].includes(resource)) {
     return sendError(res, 404, 'unknown api resource');
   }
-
-  if (resource === 'study') return studyService(req, res, url, db);
 
   if (!resource || resource === 'bootstrap') {
     const session = sessionFromRequest(req, db);
@@ -4110,7 +4093,7 @@ async function serveStatic(req, res, url) {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-      'content-security-policy': "default-src 'self'; media-src 'self' blob:; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
     };
     const range = asText(req.headers.range);
     const match = range.match(/^bytes=(\d*)-(\d*)$/);
@@ -4142,7 +4125,7 @@ async function serveStatic(req, res, url) {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-      'content-security-policy': "default-src 'self'; media-src 'self' blob:; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
     });
     res.end(await fs.readFile(path.join(root, 'index.html')));
   }
