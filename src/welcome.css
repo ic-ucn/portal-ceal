@@ -1,154 +1,23 @@
-/* Public, silent portal guide. All scene controls operate on isolated guide state. */
+/* One video, two exit actions. Playback controls belong to the native player. */
 body.welcome-open { overflow: hidden; }
 .portal-reception, .portal-welcome { color: var(--text-primary); background: var(--surface-base); }
-.portal-reception { min-height: 100dvh; padding: 0 clamp(18px, 4vw, 64px) 32px; }
-.reception-header { max-width: 1320px; height: 76px; margin: auto; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border-subtle); }
-.reception-brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
-.reception-brand img { width: 34px; height: 34px; object-fit: contain; }
-.reception-brand strong { font-size: 16px; font-weight: 650; letter-spacing: -.03em; }
-.reception-theme { margin-left: auto; }
-.reception-skip { color: var(--text-secondary); font-size: 13px; padding: 12px 0; }
-.reception-skip:hover, .reception-dismiss:hover { color: var(--text-primary); text-decoration: underline; }
-.reception-main { max-width: 1320px; margin: auto; padding-top: 22px; }
-.reception-main:focus { outline: none; }
-.reception-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.reception-guide-head h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); font-weight: 550; letter-spacing: -.035em; }
-.reception-guide-head span { color: var(--text-secondary); font-size: 12px; }
-.reception-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
-.reception-dismiss { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; padding: 12px 0; font: inherit; font-size: 13px; text-align: left; }
-.reception-enter { width: auto; flex: none; }
-.portal-welcome { width: min(1180px, calc(100% - 40px)); max-width: none; max-height: calc(100dvh - 40px); padding: 0; border: 1px solid var(--border-interactive); border-radius: 12px; box-shadow: 0 28px 100px #0d232b40; overflow: auto; overscroll-behavior: contain; }
-.portal-welcome::backdrop { background: #10272fd1; backdrop-filter: blur(5px); }
-.portal-welcome[open] { display: flex; flex-direction: column; }
-.welcome-head, .welcome-foot { flex: none; }
-.welcome-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 14px; border-bottom: 1px solid var(--border-subtle); }
-.welcome-brand { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 10px; font-weight: 650; letter-spacing: .08em; }
-.welcome-head h2 { margin: 0; font-size: 23px; font-weight: 550; letter-spacing: -.03em; }
-.welcome-head h2:focus { outline: none; }
-.welcome-close { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 28px; line-height: 1; }
-.welcome-close:hover { background: var(--surface-hover); color: var(--text-primary); }
-.welcome-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--border-subtle); }
-.welcome-skip, .welcome-enter { min-height: 44px; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
-.welcome-skip { padding: 9px 12px; color: var(--text-secondary); background: transparent; }
-.welcome-skip:hover { background: var(--surface-hover); }
-.welcome-enter { display: inline-flex; align-items: center; gap: 18px; padding: 9px 16px; color: #fff; background: #23616a; }
-.welcome-enter:hover { background: #194d55; }
-
-/* The tutorial displays unchanged screenshots and silent video of the real portal. */
-.guide-layout { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 20px; }
-.portal-welcome .guide-layout { padding: 20px 24px 22px; }
-.guide-stage, .guide-content { min-width: 0; }
-.guide-layout button { transition: none; }
-.guide-stage { width: min(100%, 1100px); margin: auto; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-tint); }
-.guide-stage-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 9px; }
-.guide-example, .guide-format { color: var(--text-secondary); font-size: 11px; }
-.guide-scene-title { margin: 0 0 8px; font-size: 14px; font-weight: 650; }
-.guide-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
-.guide-playbar { display: flex; flex-wrap: wrap; gap: 8px; }
-.guide-secondary { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border-interactive); border-radius: 5px; background: var(--surface-base); color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
-.guide-secondary:disabled { opacity: .5; cursor: default; }
-.guide-audio-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.guide-audio-controls label { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
-.guide-audio-controls select { min-height: 44px; padding: 8px; border: 1px solid var(--border-interactive); border-radius: 5px; color: var(--text-primary); background: var(--surface-base); font: inherit; }
-.guide-stage [hidden] { display: none !important; }
-.guide-media { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--border-interactive); border-radius: 5px; background: #f8f9f7; }
-.guide-media.is-video { width: min(100%, calc(var(--guide-media-available, calc(100dvh - 300px)) * var(--guide-aspect))); max-height: var(--guide-media-available, max(140px, calc(100dvh - 300px))); margin-inline: auto; }
-.guide-media:fullscreen, .guide-media.is-video:fullscreen { width: 100vw; height: 100dvh; max-height: none; aspect-ratio: auto !important; border: 0; border-radius: 0; background: #101010; }
-.guide-media:fullscreen img, .guide-media:fullscreen video { width: 100%; height: 100%; }
-.guide-media img, .guide-media video { display: block; width: 100%; height: 100%; object-fit: contain; }
-.guide-caption { min-height: 2.8em; margin: 0 0 8px; color: var(--text-primary); font-size: 13px; line-height: 1.4; }
-.guide-step-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.guide-step-controls button { flex: none; min-height: 44px; min-width: 44px; padding: 7px; border: 1px solid var(--border-interactive); border-radius: 5px; background: var(--surface-base); color: var(--text-primary); font: inherit; cursor: pointer; }
-.guide-step-controls button:disabled { opacity: .45; cursor: default; }
-.guide-step-controls span { color: var(--text-secondary); font-size: 11px; }
-.guide-step-controls a { margin-left: auto; color: var(--brand-blue-text); font-size: 11px; padding: 10px 0; }
-.guide-content { width: min(100%, 1100px); margin: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 28px; }
-.guide-chapters { grid-column: 1; grid-row: 1 / 4; align-self: start; }
-.guide-copy { grid-column: 2; margin-top: 0 !important; }
-.guide-actions { grid-column: 2; padding-top: 0 !important; }
-.guide-status { grid-column: 2; }
-.guide-chapters { display: grid; gap: 3px; }
-.guide-chapters button { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 43px; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
-.guide-chapters button:hover { background: var(--surface-hover); color: var(--text-primary); }
-.guide-chapters button[aria-selected=true] { color: var(--text-primary); background: var(--surface-tint); }
-.guide-chapters button > span { display: grid; place-items: center; flex: 0 0 23px; width: 23px; height: 23px; border: 1px solid var(--border-interactive); border-radius: 50%; font-size: 10px; }
-.guide-chapters button[aria-selected=true] > span { border-color: #23616a; color: #fff; background: #23616a; }
-.guide-chapters strong { font-weight: 600; }
-.guide-chapters i { position: absolute; left: 8px; bottom: 1px; width: 0; height: 2px; background: #23616a; }
-.guide-copy { margin-top: 20px; }
-.guide-copy [data-guide-position] { color: var(--text-secondary); font-size: 10px; font-weight: 700; letter-spacing: .03em; }
-.guide-copy h2 { margin: 6px 0 8px; font-size: clamp(21px, 2vw, 27px); font-weight: 550; letter-spacing: -.03em; }
-.guide-copy p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
-.guide-copy .guide-privacy { margin-top: 12px; font-size: 11px; }
-.guide-actions { display: grid; justify-items: start; gap: 10px; margin-top: auto; padding-top: 18px; }
-.guide-primary { min-height: 42px; padding: 9px 16px; border: 0; border-radius: 5px; background: #23616a; color: #fff; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
-.guide-primary:hover { background: #194d55; }
-.guide-transport { display: flex; flex-wrap: wrap; gap: 6px; }
-.guide-transport button { min-height: 44px; min-width: 44px; padding: 7px 9px; border: 1px solid var(--border-interactive); border-radius: 5px; background: var(--surface-base); color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
-.guide-transport button:hover:not(:disabled) { background: var(--surface-hover); }
-.guide-transport button:disabled { opacity: .45; cursor: default; }
-.guide-open { min-height: 36px; display: inline-flex; align-items: center; color: var(--brand-blue-text); font-size: 12px; font-weight: 650; }
-.guide-status { min-height: 16px; margin: 6px 0 0; color: var(--text-secondary); font-size: 10px; }
-.portal-reception :is(a,button):focus-visible, .portal-welcome :is(a,button):focus-visible { outline: 3px solid var(--brand-blue-text); outline-offset: 3px; }
-.portal-guide-link { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 14px; margin-top: auto; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); text-align: left; font-size: 13px; cursor: pointer; }
-.portal-guide-link:hover { background: var(--surface-hover); color: var(--text-primary); }
-button.menu-sheet-item { width: 100%; border: 0; text-align: left; font-family: inherit; cursor: pointer; }
-.malla-guide { display: none; }
-@media (min-width: 921px) { .malla-guide { display: inline-flex; } }
-@media (max-width: 920px) {
-  .guide-stage { max-width: 430px; padding: 12px; }
-  .guide-media.is-video { width: min(100%, calc(var(--guide-media-available, calc(100dvh - 280px)) * var(--guide-aspect))); max-height: var(--guide-media-available, max(140px, calc(100dvh - 280px))); }
-  .guide-content { max-width: 600px; display: flex; flex-direction: column; gap: 12px; }
-  .guide-chapters { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-  .guide-chapters button { display: grid; justify-items: center; gap: 3px; min-height: 49px; padding: 5px 2px; text-align: center; font-size: 9px; }
-  .guide-chapters button > span { width: 19px; height: 19px; flex-basis: 19px; }
-  .guide-chapters i { left: 2px; }
-  .guide-copy { margin-top: 0; }
-  .guide-actions { margin-top: 0; }
+.portal-reception { min-height: 100svh; padding: 20px 16px; display: grid; align-items: center; }
+.reception-main { width: min(1100px, 100%, calc((100svh - 116px) * 16 / 9)); margin: auto; }
+.news-player { position: relative; width: 100%; }
+.news-video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #e9ebe6; border-radius: 12px; outline: none; }
+.news-video[aria-busy="true"] { pointer-events: none; }
+.news-keyboard .news-video:focus-visible, .reception-actions button:focus-visible { outline: 3px solid var(--text-primary); outline-offset: 4px; }
+.reception-actions { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; }
+.reception-actions button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-base); color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.reception-actions button:hover { color: var(--text-primary); background: var(--surface-hover, var(--surface-base)); border-color: var(--text-secondary); }
+.news-media-error { margin: 10px 0; font-size: 13px; line-height: 1.4; }
+.portal-welcome { width: min(1100px, calc(100vw - 32px), calc((100svh - 116px) * 16 / 9)); max-width: none; max-height: calc(100svh - 32px); padding: 16px; border: 1px solid var(--border-subtle); border-radius: 16px; overflow: auto; }
+.portal-welcome::backdrop { background: rgba(12, 30, 34, .7); }
+@media (max-width: 920px) and (orientation: portrait) {
+  .reception-main { width: min(440px, 100%, calc((100svh - 116px) * 9 / 16)); }
+  .portal-welcome { width: min(472px, calc(100vw - 24px), calc((100svh - 140px) * 9 / 16 + 32px)); }
+  .news-video { aspect-ratio: 9 / 16; }
+  .reception-actions { gap: 8px; }
+  .reception-actions button { padding: 10px 8px; font-size: 12px; flex: 1; white-space: nowrap; }
 }
-@media (max-width: 600px) {
-  .portal-reception { padding: 0 14px 24px; }
-  .reception-header { height: 62px; gap: 9px; }
-  .reception-brand img { width: 27px; height: 27px; }
-  .reception-brand strong { font-size: 13px; }
-  .reception-theme { padding: 7px; }
-  .reception-theme span:not(.icon) { display: none; }
-  .reception-skip { font-size: 11px; }
-  .reception-main { padding-top: 14px; }
-  .reception-guide-head { margin-bottom: 11px; }
-  .reception-guide-head h1 { font-size: 22px; }
-  .reception-guide-head span { display: none; }
-  .reception-actions { margin-top: 8px; gap: 8px; }
-  .reception-dismiss { font-size: 11px; }
-  .reception-enter { padding: 9px 10px; font-size: 11px; }
-  .portal-welcome { width: calc(100% - 12px); max-height: calc(100dvh - 12px); border-radius: 8px; }
-  .welcome-head { padding: 12px 14px 10px; }
-  .welcome-head h2 { font-size: 19px; }
-  .welcome-foot { padding: 8px 14px max(8px, env(safe-area-inset-bottom)); }
-  .portal-welcome .guide-layout { padding: 12px 14px 14px; }
-  .guide-stage { padding: 9px 7px; }
-  .guide-example, .guide-format { font-size: 10px; }
-  .guide-scene-title { font-size: 14px; margin-bottom: 9px; }
-  .guide-caption { min-height: 4.2em; font-size: 12px; }
-  .guide-step-controls { gap: 6px; }
-  .guide-step-controls a { flex-basis: 100%; margin-left: 0; }
-  .guide-chapters button { min-height: 44px; }
-  .guide-chapters button strong { display: block; }
-  .guide-copy h2 { font-size: 21px; }
-  .guide-copy p { font-size: 12px; }
-  .guide-actions { gap: 6px; }
-  .guide-playbar .guide-primary, .guide-playbar .guide-secondary { flex: 1 1 auto; }
-  .guide-transport { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .guide-transport button { padding: 6px 3px; font-size: 10px; }
-  .guide-open { min-height: 44px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .portal-reception *, .portal-welcome * { animation: none !important; transition: none !important; }
-}
-
-/* The two short lessons share one accessible player. */
-.guide-stage-head .guide-example { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; }
-.guide-stage-head select { font:inherit; color:inherit; background:transparent; border:1px solid currentColor; border-radius:6px; padding:.55rem .75rem; min-height:44px; max-width:100%; }
-.guide-stage-head select option { color:#17252b; background:#fff; }
-
-.guide-stage-head select { font-size:14px; }
+@media (prefers-reduced-motion: reduce) { .portal-reception *, .portal-welcome * { animation: none !important; transition: none !important; } }

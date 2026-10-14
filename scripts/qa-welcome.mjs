@@ -3,204 +3,89 @@ import { chromium, webkit, firefox } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
-
-// Browser interaction validates the player. Tutorial content comes only from Computer Use.
-const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18084/?static=1&analytics=off';
+const base = process.env.QA_WELCOME_URL || 'http://127.0.0.1:18114/?static=1&analytics=off';
 const production = new URL(base).hostname === 'ceicucn.cl';
-const allConfigs = production ? [['chromium', 1440, 900], ['chromium', 390, 844]] : [['chromium', 1440, 900], ['chromium', 390, 844], ['chromium', 320, 568], ['chromium', 844, 390], ['webkit', 390, 844], ['firefox', 390, 844]];
-const configs = process.env.QA_WELCOME_ENGINE ? allConfigs.filter(([engine]) => engine === process.env.QA_WELCOME_ENGINE) : allConfigs;
-const out = new URL('../qa-screenshots/', import.meta.url);
-await mkdir(out, { recursive: true });
-const report = { ok: false, production, cases: [], errors: [] }, sandbox = { window: {} };
-vm.runInNewContext(await readFile(new URL('../assets/tutorial-story/manifest.js', import.meta.url), 'utf8'), sandbox);
+const configs = production ? [['chromium',1440,900],['chromium',390,844]] : [['chromium',1440,900],['chromium',390,844],['chromium',320,568],['chromium',844,390],['webkit',390,844],['firefox',390,844]];
+const sandbox = {window:{}}; vm.runInNewContext(await readFile('assets/tutorial-story/manifest.js','utf8'),sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
-assert.equal(manifest.captureMethod, 'computer-use');
-const chapters = ['aprobados', 'eligible', 'semana', 'inicio', 'mis-ramos'];
-for (const [format, recording] of Object.entries(manifest.formats)) {
-  assert.deepEqual([...new Set(Array.from(recording.steps, step => step.chapter))], chapters);
-  for (const step of recording.steps) {
-    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.image}`, import.meta.url))).digest('hex'), step.sha256, 'editorial still hash matches manifest');
-    assert.equal(createHash('sha256').update(await readFile(new URL(`../${step.sourceImage}`, import.meta.url))).digest('hex'), step.sourceSha256, 'source Computer Use screenshot stays unchanged');
-    assert.ok(step.end > step.start && step.caption && step.image.startsWith(`assets/tutorial-story/semestre/${format}/`));
-  }
-  assert.equal(recording.duration, recording.steps.at(-1).end);
+assert.equal(manifest.captureMethod,'computer-use');
+for (const rec of Object.values(manifest.formats)) for (const step of rec.steps) {
+  assert.equal(createHash('sha256').update(await readFile(step.image)).digest('hex'),step.sha256);
+  assert.equal(createHash('sha256').update(await readFile(step.sourceImage)).digest('hex'),step.sourceSha256);
+  assert.ok(step.end > step.start);
 }
-
-const url = (route = '/') => { const value = new URL(base); if (!value.searchParams.has('review')) value.searchParams.set('review', '20261002guide'); value.hash = route; return value.href; };
-const snapshot = page => page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
-// Background API requests must not gate the guide. Each check below waits for
-// its actual UI, image or video readiness instead of global network silence.
-async function stable(page) {
+const url = route => {const u=new URL(base);u.searchParams.set('review','20261013news');u.hash=route;return u.href;};
+const report={ok:false,production,cases:[],errors:[]}; let browser;
+async function layout(page, scope='.portal-reception') {
+  assert.equal(await page.locator(scope+' button').count(),2,'exactly two external actions');
+  assert.equal(await page.locator(scope+' select, '+scope+' a, '+scope+' .guide-chapters, '+scope+' .guide-copy').count(),0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  assert.equal(await page.locator('.guide-course, .guide-visual, .guide-mini-detail').count(), 0, 'no synthetic portal UI');
-  assert.ok(await page.locator('.guide-step-controls button, .guide-transport button').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height >= 44)));
+  const fit=await page.locator(scope+' .reception-actions').evaluate(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});
+  assert.equal(fit,true,'both actions fit the viewport');
+  assert.ok(await page.locator(scope+' button').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().height>=44)));
 }
-async function ready(page) { await page.waitForFunction(() => { const v = document.querySelector('.portal-reception video'); return v && !v.paused && v.readyState >= 2; }); }
-let browser;
 try {
-  for (const [engine, width, height] of configs) {
-    browser = await ({ chromium, webkit, firefox }[engine]).launch();
-    const context = await browser.newContext({ viewport: { width, height } }), page = await context.newPage();
-    page.setDefaultTimeout(production ? 45000 : 15000);
-    page.on('pageerror', error => report.errors.push(`${engine}/${width}: ${error.message}`));
-    const requests = [];
-    page.on('request', request => { if (/\.(mp4|mp3|m4a|wav)(?:\?|$)/.test(request.url())) requests.push(request.url()); });
-    await page.goto(url(), { waitUntil: 'domcontentloaded' });
-    const guide = page.locator('.portal-reception'), video = guide.locator('video');
-    await guide.waitFor();
-    const format = width <= 920 ? 'mobile' : 'desktop', recording = manifest.formats[format];
-    assert.equal(await guide.locator('[data-guide-root]').getAttribute('data-capture-format'), format);
-    assert.equal(await guide.locator('[data-guide-tab]').count(), chapters.length);
-    assert.equal(await video.getAttribute('src'), recording.variants.voice);
-    assert.equal(await video.evaluate(v => v.paused && !v.muted && !v.autoplay && v.controls), true);
-    assert.ok(await guide.locator('[data-guide-play]').evaluate(node => node.getBoundingClientRect().bottom < innerHeight), 'primary CTA is visible before media');
-    assert.ok(await guide.locator('[data-guide-caption]').evaluate(node => node.getBoundingClientRect().bottom < document.querySelector('.guide-media').getBoundingClientRect().top), 'action caption is above media');
-    await page.waitForFunction(() => { const image = document.querySelector('[data-guide-still]'); return image?.complete && image.naturalWidth > 0; });
-    assert.equal(await guide.locator('[data-guide-still]').evaluate(image => image.naturalWidth), recording.width);
-    await stable(page);
-    await page.screenshot({ path: new URL(`welcome-real-${engine}-${width}.png`, out).pathname.replace(/^\/(?=[A-Z]:)/, '') });
-    await page.locator('[data-portal-theme-toggle]').click();
-    assert.equal(await page.locator('body.theme-dark').count(), 1);
-    assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps[0].image, 'theme never changes source pixels');
-    await page.evaluate(() => localStorage.setItem('portal.myCourses.v1', 'READ_ONLY_GUIDE_SENTINEL'));
-    const before = await snapshot(page);
-    for (let index = 0; index < recording.steps.length; index++) {
-      if (index) await guide.locator('[data-guide-step-next]').click();
-      const step = recording.steps[index];
-      assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), step.image);
-      assert.equal(await guide.locator('[data-guide-caption]').innerText(), step.caption);
-      assert.equal(await guide.locator('[data-guide-image-link]').getAttribute('href'), step.image);
-      assert.equal(await video.evaluate(v => v.paused), true, 'manual captures never autoplay');
-    }
-    assert.equal(await snapshot(page), before, 'guide preserves all stored data');
-    for (let index = 0; index < chapters.length; index++) {
-      await guide.locator(`[data-guide-tab="${index}"]`).click();
-      assert.equal(await guide.locator('[data-guide-still]').getAttribute('src'), recording.steps.find(step => step.chapter === chapters[index]).image);
-    }
-    await guide.locator('[data-guide-tab="3"]').click();
-    const supportsVideo = await video.evaluate(v => !!v.canPlayType('video/mp4; codecs="avc1.64001f"'));
-    if (supportsVideo) {
-      await guide.locator('[data-guide-play]').click(); await ready(page);
-      assert.equal(await video.isVisible(), true);
-      const decoded = await video.evaluate(v => ({ width: v.videoWidth, height: v.videoHeight }));
-      assert.ok(decoded.width > 0 && (engine === 'webkit' || Math.abs(decoded.width / decoded.height - recording.width / recording.height) < .002), 'native player decodes the captured stream (WebKit Windows reports rendered dimensions)');
-      const startedAt = await video.evaluate(v => v.currentTime), expectedStart = recording.steps.find(step => step.chapter === 'inicio').start;
-      assert.ok(Math.abs(startedAt - expectedStart) < 2, `chapter playback expected ${expectedStart}s, received ${startedAt}s`);
-      await video.evaluate((v, time) => { v.currentTime = time; }, recording.steps.find(step => step.chapter === 'eligible').start + .2);
-      await page.waitForFunction(() => document.querySelector('[data-guide-tab="1"]')?.getAttribute('aria-selected') === 'true');
-      await guide.locator('[data-guide-play]').click();
-      const paused = await video.evaluate(v => v.currentTime); await page.waitForTimeout(300);
-      assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - paused) < .1);
-      await guide.locator('[data-guide-play]').click(); await ready(page);
-      assert.ok(await video.evaluate(v => v.currentTime) >= paused);
-      if (engine === 'chromium' && [1440, 390].includes(width)) {
-        const switchAt = await video.evaluate(v => v.currentTime);
-        await guide.locator('[data-guide-mode]').selectOption('voice');
-        assert.equal(await video.evaluate(v => v.paused && !v.muted), true);
-        assert.equal(await video.getAttribute('src'), recording.variants.voice);
-        await guide.locator('[data-guide-play]').click(); await ready(page);
-        assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - switchAt) < 2, 'voice choice preserves playback position');
-        const musicAt = await video.evaluate(v => v.currentTime);
-        await guide.locator('[data-guide-music]').click();
-        assert.equal(await video.evaluate(v => v.paused), true);
-        assert.equal(await video.getAttribute('src'), recording.variants.voiceMusic);
-        await guide.locator('[data-guide-play]').click(); await ready(page);
-        assert.ok(Math.abs(await video.evaluate(v => v.currentTime) - musicAt) < 2, 'music choice preserves playback position');
-        await guide.locator('[data-guide-mode]').selectOption('text');
-        assert.equal(await video.getAttribute('src'), recording.variants.music);
-        assert.equal(await guide.locator('[data-guide-music]').getAttribute('aria-pressed'), 'true');
-        await guide.locator('[data-guide-music]').click();
-        assert.equal(await video.getAttribute('src'), recording.variants.silent);
-        assert.equal(await video.evaluate(v => v.paused && v.muted), true);
-        assert.equal(await guide.locator('audio').count(), 0);
-        assert.equal(await video.locator('track').getAttribute('default'), null);
-        await guide.locator('[data-guide-play]').click(); await ready(page);
-      }
-      await video.evaluate((v, time) => { v.currentTime = time; }, recording.duration - .3);
-      await page.waitForFunction(() => document.querySelector('.portal-reception video').ended && document.querySelector('[data-guide-status]')?.textContent.includes('Recorrido terminado'));
-      assert.match(await guide.locator('[data-guide-status]').innerText(), /Recorrido terminado/);
-    }
-    assert.ok(requests.every(request => Object.values(recording.variants).some(source => request.includes(source))), 'only matching captured variants; one native timeline');
-    assert.equal(await guide.locator('[data-guide-lesson]').count(), 0, 'one focused tutorial');
-    assert.equal(await snapshot(page), before, 'tutorial preserves study data');
-    await page.locator('.reception-enter').click(); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-    if (width <= 920) { await page.locator('.bottom-more').click(); await page.locator('.menu-sheet [data-open-welcome]').click(); }
-    else await page.locator('.sidebar [data-open-welcome]').click();
-    const dialog = page.getByRole('dialog', { name: 'Así funciona el portal' }); await dialog.waitFor();
-    assert.equal(await dialog.locator('video').evaluate(v => v.paused), true);
-    await dialog.locator('[data-guide-tab="0"]').focus(); await page.keyboard.press('End');
-    assert.equal(await dialog.locator(`[data-guide-tab="${chapters.length - 1}"]`).evaluate(node => node === document.activeElement), true);
-    for (let count = 0; count < 12; count++) { await page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(node => node.contains(document.activeElement))); }
-    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
-    assert.equal(await page.locator('.portal-welcome video').evaluate(v => v.paused), true);
-    await page.goto(url(), { waitUntil: 'domcontentloaded' }); await page.locator('[data-reception-dismiss]').click();
-    assert.equal(await page.evaluate(() => localStorage.getItem('portal.tutorial.skip')), 'yes');
-    await page.goto(url(), { waitUntil: 'domcontentloaded' }); await page.waitForURL(value => value.hash === '#/inicio');
-    await page.goto(url('/bienvenida'), { waitUntil: 'domcontentloaded' }); await page.locator('.portal-reception').waitFor();
-    report.cases.push({ engine, width, height, format, realCaptures: recording.steps.length, nativeVideo: supportsVideo, noAutoplay: true, isolatedStorage: true });
-    await context.close(); await browser.close(); browser = null;
+ for (const [engine,width,height] of configs) {
+  if (process.env.QA_WELCOME_ENGINE && process.env.QA_WELCOME_ENGINE!==engine) continue;
+  browser=await ({chromium,webkit,firefox}[engine]).launch();
+  const context=await browser.newContext({viewport:{width,height}}),page=await context.newPage();page.setDefaultTimeout(production?45000:20000);
+  page.on('pageerror',e=>report.errors.push(engine+'/'+width+': '+e.message));
+  await page.goto(url('/'),{waitUntil:'domcontentloaded'}); await page.locator('.news-video').waitFor();await layout(page);
+  const video=page.locator('.portal-reception video');
+  assert.equal(await video.evaluate(v=>v.paused&&!v.autoplay),true);
+  assert.match(await video.getAttribute('src'),/voice/);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),null);
+  await video.press('Enter');
+  await page.waitForFunction(()=>{const v=document.querySelector('.portal-reception video');return v&&!v.paused&&v.currentTime>.2;});
+  await video.press('Enter'); assert.equal(await video.evaluate(v=>v.paused),true);
+  assert.equal(await video.evaluate(v=>v.error),null);
+  // Seek near the real ending, then allow playback to complete naturally.
+  await video.evaluate(v=>{v.currentTime=v.duration-.35;}); await video.press('Enter');
+  await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  assert.equal(new URL(page.url()).hash,'#/inicio');
+  await page.goto(url('/'));await page.locator('.news-video').waitFor();
+  await page.locator('.reception-skip').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),null,'skip does not set a permanent preference');
+  await page.goto(url('/'));await page.locator('[data-reception-dismiss]').click();await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),'yes');
+  await page.goto(url('/'));await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(await page.locator('.portal-reception').count(),0);
+  await page.goto(url('/mi-semana'));await page.getByRole('heading',{name:'Mi semana',exact:true}).waitFor();assert.equal(await page.locator('.portal-reception').count(),0,'deep links open directly');
+  // Voluntary reopening respects the current section, including Escape and ending.
+  await page.evaluate(()=>PortalWelcome.open(document.querySelector('#main-content')));
+  await page.locator('.portal-welcome[open]').waitFor();await layout(page,'.portal-welcome[open]');
+  const modalVideo=page.locator('.portal-welcome video');await modalVideo.press('Enter');
+  await page.waitForFunction(()=>{const v=document.querySelector('.portal-welcome video');return !v.paused&&v.currentTime>.2;});
+  await modalVideo.evaluate(v=>{v.currentTime=v.duration-.35;});await page.waitForFunction(()=>!document.querySelector('.portal-welcome').open);
+  assert.equal(new URL(page.url()).hash,'#/mi-semana','reopened video never redirects');
+  await page.evaluate(()=>PortalWelcome.open(document.querySelector('#main-content')));await modalVideo.press('Escape');
+  assert.equal(await page.locator('.portal-welcome').evaluate(n=>n.open),false);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),'yes');
+  report.cases.push({engine,width,height,playback:true,naturalEnd:true,twoActions:true,permanentChoice:true,reopen:true});
+  await context.close();await browser.close();browser=null;
+ }
+ if(!production){
+  browser=await chromium.launch();const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});const page=await context.newPage();
+  page.on('pageerror',e=>report.errors.push(e.message));await page.goto(url('/'));const video=page.locator('.portal-reception video');
+  assert.equal(await video.evaluate(v=>v.paused),true);await video.press('Enter');await page.waitForFunction(()=>document.querySelector('video').currentTime>1);
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});assert.equal(await video.evaluate(v=>v.paused),true);
+  const position=await video.evaluate(v=>v.currentTime);await page.setViewportSize({width:1440,height:900});await page.waitForFunction(()=>{const v=document.querySelector('video');return v.src.includes('/desktop/')&&v.readyState>=2&&!v.seeking;});
+  assert.ok(Math.abs((await video.evaluate(v=>v.currentTime))-position)<.6);assert.equal(await video.evaluate(v=>v.paused),true);
+  await page.getByRole('button',{name:'Saltar video',exact:true}).click();assert.equal(await page.locator('.portal-reception').count(),0);
+  await context.close();await browser.close();browser=null;report.cases.push({reducedMotion:true,visibilityPause:true,resizePreservesPosition:true});
+  if(process.env.QA_WELCOME_NORANGE_URL){
+   browser=await chromium.launch();const ctx=await browser.newContext();const sample=await ctx.newPage();
+   await ctx.addInitScript(()=>{window.blobRevoked=[];const original=URL.revokeObjectURL;URL.revokeObjectURL=url=>{window.blobRevoked.push(url);original(url);};});
+   await sample.goto(process.env.QA_WELCOME_NORANGE_URL);const player=sample.locator('.portal-reception video');await player.press('Enter');
+   await sample.waitForFunction(()=>{const v=document.querySelector('video');return v.src.startsWith('blob:')&&!v.paused&&v.currentTime>.3;});
+   const blob=await player.getAttribute('src');await player.evaluate(v=>{v.currentTime=v.duration-.35;});
+   await sample.getByRole('heading',{name:'Inicio',exact:true}).waitFor();assert.equal(await sample.evaluate(blob=>window.blobRevoked.includes(blob),blob),true);
+   report.cases.push({noRangeFallback:true,realEnding:true,blobRevoked:true});await ctx.close();await browser.close();browser=null;
   }
-  browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' }), page = await context.newPage();
-  await page.goto(url(), { waitUntil: 'domcontentloaded' });
-  const guide = page.locator('.portal-reception');
-  assert.equal(await guide.locator('[data-guide-play]').isDisabled(), true);
-  for (let step = 0; step < manifest.formats.mobile.steps.length; step++) {
-    if (step) await guide.locator('[data-guide-step-next]').click();
-    assert.equal(await guide.locator('video').evaluate(v => v.paused), true); assert.equal(await guide.locator('[data-guide-still]').isVisible(), true);
-  }
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.waitForFunction(() => !document.querySelector('[data-guide-play]').disabled);
-  await guide.locator('[data-guide-tab="0"]').click(); await guide.locator('[data-guide-play]').click(); await ready(page);
-  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-  assert.equal(await guide.locator('video').evaluate(v => v.paused), true);
-  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
-  assert.equal(await guide.locator('video').evaluate(v => v.paused), true, 'visible tab does not resume');
-  await guide.locator('[data-guide-play]').click(); await ready(page); await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForFunction(() => document.querySelector('.portal-reception video').paused);
-  assert.equal(await guide.locator('[data-guide-still]').isVisible(), true);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.waitForFunction(() => document.querySelector('[data-guide-root]').dataset.captureFormat === 'desktop');
-  assert.equal(await guide.locator('video').getAttribute('src'), manifest.formats.desktop.variants.voice);
-  assert.equal(await guide.locator('video').evaluate(v => v.paused), true);
-  await page.evaluate(() => { location.hash = '/inicio'; }); await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-  assert.equal(await page.locator('.portal-reception video').count(), 0);
-  report.cases.push({ reducedMotion: true, hiddenPause: true, responsiveSource: true, routeCleanup: true });
-  await context.close();
-  if (process.env.QA_WELCOME_NORANGE_URL) {
-    const noRange = await browser.newContext({ viewport: { width: 1440, height: 900 } }), sample = await noRange.newPage();
-    sample.setDefaultTimeout(30000);
-    await sample.addInitScript(() => {
-      window.guideBlobEvents = [];
-      const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
-      URL.createObjectURL = value => { const result = create(value); window.guideBlobEvents.push(['create', result, value.size]); return result; };
-      URL.revokeObjectURL = value => { window.guideBlobEvents.push(['revoke', value]); revoke(value); };
-    });
-    await sample.goto(process.env.QA_WELCOME_NORANGE_URL, { waitUntil: 'domcontentloaded' });
-    const player = sample.locator('.portal-reception'), media = player.locator('video');
-    await player.locator('[data-guide-mode]').selectOption('voice');
-    await player.locator('[data-guide-music]').click();
-    await player.locator('[data-guide-tab="4"]').click();
-    const expected = manifest.formats.desktop.steps.find(step => step.chapter === 'mis-ramos').start;
-    await player.locator('[data-guide-play]').click(); await ready(sample);
-    assert.ok(Math.abs(await media.evaluate(v => v.currentTime) - expected) < 2, 'no-Range host plays the requested voice/music chapter');
-    const localSource = await media.getAttribute('src');
-    assert.ok(localSource.startsWith('blob:'), 'failed seek falls back to this bounded local asset');
-    await player.locator('[data-guide-play]').click();
-    await player.locator('[data-guide-play]').click(); await ready(sample);
-    assert.equal(await media.getAttribute('src'), localSource, 'paused selected asset is reused');
-    await player.locator('[data-guide-mode]').selectOption('text');
-    assert.equal(await media.evaluate(v => v.paused), true);
-    assert.ok(await sample.evaluate(source => window.guideBlobEvents.some(event => event[0] === 'revoke' && event[1] === source), localSource));
-    await player.locator('[data-guide-play]').click(); await ready(sample);
-    const secondSource = await media.getAttribute('src');
-    assert.ok(secondSource.startsWith('blob:'));
-    await sample.evaluate(() => { location.hash = '/inicio'; });
-    await sample.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
-    assert.ok(await sample.evaluate(source => window.guideBlobEvents.some(event => event[0] === 'revoke' && event[1] === source), secondSource));
-    report.cases.push({ noRangeFallback: true, voiceMusicChapter: true, blobReused: true, blobRevoked: true });
-    await noRange.close();
-  }
-  assert.deepEqual(report.errors, []); report.ok = true; console.log(JSON.stringify(report));
-} catch (error) { report.errors.push(error.stack || String(error)); throw error; }
-finally { await browser?.close(); await writeFile(new URL(`welcome-real-${production ? 'production' : 'local'}-report.json`, out), JSON.stringify(report, null, 2)); }
+  // Failed media leaves both exits usable.
+  browser=await chromium.launch();const failure=await browser.newPage();await failure.route('**/*.mp4*',r=>r.abort());await failure.goto(url('/'));
+  await failure.locator('video').press('Enter');await failure.locator('.news-media-error').waitFor({state:'visible'});await failure.locator('.reception-skip').click();await failure.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
+  report.cases.push({failedVideoCanSkip:true});
+ }
+ assert.deepEqual(report.errors,[]);report.ok=true;
+} catch(e){report.errors.push(e.stack||String(e));throw e;}
+finally{await browser?.close();await mkdir('qa-screenshots',{recursive:true});await writeFile('qa-screenshots/welcome-real-'+(production?'production':'local')+'-report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));}

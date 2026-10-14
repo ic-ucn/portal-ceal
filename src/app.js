@@ -1280,7 +1280,7 @@
       return routeTo('/inicio');
     }
     if (!SIGN_IN_ENABLED && (path === '/' || path === '/bienvenida')) {
-      if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception(themeToggleButton('reception-theme'));
+      if (!app.querySelector('.portal-reception')) app.innerHTML = window.PortalWelcome.renderReception();
       return true;
     }
     app.innerHTML = path === '/login' ? renderLogin() : renderShell(renderPage(path, query, restoring), path);
@@ -1530,7 +1530,7 @@
     const bottom = bottomRoutes
       .map(([href, ico, label]) => { const on = isActive(path, href); return `<a class="bottom-item ${on ? 'active' : ''}" href="#${href}"${on ? ' aria-current="page"' : ''}><span class="bottom-item-ico">${icon(ico)}</span><span class="bottom-item-label">${label}</span></a>`; }).join('')
       + `<button class="bottom-item bottom-more ${moreActive ? 'active' : ''}" type="button" data-open-menu aria-label="Más secciones" aria-expanded="${state.menuOpen}" aria-controls="portal-menu" aria-haspopup="dialog"><span class="bottom-item-ico">${icon('menu')}</span><span class="bottom-item-label">Más</span></button>`;
-    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav><button class="portal-guide-link" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span></button></aside>
+    return `<div class="${shellClass}"><a class="skip-link" href="#main-content">Saltar al contenido</a>${state.offline ? '<div class="offline-banner" role="status">Sin conexión — estás viendo datos guardados.</div>' : ''}<aside class="sidebar"><a class="sidebar-brand" href="#/"><span class="brand-mark"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /></span><span class="brand-copy"><strong>CEIC UCN</strong><span>INGENIERÍA CIVIL UCN</span></span></a>${campusNav}<nav class="nav" aria-label="Navegación principal">${nav}</nav><button class="portal-guide-link" type="button" data-open-welcome>${icon('play')}<span>Novedades del portal</span></button></aside>
       <main class="app-main"><header class="topbar"><form class="global-search" data-global-search-form><button class="search-submit" type="submit" aria-label="Buscar">${icon('search')}</button><input name="q" type="search" placeholder="Buscar en el portal..." /></form><div class="topbar-actions">${themeToggleButton('topbar-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="account-trigger" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}</div></header>
       <header class="mobile-header"><button class="icon-btn menu-btn" data-open-menu aria-label="Abrir menú" aria-expanded="${state.menuOpen ? 'true' : 'false'}">${icon('menu')}</button><a class="mobile-brand" href="#/"><img src="assets/logo-mark-transparent.png" alt="CEIC UCN" /><strong>CEIC UCN</strong></a><div class="mobile-actions">${themeToggleButton('mobile-theme-toggle')}${SIGN_IN_ENABLED ? `<a class="icon-btn" href="#/perfil" aria-label="Mi cuenta">${icon('user')}</a>` : ''}</div></header>
       <section class="content ${isMallaRoute ? 'content-mallas' : ''}" id="main-content" tabindex="-1">${content}</section><nav class="bottom-nav" aria-label="Navegación inferior">${bottom}</nav></main>${themeToggleButton('theme-floating-toggle')}${state.menuOpen ? renderMobileMenu(path) : ''}${state.notificationsOpen ? renderNotificationPopover() : ''}${renderToast()}</div>`;
@@ -1548,7 +1548,7 @@
           <button class="icon-btn" data-close-menu aria-label="Cerrar menú">${icon('x')}</button>
         </header>
         <nav class="menu-sheet-nav" aria-label="Todas las secciones">${items}
-          <button class="menu-sheet-item" type="button" data-open-welcome>${icon('play')}<span>Guía del portal</span>${icon('arrow', 'menu-item-arrow')}</button>
+          <button class="menu-sheet-item" type="button" data-open-welcome>${icon('play')}<span>Novedades del portal</span>${icon('arrow', 'menu-item-arrow')}</button>
           ${SIGN_IN_ENABLED ? `<a class="menu-sheet-item ${path === '/perfil' ? 'active' : ''}" href="#/perfil">${icon('user')}<span>Mi cuenta</span>${icon('arrow', 'menu-item-arrow')}</a>` : ''}
         </nav>
         <footer class="menu-sheet-foot">
@@ -1639,7 +1639,10 @@
     const upcoming = pending.filter(event => event.date >= todayKey).slice(0, 3);
     const overdue = pending.filter(event => event.date < todayKey);
     const eventsMarkup = upcoming.map(event => `<a class="home-study-event" data-home-activity="${esc(event.id)}" href="#/mi-semana?date=${esc(event.date)}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${esc(parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' }))}</span></time><span><small>${esc(event.type)}${event.time ? ` · ${esc(event.time)}` : ''}</small><strong>${esc(event.title)}</strong>${event.course ? `<small>${esc(titleCase(findCourse(event.plan, event.course)?.name || event.course))}</small>` : ''}</span>${icon('arrow')}</a>`).join('');
-    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>
+    let showNews = true;
+    try { showNews = localStorage.getItem('portal.news.dismissed') !== '20261013'; } catch {}
+    const news = showNews ? `<aside class="home-news" aria-label="Novedades del portal"><div><p><strong>Novedades</strong> · Tus ramos, material y actividades, a mano.</p><div class="home-news-links"><a href="#/mallas?view=mis-ramos&section=semester">Ir a Mis ramos</a><button type="button" data-open-welcome>Ver video</button></div></div><button type="button" class="home-news-close" data-dismiss-news aria-label="Cerrar aviso de novedades">${icon('x')}</button></aside>` : '';
+    return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>${news}
       <div class="home-study-overview">
         <section class="home-study-section" aria-labelledby="home-week-title"><header><div><span class="kicker">Tu agenda</span><h2 id="home-week-title">Mi semana</h2></div><a class="link" href="#/mi-semana">Abrir agenda ${icon('arrow')}</a></header><p class="home-study-intro">Tus próximas actividades</p>${tools.status().issue ? `<p class="study-notice">${esc(tools.status().issue)} <a href="#/mi-semana">Revisar agenda</a></p>` : ''}${eventsMarkup || '<div class="home-study-empty"><p>Aún no tienes actividades próximas.</p><a class="btn primary" href="#/mi-semana">Agregar actividad</a></div>'}${overdue.length ? `<a class="home-study-pending link" href="#/mi-semana?date=${esc(overdue[0].date)}">${overdue.length} ${overdue.length === 1 ? 'actividad anterior sin completar' : 'actividades anteriores sin completar'} ${icon('arrow')}</a>` : ''}</section>
         <section class="home-study-section" aria-labelledby="home-courses-title"><header><div><span class="kicker">${planShort(plan)}</span><h2 id="home-courses-title">Mis ramos actuales</h2></div><a class="link" href="#/mallas?view=mis-ramos&section=semester">${current.length ? `Ver ${current.length === 1 ? 'ramo' : `los ${current.length}`}` : 'Elegir ramos'} ${icon('arrow')}</a></header><div class="home-current-courses">${current.slice(0, 4).map(course => `<a class="home-current-course" data-home-course="${esc(course.code)}" href="#/ramo/${plan}/${encodeURIComponent(course.code)}"><span class="home-course-mark" aria-hidden="true"></span><span><strong>${esc(titleCase(course.name))}</strong><small>${esc(AreaStyle[courseDisplayArea(course)] || '')}</small></span>${icon('arrow')}</a>`).join('') || '<div class="home-study-empty"><p>Marca los ramos que estás cursando para tenerlos a mano.</p><a class="btn secondary" href="#/mallas?mark=actuales">Marcar en la malla</a></div>'}</div>${current.length ? `<a class="home-study-pending link" href="#/mallas?view=mis-ramos&section=eligible">${forecast.length ? `${forecast.length} ${forecast.length === 1 ? 'ramo se abriría' : 'ramos se abrirían'} al aprobar tus actuales` : 'Revisar qué podrías cursar'} ${icon('arrow')}</a>` : ''}</section>
@@ -2079,7 +2082,7 @@
             <div class="segmented malla-view-tabs" aria-label="Vista de la malla"><button type="button" data-malla-view="malla" class="${state.mallaPersonalOpen ? '' : 'active'}" aria-pressed="${!state.mallaPersonalOpen}">Malla completa</button><button type="button" data-malla-view="personal" class="${state.mallaPersonalOpen ? 'active' : ''}" aria-pressed="${state.mallaPersonalOpen}" aria-controls="malla-personal-panel">Mis ramos</button></div>
             <button class="malla-tool-btn malla-mark-toggle ${state.mallaApprovalMode ? 'active' : ''}" type="button" data-malla-mark-toggle aria-pressed="${state.mallaApprovalMode}"${health.locked ? ' disabled' : ''}>${icon('check')}<span>${state.mallaApprovalMode ? 'Terminar marcado' : 'Marcar ramos'}</span></button>
             ${themeToggleButton(`malla-tool-btn ${dark ? 'active' : ''}`, 'data-malla-embed-theme')}
-            <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Guía del portal">${icon('play')}<span>Guía</span></button>
+            <button class="malla-tool-btn malla-guide" type="button" data-open-welcome aria-label="Novedades del portal">${icon('play')}<span>Guía</span></button>
             ${SIGN_IN_ENABLED ? `<a class="malla-tool-btn malla-account" href="#/perfil">${icon('user')}<span>${accountLabel}</span></a>` : ''}
           </div>
         </header>
@@ -4177,6 +4180,13 @@
     }
     const audience = e.target.closest('[data-calendar-audience]');
     if (audience) { state.calendarAudience = audience.dataset.calendarAudience; render(); return; }
+    const dismissNews = e.target.closest('[data-dismiss-news]');
+    if (dismissNews) {
+      try { localStorage.setItem('portal.news.dismissed', '20261013'); } catch {}
+      dismissNews.closest('.home-news')?.remove();
+      document.querySelector('#main-content')?.focus({ preventScroll: true });
+      return;
+    }
     const guideTrigger = e.target.closest('[data-open-welcome]');
     if (guideTrigger) {
       let returnTarget = guideTrigger;
@@ -5341,6 +5351,7 @@
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
   window.addEventListener('storage', e => {
+    if (e.key === 'portal.news.dismissed' && e.newValue === '20261013') app.querySelector('.home-news')?.remove();
     if (e.key !== MyCourses.key) return;
     state.myCoursesPlan = MyCourses.externalChange().activePlan;
     mallaApprovalUndo = null;

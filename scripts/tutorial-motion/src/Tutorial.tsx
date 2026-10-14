@@ -68,6 +68,7 @@ export type TutorialProps = {
   format: Format;
   scenes: Scene[];
   captions: Caption[];
+  news?: boolean;
 };
 
 /* ============================ LAYOUT ============================ */
@@ -551,11 +552,12 @@ const CaptionBar: React.FC<{ captions: Caption[]; t: number; layout: Layout }> =
   );
 };
 
-export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions }) => {
+export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions, news = false }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
-  const layout = LAYOUTS[format];
+  const original = LAYOUTS[format];
+  const layout = news ? { ...original, panel: { ...original.panel, y: format === 'desktop' ? 116 : 240, h: format === 'desktop' ? 730 : 1280 }, captionTop: format === 'desktop' ? 860 : 1550, captionSize: format === 'desktop' ? 38 : 52 } : original;
   const list = [...scenes].sort((a, b) => a.start - b.start);
 
   return (
@@ -572,7 +574,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions }) 
           </div>
         );
       })}
-      <Breadcrumb scenes={list} t={t} layout={layout} />
+      {!news && <Breadcrumb scenes={list} t={t} layout={layout} />}
       <CaptionBar captions={captions} t={t} layout={layout} />
     </AbsoluteFill>
   );

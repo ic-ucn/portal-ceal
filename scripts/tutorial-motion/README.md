@@ -1,5 +1,39 @@
 # Tutorial de estudio: compositor reproducible
 
+## Video vigente de novedades — 2026-10-13
+
+La bienvenida usa un video y dos acciones externas: Saltar video y No volver a
+mostrar. Una sola voz Kore y subtítulos integrados; formatos horizontal y
+vertical con capturas nativas independientes. El aviso de Inicio permite
+reabrirlo sin cambiar de sección. La preferencia de omisión se conserva.
+
+El nuevo montaje se reconstruye sin inferencia pagada:
+
+```powershell
+python scripts/build-news-video.py --prepare
+node scripts/tutorial-motion/node_modules/typescript/bin/tsc -p scripts/tutorial-motion
+# Desde scripts/tutorial-motion:
+node render-news.mjs stills
+# Revisar los fotogramas de .data/news-video antes de exportar:
+node render-news.mjs
+# Desde la raíz:
+python scripts/build-news-video.py --finalize
+```
+
+Fuentes en `assets/tutorial-news/captures/` y
+`assets/tutorial-news/narration/`. Los tiempos se alinearon contra la toma
+continua y se ajustan a su reproducción al 90%; la transcripción automática
+sirvió solo para medir, no para redactar el guion. La exportación conserva
+H.264 yuv420p, GOP de un segundo, sin B-frames, AAC y faststart. El manifiesto
+incluye hashes y referencias a los originales de cada toma.
+
+La consulta ejecutiva a `anthropic/claude-opus-5.5` recibió un resumen de
+producto, sin código ni repositorio completo. Orientó la franja de Inicio,
+plazos con rangos completos, bienvenida mínima y relato autónomo. Las decisiones
+finales, implementación y revisión visual corresponden al agente ejecutor.
+
+Las instrucciones siguientes se conservan para los montajes anteriores.
+
 Remotion 4.0.533, React y capturas reales del portal obtenidas con Computer Use.
 Opus 5.5 produjo la dirección y el compositor inicial; las coordenadas, secuencia,
 capturas, integración y revisión se ajustaron contra la aplicación real.
