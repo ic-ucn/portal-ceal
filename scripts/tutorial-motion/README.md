@@ -2,6 +2,16 @@
 
 ## Video vigente de novedades — 2026-10-13
 
+Montaje de la versión personal en `codex/novedades-personal`, sin publicar.
+La web pública usa la versión anterior a Mis ramos. La revisión elimina de
+audio, subtítulos y pantalla la indicación de confirmar la oferta. Conserva
+el WAV original; `VOICE_CUT` recorta una pausa a cada lado de esa frase.
+`FORM_HOLD` añade dos segundos antes del párrafo siguiente. `moment()` aplica
+ambos cambios al montaje y a los subtítulos sin desplazar su sincronización.
+Las capturas `form-clean-*` tienen iguales dimensiones y posición; entre ellas
+solo cambian los campos. El formulario se presenta completo en escritorio y
+con dos encuadres fijos en móvil. No se simulan cursores ni clics.
+
 La bienvenida usa un video y dos acciones externas: Saltar video y No volver a
 mostrar. Una sola voz Kore y subtítulos integrados; formatos horizontal y
 vertical con capturas nativas independientes. El aviso de Inicio permite
@@ -19,6 +29,12 @@ node render-news.mjs
 # Desde la raíz:
 python scripts/build-news-video.py --finalize
 ```
+
+Para ajustes de encuadre sin cambiar la duración de las escenas, se puede usar
+`node render-news.mjs --format=mobile --scene=caminos,formulario`: regenera los
+fotogramas de esas escenas y el video completo del formato indicado. Si cambian
+los tiempos, usar el comando completo para renovar todas las imágenes del
+manifiesto.
 
 Fuentes en `assets/tutorial-news/captures/` y
 `assets/tutorial-news/narration/`. Los tiempos se alinearon contra la toma

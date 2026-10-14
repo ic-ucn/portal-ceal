@@ -39,6 +39,7 @@ Also verify the current local app in browser at desktop and mobile widths:
 
 ## Publishing
 
+- User decision 2026-10-13: Mis ramos and all subsequent additions remain in the personal version, unpublished. Keep the public portal at the version before these additions. This overrides automatic publication below until the user explicitly authorizes a new launch. Personal work lives on `codex/novedades-personal`; do not push it to `main`.
 - After user-facing changes, update `https://ceicucn.cl` by committing the scoped changes and pushing `main` to `origin`.
 - When `src/app.js` or `src/styles.css` changes, bump the static asset query string in `index.html` so GitHub Pages/CDN does not serve stale files.
 - After pushing, verify production with a cache-busted load of `https://ceicucn.cl` at desktop and mobile widths.

@@ -40,7 +40,9 @@ try {
   await video.press('Enter'); assert.equal(await video.evaluate(v=>v.paused),true);
   assert.equal(await video.evaluate(v=>v.error),null);
   // Seek near the real ending, then allow playback to complete naturally.
-  await video.evaluate(v=>{v.currentTime=v.duration-.35;}); await video.press('Enter');
+  await video.evaluate(v=>{v.currentTime=v.duration-.35;});
+  await page.waitForFunction(()=>{const v=document.querySelector('.portal-reception video');return v&&!v.seeking&&v.readyState>=3;});
+  await video.press('Enter');
   await page.getByRole('heading',{name:'Inicio',exact:true}).waitFor();
   assert.equal(new URL(page.url()).hash,'#/inicio');
   await page.goto(url('/'));await page.locator('.news-video').waitFor();

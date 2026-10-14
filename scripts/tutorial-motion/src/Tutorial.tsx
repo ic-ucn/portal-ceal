@@ -570,7 +570,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions, ne
         const op = i === 0 || tin <= 0 ? 1 : EASE.inOut(clamp01((t - s.start) / tin));
         return (
           <div key={s.id} style={{ position: 'absolute', inset: 0, opacity: op }}>
-            <SceneView scene={s} t={t} format={format} layout={layout} />
+            <SceneView scene={s} t={t} format={format} layout={news && format === 'desktop' && s.id === 'formulario' ? {...layout, panel: {x:704,y:116,w:512,h:730}} : layout} />
           </div>
         );
       })}

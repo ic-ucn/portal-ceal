@@ -1,5 +1,5 @@
 window.PortalTutorialCapture = Object.freeze({
-  "version": 7,
+  "version": 8,
   "captureMethod": "computer-use",
   "capturedAt": "2026-10-13",
   "fps": 30,
@@ -8,7 +8,7 @@ window.PortalTutorialCapture = Object.freeze({
     "desktop": {
       "width": 1920,
       "height": 1080,
-      "duration": 44.48,
+      "duration": 44.26,
       "steps": [
         {
           "id": "introduccion",
@@ -46,23 +46,23 @@ window.PortalTutorialCapture = Object.freeze({
         {
           "id": "caminos",
           "chapter": "caminos",
-          "image": "assets/tutorial-news/desktop/caminos-6caf5a6945e5.jpg",
-          "sha256": "6caf5a6945e58a238c1902cc3a17a951d795613eb27cadfb2ede71e807e3952c",
-          "sourceImage": "assets/tutorial-news/captures/desktop-paths.png",
-          "sourceSha256": "a7ef507a3dc052f32a70ccc1c4246e4a357db1644c6cf40bd2e1ed886f6d51c8",
+          "image": "assets/tutorial-news/desktop/caminos-c37b01425983.jpg",
+          "sha256": "c37b01425983607f55d879de65f7f6fe25da03cc9b53361fd99a89b65296f48e",
+          "sourceImage": "assets/tutorial-news/captures/desktop-paths-clean.png",
+          "sourceSha256": "19c130333c5b5f7ef052a88dcab58808e2c53facf3e93a27677ed4e65aa53ce8",
           "start": 13.756,
-          "end": 25.022,
+          "end": 22.578,
           "caption": "Qué se abriría"
         },
         {
           "id": "formulario",
           "chapter": "formulario",
-          "image": "assets/tutorial-news/desktop/formulario-9e0cd6ec93ed.jpg",
-          "sha256": "9e0cd6ec93ed27a960a98ab0a3baa03ce588748ad6c296a65ba5a2fdf50959ba",
-          "sourceImage": "assets/tutorial-news/captures/desktop-week-linked.png",
-          "sourceSha256": "4a26ffd5c0561dde71d5a06181aeb5c40ef3643a945998c032341bf95704bf18",
-          "start": 25.022,
-          "end": 29.956,
+          "image": "assets/tutorial-news/desktop/formulario-d63c8ce5ed00.jpg",
+          "sha256": "d63c8ce5ed00f771f90b648a7f960743670822cb898492dbb1fb54550c7987e7",
+          "sourceImage": "assets/tutorial-news/captures/desktop-form-clean-linked.png",
+          "sourceSha256": "0c38aa16e6f7fab96765b30353188cda6dde6181fd2a146160015bef8e89176c",
+          "start": 22.578,
+          "end": 29.733,
           "caption": "Agrega una actividad"
         },
         {
@@ -72,8 +72,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "1df26a95c058c34549c08ed8933611ddf801aec8abb701d75996c3d41ed22c95",
           "sourceImage": "assets/tutorial-news/captures/desktop-week-saved.png",
           "sourceSha256": "a28ec28f1fa52873aa2ca62153e4ad5bfecd9416729254b4529882eb8d8b200e",
-          "start": 29.956,
-          "end": 33.356,
+          "start": 29.733,
+          "end": 33.133,
           "caption": "Tu semana, más clara"
         },
         {
@@ -83,8 +83,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "c71f68034e79821f1bb40b6190eefe9a098d6ca61e858945e2fe6df61880f681",
           "sourceImage": "assets/tutorial-news/captures/desktop-home.png",
           "sourceSha256": "ee2d315510e0a1ec3ca8257f13918019fdfa62ce7bec16f49ea43a1231d00a4b",
-          "start": 33.356,
-          "end": 38.822,
+          "start": 33.133,
+          "end": 38.6,
           "caption": "Tus próximas actividades"
         },
         {
@@ -94,8 +94,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "ddf5d6cfaaccb71cce669b16c48a3d9ace804423c68f3a2fad550d53f8668fc1",
           "sourceImage": "assets/tutorial-news/captures/desktop-backup.png",
           "sourceSha256": "ee4f0ba3da121a4997280ab39af2a7057a25a84a4e3a4b15fa17a931c3193a1b",
-          "start": 38.822,
-          "end": 41.444,
+          "start": 38.6,
+          "end": 41.222,
           "caption": "Guarda una copia de tu avance"
         },
         {
@@ -105,22 +105,22 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "0319ba5f2f000b94d6fdd420c06a01f86e521a74327e5b5e9cfa8fdbe8d7e555",
           "sourceImage": "assets/tutorial-news/captures/desktop-home.png",
           "sourceSha256": "ee2d315510e0a1ec3ca8257f13918019fdfa62ce7bec16f49ea43a1231d00a4b",
-          "start": 41.444,
-          "end": 44.48,
+          "start": 41.222,
+          "end": 44.267,
           "caption": "Tu semestre, a mano"
         }
       ],
       "variants": {
-        "voice": "assets/tutorial-news/desktop/novedades-voice.mp4?v=9b0eb3e47834"
+        "voice": "assets/tutorial-news/desktop/novedades-voice.mp4?v=182daa32bcf0"
       },
-      "video": "assets/tutorial-news/desktop/novedades-voice.mp4?v=9b0eb3e47834",
+      "video": "assets/tutorial-news/desktop/novedades-voice.mp4?v=182daa32bcf0",
       "poster": "assets/tutorial-news/desktop/portada-54218680a117.jpg",
-      "track": "assets/tutorial-news/desktop/novedades.vtt?v=d39180b49c28"
+      "track": "assets/tutorial-news/desktop/novedades.vtt?v=1854d5a7ebdc"
     },
     "mobile": {
       "width": 1080,
       "height": 1920,
-      "duration": 44.48,
+      "duration": 44.26,
       "steps": [
         {
           "id": "introduccion",
@@ -158,23 +158,23 @@ window.PortalTutorialCapture = Object.freeze({
         {
           "id": "caminos",
           "chapter": "caminos",
-          "image": "assets/tutorial-news/mobile/caminos-36a95180bf8f.jpg",
-          "sha256": "36a95180bf8fa89982ea0131e90294b6682662b9928b1531072f0f7065bc6855",
-          "sourceImage": "assets/tutorial-news/captures/mobile-paths.png",
-          "sourceSha256": "aee1f4a680c18f4de5cc1970ab0120982e05b0453e652c6fe1f39fc74a93b29b",
+          "image": "assets/tutorial-news/mobile/caminos-e5f4f79d6c0a.jpg",
+          "sha256": "e5f4f79d6c0a85bcc1c2e4dd8bf4eb2c3cb6df0601276a44b87decdbe521d503",
+          "sourceImage": "assets/tutorial-news/captures/mobile-paths-clean.png",
+          "sourceSha256": "c5265d3a8297d5e950cf22a89f3a235295417cb6028a3a213ef7f1db8cdbf0df",
           "start": 13.756,
-          "end": 25.022,
+          "end": 22.578,
           "caption": "Qué se abriría"
         },
         {
           "id": "formulario",
           "chapter": "formulario",
-          "image": "assets/tutorial-news/mobile/formulario-05297919f700.jpg",
-          "sha256": "05297919f700dbbd4974aac4cad019eafcd2d2b8f3ebf83a16544ec64df15c6a",
-          "sourceImage": "assets/tutorial-news/captures/mobile-week-linked.png",
-          "sourceSha256": "75860298d137b66d607ade7b888183d99bebfee3698aa6c3f9c95a7d62bd89e9",
-          "start": 25.022,
-          "end": 29.956,
+          "image": "assets/tutorial-news/mobile/formulario-f6a712219f05.jpg",
+          "sha256": "f6a712219f056c0997c30bc1c35f921c239a0d68e9dc439b21eee9435f4b5c22",
+          "sourceImage": "assets/tutorial-news/captures/mobile-form-clean-linked.png",
+          "sourceSha256": "e18ed0092c46b1640111d84bd04a2e562397ce50ae1b26a553cd6357fd8e515b",
+          "start": 22.578,
+          "end": 29.733,
           "caption": "Agrega una actividad"
         },
         {
@@ -184,8 +184,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "7ca971c88d163066332cd59dc822de1cc2cd19b31f8bfa53214afba808aca1ff",
           "sourceImage": "assets/tutorial-news/captures/mobile-week-saved.png",
           "sourceSha256": "dd3aa26d22d3841b07e1654d9352f1250e4776c9e6ee46536d6427cebf0224a0",
-          "start": 29.956,
-          "end": 33.356,
+          "start": 29.733,
+          "end": 33.133,
           "caption": "Tu semana, más clara"
         },
         {
@@ -195,8 +195,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "c1380d698536bb7486ff192d316f641630b27ea418bd07a2a3361d9cb7accc1b",
           "sourceImage": "assets/tutorial-news/captures/mobile-home.png",
           "sourceSha256": "ad1b8eff420f945ee6d8e4b179dcc1b7332765b41ccc74d623ce4183a4bff3af",
-          "start": 33.356,
-          "end": 38.822,
+          "start": 33.133,
+          "end": 38.6,
           "caption": "Tus próximas actividades"
         },
         {
@@ -206,8 +206,8 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "9d58c76a0f0fc5b47a88c047f7aa265f9db4ecaf149506dab8c717dd40c341b3",
           "sourceImage": "assets/tutorial-news/captures/mobile-backup.png",
           "sourceSha256": "39ab591c5a0a37aa96bce709d965b414474baccddcd04fcfa187910f630f541f",
-          "start": 38.822,
-          "end": 41.444,
+          "start": 38.6,
+          "end": 41.222,
           "caption": "Guarda una copia de tu avance"
         },
         {
@@ -217,17 +217,17 @@ window.PortalTutorialCapture = Object.freeze({
           "sha256": "0f3fdab945f569f7ad7f7f649896645b2be3fb4d91576f7b42019f3354cb8244",
           "sourceImage": "assets/tutorial-news/captures/mobile-home.png",
           "sourceSha256": "ad1b8eff420f945ee6d8e4b179dcc1b7332765b41ccc74d623ce4183a4bff3af",
-          "start": 41.444,
-          "end": 44.48,
+          "start": 41.222,
+          "end": 44.267,
           "caption": "Tu semestre, a mano"
         }
       ],
       "variants": {
-        "voice": "assets/tutorial-news/mobile/novedades-voice.mp4?v=0b3d2e14888f"
+        "voice": "assets/tutorial-news/mobile/novedades-voice.mp4?v=7d15d3632ddc"
       },
-      "video": "assets/tutorial-news/mobile/novedades-voice.mp4?v=0b3d2e14888f",
+      "video": "assets/tutorial-news/mobile/novedades-voice.mp4?v=7d15d3632ddc",
       "poster": "assets/tutorial-news/mobile/portada-0b8c619ac8ad.jpg",
-      "track": "assets/tutorial-news/mobile/novedades.vtt?v=d39180b49c28"
+      "track": "assets/tutorial-news/mobile/novedades.vtt?v=1854d5a7ebdc"
     }
   }
 });

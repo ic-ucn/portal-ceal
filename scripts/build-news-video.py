@@ -8,13 +8,26 @@ from PIL import Image
 R=Path(__file__).resolve().parents[1];W=R/'.data/news-video';O=R/'assets/tutorial-news'
 H=runpy.run_path(str(R/'scripts/build-real-tutorial.py'));run=H['run'];sha=H['sha']
 SCALE=1/.9
-captions=[(0,2.02,'Hay novedades en el portal del CEIC'),(2.02,3.54,'para organizar tu semestre en Civil.'),(3.9,6.82,'Elige tu plan y marca en amarillo los ramos que cursas.'),(7.2,8.58,'Y en verde los que aprobaste.'),(9.16,11.8,'En Mis ramos tienes su material y actividades.'),(12.38,14.9,'Qué se abre muestra qué podrías cursar'),(14.9,16.26,'si apruebas tus actuales.'),(16.56,19.78,'Mecánica de Suelos 1 abre Mecánica de Suelos 2.'),(20.36,21.86,'Confirma la oferta con la universidad.'),(22.52,24.56,'En Mi semana, agrega un control'),(24.56,26.62,'con nombre, fecha y ramo.'),(26.96,29.38,'Los plazos UCN aparecen juntos, con sus fechas.'),(30.02,32.48,'Inicio reúne tus próximas actividades y ramos.'),(32.92,34.6,'Tus datos quedan en este navegador.'),(34.94,36.8,'Puedes descargar una copia desde Mi semana.'),(37.3,38.24,'Entra al portal del CEIC.')]
+VOICE_CUT=(20.05,22.25)
+FORM_HOLD_AT=26.8
+FORM_HOLD=2.0
+def moment(t):
+ # Original speech timestamps stay inspectable; omit one sentence and let
+ # the completed form breathe before the next paragraph.
+ return (t-(VOICE_CUT[1]-VOICE_CUT[0] if t>=VOICE_CUT[1] else 0)+(FORM_HOLD if t>=FORM_HOLD_AT else 0))*SCALE
+captions=[(0,2.02,'Hay novedades en el portal del CEIC'),(2.02,3.54,'para organizar tu semestre en Civil.'),(3.9,6.82,'Elige tu plan y marca en amarillo los ramos que cursas.'),(7.2,8.58,'Y en verde los que aprobaste.'),(9.16,11.8,'En Mis ramos tienes su material y actividades.'),(12.38,14.9,'Qué se abre muestra qué podrías cursar'),(14.9,16.26,'si apruebas tus actuales.'),(16.56,19.78,'Mecánica de Suelos 1 abre Mecánica de Suelos 2.'),(22.52,24.56,'En Mi semana, agrega un control'),(24.56,26.62,'con nombre, fecha y ramo.'),(26.96,29.38,'Los plazos UCN aparecen juntos, con sus fechas.'),(30.02,32.48,'Inicio reúne tus próximas actividades y ramos.'),(32.92,34.6,'Tus datos quedan en este navegador.'),(34.94,36.8,'Puedes descargar una copia desde Mi semana.'),(37.3,38.24,'Entra al portal del CEIC.')]
 def prepare():
  W.mkdir(parents=True,exist_ok=True);(W/'public').mkdir(exist_ok=True)
  for p in (O/'captures').glob('*.png'):shutil.copyfile(p,W/'public'/p.name)
- run(['-i',O/'narration/narration.wav','-af','atempo=0.90,loudnorm=I=-16:TP=-2:LRA=7,apad=pad_dur=1.6','-ar',48000,'-ac',1,W/'voice.wav'])
+ run(['-i',O/'narration/narration.wav','-filter_complex',
+  f'[0:a]atrim=end={VOICE_CUT[0]},asetpts=PTS-STARTPTS[a];'
+  f'[0:a]atrim=start={VOICE_CUT[1]}:end={FORM_HOLD_AT},asetpts=PTS-STARTPTS[b];'
+  f'anullsrc=r=48000:cl=mono,atrim=duration={FORM_HOLD}[c];'
+  f'[0:a]atrim=start={FORM_HOLD_AT},asetpts=PTS-STARTPTS[d];'
+  '[a][b][c][d]concat=n=4:v=0:a=1,atempo=0.90,loudnorm=I=-16:TP=-2:LRA=7,apad=pad_dur=1.6[out]',
+  '-map','[out]','-ar',48000,'-ac',1,W/'voice.wav'])
  total=round(H['duration'](W/'voice.wav'),3)
- cs=[dict(start=round(a*SCALE,3),end=round(b*SCALE,3),text=t) for a,b,t in captions]
+ cs=[dict(start=round(moment(a),3),end=round(moment(b),3),text=t) for a,b,t in captions]
  for fmt in ['desktop','mobile']:
   scenes=[]
   def scene(id,title,start,end,names,rect=None):
@@ -22,33 +35,36 @@ def prepare():
    states=[]
    for t,name in names:
     p=O/'captures'/f'{fmt}-{name}.png';w,h=Image.open(p).size
-    states.append(dict(t=round((t-start)*SCALE,3),image=p.name,width=w,height=h,transition='cut'))
+    states.append(dict(t=round(moment(t)-moment(start),3),image=p.name,width=w,height=h,transition='cut'))
    if rect is None:rect=(0,0,width,height)
    # Rectangles refer to the real source screenshots, never invented UI.
    camera=[dict(t=0,x=rect[0],y=rect[1],w=rect[2],h=rect[3])]
-   scenes.append(dict(id=id,title=title,start=round(start*SCALE,3),end=round(end*SCALE,3),space=dict(width=width,height=height),states=states,camera=camera,transitionIn=.18))
+   scenes.append(dict(id=id,title=title,start=round(moment(start),3),end=round(moment(end),3),space=dict(width=width,height=height),states=states,camera=camera,transitionIn=.18))
   mobile=fmt=='mobile'
   scene('introduccion','Novedades del portal',0,3.9,[(0,'malla-before')],(0,200,390,620) if mobile else (220,40,1200,740))
   if mobile:
    scene('marcas','Marca tus ramos',3.9,9.16,[(3.9,'malla-current-before'),(5.1,'malla-current'),(7.1,'malla-approved')],(0,285,390,540))
   else:
    scene('marcas','Marca tus ramos',3.9,9.16,[(3.9,'malla-before'),(5.1,'malla-current'),(7.1,'malla-current')],(650,600,440,180))
-   scenes[-1]['camera']=[dict(t=0,x=250,y=70,w=1140,h=780),dict(t=.6,x=250,y=70,w=1140,h=780),dict(t=1.4,x=650,y=600,w=440,h=180)]
+
   scene('ramos','Todo a mano en Mis ramos',9.16,12.38,[(9.16,'courses')],(0,175,390,590) if mobile else (250,145,1010,590))
-  scene('caminos','Qué se abriría',12.38,22.52,[(12.38,'paths')],(15,195,355,560) if mobile else (260,315,730,330))
-  if not mobile:scenes[-1]['camera']=[dict(t=0,x=260,y=260,w=960,h=530),dict(t=1.3,x=260,y=315,w=730,h=330),dict(t=4.6,x=560,y=360,w=415,h=245),dict(t=8.3,x=260,y=315,w=730,h=360)]
-  scene('formulario','Agrega una actividad',22.52,26.96,[(22.52,'week-empty'),(24.35,'week-name'),(25.6,'week-date'),(26.25,'week-linked')],(15,45,350,460) if mobile else (1010,410,350,335))
-  if mobile:scenes[-1]['camera']=[dict(t=0,x=15,y=45,w=350,h=460),dict(t=3.6,x=15,y=45,w=350,h=460),dict(t=4.25,x=15,y=210,w=350,h=460)]
+  scene('caminos','Qué se abriría',12.38,22.52,[(12.38,'paths-clean')],(15,220,355,515) if mobile else (260,315,730,330))
+
+  scene('formulario','Agrega una actividad',22.52,26.96,[(22.52,'form-clean-empty'),(24.0,'form-clean-typing1'),(24.25,'form-clean-typing2'),(24.55,'form-clean-name'),(25.5,'form-clean-date'),(26.15,'form-clean-linked')],(24,29,315,396) if mobile else (1000,320,390,560))
+  if mobile:
+   # A deliberate second shot shows the linked subject and save control.
+   # Every source remains at identical scroll/viewport; there is no pan.
+   scenes[-1]['camera']=[dict(t=0,x=24,y=29,w=315,h=396),dict(t=round(moment(26.15)-moment(22.52),3),x=16,y=255,w=347,h=480,ease='cut')]
   scene('agenda','Tu semana, más clara',26.96,30.02,[(26.96,'week-saved')],(5,290,369,445) if mobile else (250,450,730,360))
   scene('inicio','Tus próximas actividades',30.02,34.94,[(30.02,'home')],(10,270,360,475) if mobile else (260,290,1110,310))
   scene('copia','Guarda una copia de tu avance',34.94,37.3,[(34.94,'backup')],(0,285,379,440) if mobile else (270,570,1020,260))
-  scene('cierre','Tu semestre, a mano',37.3,total/SCALE,[(37.3,'home')])
+  scene('cierre','Tu semestre, a mano',37.3,38.6+1.6/SCALE,[(37.3,'home')])
   (W/f'{fmt}.json').write_text(json.dumps(dict(format=fmt,scenes=scenes,captions=cs),ensure_ascii=False,indent=2),encoding='utf-8')
- (O/'narration/timing.json').write_text(json.dumps(dict(duration=total,speechRate=.9,captions=cs),ensure_ascii=False,indent=2),encoding='utf-8')
+ (O/'narration/timing.json').write_text(json.dumps(dict(duration=total,speechRate=.9,removedSpeech=list(VOICE_CUT),formHoldSeconds=FORM_HOLD,captions=cs),ensure_ascii=False,indent=2),encoding='utf-8')
  print('Prepared:',total,'seconds')
 def finalize():
  timing=json.loads((O/'narration/timing.json').read_text(encoding='utf-8'));total=timing['duration']
- M=dict(version=7,captureMethod='computer-use',capturedAt='2026-10-13',fps=30,openCaptions=True,formats={})
+ M=dict(version=8,captureMethod='computer-use',capturedAt='2026-10-13',fps=30,openCaptions=True,formats={})
  reports={}
  for fmt,size in [('desktop',(1920,1080)),('mobile',(1080,1920))]:
   folder=O/fmt;folder.mkdir(exist_ok=True);output=folder/'novedades-voice.mp4'

@@ -1,5 +1,14 @@
 # Novedades del portal — 2026-10-13
 
+**Versión personal, pendiente de publicación.** La web pública volvió a la
+versión previa a Mis ramos. Este desarrollo permanece en la rama local
+`codex/novedades-personal`; el mensaje de abajo es un borrador para un lanzamiento
+futuro y requiere una nueva instrucción de publicación.
+
+El video revisado elimina la frase sobre confirmar la oferta universitaria.
+El formulario usa capturas nuevas con idéntica posición en cada formato,
+escritura progresiva real, una pausa al terminar y dos encuadres fijos en móvil.
+
 Inicio presenta una franja cerrable con acceso a Mis ramos y al video. El cierre
 se recuerda para esta actualización. Mi semana agrupa una sola vez los períodos
 UCN que coinciden con la semana, mostrando el rango original y su fuente. Los
