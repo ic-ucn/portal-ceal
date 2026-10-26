@@ -17,6 +17,7 @@
     "quality": "node scripts/quality-suite.mjs",
     "qa:transfer": "node scripts/qa-transfer.mjs",
     "qa:security": "node scripts/security-capacity.mjs",
+    "qa:static-security": "node scripts/qa-static-security.mjs",
     "qa:caja": "node scripts/qa-caja.mjs",
     "calendar:watch": "node scripts/watch-calendar-updates.mjs",
     "qa:portal": "node scripts/qa-portal.mjs",

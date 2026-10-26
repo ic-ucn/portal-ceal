@@ -7285,6 +7285,8 @@ body.theme-dark .malla-personal-panel,body.theme-dark .malla-course-dialog{backg
 .malla-mark-batch-options{margin-top:8px}
 .malla-mark-batch-options>summary{cursor:pointer;font-size:.78rem;min-height:32px;align-content:center}
 .course-state-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 12px;border:1px solid var(--border-color,#a5b7bc);border-radius:7px;background:var(--surface,#fff);color:var(--text-primary,#203239);font:inherit;font-size:.82rem;font-weight:650;cursor:pointer}
+.course-state-button{box-sizing:border-box;width:112px;height:44px;flex:0 0 112px;white-space:nowrap}
+@media(max-width:380px){.malla-mark-status>span{flex-basis:100%}}
 .course-state-button::before{content:'';width:10px;height:10px;border-radius:50%;background:#e1b42c;border:1px solid #806010;flex:none}
 .course-state-button.is-aprobado::before{background:#379a58;border-color:#1c6538}
 .course-state-button[aria-pressed="true"].is-cursando{background:#fff3bf;color:#483700;border-color:#946200;box-shadow:inset 0 0 0 1px #946200}

@@ -4089,19 +4089,54 @@ async function handleApi(req, res, url) {
   return sendError(res, 405, 'method not allowed');
 }
 
+// Only browser resources belong to the public file surface. Runtime state,
+// environment files and server/tooling sources can also exist under root.
+const staticRootFiles = new Set(['index.html', '404.html', 'manifest.webmanifest', 'robots.txt', 'sitemap.xml', 'favicon.ico']);
+const staticDataFiles = new Set(['curricula.js', 'drive-materials.js', 'caja-catalog.mjs', 'calendar-antofagasta-2026.tsv']);
+const staticAssetExtensions = new Set(['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.mp4', '.webm', '.wav', '.mp3', '.ogg', '.vtt', '.json', '.js', '.css', '.pdf']);
+function publicStaticPath(relative) {
+  if (!relative || /[\\\u0000-\u001f\u007f:%]/.test(relative)) return false;
+  const parts = relative.split('/');
+  if (parts.some(part => !part || part.startsWith('.'))) return false;
+  if (parts.length === 1) return staticRootFiles.has(relative);
+  const extension = path.posix.extname(relative).toLowerCase();
+  if (parts[0] === 'assets') return staticAssetExtensions.has(extension);
+  if (parts[0] === 'src') return parts.length === 2 && ['.js', '.css'].includes(extension);
+  if (parts[0] === 'data') return parts.length === 2 && staticDataFiles.has(parts[1]);
+  if (parts[0] === 'original-mallas') return parts.length === 2 && ['malla-o.html', 'malla-p.html'].includes(parts[1]);
+  if (parts[0] === 'docs') return extension === '.pdf';
+  return ['transferir/index.html', 'pago/index.html', 'pago/orden/index.html'].includes(relative);
+}
+function rootRelativePath(filename) {
+  const relative = path.relative(root, filename);
+  return relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep)
+    ? relative.split(path.sep).join('/') : '';
+}
 async function serveStatic(req, res, url) {
-  let pathname = decodeURIComponent(url.pathname);
-  if (pathname === '/') pathname = '/index.html';
-  const requested = path.normalize(path.join(root, pathname));
-  if (!requested.startsWith(root)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    res.writeHead(405, { allow: 'GET, HEAD' }); res.end(); return;
+  }
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); }
+  catch { res.writeHead(400); res.end('Invalid path'); return; }
+  if (['/transferir', '/pago', '/pago/orden'].includes(pathname)) pathname += '/';
+  if (pathname === '/' || pathname.endsWith('/')) pathname += 'index.html';
+  const relative = pathname.replace(/^\//, '');
+  if (!publicStaticPath(relative)) {
+    res.writeHead(403, { 'cache-control': 'no-store' }); res.end('Forbidden'); return;
+  }
+  const requested = path.resolve(root, relative);
+  if (!publicStaticPath(rootRelativePath(requested))) {
+    res.writeHead(403, { 'cache-control': 'no-store' }); res.end('Forbidden'); return;
   }
   try {
-    const stat = await fs.stat(requested);
-    const file = stat.isDirectory() ? path.join(requested, 'index.html') : requested;
-    const fileStat = stat.isDirectory() ? await fs.stat(file) : stat;
+    // A public-looking symlink/junction must not escape to private files.
+    const file = await fs.realpath(requested);
+    if (!publicStaticPath(rootRelativePath(file))) {
+      res.writeHead(403, { 'cache-control': 'no-store' }); res.end('Forbidden'); return;
+    }
+    const fileStat = await fs.stat(file);
+    if (!fileStat.isFile()) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(file).toLowerCase();
     const headers = {
       'content-type': mime[ext] || 'application/octet-stream',
@@ -4136,15 +4171,8 @@ async function serveStatic(req, res, url) {
     if (req.method === 'HEAD') res.end();
     else createReadStream(file).pipe(res);
   } catch {
-    res.writeHead(200, {
-      'content-type': mime['.html'],
-      'cache-control': 'no-store',
-      'x-content-type-options': 'nosniff',
-      'referrer-policy': 'strict-origin-when-cross-origin',
-      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-      'content-security-policy': "default-src 'self'; media-src 'self' blob:; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://portal-ceic-api.onrender.com https://ic-ucn.github.io https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://drive.google.com; object-src 'none'; base-uri 'self'; form-action 'self' https://webpay3gint.transbank.cl https://webpay3g.transbank.cl; frame-ancestors 'none'"
-    });
-    res.end(await fs.readFile(path.join(root, 'index.html')));
+    res.writeHead(404, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    res.end('Not found');
   }
 }
 

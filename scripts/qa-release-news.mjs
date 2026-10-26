@@ -21,7 +21,7 @@ try {
     await page.reload();
     assert.equal(await page.locator('.home-news').count(), 0);
     assert.equal(await page.evaluate(() => JSON.stringify([localStorage.getItem('portal.myCourses.v1'), localStorage.getItem('portal.studyTools.v1')])), before);
-    await page.evaluate(() => localStorage.setItem('portal.news.dismissed', 'older-release'));
+    await page.evaluate(() => localStorage.setItem('portal.news.dismissed', '20261013'));
     await page.reload(); await page.locator('.home-news').waitFor();
     await page.locator('.home-news a').click();
     await page.locator('.malla-personal-panel').waitFor();

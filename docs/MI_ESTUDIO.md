@@ -1,13 +1,13 @@
 # Mi estudio — arquitectura y operación
 
-Lanzamiento público autorizado el 2026-10-05. Sin IA, importación general de calendarios ni sincronización bidireccional.
+Estado al **2026-10-26: candidato personal, no publicado**. La decisión del 2026-10-13 mantiene Mis ramos y las incorporaciones posteriores fuera de la web pública hasta un nuevo visto bueno. Esta preparación no autoriza publicar ni desplegar. El alcance y la verificación vigentes están en [Lanzamiento 2026-10-26](LANZAMIENTO_20261026.md).
 
-La versión pública ofrece Inicio personal, Mi semana, calculadora y ramos sin cuenta, con guardado en el navegador, copias JSON y exportación ICS. `PORTAL_SIGN_IN_ENABLED` permanece desactivado: la sincronización por cuenta y la conexión directa a Google Calendar descritas abajo son capacidades preparadas, pendientes de configurar y verificar en el entorno de producción. Las pruebas con un proveedor controlado no acreditan esa conexión real.
+El candidato ofrece Inicio personal, Mi semana y Mis ramos sin cuenta, con guardado en el navegador, copias JSON y exportación ICS. La calculadora de notas está retirada de la interfaz; los datos antiguos de notas se conservan como respaldo y no se convierten en actividades. `PORTAL_SIGN_IN_ENABLED` permanece desactivado: la sincronización por cuenta y la conexión directa a Google Calendar descritas abajo son capacidades preparadas, pendientes de configurar y verificar en el entorno de producción. Las pruebas con un proveedor controlado no acreditan esa conexión real. Sin IA ni importación general de calendarios.
 
 ## Experiencia
 
-- Inicio reúne actividades personales próximas, anteriores sin completar, ramos actuales del plan elegido, fechas UCN y accesos a notas/material. Usa los mismos registros de Mi semana y Mis ramos; no exige configurar otro perfil. Cada actividad abre su semana. Los cambios en otra pestaña actualizan Inicio.
-- Mis ramos ocupa el lienzo completo y abre Actuales. Cada tarjeta reúne Material, Notas, Estado y Agregar actividad; Guardados queda como acceso secundario independiente de las marcas.
+- Inicio reúne actividades personales próximas, anteriores sin completar, ramos actuales del plan elegido, fechas UCN y acceso al material. Usa los mismos registros de Mi semana y Mis ramos; no exige configurar otro perfil. Cada actividad abre su semana. Los cambios en otra pestaña actualizan Inicio.
+- Mis ramos ocupa el lienzo completo y abre Actuales. Cada tarjeta reúne Material, Estado y Agregar actividad; Guardados queda como acceso secundario independiente de las marcas.
 - «Qué se abre» distingue prerrequisitos ya cumplidos de los que se cumplirían al aprobar todos los actuales requeridos. Combina aprobados y actuales, sin asumir aprobación, cadenas futuras ni oferta real. Los requisitos adicionales o ambiguos se mantienen por revisar.
 - Qué se abre muestra Ya cumples, Al aprobar y Faltan. Tocar un actual filtra sus destinos; cada destino muestra los requisitos conjuntos mediante segmentos y etiquetas. Ver en malla destaca los candidatos sin cambiar el avance. Los filtros Todos, Ya cumples y Si apruebas actuales permiten volver al contexto completo.
 - Las tarjetas mantienen tintes por área y borde neutro uniforme, sin franjas laterales ni fondos de estado. Verde/amarillo solo identifican las etiquetas de aprobado/actual. Fe-cultura y Fe-ciencia (UNFV-00002/00003) tienen una subdivisión visual teológica; el catálogo permanece intacto.
@@ -15,20 +15,26 @@ La versión pública ofrece Inicio personal, Mi semana, calculadora y ramos sin 
 - En la malla, «Marcar ramos» permite elegir Actuales (amarillo) o Aprobados (verde). Tocar nuevamente con la misma marca la retira. Pendiente es el estado por defecto y no se elige ni resalta. La ficha usa los mismos dos botones. Los registros anteriores se conservan; «actual» mantiene internamente el valor `cursando`.
 - La aprobación por semestre está plegada en «Aprobar semestres anteriores» y solo modifica ramos sin marcar. Conserva los actuales y los aprobados; permite deshacer el lote sin revertir cambios individuales posteriores.
 - Los ramos cursando aparecen primero. Próximas evaluaciones y entregas complementan la semana.
-- Sin cuenta: actividades, notas y ramos continúan en el navegador. Descarga/recuperación JSON y exportación ICS disponibles.
+- Sin cuenta: actividades y ramos continúan en el navegador. Descarga/recuperación JSON y exportación ICS disponibles. El modo estático usa este almacenamiento sin necesitar el servidor; no promete recuperación en otro dispositivo sin una copia.
+- Recuperar una copia parte del botón visible, permite cancelar el selector y mantiene el archivo seleccionado aunque se actualice el estado de guardado.
+- La descarga de eventos conserva la duración explícita de las actividades con hora. Si no se indicó duración, no inventa una. Las horas del archivo se interpretan en la zona del calendario que lo importa.
+
+## Capacidades de cuenta preparadas, no activadas
+
+Las siguientes funciones describen la implementación y sus pruebas aisladas. No forman parte de la oferta pública ni se anuncian como activas en el candidato sin cuenta.
+
 - Guardar con mi cuenta UCN usa la autenticación Google del portal, validada por el servidor. No habilita acceso CEAL ni obliga a registrarse para usar el portal.
 - La primera conexión muestra los datos anónimos del navegador antes de incorporarlos. No se eliminan los originales. Los registros ya existentes en la cuenta tienen prioridad en la incorporación/recuperación; las copias anteriores se conservan.
 - Datos aislados por cuenta. Cambios se guardan primero en el dispositivo y después en la cuenta. Un conflicto entre dispositivos exige elegir versión; ambas se respaldan antes de resolverlo.
-- Google Calendar es una conexión separada y opcional, con la misma cuenta UCN. Solo se envían actividades seleccionadas. Las notas no se envían.
+- Google Calendar es una conexión separada y opcional, con la misma cuenta UCN. Solo se envían actividades seleccionadas; los datos antiguos de notas no se envían.
 - Los cambios en Google se protegen con ETag. Ante conflicto se conserva el evento por separado. El portal no importa esos cambios ni vuelve a crear silenciosamente eventos borrados.
 - Desconectar elimina las credenciales guardadas por el portal, detiene futuros envíos y mantiene ambos conjuntos de actividades. No revoca globalmente otros usos del mismo cliente OAuth.
 - Cuando vence o se revoca el permiso, «Volver a conectar» renueva la autorización y conserva el calendario dedicado y los identificadores de eventos.
-- Recuperar una copia parte del botón visible, permite cancelar el selector y mantiene el archivo seleccionado aunque se actualice el estado de guardado. Una recuperación pendiente no se aplica a otra cuenta si cambia la sesión.
-- La descarga de eventos conserva la duración explícita de las actividades con hora. Si no se indicó duración, no inventa una. Las horas del archivo se interpretan en la zona del calendario que lo importa.
+- Una recuperación pendiente no se aplica a otra cuenta si cambia la sesión.
 
 ## Componentes
 
-`src/study-tools.js` y `src/my-courses.js` ofrecen validación, cambio de ámbito por cuenta y recuperación. Las claves anónimas v1 permanecen intactas. `src/study-account.js` coordina consentimiento, respaldo, revisiones, guardado y Calendar. `src/study-ui.js` presenta agenda y calculadora.
+`src/study-tools.js` y `src/my-courses.js` ofrecen validación, almacenamiento en el navegador, cambio de ámbito por cuenta y recuperación. Las claves anónimas v1 permanecen intactas. `src/study-account.js` coordina consentimiento, respaldo, revisiones, guardado y Calendar cuando se habilita el acceso con cuenta. `src/study-ui.js` presenta la agenda; la calculadora ya no se muestra.
 
 `server/study-service.mjs` maneja `/api/study`, autenticado con sesiones del portal. Documentos por cuenta, revisiones optimistas y copia anterior se almacenan en `db.data.studyAccounts`. Se excluye expresamente ese objeto del bootstrap público. El email normalizado de la sesión se transforma en una clave SHA-256; nunca se acepta un propietario enviado en el cuerpo.
 
@@ -89,7 +95,9 @@ node scripts/qa-portal.mjs
 
 Nunca habilitar `QA_TEST_MODE` en el servicio publicado. `qa-study-account` usa un proveedor Google controlado en memoria para verificar OAuth, reintentos y conflictos; después verifica guardado real por API y navegador con sesiones exclusivamente de pruebas. No reemplaza la validación OAuth real pendiente. No se requiere ni está previsto un piloto con alumnos.
 
-## Preparación del lanzamiento
+## Preparación de una futura activación con cuenta
+
+Este apartado se aplica a una futura activación de cuenta/Google Calendar. No es un requisito para usar el candidato estático con guardado en el navegador ni prueba que estas funciones estén publicadas.
 
 Ejecutar `npm run study:preflight` para comprobar el entorno interno o `npm run study:preflight -- --release` en el entorno previsto para el lanzamiento. El comando lee la configuración con la misma precedencia que el servidor, no modifica archivos ni publica y solo muestra resultados y nombres de ajustes: nunca sus valores. Devuelve código 1 si falta configuración. Su propia prueba es `npm run qa:study-preflight`.
 
@@ -97,11 +105,23 @@ El modo de lanzamiento exige URLs HTTPS sin credenciales ni fragmentos, sesiones
 
 Antes de habilitar la función al público, completar la prueba Google real con una cuenta UCN autorizada: entrar, conectar, seleccionar una actividad, enviarla, cambiar fecha/duración, editarla también en Google y comprobar la protección del cambio externo, desconectar y reconectar sin duplicados. Comprobar también que otra cuenta no recibe sus actividades y que el guardado resiste un reinicio del servicio. Esta verificación es técnica, sin piloto con alumnos.
 
-El lanzamiento necesita el servidor actualizado además de los archivos del sitio. Desplegar únicamente la parte estática no habilita `/api/study`. Registrar en Google las URLs finales del servicio y del portal, conservar la clave de cifrado efectiva y respaldar el estado antes de una migración. La autorización de publicación sigue pendiente: esta preparación no ejecuta despliegue, push ni merge.
+La activación de cuenta necesita el servidor actualizado además de los archivos del sitio. Desplegar únicamente la parte estática no habilita `/api/study`. Registrar en Google las URLs finales del servicio y del portal, conservar la clave de cifrado efectiva y respaldar el estado antes de una migración. La autorización de publicación sigue pendiente: esta preparación no ejecuta despliegue, push ni merge.
 
 Fuentes: [permisos Calendar](https://developers.google.com/workspace/calendar/api/auth), [modificaciones condicionales](https://developers.google.com/calendar/api/guides/version-resources), [importación ICS](https://support.google.com/calendar/answer/37118?hl=en).
 
-## Guía actualizada (2026-10-02)
+## Video del candidato del 2026-10-26
+
+`assets/tutorial-story/manifest.js`, versión 9, identifica el recorrido de 62 segundos en escritorio y móvil. Ambos videos carecen de audio e incorporan el texto explicativo en pantalla. El reproductor usa el archivo indicado por el manifiesto, permanece silenciado y no inicia automáticamente.
+
+La bienvenida ofrece Saltar video y No volver a mostrar. Saltar conserva la posibilidad de verlo en una próxima entrada; la segunda opción guarda la preferencia en este navegador. El final natural de la bienvenida abre Inicio. Reabrir el video desde otra sección conserva esa sección al terminar o cerrar. Los enlaces directos abren su destino sin interponer la bienvenida.
+
+La verificación del reproductor pasó con Chromium en escritorio, teléfono y orientación horizontal, más WebKit y Firefox móvil. También comprobó movimiento reducido, pausa al ocultar la página, cambio de tamaño sin perder posición y salida ante un medio fallido. Esto verifica el candidato y no publica los archivos.
+
+## Historial de guías anteriores
+
+Las descripciones siguientes registran versiones anteriores, incluidas la calculadora y la narración de voz, y no describen el candidato del 2026-10-26.
+
+### Guía del 2026-10-02
 
 Capturas reales de escritorio y móvil en un origen separado, sin utilizar datos del usuario. Ocho capítulos cubren malla, marcas, actuales, caminos, Inicio/Mi semana, notas, material y calendario. Guion en `scripts/portal-tutorial-real.json`; compositor `scripts/build-real-tutorial.py`; validación del reproductor `npm run qa:welcome`.
 
@@ -109,15 +129,15 @@ La búsqueda en los chats Portal CEAL de mayo/junio y agosto encontró el client
 
 `qa:study-persistence` inicia dos procesos consecutivos con una base nueva en `.data/qa-study-restart-*`: comprueba documento/revisión tras reinicio, rechazo de escrituras atrasadas y aislamiento entre cuentas. No reinicia el preview ni certifica la durabilidad del volumen de producción.
 
-## Recorrido breve (2026-10-05)
+### Recorrido breve del 2026-10-05
 
-La guía vigente dura 32,53 segundos y cubre solo las herramientas personales nuevas: marcas, Mis ramos, proyección de prerrequisitos, Mi semana, calculadora e Inicio. Reemplaza el recorrido de 65 segundos en el reproductor. Los medios anteriores se conservan como archivo.
+Aquella guía duraba 32,53 segundos y cubría las herramientas personales de esa versión: marcas, Mis ramos, proyección de prerrequisitos, Mi semana, calculadora e Inicio. Reemplazó el recorrido de 65 segundos en el reproductor. Los medios anteriores se conservan como archivo.
 
 `python scripts/build-novedades-video.py` genera horizontal 1920×1080 y vertical 1080×1920 a 30 fps desde PNG obtenidos con Computer Use. El guion y los recortes viven en ese archivo; los PNG originales y sus hashes se conservan. Voz femenina Dalia, subtítulos breves integrados y pista VTT opcional; música apagada inicialmente y ninguna reproducción automática. Las cuatro variantes comparten tiempos; los pasos estáticos siguen disponibles con movimiento reducido.
 
 El montaje no promete conexión Google Calendar ni IA en el portal. La proyección sigue siendo condicional y se recuerda confirmar oferta y requisitos con la universidad. `npm run qa:welcome` verifica reproducción, capítulos, formatos, subtítulos, conservación de datos y accesibilidad de controles.
 
 
-## Tutorial de novedades con movimiento — 2026-10-05
+### Tutorial de novedades con movimiento — 2026-10-05
 
-La guía usa ahora `assets/tutorial-motion/manifest.js`: 41,567 segundos, ocho tomas y seis capítulos. La pantalla real domina el video, con acercamientos a controles y resultados, marcas de clic y encuadres propios para teléfono. Voz femenina Dalia, subtítulos integrados y música opcional apagada por defecto. Se conservan navegación por pasos y alternativa sin movimiento. Fuente reproducible en `scripts/tutorial-motion/`; las capturas previas permanecen intactas. Google Calendar no se anuncia como conectado.
+Aquella guía usaba `assets/tutorial-motion/manifest.js`: 41,567 segundos, ocho tomas y seis capítulos. La pantalla real dominaba el video, con acercamientos a controles y resultados, marcas de clic y encuadres propios para teléfono. Incluía voz femenina Dalia, subtítulos integrados y música opcional apagada por defecto. Conservaba navegación por pasos y alternativa sin movimiento. Fuente reproducible en `scripts/tutorial-motion/`; las capturas previas permanecen intactas. Google Calendar no se anunciaba como conectado.

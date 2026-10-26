@@ -1,5 +1,50 @@
 # Tutorial de estudio: compositor reproducible
 
+## Guía silenciosa vigente — 2026-10-26
+
+Montaje de 62 segundos, nueve pasos y dos formatos, sin ninguna pista de audio.
+Usa capturas reales de `assets/tutorial-news/captures/` y recapturas del 2026-10-26
+en `assets/tutorial-silent/sources/` para mostrar los botones de igual tamaño;
+no altera esas fuentes ni sintetiza interfaces, voces o cursores. Las instrucciones
+se muestran debajo del panel con márgenes para los controles del reproductor.
+Los campos progresan mediante estados capturados, la cámara se detiene para leer
+y vuelve a Terminar marcado cuando lo indica la instrucción.
+
+Desde la raíz:
+
+```powershell
+npm ci --prefix scripts/tutorial-motion --ignore-scripts --no-audit --no-fund
+python scripts/tutorial-motion/prepare-silent.py
+node scripts/tutorial-motion/node_modules/typescript/bin/tsc -p scripts/tutorial-motion
+```
+
+Desde `scripts/tutorial-motion`: `node render-silent.mjs stills`, revisar los
+fotogramas en `output/release-20261026/tutorial-silent/work/`, y ejecutar
+`node render-silent.mjs` para exportar ambos formatos. Desde la raíz:
+`python scripts/tutorial-motion/finalize-silent.py`.
+
+La finalización elimina cualquier pista de audio con `-an`, exporta H.264/yuv420p
+con GOP de un segundo y faststart, decodifica ambos videos completos y escribe
+`assets/tutorial-story/manifest.js` con `audio: false`, hashes y procedencia.
+Los archivos finales quedan en `assets/tutorial-silent/`.
+
+Para actualizar solo las primeras escenas tras el cambio de botones, con la app
+servida en 18116, ejecutar `node scripts/tutorial-motion/capture-silent.mjs` desde
+la raíz. Captura estados reales en contextos nuevos y verifica botones 112×44.
+Después: `python scripts/tutorial-motion/prepare-silent.py`, desde el compositor
+`node render-silent.mjs prefix`, y desde raíz
+`python scripts/tutorial-motion/finalize-silent.py --prefix`. Renderiza 21 segundos
+y concatena la cola original desde el segundo 21 (41 segundos). Este margen
+incluye el fundido entre las escenas 3 y 4; no reaparecen botones antiguos en
+la transición. La concatenación recalcula timestamps y codifica la secuencia
+completa con el mismo formato, conservando 62 segundos y cero audio.
+
+No requiere llamadas
+pagadas ni nueva síntesis. La fecha de captura original se conserva separada
+de la composición actual. Evidencia en `output/release-20261026/tutorial-silent/`.
+
+Las secciones siguientes conservan la reconstrucción histórica.
+
 ## Video vigente de novedades — 2026-10-13
 
 Montaje de la versión personal en `codex/novedades-personal`, sin publicar.

@@ -69,6 +69,7 @@ export type TutorialProps = {
   scenes: Scene[];
   captions: Caption[];
   news?: boolean;
+  silent?: boolean;
 };
 
 /* ============================ LAYOUT ============================ */
@@ -552,12 +553,12 @@ const CaptionBar: React.FC<{ captions: Caption[]; t: number; layout: Layout }> =
   );
 };
 
-export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions, news = false }) => {
+export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions, news = false, silent = false }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
   const original = LAYOUTS[format];
-  const layout = news ? { ...original, panel: { ...original.panel, y: format === 'desktop' ? 116 : 240, h: format === 'desktop' ? 730 : 1280 }, captionTop: format === 'desktop' ? 860 : 1550, captionSize: format === 'desktop' ? 38 : 52 } : original;
+  const layout = silent ? { ...original, panel: {...original.panel, y: format === 'desktop' ? 56 : 70, h: format === 'desktop' ? 735 : 1360}, captionTop: format === 'desktop' ? 825 : 1470, captionHeight: format === 'desktop' ? 145 : 230, captionSize: format === 'desktop' ? 43 : 58 } : news ? { ...original, panel: { ...original.panel, y: format === 'desktop' ? 116 : 240, h: format === 'desktop' ? 730 : 1280 }, captionTop: format === 'desktop' ? 860 : 1550, captionSize: format === 'desktop' ? 38 : 52 } : original;
   const list = [...scenes].sort((a, b) => a.start - b.start);
 
   return (
@@ -570,7 +571,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ format, scenes, captions, ne
         const op = i === 0 || tin <= 0 ? 1 : EASE.inOut(clamp01((t - s.start) / tin));
         return (
           <div key={s.id} style={{ position: 'absolute', inset: 0, opacity: op }}>
-            <SceneView scene={s} t={t} format={format} layout={news && format === 'desktop' && s.id === 'formulario' ? {...layout, panel: {x:704,y:116,w:512,h:730}} : layout} />
+            <SceneView scene={s} t={t} format={format} layout={news && format === 'desktop' && s.id === 'formulario' ? {...layout, panel: silent ? {x:510,y:56,w:900,h:735} : {x:704,y:116,w:512,h:730}} : layout} />
           </div>
         );
       })}

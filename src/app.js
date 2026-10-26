@@ -6,6 +6,7 @@
   const MyCourses = window.PortalMyCourses;
   const StudyUI = window.PortalStudyUI;
   const DATA_CONTENT_VERSION = '20260821c';
+  const NEWS_RELEASE_VERSION = '20261026';
   const LOCAL_DATA_KEY = 'portal.data.v50';
   const CAMPUS_IMAGE_SRC = 'assets/ucn-campus-transparent.png?v=20260626u';
   const STALE_DATA_KEYS = ['portal.data.v6', 'portal.data.v7', 'portal.data.v8', 'portal.data.v9', 'portal.data.v10', 'portal.data.v11', 'portal.data.v12', 'portal.data.v13', 'portal.data.v14', 'portal.data.v15', 'portal.data.v16', 'portal.data.v17', 'portal.data.v18', 'portal.data.v19', 'portal.data.v20', 'portal.data.v21', 'portal.data.v22', 'portal.data.v23', 'portal.data.v24', 'portal.data.v25', 'portal.data.v26', 'portal.data.v27', 'portal.data.v28', 'portal.data.v29', 'portal.data.v30', 'portal.data.v31', 'portal.data.v32', 'portal.data.v33', 'portal.data.v34', 'portal.data.v35', 'portal.data.v36', 'portal.data.v37', 'portal.data.v38', 'portal.data.v39', 'portal.data.v40', 'portal.data.v41', 'portal.data.v42', 'portal.data.v43', 'portal.data.v44', 'portal.data.v45', 'portal.data.v46', 'portal.data.v47', 'portal.data.v48', 'portal.data.v49'];
@@ -1640,7 +1641,7 @@
     const overdue = pending.filter(event => event.date < todayKey);
     const eventsMarkup = upcoming.map(event => `<a class="home-study-event" data-home-activity="${esc(event.id)}" href="#/mi-semana?date=${esc(event.date)}"><time datetime="${esc(event.date)}"><strong>${parseCalendarDate(event.date).getDate()}</strong><span>${esc(parseCalendarDate(event.date).toLocaleDateString('es-CL', { month: 'short' }))}</span></time><span><small>${esc(event.type)}${event.time ? ` · ${esc(event.time)}` : ''}</small><strong>${esc(event.title)}</strong>${event.course ? `<small>${esc(titleCase(findCourse(event.plan, event.course)?.name || event.course))}</small>` : ''}</span>${icon('arrow')}</a>`).join('');
     let showNews = true;
-    try { showNews = localStorage.getItem('portal.news.dismissed') !== '20261013'; } catch {}
+    try { showNews = localStorage.getItem('portal.news.dismissed') !== NEWS_RELEASE_VERSION; } catch {}
     const news = showNews ? `<aside class="home-news" aria-label="Novedades del portal"><div><p><strong>Novedades</strong> · Tus ramos, material y actividades, a mano.</p><div class="home-news-links"><a href="#/mallas?view=mis-ramos&section=semester">Ir a Mis ramos</a><button type="button" data-open-welcome>Ver video</button></div></div><button type="button" class="home-news-close" data-dismiss-news aria-label="Cerrar aviso de novedades">${icon('x')}</button></aside>` : '';
     return `<div class="home-heading">${pageHead('Inicio')}<time datetime="${todayKey}">${esc(dateLabel)}</time></div>${news}
       <div class="home-study-overview">
@@ -4182,7 +4183,7 @@
     if (audience) { state.calendarAudience = audience.dataset.calendarAudience; render(); return; }
     const dismissNews = e.target.closest('[data-dismiss-news]');
     if (dismissNews) {
-      try { localStorage.setItem('portal.news.dismissed', '20261013'); } catch {}
+      try { localStorage.setItem('portal.news.dismissed', NEWS_RELEASE_VERSION); } catch {}
       dismissNews.closest('.home-news')?.remove();
       document.querySelector('#main-content')?.focus({ preventScroll: true });
       return;
@@ -5351,7 +5352,7 @@
   window.addEventListener('online', () => { state.offline = false; render({ scope: 'overlay', resetScroll: false }); });
   window.addEventListener('offline', () => { state.offline = true; showToast('Sin conexión. Mostrando datos guardados.', 'orange'); });
   window.addEventListener('storage', e => {
-    if (e.key === 'portal.news.dismissed' && e.newValue === '20261013') app.querySelector('.home-news')?.remove();
+    if (e.key === 'portal.news.dismissed' && e.newValue === NEWS_RELEASE_VERSION) app.querySelector('.home-news')?.remove();
     if (e.key !== MyCourses.key) return;
     state.myCoursesPlan = MyCourses.externalChange().activePlan;
     mallaApprovalUndo = null;
