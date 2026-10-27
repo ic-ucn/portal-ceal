@@ -2612,12 +2612,39 @@
       @media (min-width: 641px) {
         .mc-portal-scroll-hint { display:none !important; }
       }
+      @media (max-width: 920px) {
+        html, body { height:auto !important; min-height:0 !important; }
+        .mc-local-shell, .mc-grid { min-height:0 !important; }
+        .mc-header { position:static; }
+        .mc-portal-action, .mc-portal-scroll-hint { display:none !important; }
+      }
     `;
   }
   function mallaEmbedGuidanceScript() {
     return `<script>
       (function() {
         var parentOrigin = ${safeJsonForScript(location.origin)};
+        // A single page scroll works for touch, wheel and browser phone mode.
+        // Measure body rather than scrollHeight: the latter includes the iframe
+        // viewport and would prevent a shorter semester from shrinking again.
+        var pageScrollView = window.matchMedia('(max-width:920px)');
+        var lastContentHeight = -1;
+        function reportContentHeight() {
+          var height = pageScrollView.matches ? Math.max(320, Math.ceil(document.body.getBoundingClientRect().height)) : 0;
+          if (height === lastContentHeight) return;
+          lastContentHeight = height;
+          window.parent.postMessage({ __mcPortal: true, type:'content-height', height:height }, parentOrigin);
+        }
+        new ResizeObserver(reportContentHeight).observe(document.body);
+        window.addEventListener('resize', reportContentHeight);
+        document.addEventListener('change', function(event) {
+          if (!pageScrollView.matches || !event.target.matches('.mc-semester-select')) return;
+          requestAnimationFrame(function() {
+            reportContentHeight();
+            window.parent.postMessage({ __mcPortal: true, type:'scroll-start' }, parentOrigin);
+          });
+        });
+        reportContentHeight();
         var progressMode = false;
         var approvedCodes = new Set();
         var currentCodes = new Set();
@@ -5327,9 +5354,18 @@
   // forma esperada; el código se resuelve contra el catálogo oficial.
   window.addEventListener('message', (event) => {
     const data = event.data;
-    if (!data || data.__mcPortal !== true || !['open-material', 'open-course', 'select-course', 'toggle-status'].includes(data.type)) return;
+    if (!data || data.__mcPortal !== true || !['open-material', 'open-course', 'select-course', 'toggle-status', 'content-height', 'scroll-start'].includes(data.type)) return;
     const frame = app.querySelector('[data-malla-frame]');
     if (!frame || event.source !== frame.contentWindow || event.origin !== 'null' || frame.dataset.plan !== state.mallaEmbedPlan) return;
+    if (data.type === 'content-height') {
+      if (!Number.isFinite(data.height) || data.height < 0 || data.height > 20000) return;
+      frame.closest('[data-malla-frame-wrap]')?.style.setProperty('--malla-content-height', `${Math.ceil(data.height)}px`);
+      return;
+    }
+    if (data.type === 'scroll-start') {
+      if (window.matchMedia('(max-width:920px)').matches && !state.mallaPersonalOpen) frame.scrollIntoView({ block:'start', behavior:'instant' });
+      return;
+    }
     const code = String(data.code || '').trim().slice(0, 40);
     if (!code) return;
     const planKey = state.mallaEmbedPlan === 'o' ? 'planO' : 'planP';

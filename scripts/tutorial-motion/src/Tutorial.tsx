@@ -57,6 +57,7 @@ export type Scene = {
   states: SourceState[];
   camera: CameraKey[];
   cursor?: CursorKey[];
+  cursorWindows?: { start: number; end: number }[];
   focus?: Focus[];
   transitionIn?: number; // fundido de entrada en s (0.35 por defecto)
   showInProgress?: boolean; // false para la apertura
@@ -417,7 +418,7 @@ const SceneView: React.FC<{
         format={format}
         x={p.x}
         y={p.y}
-        opacity={c.opacity}
+        opacity={c.opacity * (scene.cursorWindows ? Math.max(0, ...scene.cursorWindows.map(w => Math.min(clamp01((lt-w.start)/0.16),clamp01((w.end-lt)/0.2)))) : 1)}
         press={c.press}
         ring={c.ring}
         size={layout.cursorSize}

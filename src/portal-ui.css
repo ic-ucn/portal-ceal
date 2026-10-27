@@ -218,6 +218,20 @@ body.theme-dark .home-campus-frame > img { mix-blend-mode: screen; filter: inver
 .malla-personal-panel > header { display:none; }
 .malla-personal-content { padding:28px 32px 36px; }
 .malla-personal-panel .my-courses-page { max-width:1180px; margin-inline:auto; gap:28px; }
+/* On narrow screens the document owns vertical scrolling. Keeping the whole
+   workspace in a fixed viewport leaves only a sliver of curriculum when the
+   marking controls are open. The sandbox reports its natural content height. */
+@media (max-width:920px) {
+  .app-shell.malla-route { height:auto; min-height:100dvh; overflow:visible; }
+  .app-shell.malla-route .app-main { min-height:0; }
+  .app-shell.malla-route .content.content-mallas {
+    position:static; height:auto !important; overflow:visible !important;
+    padding:8px 8px calc(var(--bottom-nav-h) + 28px + env(safe-area-inset-bottom)) !important;
+  }
+  .malla-workspace, .malla-workspace.is-marking, .malla-workspace.is-personal-open { height:auto; grid-template-rows:none; grid-auto-rows:auto; }
+  .malla-workspace .malla-embed-frame-wrap { height:calc(var(--malla-content-height, 640px) + 2px); min-height:0; }
+  .malla-personal-panel, .malla-personal-content { overflow:visible; }
+}
 .malla-outlook-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 20px; padding:0 4px; }
 .malla-outlook-filters { display:flex; gap:6px; flex-wrap:wrap; }
 .malla-outlook-filters button { border:1px solid transparent; background:transparent; border-radius:5px; min-height:36px; padding:7px 10px; color:var(--text-secondary); font-size:.8rem; cursor:pointer; }

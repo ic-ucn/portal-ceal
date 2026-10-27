@@ -7,7 +7,7 @@
   function skipReception() { try { return localStorage.getItem(SKIP_KEY) === 'yes'; } catch { return false; } }
   function rememberSkip() { try { localStorage.setItem(SKIP_KEY, 'yes'); } catch {} }
   function shell(isDialog) {
-    const content = `<h1 class="sr-only" id="welcome-title">Novedades del portal</h1><div class="news-player" data-guide-root><video class="news-video" controls playsinline muted preload="none" tabindex="0" aria-label="Tutorial del portal con instrucciones en texto"><track kind="captions" srclang="es" label="Español"></video><p class="news-media-error" role="status" hidden>No se pudo cargar el video. Puedes entrar al portal y verlo después.</p></div><div class="reception-actions"><button type="button" class="reception-skip" data-video-skip>Saltar video</button><button type="button" class="reception-dismiss" data-reception-dismiss>No volver a mostrar</button></div>`;
+    const content = `<h1 class="sr-only" id="welcome-title">Novedades del portal</h1><div class="news-player" data-guide-root><video class="news-video" controls playsinline preload="none" tabindex="0" aria-label="Tutorial del portal con instrucciones en texto"><track kind="captions" srclang="es" label="Español"></video><p class="news-media-error" role="status" hidden>No se pudo cargar el video. Puedes entrar al portal y verlo después.</p></div><div class="reception-actions"><button type="button" class="reception-skip" data-video-skip>Saltar video</button><button type="button" class="reception-dismiss" data-reception-dismiss>No volver a mostrar</button></div>`;
     return isDialog ? content : `<div class="portal-reception"><main class="reception-main" id="main-content">${content}</main></div>`;
   }
   class Player {

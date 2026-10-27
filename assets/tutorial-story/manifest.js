@@ -1,273 +1,281 @@
 window.PortalTutorialCapture = Object.freeze({
-  "version": 9,
+  "version": 10,
   "captureMethod": "browser-capture",
   "capturedAt": "2026-10-26",
   "composedAt": "2026-10-26",
   "fps": 30,
   "openCaptions": true,
-  "audio": false,
+  "audio": true,
+  "voice": false,
+  "music": true,
   "formats": {
     "desktop": {
+      "indicators": "cursor",
       "width": 1920,
       "height": 1080,
       "duration": 62,
-      "audio": false,
+      "audio": true,
+      "voice": false,
+      "music": true,
       "steps": [
         {
           "id": "malla",
           "chapter": "malla",
-          "image": "assets/tutorial-silent/desktop/malla-06c9f2597ff5.jpg",
-          "sha256": "06c9f2597ff59ffd7c0bfe6931f6eb96351a336c9bdaf41abfbc714772af9f4c",
-          "sourceImage": "assets/tutorial-silent/sources/desktop-malla-before.png",
+          "image": "assets/tutorial-guided/desktop/malla-fdde083d4642.jpg",
+          "sha256": "fdde083d46420513ce3755b321e085eeb6bb7c7033e9d6a2254cc2b3ba43a421",
+          "sourceImage": "assets/tutorial-guided/sources/desktop-malla-before.png",
           "sourceSha256": "f73c789f69145bb24b30162b33269772906de1f536ae03f39bbd5a909a3c6e22",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 0,
           "end": 6,
-          "caption": "Abre la malla",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Abre la malla"
         },
         {
           "id": "aprobados",
           "chapter": "aprobados",
-          "image": "assets/tutorial-silent/desktop/aprobados-4b7d8af0a9e3.jpg",
+          "image": "assets/tutorial-guided/desktop/aprobados-4b7d8af0a9e3.jpg",
           "sha256": "4b7d8af0a9e3eb22c3d9c411595a32176c7868fa381b8c7dbfc5e473613f6cd4",
-          "sourceImage": "assets/tutorial-silent/sources/desktop-malla-approved.png",
+          "sourceImage": "assets/tutorial-guided/sources/desktop-malla-approved.png",
           "sourceSha256": "15a587968623f0b818634f0b9ea2d15dece575a081186943099bbc53ead7734a",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 6,
           "end": 13,
-          "caption": "Marca aprobados",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Marca aprobados"
         },
         {
           "id": "actuales",
           "chapter": "actuales",
-          "image": "assets/tutorial-silent/desktop/actuales-62e1fb3a8958.jpg",
-          "sha256": "62e1fb3a8958584b829004c9e545842e5e61411d51af4c97ff7e3fab51b24917",
-          "sourceImage": "assets/tutorial-silent/sources/desktop-malla-current.png",
+          "image": "assets/tutorial-guided/desktop/actuales-ba2298a9162f.jpg",
+          "sha256": "ba2298a9162fc3e4ef3c78d1b12872b9671c716bd1c20c384b3ff2797ba39689",
+          "sourceImage": "assets/tutorial-guided/sources/desktop-malla-current.png",
           "sourceSha256": "1294ac81cef19251bbee58e8673f1dc3b7e4a30c97d1fb15b236d1ee266fe8e1",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 13,
           "end": 20,
-          "caption": "Marca actuales",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Marca actuales"
         },
         {
           "id": "ramos",
           "chapter": "ramos",
-          "image": "assets/tutorial-silent/desktop/ramos-87915604a27d.jpg",
-          "sha256": "87915604a27dc5aff6830147030cfcfc029d62cc7322090c2c08cc432c53b023",
+          "image": "assets/tutorial-guided/desktop/ramos-f5558d4e9f2d.jpg",
+          "sha256": "f5558d4e9f2dca93c190c1c5deb8104879854c63ae1b8ce1baeef18a9be8e565",
           "sourceImage": "assets/tutorial-news/captures/desktop-courses.png",
           "sourceSha256": "99b7967ba583d129110b4e4a2d182cd0c458beddc1b6c0c0378d991671113153",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 20,
           "end": 26,
-          "caption": "Mis ramos",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Mis ramos"
         },
         {
           "id": "caminos",
           "chapter": "caminos",
-          "image": "assets/tutorial-silent/desktop/caminos-76e18eae79d0.jpg",
-          "sha256": "76e18eae79d00e3925bfbe3b2baef1bc916675f114277111ff40413518e2e20b",
+          "image": "assets/tutorial-guided/desktop/caminos-f93864f4ad9e.jpg",
+          "sha256": "f93864f4ad9ec733ceb20d20c13edbc1e31fb058b87cd2cdcddfd8a80b0f3752",
           "sourceImage": "assets/tutorial-news/captures/desktop-paths-clean.png",
           "sourceSha256": "19c130333c5b5f7ef052a88dcab58808e2c53facf3e93a27677ed4e65aa53ce8",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 26,
           "end": 34,
-          "caption": "Qué se abre",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Qué se abre"
         },
         {
           "id": "formulario",
           "chapter": "formulario",
-          "image": "assets/tutorial-silent/desktop/formulario-8538e65337ba.jpg",
-          "sha256": "8538e65337bac629a67a8cf33a51250c24a14b984c80fc6c976d6b64170bf98c",
+          "image": "assets/tutorial-guided/desktop/formulario-39154362751a.jpg",
+          "sha256": "39154362751a229ac524600b7848ab3556f8caf65374a94246c3845df8ac08a2",
           "sourceImage": "assets/tutorial-news/captures/desktop-form-clean-linked.png",
           "sourceSha256": "0c38aa16e6f7fab96765b30353188cda6dde6181fd2a146160015bef8e89176c",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 34,
           "end": 46,
-          "caption": "Crea una actividad",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Crea una actividad"
         },
         {
           "id": "guardada",
           "chapter": "guardada",
-          "image": "assets/tutorial-silent/desktop/guardada-96cc012fe66f.jpg",
+          "image": "assets/tutorial-guided/desktop/guardada-96cc012fe66f.jpg",
           "sha256": "96cc012fe66fdcf5b0d7c16bfd1c5ef9b7d0c4db955c28a91ffb0837ddd648b3",
           "sourceImage": "assets/tutorial-news/captures/desktop-week-saved.png",
           "sourceSha256": "a28ec28f1fa52873aa2ca62153e4ad5bfecd9416729254b4529882eb8d8b200e",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 46,
           "end": 51,
-          "caption": "Actividad guardada",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Actividad guardada"
         },
         {
           "id": "inicio",
           "chapter": "inicio",
-          "image": "assets/tutorial-silent/desktop/inicio-fa70578c5f4f.jpg",
-          "sha256": "fa70578c5f4f9a488680f981885665bd010320117519c76849b0cd00e8cb8a4d",
+          "image": "assets/tutorial-guided/desktop/inicio-d3f84373ac6d.jpg",
+          "sha256": "d3f84373ac6d97544192aaccb1f23c7823ba70df3a77e155ec45644ba70280f0",
           "sourceImage": "assets/tutorial-news/captures/desktop-home.png",
           "sourceSha256": "ee2d315510e0a1ec3ca8257f13918019fdfa62ce7bec16f49ea43a1231d00a4b",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 51,
           "end": 56,
-          "caption": "Consulta Inicio",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Consulta Inicio"
         },
         {
           "id": "copia",
           "chapter": "copia",
-          "image": "assets/tutorial-silent/desktop/copia-eec9ad51ba79.jpg",
-          "sha256": "eec9ad51ba79bba16641b193b8ed0b7e21ece7b4263413dd179b757f51d8f6f7",
+          "image": "assets/tutorial-guided/desktop/copia-e27031665cb5.jpg",
+          "sha256": "e27031665cb58c32f7bf5db129a1e6c4cf0e42da5a4d7a46782d786509614156",
           "sourceImage": "assets/tutorial-news/captures/desktop-backup.png",
           "sourceSha256": "ee4f0ba3da121a4997280ab39af2a7057a25a84a4e3a4b15fa17a931c3193a1b",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 56,
           "end": 62,
-          "caption": "Guarda una copia",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Guarda una copia"
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-silent/desktop/guia-sin-audio.mp4?v=51e0fea72b73"
+        "music": "assets/tutorial-guided/desktop/guia-con-musica.mp4?v=7c71832db158"
       },
-      "video": "assets/tutorial-silent/desktop/guia-sin-audio.mp4?v=51e0fea72b73",
-      "poster": "assets/tutorial-silent/desktop/portada-06c9f2597ff5.jpg",
-      "track": "assets/tutorial-silent/desktop/guia.vtt?v=fc88081ded08"
+      "video": "assets/tutorial-guided/desktop/guia-con-musica.mp4?v=7c71832db158",
+      "poster": "assets/tutorial-guided/desktop/portada-2314a5d8209d.jpg",
+      "track": "assets/tutorial-guided/desktop/guia.vtt?v=d0c45a813c9b"
     },
     "mobile": {
+      "indicators": "touch",
       "width": 1080,
       "height": 1920,
       "duration": 62,
-      "audio": false,
+      "audio": true,
+      "voice": false,
+      "music": true,
       "steps": [
         {
           "id": "malla",
           "chapter": "malla",
-          "image": "assets/tutorial-silent/mobile/malla-6210077a0c73.jpg",
-          "sha256": "6210077a0c73d0ee893b7e4f75e02e6fb751b338f6db1f687616a7bf4cca1ad9",
-          "sourceImage": "assets/tutorial-silent/sources/mobile-malla-before.png",
-          "sourceSha256": "2ec7f8ae432567b289a2d32707ce0d2357a07e47cc2799870a756d2e016a3a9e",
+          "image": "assets/tutorial-guided/mobile/malla-b80492d74c41.jpg",
+          "sha256": "b80492d74c4145e3c472fd3c990bcc216a5d647e80f0e9cf9780dfa21473def1",
+          "sourceImage": "assets/tutorial-guided/sources/mobile-malla-marked-top.png",
+          "sourceSha256": "a5a1877bacd38cdca9c6e43edef58b6997586b3f98315f42913096d5caf7ab1e",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 0,
           "end": 6,
-          "caption": "Abre la malla",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Abre la malla"
         },
         {
           "id": "aprobados",
           "chapter": "aprobados",
-          "image": "assets/tutorial-silent/mobile/aprobados-f34902c9e826.jpg",
-          "sha256": "f34902c9e82656f3473d4c8044e2a7ba4f54d12f35379789c5f79f367398bf1b",
-          "sourceImage": "assets/tutorial-silent/sources/mobile-malla-approved.png",
-          "sourceSha256": "85ccf8bde86fd213b5be371f2a71492f7f6ac4a34703761a14ce2992f3589a7d",
+          "image": "assets/tutorial-guided/mobile/aprobados-ae0140dc3a83.jpg",
+          "sha256": "ae0140dc3a830b056571a557153338a6be3d85c3293882450b1b767a178d351d",
+          "sourceImage": "assets/tutorial-guided/sources/mobile-malla-approved.png",
+          "sourceSha256": "b0cfb9764292993d6603eeb92f164fb8ac505c46e1b506a7237603175838e91d",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 6,
           "end": 13,
-          "caption": "Marca aprobados",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Marca aprobados"
         },
         {
           "id": "actuales",
           "chapter": "actuales",
-          "image": "assets/tutorial-silent/mobile/actuales-8e3ae0c577be.jpg",
-          "sha256": "8e3ae0c577be7935939c4ea729135355bb725864b03d4bb9219fde7c2d232d09",
-          "sourceImage": "assets/tutorial-silent/sources/mobile-malla-current.png",
-          "sourceSha256": "5bae441c0c725e7fb1b8823e2589c7bc86ad938d120f8ca9c3266e7345d7ef56",
+          "image": "assets/tutorial-guided/mobile/actuales-f0a3906b02fa.jpg",
+          "sha256": "f0a3906b02fa5fda1d932eaf0399e19e2e624aa1843a7b4d1930e818865ea532",
+          "sourceImage": "assets/tutorial-guided/sources/mobile-malla-current-top.png",
+          "sourceSha256": "80d10f6b410b876dd6bd3465962f5b84030743975384e7740ffbe44333050966",
+          "sourceCaptureMethod": "playwright",
           "sourceCapturedAt": "2026-10-26",
           "start": 13,
           "end": 20,
-          "caption": "Marca actuales",
-          "sourceCaptureMethod": "playwright"
+          "caption": "Marca actuales"
         },
         {
           "id": "ramos",
           "chapter": "ramos",
-          "image": "assets/tutorial-silent/mobile/ramos-e0e354943a09.jpg",
-          "sha256": "e0e354943a0932a942d66136aadd49af0aa71f4f323443fa01160e95f1aff60b",
+          "image": "assets/tutorial-guided/mobile/ramos-5df0a64c7f22.jpg",
+          "sha256": "5df0a64c7f22265c313d873b4de3464f74df5ef096cc4ffaa685acd212ed8c24",
           "sourceImage": "assets/tutorial-news/captures/mobile-courses.png",
           "sourceSha256": "5548cc3166bae9094f0b84dc1e9809d53bc35ebbdaa0195f2c6202c15c6f573d",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 20,
           "end": 26,
-          "caption": "Mis ramos",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Mis ramos"
         },
         {
           "id": "caminos",
           "chapter": "caminos",
-          "image": "assets/tutorial-silent/mobile/caminos-67563f26c669.jpg",
-          "sha256": "67563f26c66919777c36048f801921b5a33d1864d06cd958dbc6bdf2fe3bb5f1",
+          "image": "assets/tutorial-guided/mobile/caminos-95cd219ca15f.jpg",
+          "sha256": "95cd219ca15fa3436b2ce778ddf42c33289e086a72df4b17a94ecb5c9d87a395",
           "sourceImage": "assets/tutorial-news/captures/mobile-paths-clean.png",
           "sourceSha256": "c5265d3a8297d5e950cf22a89f3a235295417cb6028a3a213ef7f1db8cdbf0df",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 26,
           "end": 34,
-          "caption": "Qué se abre",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Qué se abre"
         },
         {
           "id": "formulario",
           "chapter": "formulario",
-          "image": "assets/tutorial-silent/mobile/formulario-efac5737dcec.jpg",
-          "sha256": "efac5737dcec89cee9ceda054a28fafeb3bcf8ce9deb83684c7b68d89fac61d8",
+          "image": "assets/tutorial-guided/mobile/formulario-7e0bba168264.jpg",
+          "sha256": "7e0bba168264720814fef778a3b3bc9c1f07dc0c018d470d221db4d54a4573b9",
           "sourceImage": "assets/tutorial-news/captures/mobile-form-clean-linked.png",
           "sourceSha256": "e18ed0092c46b1640111d84bd04a2e562397ce50ae1b26a553cd6357fd8e515b",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 34,
           "end": 46,
-          "caption": "Crea una actividad",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Crea una actividad"
         },
         {
           "id": "guardada",
           "chapter": "guardada",
-          "image": "assets/tutorial-silent/mobile/guardada-64e800b2a37d.jpg",
+          "image": "assets/tutorial-guided/mobile/guardada-64e800b2a37d.jpg",
           "sha256": "64e800b2a37dd33178da7609b30fd1d02a2069ae8ae2cc3f90d039fd529515f4",
           "sourceImage": "assets/tutorial-news/captures/mobile-week-saved.png",
           "sourceSha256": "dd3aa26d22d3841b07e1654d9352f1250e4776c9e6ee46536d6427cebf0224a0",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 46,
           "end": 51,
-          "caption": "Actividad guardada",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Actividad guardada"
         },
         {
           "id": "inicio",
           "chapter": "inicio",
-          "image": "assets/tutorial-silent/mobile/inicio-ebcd1096c565.jpg",
-          "sha256": "ebcd1096c56581f8e53cfc57195166434affe6a99f3c168ee7a80b9c3a6f055b",
+          "image": "assets/tutorial-guided/mobile/inicio-4454ae09e768.jpg",
+          "sha256": "4454ae09e768fb375896b58a70e29fb81d11e91471d2ec526f125e0cbec5e53c",
           "sourceImage": "assets/tutorial-news/captures/mobile-home.png",
           "sourceSha256": "ad1b8eff420f945ee6d8e4b179dcc1b7332765b41ccc74d623ce4183a4bff3af",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 51,
           "end": 56,
-          "caption": "Consulta Inicio",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Consulta Inicio"
         },
         {
           "id": "copia",
           "chapter": "copia",
-          "image": "assets/tutorial-silent/mobile/copia-3eaea0448027.jpg",
+          "image": "assets/tutorial-guided/mobile/copia-3eaea0448027.jpg",
           "sha256": "3eaea0448027cb0309848988fbed0203aaa6140d2378f7afba8eb408c5c7cb66",
           "sourceImage": "assets/tutorial-news/captures/mobile-backup.png",
           "sourceSha256": "39ab591c5a0a37aa96bce709d965b414474baccddcd04fcfa187910f630f541f",
+          "sourceCaptureMethod": "computer-use",
           "sourceCapturedAt": "2026-10-13",
           "start": 56,
           "end": 62,
-          "caption": "Guarda una copia",
-          "sourceCaptureMethod": "computer-use"
+          "caption": "Guarda una copia"
         }
       ],
       "variants": {
-        "silent": "assets/tutorial-silent/mobile/guia-sin-audio.mp4?v=59a24931f123"
+        "music": "assets/tutorial-guided/mobile/guia-con-musica.mp4?v=ffb6b4f29065"
       },
-      "video": "assets/tutorial-silent/mobile/guia-sin-audio.mp4?v=59a24931f123",
-      "poster": "assets/tutorial-silent/mobile/portada-6210077a0c73.jpg",
-      "track": "assets/tutorial-silent/mobile/guia.vtt?v=fc88081ded08"
+      "video": "assets/tutorial-guided/mobile/guia-con-musica.mp4?v=ffb6b4f29065",
+      "poster": "assets/tutorial-guided/mobile/portada-4fc148df2d6f.jpg",
+      "track": "assets/tutorial-guided/mobile/guia.vtt?v=d0c45a813c9b"
     }
   }
 });

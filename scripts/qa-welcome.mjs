@@ -9,7 +9,9 @@ const configs = production ? [['chromium',1440,900],['chromium',390,844]] : [['c
 const sandbox = {window:{}}; vm.runInNewContext(await readFile('assets/tutorial-story/manifest.js','utf8'),sandbox);
 const manifest = sandbox.window.PortalTutorialCapture;
 assert.equal(manifest.captureMethod,'browser-capture');
-for (const rec of Object.values(manifest.formats)) assert.equal(rec.audio,false,'tutorial contains no audio');
+assert.equal(manifest.voice,false,'tutorial contains no narration');
+assert.equal(manifest.music,true,'tutorial includes the requested instrumental music');
+for (const rec of Object.values(manifest.formats)) assert.equal(rec.audio,true,'tutorial includes its music track');
 for (const rec of Object.values(manifest.formats)) for (const step of rec.steps) {
   assert.equal(createHash('sha256').update(await readFile(step.image)).digest('hex'),step.sha256);
   assert.equal(createHash('sha256').update(await readFile(step.sourceImage)).digest('hex'),step.sourceSha256);
@@ -35,8 +37,8 @@ try {
   const video=page.locator('.portal-reception video');
   assert.equal(await video.evaluate(v=>v.paused&&!v.autoplay),true);
   const recording = manifest.formats[width<=920&&height>width?'mobile':'desktop'];
-  assert.equal(new URL(await video.getAttribute('src'),base).pathname,new URL(recording.video,base).pathname,'player uses the approved silent video');
-  assert.equal(await video.evaluate(v=>v.muted),true);
+  assert.equal(new URL(await video.getAttribute('src'),base).pathname,new URL(recording.video,base).pathname,'player uses the approved instrumental video');
+  assert.equal(await video.evaluate(v=>v.muted),false,'music is audible after the user starts playback');
   assert.equal(await page.evaluate(()=>localStorage.getItem('portal.tutorial.skip')),null);
   await video.press('Enter');
   await page.waitForFunction(()=>{const v=document.querySelector('.portal-reception video');return v&&!v.paused&&v.currentTime>.2;});

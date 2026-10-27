@@ -38,6 +38,7 @@
     "study:preflight": "node scripts/study-preflight.mjs",
     "qa:study-preflight": "node scripts/qa-study-preflight.mjs",
     "qa:malla-states": "node scripts/qa-malla-states.mjs",
+    "qa:mobile-scroll": "node scripts/qa-mobile-scroll.mjs",
     "qa:study-home": "node scripts/qa-study-home.mjs",
     "qa:course-paths": "node scripts/qa-course-paths.mjs",
     "qa:study-persistence": "node scripts/qa-study-persistence.mjs",

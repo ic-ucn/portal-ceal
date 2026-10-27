@@ -1,6 +1,43 @@
 # Tutorial de estudio: compositor reproducible
 
-## Guía silenciosa vigente — 2026-10-26
+## Guía vigente con música e indicadores — 2026-10-26
+
+El manifiesto v10 usa `assets/tutorial-guided/{desktop,mobile}/guia-con-musica.mp4`.
+Conserva los nueve pasos y 62 segundos; añade música instrumental original sin
+voz, cursor en escritorio e indicador de toque en móvil. Los indicadores son
+anotaciones didácticas sobre capturas reales, no una grabación del puntero.
+Las capturas móviles muestran el desplazamiento continuo de la página corregido.
+
+En la raíz, con las dependencias del compositor y su navegador ya instalados:
+
+```powershell
+python scripts/tutorial-motion/build-guide-music.py
+python scripts/tutorial-motion/prepare-guided.py
+node scripts/tutorial-motion/node_modules/typescript/bin/tsc -p scripts/tutorial-motion
+node scripts/tutorial-motion/render-guided.mjs stills
+```
+
+Revisar los fotogramas en `output/release-20261026/tutorial-guided/work/` antes
+de ejecutar `node scripts/tutorial-motion/render-guided.mjs`. Finalizar con
+`python scripts/tutorial-motion/finalize-guided.py`; este paso genera ambos
+MP4 con AAC estéreo, imágenes, subtítulos, hashes y manifiesto. No hay selector
+de versiones en el producto ni variante anterior en el manifiesto vigente.
+
+Las fuentes actuales ya están en `assets/tutorial-guided/sources/`. Solo si
+cambia la interfaz, actualizar sus capturas mediante
+`node scripts/tutorial-motion/capture-guided.mjs`, con la revisión servida en
+127.0.0.1:18116; después deben reajustarse los destinos de los indicadores usando
+las posiciones reales registradas. No sobrescribir las capturas originales.
+
+La música se sintetiza con una partitura determinista de teclado, bajo y
+percusión suave a 93 BPM, sin muestras, servicios externos ni voz. Mezcla medida
+a −23 LUFS. La exportación conserva H264/yuv420p, 30 fps, GOP máximo de un segundo,
+sin B-frames y faststart. Evidencia y revisión independiente en
+`output/release-20261026/tutorial-guided/`. La aprobación estética corresponde a Kevin.
+
+Las secciones siguientes documentan las versiones anteriores.
+
+## Guía silenciosa anterior — 2026-10-26
 
 Montaje de 62 segundos, nueve pasos y dos formatos, sin ninguna pista de audio.
 Usa capturas reales de `assets/tutorial-news/captures/` y recapturas del 2026-10-26
