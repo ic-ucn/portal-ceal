@@ -1,6 +1,6 @@
 # Mi estudio — arquitectura y operación
 
-Estado al **2026-10-26: candidato personal, no publicado**. La decisión del 2026-10-13 mantiene Mis ramos y las incorporaciones posteriores fuera de la web pública hasta un nuevo visto bueno. Esta preparación no autoriza publicar ni desplegar. El alcance y la verificación vigentes están en [Lanzamiento 2026-10-26](LANZAMIENTO_20261026.md).
+Lanzamiento **autorizado por Kevin el 2026-10-26**, tras corregir la estabilidad del video. Esa autorización sustituye la reserva personal del 2026-10-13 para esta versión. El alcance y la verificación vigentes están en [Lanzamiento 2026-10-26](LANZAMIENTO_20261026.md).
 
 El candidato ofrece Inicio personal, Mi semana y Mis ramos sin cuenta, con guardado en el navegador, copias JSON y exportación ICS. La calculadora de notas está retirada de la interfaz; los datos antiguos de notas se conservan como respaldo y no se convierten en actividades. `PORTAL_SIGN_IN_ENABLED` permanece desactivado: la sincronización por cuenta y la conexión directa a Google Calendar descritas abajo son capacidades preparadas, pendientes de configurar y verificar en el entorno de producción. Las pruebas con un proveedor controlado no acreditan esa conexión real. Sin IA ni importación general de calendarios.
 

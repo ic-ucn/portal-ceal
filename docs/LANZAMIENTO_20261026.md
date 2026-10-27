@@ -1,8 +1,8 @@
 # Candidato de lanzamiento — 2026-10-26
 
-Preparación para revisión de Kevin. **Sin publicar**: el sitio público sigue en
-`6ff71e8`, anterior a Mis ramos. El trabajo vive en `codex/novedades-personal`.
-La aprobación del video y la autorización de publicación son decisiones pendientes.
+Kevin autorizó la publicación el 2026-10-26 tras corregir los reinicios e
+interrupciones del reproductor. El candidato se prepara en `codex/novedades-personal`
+y se integra en `main` para el lanzamiento. La referencia pública anterior es `6ff71e8`.
 
 ## Qué incluye respecto al sitio publicado
 
@@ -66,7 +66,7 @@ Resultado de la revisión final:
 - Desplazamiento móvil: 20 escenarios con rueda y gestos táctiles, sin scroll vertical interior.
 - Revisión visual independiente del montaje y reproducción completa desde Chrome.
 
-Antes de publicar se requiere el visto bueno de Kevin. Tras esa autorización:
+Autorización recibida el 2026-10-26. Secuencia de lanzamiento:
 
 1. Confirmar que `origin/main` conserva la referencia revisada y que el candidato
    no contiene cambios posteriores sin verificar. No incluir `.apos`, `.data`,

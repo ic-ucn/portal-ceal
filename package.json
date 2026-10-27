@@ -27,6 +27,7 @@
     "qa:study-tools": "node scripts/qa-study-tools.mjs",
     "qa:interactions": "node scripts/qa-interactions.mjs",
     "qa:welcome": "node scripts/qa-welcome.mjs",
+    "qa:video-stability": "node scripts/qa-video-stability.mjs",
     "tutorial:audio": "python scripts/build-portal-tutorial.py --audio",
     "tutorial:capture": "node scripts/capture-portal-tutorial.mjs",
     "tutorial:compose": "python scripts/build-portal-tutorial.py --compose",
