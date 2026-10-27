@@ -17,6 +17,8 @@ La aprobación del video y la autorización de publicación son decisiones pendi
 - Plazos UCN de varios días agrupados con rango y fuente.
 - Tutorial visual sin voz, horizontal y vertical, con instrucciones inferiores,
   música instrumental discreta, cursor en escritorio e indicador de toque en móvil.
+  Presenta Mis ramos/Material, Qué se abre, Mi semana, plazos UCN e Inicio;
+  el marcado ocupa 13 segundos y no hay sección de copias de respaldo.
   Conserva Saltar video y No volver a mostrar. La preferencia anterior se respeta.
 - Protección del servidor para impedir descargar archivos internos por rutas estáticas.
 
@@ -28,18 +30,18 @@ desactivados. Este lanzamiento usa guardado en el navegador y copias descargable
 
 Abrir en este equipo:
 
-- Tutorial: <http://127.0.0.1:18116/?static=1&analytics=off&review=20261026guided1#/bienvenida>
-- Portal: <http://127.0.0.1:18116/?static=1&analytics=off&review=20261026guided1#/inicio>
+- Tutorial: <http://127.0.0.1:18116/?static=1&analytics=off&review=20261026complete1#/bienvenida>
+- Portal: <http://127.0.0.1:18116/?static=1&analytics=off&review=20261026complete1#/inicio>
 
 Videos de 62 segundos:
-`assets/tutorial-guided/desktop/guia-con-musica.mp4` y
-`assets/tutorial-guided/mobile/guia-con-musica.mp4`.
+`assets/tutorial-complete/desktop/guia-con-musica.mp4` y
+`assets/tutorial-complete/mobile/guia-con-musica.mp4`.
 
 Si el servidor de revisión terminó, iniciarlo desde la carpeta del proyecto con
 `python -m http.server 18116 --bind 127.0.0.1`. Ese servidor sirve la revisión;
 no es el servicio operativo ni debe exponerse a Internet.
 
-Resultados y capturas de esta revisión: `output/release-20261026/tutorial-guided/`
+Resultados y capturas de esta revisión: `output/release-20261026/tutorial-complete/`
 y `output/release-20261026/mobile-scroll/`.
 La comprobación de cinco archivos públicos contra `main` dio HTTP 200 y hashes
 idénticos; referencia remota confirmada con `git ls-remote`.
@@ -47,7 +49,7 @@ idénticos; referencia remota confirmada con `git ls-remote`.
 ## Verificación y publicación
 
 La matriz detallada de pruebas está en
-`output/release-20261026/tutorial-guided/qa/QA-SUMMARY.md`. Las comprobaciones de archivos y video
+`output/release-20261026/tutorial-complete/qa/QA-SUMMARY.md`. Las comprobaciones de archivos y video
 están junto a la evidencia audiovisual. No se atribuye aprobación estética a
 las pruebas automáticas.
 

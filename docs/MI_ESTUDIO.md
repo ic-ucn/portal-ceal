@@ -111,13 +111,15 @@ Fuentes: [permisos Calendar](https://developers.google.com/workspace/calendar/ap
 
 ## Video del candidato del 2026-10-26
 
-El candidato usa `assets/tutorial-story/manifest.js`, versión 10, para el recorrido de 62 segundos en escritorio y móvil. Ambos videos incorporan música instrumental sin voz y texto explicativo en pantalla. Un puntero de mouse en escritorio y una indicación de toque en móvil señalan las acciones. El reproductor usa el archivo indicado por el manifiesto y no inicia automáticamente; la música comienza al reproducir por decisión del usuario.
+El candidato usa `assets/tutorial-story/manifest.js`, versión 11, para el recorrido de 62 segundos en escritorio y móvil. Presenta desde el inicio Mis ramos, Material, Qué se abre y Mi semana. El marcado se abrevia a 13 segundos; después muestra recursos reales de Mecánica de Suelos 1, creación/edición/completado de actividades, plazos UCN con rango y fuente, e Inicio. Las copias de respaldo no aparecen en el video; la función sigue disponible en el producto.
+
+Ambos videos incorporan música instrumental sin voz y texto explicativo en pantalla. Un puntero de mouse en escritorio y una indicación de toque en móvil señalan las acciones. El reproductor usa el archivo indicado por el manifiesto y no inicia automáticamente; la música comienza al reproducir por decisión del usuario.
 
 En móvil, la página usa un solo desplazamiento vertical para recorrer la malla. El marco adapta su altura al contenido y los controles permanecen en el mismo recorrido, sin exigir un segundo scroll dentro de la malla.
 
 La bienvenida ofrece Saltar video y No volver a mostrar. Saltar conserva la posibilidad de verlo en una próxima entrada; la segunda opción guarda la preferencia en este navegador. El final natural de la bienvenida abre Inicio. Reabrir el video desde otra sección conserva esa sección al terminar o cerrar. Los enlaces directos abren su destino sin interponer la bienvenida.
 
-La revisión del reproductor pasó con los archivos finales de la versión 10 en Chromium de escritorio, teléfono y orientación horizontal, más WebKit y Firefox móvil: ocho casos, sin errores. Comprobó la fuente exacta del manifiesto, música habilitada, ausencia de narración declarada, hashes de capturas, movimiento reducido, pausa al ocultar la página, cambio de tamaño sin perder posición y salida ante un medio fallido. La integridad del archivo, la pista musical y los objetivos de los indicadores tienen una revisión dedicada; estas pruebas de reproducción no constituyen una evaluación subjetiva de escucha. Estas comprobaciones verifican el candidato y no publican los archivos.
+La revisión del reproductor pasó con los archivos finales de la versión 11 en Chromium de escritorio, emulación de teléfono y orientación horizontal, más WebKit y Firefox móvil: ocho casos, sin errores. Comprobó la fuente exacta del manifiesto, música habilitada, ausencia de narración declarada, hashes de capturas, movimiento reducido, pausa al ocultar la página, cambio de tamaño sin perder posición y salida ante un medio fallido. La integridad del archivo, la pista musical y los objetivos de los indicadores tienen una revisión dedicada; estas pruebas de reproducción no constituyen una evaluación subjetiva de escucha. Estas comprobaciones verifican el candidato y no publican los archivos.
 
 ## Historial de guías anteriores
 

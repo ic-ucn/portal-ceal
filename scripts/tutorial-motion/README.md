@@ -1,6 +1,31 @@
 # Tutorial de estudio: compositor reproducible
 
-## Guía vigente con música e indicadores — 2026-10-26
+## Guía vigente de todas las novedades — 2026-10-26
+
+El manifiesto v11 usa `assets/tutorial-complete/{desktop,mobile}/guia-con-musica.mp4`.
+Son diez escenas en 62 segundos: presentación de las herramientas, marcado
+abreviado, Mis ramos y Material, Qué se abre, creación/edición/completado de una
+actividad, plazos UCN con su rango y fuente, e Inicio. No incluye copias de respaldo.
+Conserva la música original sin voz y los indicadores de mouse/toque.
+
+Material se demuestra desde Mecánica de Suelos 1 con sus cinco recursos reales.
+La edición abre el formulario real y completar muestra el resultado completado.
+Las capturas nuevas están en `assets/tutorial-complete/sources/`; su procedencia
+se determina comparando los hashes con las fuentes originales, sin alterar estas.
+
+Desde la raíz, con la revisión servida en 127.0.0.1:18116 y las dependencias
+del compositor instaladas, `python scripts/tutorial-motion/prepare-complete.py`
+prepara los props y las fuentes. Genera los props base de v10 si no existen;
+no necesita renderizar esa versión. Para actualizar las capturas de demostración,
+usar `node scripts/tutorial-motion/capture-complete.mjs` en contextos aislados
+y volver a comprobar posiciones de los indicadores.
+
+Revisar `node scripts/tutorial-motion/render-complete.mjs stills` antes de
+exportar con `node scripts/tutorial-motion/render-complete.mjs`. Finalizar con
+`python scripts/tutorial-motion/finalize-complete.py`. La evidencia de esta
+revisión está en `output/release-20261026/tutorial-complete/`.
+
+## Guía anterior con música e indicadores — 2026-10-26
 
 El manifiesto v10 usa `assets/tutorial-guided/{desktop,mobile}/guia-con-musica.mp4`.
 Conserva los nueve pasos y 62 segundos; añade música instrumental original sin
